@@ -22,19 +22,40 @@ SIM train  ──▶  ONNX export  ──▶  ROS 2 deploy  ──▶  GO2 hardw
 
 ## Current results (2026-04-14)
 
-| Stage | Policy | Mean return | Success rate | Eval episodes |
+### Baseline training — 500 iters, rough terrain
+
+| Policy | Terrain | Mean return | Success | Episodes |
 |---|---|---:|---:|---:|
-| Early training | `model_100.pt` | 14.22 | 81.2% | 16 |
-| End of run     | `model_499.pt` | **18.95** | **100%** | 16 |
+| `model_100.pt` (early) | rough     | 14.22 | 81.2% | 16 |
+| `model_499.pt` (final) | rough     | **18.95** | **100%** | 16 |
+
+### Fine-tune adaptation — 200 iters, warm-started from baseline
+
+| Policy | Terrain | Mean return | Success | Episodes |
+|---|---|---:|---:|---:|
+| `phoenix-base/latest.pt`  | slippery | 15.90 | 90.6%  | 64 |
+| `phoenix-adapt/latest.pt` | slippery | **16.64** | **100%** | 64 |
+| `phoenix-adapt/latest.pt` | rough    | 17.56 | 96.9% | 64 |
+
+Baseline gets rough right (100%) but slips on slippery (90.6%). The
+adapted policy trades ~3 pp of rough-terrain success for closing the
+entire slip gap on slippery terrain — 100% success, +0.74 in return.
+Exactly the shape of improvement the Phoenix loop is designed to
+produce.
+
+### Sim-to-sim artifacts
 
 * 500-iter PPO baseline trained on `Isaac-Velocity-Rough-Unitree-Go2-v0`,
-  4096 parallel envs, RTX 5070, ~28 min wall time.
+  4096 parallel envs, RTX 5070, ~28 min wall time; 200-iter fine-tune
+  adds ~11 min.
 * ONNX export passes parity check (max torch↔onnxruntime abs-diff 2.98e-6).
 * Failure parquet synthesizer produces 200-step rollouts with
   attitude/collapse/slip flags; replay reconstruction runs N perturbed
   variations from the logged initial state.
-* Side-by-side demo video: [`media/side_by_side.mp4`](media/side_by_side.mp4)
-  (SIM baseline | REAL placeholder | SIM trained).
+* Side-by-side demo videos:
+  [`media/side_by_side.mp4`](media/side_by_side.mp4) (training progress)
+  and [`media/side_by_side_adapt.mp4`](media/side_by_side_adapt.mp4)
+  (baseline on slippery | baseline on rough | adapted on slippery).
 
 ---
 
@@ -133,22 +154,29 @@ overrides land on the right event terms — run them locally with
 ## Known limitations
 
 v0.1 has the full Phoenix-loop *architecture* in place and validated
-end-to-end in sim, but a couple of pieces are left for v0.2:
+end-to-end in sim, including a measurable fine-tune improvement on
+the slippery-terrain regime. What's still left for v0.2:
 
-* **Failure-curriculum warm-start from baseline.** rsl_rl 3.0's
-  `OnPolicyRunner.load(load_cfg=...)` doesn't round-trip the learned
-  exploration std or the empirical obs normalizer state on its own.
-  Fine-tuning from a trained baseline currently starts the policy from
-  a near-random regime; `configs/train/adaptation.yaml` has
-  `failure_sample_fraction: 0.0` by default as a result. The
-  `reset_bridge` infrastructure that teleports selected envs to
-  parquet-logged initial states is in place (with pos-relative-to-env-
-  origin and xyzw→wxyz conversion) and unit-tested.
 * **Real-robot deployment.** `sim2real.ros2_policy_node` runs but has
   not been exercised against a live GO2 this cycle. The baseline
   policy observes 235 dims (includes rough-terrain height scan); the
   sim2real pipeline will need a real height-scan source or a flat-task
   variant for genuine deployment.
+* **Failure-parquet-driven curriculum.** The `reset_bridge` that
+  re-seeds selected envs from real failure parquets is wired (env-
+  origin-relative poses, xyzw→wxyz quat conversion) but
+  `failure_sample_fraction` ships at `0.0` because we do not yet have
+  a hardware-captured parquet to avoid contaminating the adapt run
+  with synthesized failures. It is an opt-in knob once real GO2
+  failures are recorded — see `data/failures/README.md`.
+* **rsl_rl 3.0 iter-0 logging artifact.** Fine-tune from a trained
+  baseline now uses `init_at_random_ep_len=False`; without that,
+  `runner.learn` emits iter-0 "mean reward ≈ 0" even with byte-exact
+  warm-start, because only envs whose pre-seeded episode length is
+  near `max_episode_length` actually terminate inside the 24-step
+  first rollout. See
+  [`docs/adapt_load_debug.md`](docs/adapt_load_debug.md) for the
+  diagnostic trail.
 
 ---
 

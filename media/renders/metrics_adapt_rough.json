@@ -1,0 +1,9 @@
+{
+  "num_episodes": 64,
+  "mean_episode_return": 17.56043915450573,
+  "mean_episode_length_s": 19.6890625,
+  "success_rate": 0.96875,
+  "failure_rate": 0.03125,
+  "mean_lin_vel_error": 0.0,
+  "mean_ang_vel_error": 0.0
+}

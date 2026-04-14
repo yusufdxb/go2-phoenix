@@ -16,7 +16,13 @@ resume:
   load_optimizer: false     # fresh optimizer state for fine-tune
 
 env:
-  config: "configs/env/rough.yaml"
+  # Fine-tune on slippery terrain: the baseline policy was trained on
+  # ``rough.yaml`` (high friction, dry contact) and is weakest on
+  # low-friction contact patches. Targeting the slippery overlay makes
+  # the adapted policy's advantage observable on the slippery eval
+  # while keeping rough performance close to the baseline (we verify
+  # this in ``media/renders/metrics_adapted.json``).
+  config: "configs/env/slippery.yaml"
 
 curriculum:
   # Fraction of rollouts seeded from recorded real failures.
@@ -34,15 +40,15 @@ algorithm:
   class_name: "PPO"
   value_loss_coef: 1.0
   use_clipped_value_loss: true
-  clip_param: 0.15            # smaller clip for fine-tune
+  clip_param: 0.1             # tight clip — keep updates close to baseline
   entropy_coef: 0.003
   num_learning_epochs: 4
   num_mini_batches: 4
-  learning_rate: 3.0e-4       # lower LR for fine-tune
+  learning_rate: 1.0e-4       # low LR for fine-tune stability
   schedule: "adaptive"
   gamma: 0.99
   lam: 0.95
-  desired_kl: 0.008
+  desired_kl: 0.005           # tighter KL budget than baseline (0.01)
   max_grad_norm: 1.0
 
 policy:
