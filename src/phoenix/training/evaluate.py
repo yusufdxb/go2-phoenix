@@ -94,8 +94,53 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)
 
-    # Minimal runner cfg — we only use it to load the policy.
-    runner = OnPolicyRunner(env, _minimal_runner_cfg(args.device), log_dir=None, device=args.device)
+    # Use the upstream rsl_rl cfg to stay compatible with whatever version
+    # of rsl_rl is installed (actor/critic cfg shape changed in 3.0).
+    import importlib.metadata as metadata
+
+    import yaml  # noqa: E402
+    from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg
+
+    from phoenix.training.agent_cfg import build_runner_cfg
+
+    eval_yaml = {
+        "run": {
+            "name": "eval",
+            "output_dir": "/tmp",
+            "log_interval": 1,
+            "save_interval": 1,
+            "max_iterations": 1,
+            "seed": args.seed,
+            "device": args.device,
+        },
+        "algorithm": {
+            "class_name": "PPO",
+            "value_loss_coef": 1.0,
+            "use_clipped_value_loss": True,
+            "clip_param": 0.2,
+            "entropy_coef": 0.005,
+            "num_learning_epochs": 5,
+            "num_mini_batches": 4,
+            "learning_rate": 1.0e-3,
+            "schedule": "adaptive",
+            "gamma": 0.99,
+            "lam": 0.95,
+            "desired_kl": 0.01,
+            "max_grad_norm": 1.0,
+        },
+        "policy": {
+            "class_name": "ActorCritic",
+            "init_noise_std": 1.0,
+            "actor_hidden_dims": [512, 256, 128],
+            "critic_hidden_dims": [512, 256, 128],
+            "activation": "elu",
+        },
+        "runner": {"num_steps_per_env": 24, "empirical_normalization": True},
+    }
+    _ = yaml  # quiet unused-import warning (yaml reserved for future config loading)
+    runner_cfg = build_runner_cfg(eval_yaml, task_name)
+    runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))
+    runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=None, device=args.device)
     runner.load(str(args.checkpoint), load_optimizer=False)
     policy = runner.get_inference_policy(device=args.device)
 
@@ -166,41 +211,6 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     env.close()
     return 0
-
-
-def _minimal_runner_cfg(device: str) -> dict:
-    """The smallest dict OnPolicyRunner accepts for inference-only use."""
-    return {
-        "seed": 0,
-        "device": device,
-        "num_steps_per_env": 24,
-        "max_iterations": 1,
-        "save_interval": 1,
-        "experiment_name": "eval",
-        "empirical_normalization": True,
-        "policy": {
-            "class_name": "ActorCritic",
-            "init_noise_std": 1.0,
-            "actor_hidden_dims": [512, 256, 128],
-            "critic_hidden_dims": [512, 256, 128],
-            "activation": "elu",
-        },
-        "algorithm": {
-            "class_name": "PPO",
-            "value_loss_coef": 1.0,
-            "use_clipped_value_loss": True,
-            "clip_param": 0.2,
-            "entropy_coef": 0.005,
-            "num_learning_epochs": 5,
-            "num_mini_batches": 4,
-            "learning_rate": 1.0e-3,
-            "schedule": "adaptive",
-            "gamma": 0.99,
-            "lam": 0.95,
-            "desired_kl": 0.01,
-            "max_grad_norm": 1.0,
-        },
-    }
 
 
 if __name__ == "__main__":

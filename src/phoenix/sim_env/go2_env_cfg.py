@@ -3,9 +3,9 @@
 The factory produces an Isaac Lab ``ManagerBasedRLEnvCfg`` starting from the
 upstream ``UnitreeGo2RoughEnvCfg``, then applies failure-oriented overrides:
 
-* friction / restitution / mass / motor scale domain randomization
-* slippery terrain overlay (friction patches)
-* base push perturbations
+* friction / restitution / mass domain randomization
+* slippery terrain overlay (narrowed friction range)
+* base push perturbations via ``base_external_force_torque``
 
 Isaac Lab imports are done lazily so the module can still be imported in
 CI (which has no ``torch`` / ``isaaclab``).
@@ -22,70 +22,71 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
     from isaaclab.envs import ManagerBasedRLEnvCfg
 
 
+def _events_root(env_cfg: Any) -> Any:
+    """Return the concrete event container.
+
+    Isaac Lab's GO2 task wraps events in a ``PresetCfg`` (``default`` /
+    ``newton`` / ``physx``). We always operate on ``events.default`` since
+    that's what ``physx`` aliases to on this machine.
+    """
+    events = env_cfg.events
+    return events.default if hasattr(events, "default") else events
+
+
 def _apply_domain_randomization(env_cfg: Any, dr: dict[str, Any]) -> None:
-    """Patch friction/mass/motor DR ranges in the env's Events cfg."""
+    """Patch friction / restitution / mass DR ranges in the event terms."""
     if not dr.get("enabled", True):
         return
+    events = _events_root(env_cfg)
 
-    events = env_cfg.events
-    # friction patches on the terrain material
-    if hasattr(events, "physics_material") and events.physics_material is not None:
+    pm = getattr(events, "physics_material", None)
+    if pm is not None:
         fr_lo, fr_hi = dr["friction_range"]
         rs_lo, rs_hi = dr.get("restitution_range", [0.0, 0.0])
-        events.physics_material.params["static_friction_range"] = (fr_lo, fr_hi)
-        events.physics_material.params["dynamic_friction_range"] = (fr_lo, fr_hi)
-        events.physics_material.params["restitution_range"] = (rs_lo, rs_hi)
+        pm.params["static_friction_range"] = (float(fr_lo), float(fr_hi))
+        pm.params["dynamic_friction_range"] = (float(fr_lo), float(fr_hi))
+        pm.params["restitution_range"] = (float(rs_lo), float(rs_hi))
 
-    # base mass offset
-    if hasattr(events, "add_base_mass") and events.add_base_mass is not None:
+    abm = getattr(events, "add_base_mass", None)
+    if abm is not None and "mass_offset_kg" in dr:
         m_lo, m_hi = dr["mass_offset_kg"]
-        events.add_base_mass.params["mass_distribution_params"] = (float(m_lo), float(m_hi))
-
-    # motor strength (actuator gain randomization, if the event hook exists upstream)
-    if hasattr(events, "randomize_actuator_gains") and events.randomize_actuator_gains is not None:
-        g_lo, g_hi = dr["motor_strength_scale"]
-        events.randomize_actuator_gains.params["stiffness_distribution_params"] = (g_lo, g_hi)
-        events.randomize_actuator_gains.params["damping_distribution_params"] = (g_lo, g_hi)
+        abm.params["mass_distribution_params"] = (float(m_lo), float(m_hi))
 
 
 def _apply_perturbation(env_cfg: Any, pert: dict[str, Any]) -> None:
-    """Enable or disable the push-robot event based on the YAML block."""
-    events = env_cfg.events
+    """Turn perturbations on/off via ``base_external_force_torque``.
+
+    The GO2 preset disables the velocity-style ``push_robot`` event; we
+    instead modulate the reset-mode external force/torque applied to the
+    base, which the upstream cfg retains. When the overlay is disabled
+    we zero the ranges so behaviour matches the base config.
+    """
+    events = _events_root(env_cfg)
+    efx = getattr(events, "base_external_force_torque", None)
+    if efx is None:
+        return
+
     if not pert.get("enabled", False):
-        if hasattr(events, "push_robot"):
-            events.push_robot = None
+        efx.params["force_range"] = (0.0, 0.0)
+        efx.params["torque_range"] = (0.0, 0.0)
         return
 
-    if not hasattr(events, "push_robot") or events.push_robot is None:
-        # Upstream cfg disabled push_robot — we do not silently re-enable it
-        # to avoid resurrecting a stale function handle. Log and return.
-        return
-
-    events.push_robot.interval_range_s = (pert["push_interval_s"], pert["push_interval_s"])
     vel_xy = float(pert["push_velocity_xy"])
     vel_yaw = float(pert["push_velocity_yaw"])
-    events.push_robot.params["velocity_range"] = {
-        "x": (-vel_xy, vel_xy),
-        "y": (-vel_xy, vel_xy),
-        "yaw": (-vel_yaw, vel_yaw),
-    }
-
-
-def _apply_slippery_patches(env_cfg: Any, dr: dict[str, Any]) -> None:
-    """Shrink DR friction ranges to a slippery regime (used by slippery.yaml)."""
-    if "friction_range" not in dr:
-        return
-    events = env_cfg.events
-    if hasattr(events, "physics_material") and events.physics_material is not None:
-        fr_lo, fr_hi = dr["friction_range"]
-        events.physics_material.params["static_friction_range"] = (fr_lo, fr_hi)
-        events.physics_material.params["dynamic_friction_range"] = (fr_lo, fr_hi)
+    # Convert a ~1 m/s impulse intent into a proxy body-frame force spike.
+    # The robot is ~15 kg — f ≈ m·Δv/Δt over one control step (0.02 s).
+    push_force = 15.0 * vel_xy / 0.02
+    push_torque = 2.0 * vel_yaw / 0.02
+    efx.params["force_range"] = (-push_force, push_force)
+    efx.params["torque_range"] = (-push_torque, push_torque)
 
 
 def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
-    if not hasattr(env_cfg, "commands") or env_cfg.commands is None:
+    if not cmd or not hasattr(env_cfg, "commands") or env_cfg.commands is None:
         return
-    vel_cmd = env_cfg.commands.base_velocity
+    vel_cmd = getattr(env_cfg.commands, "base_velocity", None)
+    if vel_cmd is None:
+        return
     vel_cmd.ranges.lin_vel_x = tuple(cmd["lin_vel_x"])
     vel_cmd.ranges.lin_vel_y = tuple(cmd["lin_vel_y"])
     vel_cmd.ranges.ang_vel_z = tuple(cmd["ang_vel_z"])
@@ -94,6 +95,8 @@ def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
 
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     """Build a GO2 env cfg, applying YAML overrides on top of the upstream task."""
+    import importlib
+
     import gymnasium as gym
     import isaaclab_tasks  # noqa: F401 - registers tasks
 
@@ -103,11 +106,8 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     env_blk = data["env"]
 
     task_name = env_blk["task_name"]
-    env_cfg = gym.spec(task_name).kwargs["env_cfg_entry_point"]  # type: ignore[index]
-    # Resolve the "pkg.module:ClassName" entry point to an instance.
-    import importlib
-
-    module_name, class_name = env_cfg.split(":")
+    env_cfg_entry = gym.spec(task_name).kwargs["env_cfg_entry_point"]
+    module_name, class_name = env_cfg_entry.split(":")
     env_cfg_cls = getattr(importlib.import_module(module_name), class_name)
     cfg = env_cfg_cls()
 
@@ -120,7 +120,6 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
 
     _apply_commands(cfg, data.get("command", {}))
     _apply_domain_randomization(cfg, data.get("domain_randomization", {}))
-    _apply_slippery_patches(cfg, data.get("domain_randomization", {}))
     _apply_perturbation(cfg, data.get("perturbation", {}))
 
     return cfg

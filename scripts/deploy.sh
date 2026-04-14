@@ -10,6 +10,9 @@ CKPT="${1:?checkpoint path required}"
 CONFIG="${2:-configs/sim2real/deploy.yaml}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/_activate.sh"
 cd "$REPO_ROOT"
 
 # --- 1) Export ONNX (must run in Isaac Lab python context so torch is present)

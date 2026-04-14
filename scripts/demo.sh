@@ -14,6 +14,9 @@ ADAPTED="${2:-checkpoints/phoenix-adapt/latest.pt}"
 REAL_CLIP="${3:-media/real_placeholder.mp4}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/_activate.sh"
 cd "$REPO_ROOT"
 
 mkdir -p media/renders

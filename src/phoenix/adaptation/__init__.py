@@ -13,3 +13,10 @@ failure trajectories (replayed in sim with perturbed physics).
 from .curriculum import FailureCurriculum, TrajectoryPool
 
 __all__ = ["FailureCurriculum", "TrajectoryPool"]
+
+
+def install_reset_bridge(env, curriculum):  # pragma: no cover - requires Isaac Lab
+    """Install the curriculum reset bridge on ``env`` (requires torch + Isaac Lab)."""
+    from .reset_bridge import install
+
+    install(env, curriculum)

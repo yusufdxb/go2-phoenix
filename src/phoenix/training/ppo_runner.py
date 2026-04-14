@@ -50,13 +50,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", force=True)
     args = parse_args(argv)
+    logger.info("parsed args: %s", args)
 
     # Launch Isaac Sim's AppLauncher *before* importing anything from isaaclab.
     from isaaclab.app import AppLauncher
 
     app_launcher = AppLauncher(headless=args.headless)
     simulation_app = app_launcher.app
+    logger.info("Isaac Sim launched")
 
     try:
         return _run(args, simulation_app)
@@ -65,8 +68,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
+    import importlib.metadata as metadata
+
     import gymnasium as gym
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
     from omegaconf import OmegaConf
     from rsl_rl.runners import OnPolicyRunner
 
@@ -114,13 +119,19 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     shutil.copy(env_cfg_path, log_dir / "env.yaml")
 
     # ---- Create env + runner -----------------------------------------------
+    print("[phoenix] before gym.make", flush=True)
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
+    print("[phoenix] after gym.make, wrapping", flush=True)
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)
+    print("[phoenix] wrapped; building runner cfg", flush=True)
 
-    runner_cfg = build_runner_cfg(train_cfg)
+    runner_cfg = build_runner_cfg(train_cfg, task_name)
+    runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))
+    print("[phoenix] creating OnPolicyRunner", flush=True)
     runner = OnPolicyRunner(
         env, runner_cfg.to_dict(), log_dir=str(log_dir), device=runner_cfg.device
     )
+    print("[phoenix] runner ready", flush=True)
 
     if args.resume is not None:
         logger.info("Resuming from checkpoint: %s", args.resume)

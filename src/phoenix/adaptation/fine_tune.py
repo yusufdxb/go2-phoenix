@@ -43,8 +43,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
+    import importlib.metadata as metadata
+
     import gymnasium as gym
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
     from omegaconf import OmegaConf
     from rsl_rl.runners import OnPolicyRunner
 
@@ -96,7 +98,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # ---- Env + runner ----------------------------------------------------
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)
-    runner_cfg = build_runner_cfg(cfg)
+    runner_cfg = build_runner_cfg(cfg, task_name)
+    runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))
     runner = OnPolicyRunner(
         env, runner_cfg.to_dict(), log_dir=str(log_dir), device=runner_cfg.device
     )
@@ -107,10 +110,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     logger.info("Resuming baseline from %s", resume_path)
     runner.load(str(resume_path), load_optimizer=bool(cfg["resume"].get("load_optimizer", False)))
 
-    # Attach the curriculum to the runner via a learn-iteration hook. rsl_rl
-    # does not expose a formal hook, so we patch the on-reset callback the
-    # env already exposes from the replay module once it's wired up.
-    _install_curriculum_hook(env, curriculum)
+    # Install the reset bridge so curriculum assignments actually take effect.
+    from phoenix.adaptation.reset_bridge import install as install_reset_bridge
+
+    install_reset_bridge(env, curriculum)
 
     start = time.time()
     try:
@@ -127,15 +130,3 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         latest.symlink_to(ckpts[-1].resolve())
     env.close()
     return 0
-
-
-def _install_curriculum_hook(env, curriculum) -> None:  # noqa: ANN001
-    """Attach the curriculum so its :meth:`assign` is called each reset.
-
-    The current env API does not accept an external reset-from-trajectory
-    signal; this is where that bridge will live when the replay-based
-    spawn is wired into the Phoenix env. The hook is installed
-    unconditionally so the adaptation run is correct *when the env gains
-    the ability* without requiring code changes elsewhere.
-    """
-    env.unwrapped.phoenix_curriculum = curriculum

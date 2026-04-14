@@ -21,6 +21,9 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/_activate.sh"
+
 echo "[train.sh] Repo root       : $REPO_ROOT"
 echo "[train.sh] Isaac Lab       : $ISAACLAB_PATH"
 echo "[train.sh] Config          : $CONFIG"
@@ -33,3 +36,4 @@ PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" \
     -m phoenix.training.ppo_runner \
     --config "$CONFIG" \
     "$@"
+
