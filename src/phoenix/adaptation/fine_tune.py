@@ -117,25 +117,55 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         raise FileNotFoundError(f"Baseline checkpoint not found: {resume_path}")
     print(f"[adapt] Resuming baseline from {resume_path}", flush=True)
     load_optim = bool(cfg["resume"].get("load_optimizer", False))
-    # load everything when warm-starting; a fine-tune benefits from the
-    # optimizer's momentum state too. Caller can opt out via load_optimizer=false
-    # in the YAML by explicitly listing only actor/critic/iteration.
-    load_cfg = (
-        None
-        if load_optim
-        else {"actor": True, "critic": True, "iteration": False, "optimizer": False}
+
+    # Use the Phoenix helper so we *verify* what actually round-tripped
+    # (actor weights, the learned Gaussian ``std_param``, and the empirical
+    # obs normalizer buffers if present). rsl_rl 3.x's
+    # ``OnPolicyRunner.load`` is silent on partial matches when
+    # ``strict=False`` — the helper re-reads the checkpoint and confirms
+    # the live modules match bit-for-bit, raising if not.
+    from phoenix.training.checkpoint import load_runner_checkpoint
+
+    ckpt_info = load_runner_checkpoint(
+        runner,
+        resume_path,
+        load_actor=True,
+        load_critic=True,
+        load_optimizer=load_optim,
+        load_iteration=False,
     )
-    runner.load(str(resume_path), load_cfg=load_cfg, strict=False)
-    print("[adapt] Baseline loaded.", flush=True)
+    if not ckpt_info.get("actor_match", False):
+        raise RuntimeError(
+            f"Actor weights did not round-trip from {resume_path}: "
+            f"mismatched_keys={ckpt_info.get('actor_mismatched_keys')} "
+            f"ckpt_only={ckpt_info.get('actor_ckpt_only_keys')} "
+            f"live_only={ckpt_info.get('actor_live_only_keys')}"
+        )
+    std_mean = ckpt_info.get("actor_std_mean")
+    print(
+        f"[adapt] Baseline loaded at iter={ckpt_info.get('iter')} "
+        f"std_mean={std_mean:.3f} "
+        f"obs_norm_in_ckpt={ckpt_info.get('actor_obs_normalizer_in_ckpt')}",
+        flush=True,
+    )
 
     # Install the reset bridge so curriculum assignments actually take effect.
     from phoenix.adaptation.reset_bridge import install as install_reset_bridge
 
     install_reset_bridge(env, curriculum)
 
+    # Why ``init_at_random_ep_len=False`` when warm-starting: rsl_rl's
+    # Logger only contributes reward values to ``rewbuffer`` when an
+    # episode *terminates*. With random initial episode lengths most
+    # envs time-out within the first 24-step rollout and contribute an
+    # artificially low partial reward, which misleadingly looks like the
+    # loaded policy forgot how to walk (see ``docs/adapt_load_debug.md``).
+    # Starting at step 0 for every env means the metrics in iteration 0
+    # reflect the actual warm-started behaviour rather than a truncated
+    # window artifact.
     start = time.time()
     try:
-        runner.learn(num_learning_iterations=runner_cfg.max_iterations, init_at_random_ep_len=True)
+        runner.learn(num_learning_iterations=runner_cfg.max_iterations, init_at_random_ep_len=False)
     except KeyboardInterrupt:
         logger.warning("Interrupted — writing final checkpoint.")
     logger.info("Adaptation wall-time: %.1fs", time.time() - start)

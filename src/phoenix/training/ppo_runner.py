@@ -135,8 +135,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     if args.resume is not None:
         logger.info("Resuming from checkpoint: %s", args.resume)
-        load_cfg = None if args.load_optimizer else {"actor": True, "critic": True}
-        runner.load(str(args.resume), load_cfg=load_cfg, strict=False)
+        from phoenix.training.checkpoint import load_runner_checkpoint
+
+        ckpt_info = load_runner_checkpoint(
+            runner,
+            args.resume,
+            load_actor=True,
+            load_critic=True,
+            load_optimizer=bool(args.load_optimizer),
+            load_iteration=False,
+        )
+        if not ckpt_info.get("actor_match", False):
+            raise RuntimeError(f"Actor weights did not round-trip from {args.resume}: {ckpt_info}")
 
     # ---- Train -------------------------------------------------------------
     start = time.time()

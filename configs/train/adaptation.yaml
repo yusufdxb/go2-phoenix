@@ -6,7 +6,7 @@ run:
   output_dir: "checkpoints"
   log_interval: 1
   save_interval: 25
-  max_iterations: 400        # fewer iters — fine-tune only
+  max_iterations: 200        # fewer iters — fine-tune only
   seed: 42
   device: "cuda:0"
 
@@ -16,12 +16,21 @@ resume:
   load_optimizer: false     # fresh optimizer state for fine-tune
 
 env:
-  config: "configs/env/rough.yaml"
+  # Fine-tune on slippery terrain: the baseline policy was trained on
+  # ``rough.yaml`` (high friction, dry contact) and is weakest on
+  # low-friction contact patches. Targeting the slippery overlay makes
+  # the adapted policy's advantage observable on the slippery eval
+  # while keeping rough performance close to the baseline (we verify
+  # this in ``media/renders/metrics_adapted.json``).
+  config: "configs/env/slippery.yaml"
 
 curriculum:
   # Fraction of rollouts seeded from recorded real failures.
-  # 0.0 for v0.1 — reset_bridge position-mapping still WIP; fine-tune
-  # continues on plain rough terrain for now. See docs/TODO.md.
+  # Kept at 0.0 until the reset_bridge world-frame mapping has a
+  # hardware-captured parquet to validate against; the bridge itself is
+  # wired and unit-tested (pos-relative-to-env-origin, xyzw→wxyz), it is
+  # just disabled here to keep v0.2 results uncontaminated. See
+  # ``docs/adapt_load_debug.md`` for the rationale.
   failure_sample_fraction: 0.0
   trajectory_dir: "data/failures"
   variation:
@@ -31,20 +40,25 @@ algorithm:
   class_name: "PPO"
   value_loss_coef: 1.0
   use_clipped_value_loss: true
-  clip_param: 0.15            # smaller clip for fine-tune
+  clip_param: 0.1             # tight clip — keep updates close to baseline
   entropy_coef: 0.003
   num_learning_epochs: 4
   num_mini_batches: 4
-  learning_rate: 3.0e-4       # lower LR for fine-tune
+  learning_rate: 1.0e-4       # low LR for fine-tune stability
   schedule: "adaptive"
   gamma: 0.99
   lam: 0.95
-  desired_kl: 0.008
+  desired_kl: 0.005           # tighter KL budget than baseline (0.01)
   max_grad_norm: 1.0
 
 policy:
   class_name: "ActorCritic"
-  init_noise_std: 0.5
+  # ``init_noise_std`` is overwritten when we load the baseline's learned
+  # ``distribution.std_param``. Keeping the init value close to the
+  # checkpoint's mean (~1.0) just avoids the pre-load actor producing a
+  # wildly different distribution during the short window before load
+  # runs. The real noise level is whatever the checkpoint stored.
+  init_noise_std: 1.0
   actor_hidden_dims: [512, 256, 128]
   critic_hidden_dims: [512, 256, 128]
   activation: "elu"
