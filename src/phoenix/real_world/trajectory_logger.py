@@ -24,12 +24,18 @@ Writer uses row-group buffering to keep memory bounded on long rollouts.
 
 from __future__ import annotations
 
+import argparse
+import logging
+import sys
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+logger = logging.getLogger("phoenix.real_world.trajectory_logger")
 
 
 @dataclass
@@ -132,3 +138,117 @@ class TrajectoryLogger:
         self._writer.write_table(table)
         self._rows_written += len(self._buffer)
         self._buffer.clear()
+
+
+def _parse_standalone_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Subscribe to GO2 ROS 2 topics and log to parquet."
+    )
+    p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--rate-hz", type=float, default=50.0)
+    p.add_argument("--flush-on-estop", action="store_true")
+    p.add_argument("--estop-topic", type=str, default="/phoenix/estop")
+    return p.parse_args(argv)
+
+
+def _standalone_main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires ROS 2
+    """Standalone subscriber: log one row per control tick from live topics.
+
+    Complements the in-node logger in ``sim2real.ros2_policy_node``. Useful
+    when capturing teleop or no-policy rollouts, or when you want a
+    separate parquet unlinked from the policy process lifetime.
+    """
+    args = _parse_standalone_args(argv)
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
+
+    import rclpy
+    from geometry_msgs.msg import Twist
+    from rclpy.node import Node
+    from rclpy.qos import QoSProfile, ReliabilityPolicy
+    from sensor_msgs.msg import Imu, JointState
+    from std_msgs.msg import Bool
+
+    rclpy.init()
+    node = Node("phoenix_trajectory_logger")
+    qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+
+    state = {"imu": None, "joint": None, "cmd": np.zeros(3, dtype=np.float32), "estop": False}
+
+    def _on_imu(msg):
+        state["imu"] = msg
+
+    def _on_joint(msg):
+        state["joint"] = msg
+
+    def _on_cmd(msg):
+        state["cmd"] = np.asarray(
+            [msg.linear.x, msg.linear.y, msg.angular.z], dtype=np.float32
+        )
+
+    def _on_estop(msg):
+        if msg.data:
+            state["estop"] = True
+
+    node.create_subscription(Imu, "/imu/data", _on_imu, qos)
+    node.create_subscription(JointState, "/joint_states", _on_joint, qos)
+    node.create_subscription(Twist, "/cmd_vel", _on_cmd, qos)
+    node.create_subscription(Bool, args.estop_topic, _on_estop, qos)
+
+    started = time.monotonic()
+    step_idx = 0
+
+    with TrajectoryLogger(args.output) as log:
+        def _tick():
+            nonlocal step_idx
+            if state["imu"] is None or state["joint"] is None:
+                return
+            if args.flush_on_estop and state["estop"]:
+                logger.info("Estop received — finalizing parquet.")
+                rclpy.shutdown()
+                return
+            js = state["joint"]
+            imu = state["imu"]
+            q = np.asarray(js.position, dtype=np.float32)[:12]
+            qd = np.asarray(js.velocity, dtype=np.float32)[:12]
+            quat = np.asarray(
+                [imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w],
+                dtype=np.float32,
+            )
+            ang = np.asarray(
+                [imu.angular_velocity.x, imu.angular_velocity.y, imu.angular_velocity.z],
+                dtype=np.float32,
+            )
+            log.append(
+                TrajectoryStep(
+                    step=step_idx,
+                    timestamp_s=time.monotonic() - started,
+                    base_pos=np.zeros(3, dtype=np.float32),
+                    base_quat=quat,
+                    base_lin_vel_body=np.zeros(3, dtype=np.float32),
+                    base_ang_vel_body=ang,
+                    joint_pos=q,
+                    joint_vel=qd,
+                    command_vel=state["cmd"],
+                    action=np.zeros(12, dtype=np.float32),
+                    contact_forces=np.zeros(4, dtype=np.float32),
+                    failure_flag=False,
+                    failure_mode=None,
+                )
+            )
+            step_idx += 1
+
+        node.create_timer(1.0 / args.rate_hz, _tick)
+        try:
+            rclpy.spin(node)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
+    logger.info("Wrote %d rows to %s", step_idx, args.output)
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(_standalone_main())
