@@ -40,12 +40,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", force=True)
     args = parse_args(argv)
+    print("[synth] args:", args, flush=True)
     from isaaclab.app import AppLauncher
 
     app = AppLauncher(headless=args.headless).app
+    print("[synth] app launched", flush=True)
     try:
         return _run(args, app)
+    except BaseException:
+        import traceback
+
+        traceback.print_exc()
+        raise
     finally:
         app.close()
 
@@ -67,7 +75,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     task = env_cfg_loaded.to_container()["env"]["task_name"]
     env = gym.make(task, cfg=env_cfg, render_mode=None)
+    print("[synth] env made", flush=True)
     obs, _ = env.reset(seed=args.seed)
+    print("[synth] env reset, action_space=", env.action_space.shape, flush=True)
 
     policy = _load_policy(args.checkpoint, args.device) if args.checkpoint else None
 
@@ -96,16 +106,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             obs, _reward, terminated, truncated, _info = env.step(action)
             done = terminated | truncated
 
-            base_pos = _to_numpy(robot.data.root_pos_w[0])
-            base_quat = _to_numpy(robot.data.root_quat_w[0])  # wxyz in IsaacLab
-            # convert wxyz→xyzw to match ROS / parquet schema
-            base_quat = np.roll(base_quat, -1)
-            base_lin_vel_b = _to_numpy(robot.data.root_lin_vel_b[0])
-            base_ang_vel_b = _to_numpy(robot.data.root_ang_vel_b[0])
-            joint_pos = _to_numpy(robot.data.joint_pos[0])
-            joint_vel = _to_numpy(robot.data.joint_vel[0])
-            cmd = _to_numpy(unwrapped.command_manager.get_command("base_velocity")[0])
-            act = _to_numpy(action[0])
+            # Some fields are warp arrays in Isaac Lab v3 — convert the whole
+            # tensor first, then index, to avoid "Item indexing is not supported
+            # on wp.array objects".
+            base_pos = _to_numpy(robot.data.root_pos_w)[0]
+            base_quat = _to_numpy(robot.data.root_quat_w)[0]  # wxyz in IsaacLab
+            base_quat = np.roll(base_quat, -1)  # -> xyzw
+            base_lin_vel_b = _to_numpy(robot.data.root_lin_vel_b)[0]
+            base_ang_vel_b = _to_numpy(robot.data.root_ang_vel_b)[0]
+            joint_pos = _to_numpy(robot.data.joint_pos)[0]
+            joint_vel = _to_numpy(robot.data.joint_vel)[0]
+            cmd = _to_numpy(unwrapped.command_manager.get_command("base_velocity"))[0]
+            act = _to_numpy(action)[0]
 
             roll, pitch, _yaw = _rpy_from_quat_xyzw(base_quat)
             height = float(base_pos[2])
@@ -176,9 +188,15 @@ def _load_policy(ckpt_path: Path, device: str):
 
 
 def _to_numpy(x):
+    """Convert a torch tensor / warp array / ndarray to a plain numpy array."""
+    import numpy as np
+
     if hasattr(x, "cpu"):
         return x.cpu().numpy()
-    return x.numpy() if hasattr(x, "numpy") else x
+    if hasattr(x, "numpy") and not isinstance(x, np.ndarray):
+        # warp arrays need .numpy() but no cpu(); numpy arrays already have .numpy as attribute
+        return x.numpy()
+    return np.asarray(x)
 
 
 def _rpy_from_quat_xyzw(q):

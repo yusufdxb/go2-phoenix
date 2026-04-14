@@ -31,6 +31,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", force=True)
     args = parse_args(argv)
 
     from isaaclab.app import AppLauncher
@@ -39,6 +40,11 @@ def main(argv: list[str] | None = None) -> int:
     simulation_app = app_launcher.app
     try:
         return _run(args, simulation_app)
+    except BaseException:
+        import traceback
+
+        traceback.print_exc()
+        raise
     finally:
         simulation_app.close()
 
@@ -73,8 +79,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
 
     # ---- Apply per-env variation & initial state ---------------------------
+    env.reset()  # drive the gym wrapper out of ResetNeeded state
     unwrapped = env.unwrapped
-    unwrapped.reset()
     robot = unwrapped.scene["robot"]
 
     # Broadcast the logged initial state into every env.
