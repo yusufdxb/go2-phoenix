@@ -148,7 +148,11 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     # Save a stable "latest.pt" symlink so deploy/adapt don't need timestamps.
     latest = log_root / "latest.pt"
-    ckpts = sorted(log_dir.glob("model_*.pt"))
+    # Numeric sort by the iteration number so model_499.pt > model_50.pt.
+    ckpts = sorted(
+        log_dir.glob("model_*.pt"),
+        key=lambda p: int(p.stem.split("_")[-1]),
+    )
     if ckpts:
         final = ckpts[-1]
         if latest.exists() or latest.is_symlink():

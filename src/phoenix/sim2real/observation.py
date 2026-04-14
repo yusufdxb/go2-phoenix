@@ -1,7 +1,7 @@
-"""Build the 48-dim observation vector from ROS 2 messages.
+"""Build the policy observation vector from ROS 2 messages.
 
-Layout must match what the policy was trained with (see
-``configs/env/base.yaml``):
+Layout must match what the policy was trained with. On flat terrain the
+observation is 48-dim proprioception:
 
 .. code-block:: text
 
@@ -12,6 +12,13 @@ Layout must match what the policy was trained with (see
       joint_pos_rel_default (12) ,
       joint_vel (12) ,
       last_action (12) ]  -> 48 dims
+
+On rough terrain Isaac Lab's task also appends a 187-dim height scanner
+reading (total 235 dims); a deployed rough-terrain policy therefore
+needs an equivalent scanner feed on the real robot. The builder below
+returns only the proprioceptive 48-dim prefix — deploy scripts that
+need the full 235-dim vector are responsible for concatenating the
+height scan (either from a real sensor or a stubbed zero vector).
 
 This module is pure numpy (no rclpy), so it can be unit-tested in CI.
 """

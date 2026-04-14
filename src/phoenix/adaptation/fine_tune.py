@@ -123,10 +123,20 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     logger.info("Adaptation wall-time: %.1fs", time.time() - start)
 
     latest = log_root / "latest.pt"
-    ckpts = sorted(log_dir.glob("model_*.pt"))
+    ckpts = sorted(
+        log_dir.glob("model_*.pt"),
+        key=lambda p: int(p.stem.split("_")[-1]),
+    )
     if ckpts:
         if latest.exists() or latest.is_symlink():
             latest.unlink()
         latest.symlink_to(ckpts[-1].resolve())
     env.close()
     return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", force=True)
+    sys.exit(main())

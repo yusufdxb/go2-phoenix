@@ -158,33 +158,49 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
 
 def _load_policy(ckpt_path: Path, device: str):
+    """Load the actor MLP from a rsl_rl 3.0 checkpoint as a plain torch Sequential."""
     import torch
-    from rsl_rl.modules import ActorCritic
+    import torch.nn as nn
 
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-    state = ckpt["model_state_dict"]
+    actor_sd = ckpt.get("actor_state_dict") or {
+        k[len("actor.") :]: v
+        for k, v in ckpt.get("model_state_dict", {}).items()
+        if k.startswith("actor.")
+    }
+    if not actor_sd:
+        raise RuntimeError(f"Checkpoint {ckpt_path} has no actor weights (keys={list(ckpt)})")
 
-    def dims(prefix: str) -> list[int]:
-        out: list[int] = []
-        i = 0
-        while f"{prefix}{i * 2}.weight" in state:
-            out.append(state[f"{prefix}{i * 2}.weight"].shape[0])
-            i += 1
-        return out[:-1] if len(out) >= 2 else [512, 256, 128]
+    def layer_idx(k: str) -> int:
+        for p in k.split("."):
+            if p.isdigit():
+                return int(p)
+        return -1
 
-    obs_dim = state["actor.0.weight"].shape[1]
-    act_dim = 12
-    actor_critic = ActorCritic(
-        num_actor_obs=obs_dim,
-        num_critic_obs=obs_dim,
-        num_actions=act_dim,
-        actor_hidden_dims=dims("actor."),
-        critic_hidden_dims=dims("critic."),
-        activation="elu",
-    ).to(device)
-    actor_critic.load_state_dict(state, strict=False)
-    actor_critic.eval()
-    return lambda obs: actor_critic.actor(obs)
+    layer_keys = sorted(
+        (k for k in actor_sd if k.endswith(".weight") and ("mlp" in k or "actor" in k)),
+        key=layer_idx,
+    )
+    obs_dim = int(actor_sd[layer_keys[0]].shape[1])
+    act_dim = int(actor_sd[layer_keys[-1]].shape[0])
+    hidden = [int(actor_sd[k].shape[0]) for k in layer_keys[:-1]]
+
+    layers: list[nn.Module] = []
+    prev = obs_dim
+    for h in hidden:
+        layers.append(nn.Linear(prev, h))
+        layers.append(nn.ELU())
+        prev = h
+    layers.append(nn.Linear(prev, act_dim))
+    actor = nn.Sequential(*layers).to(device).eval()
+
+    for k in layer_keys:
+        idx = layer_idx(k)
+        with torch.no_grad():
+            actor[idx].weight.copy_(actor_sd[k])
+            actor[idx].bias.copy_(actor_sd[k.replace(".weight", ".bias")])
+
+    return lambda obs: actor(obs)
 
 
 def _to_numpy(x):
