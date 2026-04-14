@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phoenix"
+version = "0.1.0"
+description = "Closed-loop sim-real learning for the Unitree GO2 quadruped"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Yusuf Guenena", email = "yusuf.a.guenena@gmail.com" }]
+keywords = [
+    "robotics",
+    "reinforcement-learning",
+    "isaac-sim",
+    "isaac-lab",
+    "quadruped",
+    "unitree-go2",
+    "sim-to-real",
+    "ros2",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Runtime dependencies split across two Python contexts.
+# Core deps common to both; Isaac Lab supplies its own torch.
+dependencies = [
+    "numpy>=1.24,<2.0",
+    "pyarrow>=14.0",
+    "omegaconf>=2.3",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Installed inside the Isaac Lab python context
+sim = [
+    "torch>=2.1",
+    "tensorboard>=2.14",
+    "matplotlib>=3.7",
+    "scipy>=1.11",
+    "imageio[ffmpeg]>=2.31",
+]
+# Installed inside the system python + ROS 2 context
+real = [
+    "onnxruntime>=1.16",
+    "numpy>=1.24,<2.0",
+]
+# Developer / test tooling
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+    "black>=23.9",
+    "mypy>=1.6",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/yusufdxb/go2-phoenix"
+"Bug Tracker" = "https://github.com/yusufdxb/go2-phoenix/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+phoenix = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "N", "UP"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
+markers = [
+    "sim: tests that require Isaac Lab + GPU (skipped in CI)",
+    "ros: tests that require a running ROS 2 environment (skipped in CI)",
+    "slow: tests that take >5s",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

@@ -1,0 +1,13 @@
+# Perturbation overlay. Inherits env/base.yaml.
+# Adds random base pushes during rollout.
+
+defaults:
+  - base
+
+perturbation:
+  enabled: true
+  push_interval_s: 5.0
+  push_velocity_xy: 1.5          # m/s impulse applied to base
+  push_velocity_yaw: 0.75
+  push_warmup_s: 3.0             # no pushes for first 3s of episode
+  push_probability: 0.8          # chance a push fires at interval

@@ -1,0 +1,61 @@
+# Deployment config for the ROS 2 policy node on the real GO2.
+
+policy:
+  # Path to exported ONNX (produced by sim2real/export.py)
+  onnx_path: "checkpoints/phoenix-base/policy.onnx"
+  # Fallback TorchScript policy if onnxruntime missing.
+  torchscript_path: "checkpoints/phoenix-base/policy.pt"
+  device: "cpu"                  # Jetson/on-robot inference
+
+control:
+  rate_hz: 50                    # matches sim decimation
+  action_scale: 0.25             # policy output → joint delta
+  default_joint_pos:
+    FL_hip_joint: 0.0
+    FR_hip_joint: 0.0
+    RL_hip_joint: 0.0
+    RR_hip_joint: 0.0
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  # Must match the order used at training time.
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+latency:
+  # Must match what the policy was trained with.
+  action_delay_steps: 2          # @ 50 Hz = 40 ms
+
+actuator_limits:
+  # Per-joint safety clipping (rad, rad/s, N·m).
+  position_margin_rad: 0.05      # stay inside URDF limits by this margin
+  velocity_max_rad_s: 18.0
+  torque_max_nm: 22.0
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+
+safety:
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120             # auto-stop after N seconds

@@ -1,0 +1,25 @@
+# Variation factory parameters for replay/.
+# For each real failure trajectory we spawn N perturbed sim episodes.
+
+variations:
+  per_trajectory: 16              # number of sim episodes per logged failure
+  dr_bounds:
+    # Each sampled relative to the logged conditions' center.
+    friction_delta: [-0.3, 0.3]
+    mass_delta_kg: [-1.0, 1.0]
+    push_velocity_delta: [-0.5, 0.5]
+    push_yaw_delta: [-0.3, 0.3]
+  preserve:
+    - initial_pose
+    - velocity_command         # hold command identical → isolate DR effect
+  sampling: "halton"             # quasi-random sequence for coverage
+  seed: 17
+
+replay:
+  # Physics step synchronization with the logged trajectory.
+  dt: 0.02                       # 50 Hz control, matches sim2real/control.rate_hz
+  horizon_s: 5.0                 # how long to run each variation forward
+  observation_tolerance:
+    joint_pos: 0.05               # rad — warn if sim drifts past this
+    base_height: 0.05             # m
+  record_video: false             # turn on for debugging only

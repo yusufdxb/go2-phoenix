@@ -1,0 +1,92 @@
+# Base GO2 locomotion environment config.
+# Layer specific overlays (rough.yaml, slippery.yaml, perturbation.yaml) on top.
+
+env:
+  # Task: command-conditioned velocity tracking.
+  task_name: "Isaac-Velocity-Rough-Unitree-Go2-v0"  # Isaac Lab registered task id
+  num_envs: 4096
+  episode_length_s: 20.0
+  decimation: 4           # 200 Hz sim → 50 Hz control
+  sim_dt: 0.005           # 200 Hz physics
+
+robot:
+  name: "unitree_go2"
+  usd_path: "{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd"
+  init_state:
+    base_pos: [0.0, 0.0, 0.4]
+    base_rot: [1.0, 0.0, 0.0, 0.0]   # quat (w,x,y,z)
+    joint_pos:
+      # Fold positions ~ default standing pose
+      ".*_hip_joint": 0.0
+      "FL_thigh_joint": 0.8
+      "FR_thigh_joint": 0.8
+      "RL_thigh_joint": 1.0
+      "RR_thigh_joint": 1.0
+      ".*_calf_joint": -1.5
+  actuator:
+    stiffness: 25.0
+    damping: 0.5
+    velocity_limit: 21.0
+    effort_limit: 23.5
+
+command:
+  # Velocity command ranges sampled per episode.
+  lin_vel_x: [-1.0, 1.0]      # m/s
+  lin_vel_y: [-0.6, 0.6]
+  ang_vel_z: [-1.0, 1.0]      # rad/s
+  heading_stiffness: 0.5
+  resample_time_s: 10.0
+
+observation:
+  # Proprioceptive-only policy.
+  include:
+    - base_lin_vel
+    - base_ang_vel
+    - projected_gravity
+    - velocity_command
+    - joint_pos
+    - joint_vel
+    - last_action
+  noise:
+    joint_pos: 0.01
+    joint_vel: 1.5
+    base_lin_vel: 0.1
+    base_ang_vel: 0.2
+    projected_gravity: 0.05
+
+domain_randomization:
+  enabled: true
+  friction_range: [0.3, 1.5]
+  restitution_range: [0.0, 0.5]
+  mass_offset_kg: [-2.0, 2.0]
+  motor_strength_scale: [0.85, 1.15]
+  actuator_latency_steps: [1, 5]   # at 200 Hz → 5–25 ms
+
+perturbation:
+  enabled: false      # overlay enables this
+  push_interval_s: 7.0
+  push_velocity_xy: 1.0
+  push_velocity_yaw: 0.5
+
+reward:
+  # Standard legged-gym style reward shaping.
+  track_lin_vel_xy: 1.0
+  track_ang_vel_z: 0.5
+  base_height: -1.0
+  ang_vel_xy: -0.05
+  lin_vel_z: -2.0
+  joint_acc: -2.5e-7
+  joint_vel: -0.0
+  joint_torque: -0.0002
+  action_rate: -0.01
+  feet_air_time: 1.0
+  collision: -1.0
+  termination: -10.0
+
+termination:
+  base_contact: true
+  pitch_threshold_rad: 0.8
+  roll_threshold_rad: 0.6
+  base_height_min: 0.15
+
+seed: 42

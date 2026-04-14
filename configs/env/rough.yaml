@@ -1,0 +1,30 @@
+# Rough-terrain overlay. Inherits env/base.yaml.
+# Layer with: OmegaConf.merge(base, rough)
+
+defaults:
+  - base
+
+terrain:
+  type: "generator"
+  size: [8.0, 8.0]
+  num_rows: 10
+  num_cols: 20
+  horizontal_scale: 0.1
+  vertical_scale: 0.005
+  border_size: 20.0
+  use_cache: false
+  difficulty_range: [0.0, 1.0]
+  sub_terrains:
+    pyramid_stairs:
+      proportion: 0.2
+      step_height_range: [0.05, 0.20]
+      step_width: 0.3
+    rough:
+      proportion: 0.3
+      noise_range: [0.02, 0.10]
+    slope:
+      proportion: 0.2
+      slope_range: [0.0, 0.4]
+    discrete_obstacles:
+      proportion: 0.3
+      obstacle_height_range: [0.05, 0.15]

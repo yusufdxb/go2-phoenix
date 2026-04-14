@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: "go2-phoenix: Closed-Loop Sim-Real Learning for Unitree GO2"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: Yusuf
+    family-names: Guenena
+    email: yusuf.a.guenena@gmail.com
+    orcid: ""
+repository-code: "https://github.com/yusufdxb/go2-phoenix"
+license: MIT
+version: 0.1.0
+date-released: 2026-04-13
+keywords:
+  - robotics
+  - quadruped
+  - isaac-sim
+  - isaac-lab
+  - ros2
+  - reinforcement-learning
+  - sim-to-real
+  - continual-learning

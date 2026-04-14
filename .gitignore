@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Virtual envs
+.venv/
+venv/
+/env/
+ENV/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ML / data
+checkpoints/**/*.pt
+checkpoints/**/*.onnx
+checkpoints/**/*.pth
+!checkpoints/.gitkeep
+data/**/*.parquet
+data/**/*.mp4
+data/**/*.npz
+!data/.gitkeep
+
+# TensorBoard / W&B
+runs/
+logs/
+wandb/
+outputs/
+tb_logs/
+
+# Isaac Sim / Omniverse scratch
+*.usd.~
+*.log
+
+# Rendered media that should be regenerated
+media/renders/
+
+# Benchmarks (keep summaries, drop raw)
+benchmarks/raw/
+
+# Local config overrides
+configs/local/
+.env
+.env.local

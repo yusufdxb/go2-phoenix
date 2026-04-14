@@ -1,0 +1,18 @@
+# Slippery surface overlay. Inherits env/base.yaml.
+# Shifts friction distribution toward low values.
+
+defaults:
+  - base
+
+domain_randomization:
+  enabled: true
+  friction_range: [0.05, 0.4]        # much lower than base
+  restitution_range: [0.0, 0.2]
+
+terrain:
+  type: "flat"
+  friction_patches:
+    enabled: true
+    patch_count: 8
+    patch_size: [1.5, 1.5]
+    patch_friction_range: [0.02, 0.1]
