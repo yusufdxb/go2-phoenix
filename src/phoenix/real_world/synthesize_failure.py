@@ -109,7 +109,11 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             # Some fields are warp arrays in Isaac Lab v3 — convert the whole
             # tensor first, then index, to avoid "Item indexing is not supported
             # on wp.array objects".
-            base_pos = _to_numpy(robot.data.root_pos_w)[0]
+            # base_pos is stored *relative to the env origin* so replay can
+            # add back whatever origin the replay env uses (broadcast across
+            # many envs, each with a different origin).
+            env_origin = _to_numpy(unwrapped.scene.env_origins)[0]
+            base_pos = _to_numpy(robot.data.root_pos_w)[0] - env_origin
             base_quat = _to_numpy(robot.data.root_quat_w)[0]  # wxyz in IsaacLab
             base_quat = np.roll(base_quat, -1)  # -> xyzw
             base_lin_vel_b = _to_numpy(robot.data.root_lin_vel_b)[0]

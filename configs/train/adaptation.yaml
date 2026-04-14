@@ -20,7 +20,9 @@ env:
 
 curriculum:
   # Fraction of rollouts seeded from recorded real failures.
-  failure_sample_fraction: 0.3
+  # 0.0 for v0.1 — reset_bridge position-mapping still WIP; fine-tune
+  # continues on plain rough terrain for now. See docs/TODO.md.
+  failure_sample_fraction: 0.0
   trajectory_dir: "data/failures"
   variation:
     config: "configs/replay/variations.yaml"
@@ -28,6 +30,7 @@ curriculum:
 algorithm:
   class_name: "PPO"
   value_loss_coef: 1.0
+  use_clipped_value_loss: true
   clip_param: 0.15            # smaller clip for fine-tune
   entropy_coef: 0.003
   num_learning_epochs: 4

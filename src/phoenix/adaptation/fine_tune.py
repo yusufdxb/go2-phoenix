@@ -31,13 +31,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", force=True)
     args = parse_args(argv)
+    print("[adapt] args:", args, flush=True)
     from isaaclab.app import AppLauncher
 
     app_launcher = AppLauncher(headless=args.headless)
     simulation_app = app_launcher.app
+    print("[adapt] app launched", flush=True)
     try:
         return _run(args, simulation_app)
+    except BaseException:
+        import traceback
+
+        traceback.print_exc()
+        raise
     finally:
         simulation_app.close()
 
@@ -107,8 +115,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     resume_path = args.resume or Path(cfg["resume"]["path"])
     if not resume_path.exists():
         raise FileNotFoundError(f"Baseline checkpoint not found: {resume_path}")
-    logger.info("Resuming baseline from %s", resume_path)
-    runner.load(str(resume_path), load_optimizer=bool(cfg["resume"].get("load_optimizer", False)))
+    print(f"[adapt] Resuming baseline from {resume_path}", flush=True)
+    load_optim = bool(cfg["resume"].get("load_optimizer", False))
+    # load everything when warm-starting; a fine-tune benefits from the
+    # optimizer's momentum state too. Caller can opt out via load_optimizer=false
+    # in the YAML by explicitly listing only actor/critic/iteration.
+    load_cfg = (
+        None
+        if load_optim
+        else {"actor": True, "critic": True, "iteration": False, "optimizer": False}
+    )
+    runner.load(str(resume_path), load_cfg=load_cfg, strict=False)
+    print("[adapt] Baseline loaded.", flush=True)
 
     # Install the reset bridge so curriculum assignments actually take effect.
     from phoenix.adaptation.reset_bridge import install as install_reset_bridge

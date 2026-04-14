@@ -135,7 +135,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     if args.resume is not None:
         logger.info("Resuming from checkpoint: %s", args.resume)
-        runner.load(str(args.resume), load_optimizer=args.load_optimizer)
+        load_cfg = None if args.load_optimizer else {"actor": True, "critic": True}
+        runner.load(str(args.resume), load_cfg=load_cfg, strict=False)
 
     # ---- Train -------------------------------------------------------------
     start = time.time()

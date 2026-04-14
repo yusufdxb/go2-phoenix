@@ -78,7 +78,10 @@ def install(env: Any, curriculum: FailureCurriculum) -> None:
             pos = torch.as_tensor(state.base_pos, device=device, dtype=torch.float32)
             if env_origins is not None:
                 pos = pos + env_origins[local_idx]
-            quat = torch.as_tensor(state.base_quat, device=device, dtype=torch.float32)
+            # Parquet stores quat as (x,y,z,w) to match ROS conventions; Isaac
+            # Lab's write_root_pose_to_sim expects (w,x,y,z), so roll by 1.
+            quat_xyzw = torch.as_tensor(state.base_quat, device=device, dtype=torch.float32)
+            quat = torch.roll(quat_xyzw, shifts=1, dims=-1)
             jpos = torch.as_tensor(state.joint_pos, device=device, dtype=torch.float32)
             jvel = torch.as_tensor(state.joint_vel, device=device, dtype=torch.float32)
 
