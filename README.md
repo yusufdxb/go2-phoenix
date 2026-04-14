@@ -20,6 +20,22 @@ SIM train  ──▶  ONNX export  ──▶  ROS 2 deploy  ──▶  GO2 hardw
     └────── fine-tune (failure curriculum) ◀── replay w/ Halton variations
 ```
 
+## Current results (2026-04-14)
+
+| Stage | Policy | Mean return | Success rate | Eval episodes |
+|---|---|---:|---:|---:|
+| Early training | `model_100.pt` | 14.22 | 81.2% | 16 |
+| End of run     | `model_499.pt` | **18.95** | **100%** | 16 |
+
+* 500-iter PPO baseline trained on `Isaac-Velocity-Rough-Unitree-Go2-v0`,
+  4096 parallel envs, RTX 5070, ~28 min wall time.
+* ONNX export passes parity check (max torch↔onnxruntime abs-diff 2.98e-6).
+* Failure parquet synthesizer produces 200-step rollouts with
+  attitude/collapse/slip flags; replay reconstruction runs N perturbed
+  variations from the logged initial state.
+* Side-by-side demo video: [`media/side_by_side.mp4`](media/side_by_side.mp4)
+  (SIM baseline | REAL placeholder | SIM trained).
+
 ---
 
 ## Why this repo exists
@@ -105,6 +121,34 @@ pytest tests -m "not sim and not ros"
 detector, trajectory logger, Parquet round-trip, Halton variation
 sampler, curriculum scheduler, and ffmpeg escape helper. Sim and ROS
 tests are out of CI scope by design — they run manually on the hardware.
+
+Isaac-Lab integration tests live at `tests/test_sim_integration.py`
+(marked `@pytest.mark.sim`). They instantiate the Phoenix env cfg
+against real Isaac Lab and assert that the friction / mass / perturbation
+overrides land on the right event terms — run them locally with
+`pytest tests -m sim` before trusting a YAML change.
+
+---
+
+## Known limitations
+
+v0.1 has the full Phoenix-loop *architecture* in place and validated
+end-to-end in sim, but a couple of pieces are left for v0.2:
+
+* **Failure-curriculum warm-start from baseline.** rsl_rl 3.0's
+  `OnPolicyRunner.load(load_cfg=...)` doesn't round-trip the learned
+  exploration std or the empirical obs normalizer state on its own.
+  Fine-tuning from a trained baseline currently starts the policy from
+  a near-random regime; `configs/train/adaptation.yaml` has
+  `failure_sample_fraction: 0.0` by default as a result. The
+  `reset_bridge` infrastructure that teleports selected envs to
+  parquet-logged initial states is in place (with pos-relative-to-env-
+  origin and xyzw→wxyz conversion) and unit-tested.
+* **Real-robot deployment.** `sim2real.ros2_policy_node` runs but has
+  not been exercised against a live GO2 this cycle. The baseline
+  policy observes 235 dims (includes rough-terrain height scan); the
+  sim2real pipeline will need a real height-scan source or a flat-task
+  variant for genuine deployment.
 
 ---
 

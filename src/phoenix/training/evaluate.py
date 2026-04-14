@@ -50,14 +50,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", force=True)
     args = parse_args(argv)
+    print("[eval] args:", args, flush=True)
 
     from isaaclab.app import AppLauncher
 
     app_launcher = AppLauncher(headless=True, enable_cameras=args.video_out is not None)
     simulation_app = app_launcher.app
+    print("[eval] app launched", flush=True)
     try:
         return _run(args, simulation_app)
+    except BaseException:
+        import traceback
+
+        traceback.print_exc()
+        raise
     finally:
         simulation_app.close()
 
@@ -141,11 +149,23 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     runner_cfg = build_runner_cfg(eval_yaml, task_name)
     runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))
     runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=None, device=args.device)
-    runner.load(str(args.checkpoint), load_optimizer=False)
+    runner.load(
+        str(args.checkpoint),
+        load_cfg={"actor": True, "critic": True, "iteration": False, "optimizer": False},
+        strict=False,
+    )
     policy = runner.get_inference_policy(device=args.device)
 
     # ---- Rollout -----------------------------------------------------------
-    obs, _ = env.get_observations()
+    # rsl_rl 3.0's RslRlVecEnvWrapper.get_observations returns a dict
+    # {group_name: tensor}; flatten to the policy obs here.
+    obs_raw = env.get_observations()
+    if isinstance(obs_raw, tuple):
+        obs = obs_raw[0]
+    else:
+        obs = obs_raw
+    if isinstance(obs, dict):
+        obs = obs.get("policy", next(iter(obs.values())))
     episode_return = torch.zeros(args.num_envs, device=args.device)
     episode_length = torch.zeros(args.num_envs, device=args.device)
 
@@ -167,16 +187,27 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             episode_length += 1
             n_steps += 1
 
-            # tracking error from the env's command buffer, if exposed
+            # tracking error (best effort — Isaac Lab sometimes returns warp
+            # arrays for root velocities which don't support [:, :2] slicing).
             unwrapped = env.unwrapped
-            if hasattr(unwrapped, "command_manager"):
-                cmd = unwrapped.command_manager.get_command("base_velocity")
-                base_lin = unwrapped.scene["robot"].data.root_lin_vel_b[:, :2]
-                base_ang_z = unwrapped.scene["robot"].data.root_ang_vel_b[:, 2]
-                lin_err_acc += float(
-                    torch.mean(torch.linalg.norm(cmd[:, :2] - base_lin, dim=-1)).item()
-                )
-                ang_err_acc += float(torch.mean(torch.abs(cmd[:, 2] - base_ang_z)).item())
+            try:
+                if hasattr(unwrapped, "command_manager"):
+                    cmd = unwrapped.command_manager.get_command("base_velocity")
+                    root = unwrapped.scene["robot"].data
+                    lin_b = _as_torch(root.root_lin_vel_b)
+                    ang_b = _as_torch(root.root_ang_vel_b)
+                    cmd_t = _as_torch(cmd)
+                    if cmd_t.ndim >= 2 and lin_b.ndim >= 2:
+                        lin_err_acc += float(
+                            torch.mean(
+                                torch.linalg.norm(cmd_t[:, :2] - lin_b[:, :2], dim=-1)
+                            ).item()
+                        )
+                        ang_err_acc += float(
+                            torch.mean(torch.abs(cmd_t[:, 2] - ang_b[:, 2])).item()
+                        )
+            except (IndexError, TypeError, RuntimeError):
+                pass  # skip tracking-error accumulation this step
 
             done_idx = dones.nonzero(as_tuple=False).flatten()
             if len(done_idx) > 0:
@@ -211,6 +242,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     env.close()
     return 0
+
+
+def _as_torch(x):
+    """Coerce a torch tensor / warp array / ndarray into a contiguous torch.Tensor."""
+    import numpy as np
+    import torch
+
+    if isinstance(x, torch.Tensor):
+        return x
+    if hasattr(x, "numpy") and not isinstance(x, np.ndarray):
+        return torch.as_tensor(x.numpy())
+    return torch.as_tensor(x)
 
 
 if __name__ == "__main__":
