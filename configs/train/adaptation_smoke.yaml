@@ -1,0 +1,58 @@
+# Smoke-test config for the failure-seeded curriculum.
+#
+# Activates `failure_sample_fraction > 0` against the synthesized parquets
+# in `data/failures/`. Short iteration count — this is a plumbing check,
+# not a training run. Delete once hardware-captured parquets supplant
+# synthesized ones.
+
+run:
+  name: "phoenix-smoke"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 5
+  max_iterations: 5
+  seed: 42
+  device: "cuda:0"
+
+resume:
+  path: "checkpoints/phoenix-base/latest.pt"
+  load_optimizer: false
+
+env:
+  config: "configs/env/slippery.yaml"
+
+curriculum:
+  failure_sample_fraction: 0.3        # activate the bridge
+  trajectory_dir: "data/failures"
+  variation:
+    config: "configs/replay/variations.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.1
+  entropy_coef: 0.003
+  num_learning_epochs: 4
+  num_mini_batches: 4
+  learning_rate: 1.0e-4
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.005
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 1.0
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: false
+  wandb: false
