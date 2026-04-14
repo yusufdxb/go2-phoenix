@@ -149,11 +149,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     runner_cfg = build_runner_cfg(eval_yaml, task_name)
     runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))
     runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=None, device=args.device)
-    runner.load(
-        str(args.checkpoint),
-        load_cfg={"actor": True, "critic": True, "iteration": False, "optimizer": False},
-        strict=False,
+    from phoenix.training.checkpoint import load_runner_checkpoint
+
+    ckpt_info = load_runner_checkpoint(
+        runner,
+        args.checkpoint,
+        load_actor=True,
+        load_critic=True,
+        load_optimizer=False,
+        load_iteration=False,
     )
+    if not ckpt_info.get("actor_match", False):
+        raise RuntimeError(f"Actor weights did not round-trip from {args.checkpoint}: {ckpt_info}")
     policy = runner.get_inference_policy(device=args.device)
 
     # ---- Rollout -----------------------------------------------------------
