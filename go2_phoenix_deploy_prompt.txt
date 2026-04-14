@@ -1,0 +1,250 @@
+Phoenix policy hardware deployment prompt — autonomous on-robot session
+Date: 2026-04-14
+Target: Unitree GO2 + Jetson companion computer, ROS 2 Humble
+
+You are a Claude Code session running on the Jetson companion computer of a Unitree GO2. The T7 SSD is plugged in and this repo lives at `"/media/T7 Storage/go2-phoenix"` (mount point may differ — check `/media/` and `/mnt/` if the quoted path is not present; always quote the path because it contains a space). Your job is to deploy the trained Phoenix baseline policy (`model_499.pt`, 500-iter PPO, 100% success in sim) onto the real robot.
+
+You will not train, refactor, or broadly modify code. You will run checks, launch the policy, gate progress on observed evidence, log failures, and commit results to a deploy-run branch — never to `main`.
+
+----------------------------------------------------------------
+1. SAFETY (READ FIRST — DO NOT SKIP)
+----------------------------------------------------------------
+
+Absolutes:
+- The robot MUST be on a stand or safely tethered for the first run. Do not test at walking height on the first boot. Confirm with the human operator before proceeding past section 5.
+- Never send nonzero `cmd_vel` from your own logic. The policy consumes `/cmd_vel` as a command; only a human teleop or joystick should publish to it. Verify `cmd_vel` is zero before launching.
+- Runtime cap: `safety.max_runtime_s: 120` in `configs/sim2real/deploy.yaml`. Do NOT raise this. Confirm the value before launching.
+- Deadman's switch: `/phoenix/estop` (`std_msgs/Bool`). A publisher on that topic MUST exist before the policy is started. If no publisher is active, refuse to launch the policy and ask the human to start a joy-based or keyboard-based estop publisher. Verify with:
+    ros2 topic info /phoenix/estop
+  The output must show at least one Publisher count.
+- Emergency abort conditions (hard-kill the policy node if any are observed while running):
+    * base pitch > 0.8 rad (from `/imu/data` Euler conversion) or roll > 0.8 rad
+    * base height < 0.15 m (from odometry if available)
+    * any NaN in `/joint_states` (positions or velocities)
+    * sustained motor current spike > actuator torque limit (22 N·m per `configs/sim2real/deploy.yaml`)
+    * runtime exceeds 120 s (the policy node auto-stops; if it does not, kill it manually)
+- Human approval gate: after validation gates pass on the stand, STOP and ask the human for explicit approval before lowering to the ground. Do not proceed on your own initiative.
+
+----------------------------------------------------------------
+2. ENVIRONMENT PREFLIGHT
+----------------------------------------------------------------
+
+Run these before touching the policy. If any fail, stop and report.
+
+1. Repo sync:
+     cd "/media/T7 Storage/go2-phoenix"
+     git -C "/media/T7 Storage/go2-phoenix" pull
+   Confirm you are on `main` and the working tree is clean. If the path differs (e.g. `/media/yusuf/T7 Storage/...`), substitute it.
+
+2. Filesystem note: the T7 is formatted exFAT/NTFS-like and DOES NOT support POSIX symlinks. `checkpoints/phoenix-base/latest.pt` is shipped as a full-size COPY of `model_499.pt` (not a symlink). This is intentional. If you see that file size is ~6.6 MB and it loads cleanly, you are fine. Do not try to `ln -s` on the T7.
+
+3. ROS 2 environment:
+     echo "$ROS_DISTRO"
+   If not `humble`:
+     source /opt/ros/humble/setup.bash
+     export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+   Also source the GO2 workspace:
+     source ~/unitree_ros2_ws/install/setup.bash
+   If that path is missing or not built, run:
+     bash "/media/T7 Storage/build_go2_ws.sh"
+
+4. GPU visible:
+     nvidia-smi
+   Expect a Jetson GPU entry (Orin / Xavier). If not, onnxruntime will still run on CPU, which is the default in `configs/sim2real/deploy.yaml` (`policy.device: cpu`). Do NOT switch to CUDA provider without explicit human approval.
+
+5. onnxruntime present in system python:
+     python3 -c "import onnxruntime; print(onnxruntime.__version__)"
+   If missing:
+     pip install onnxruntime
+   Do NOT install `torch` (3+ GB) and do NOT install `tensorflow-onnxruntime` (wrong package).
+
+6. GO2 reachability:
+     ping -c 2 192.168.123.161
+   (Default IP — see `/media/T7 Storage/go2_control.sh`.)
+
+7. Required topics live (run each for 3 seconds). Launch the GO2 bringup first:
+     bash "/media/T7 Storage/go2_control.sh"   # starts unitree_go bringup + optional joy
+   Then in a second shell:
+     timeout 3 ros2 topic hz /imu/data
+     timeout 3 ros2 topic hz /joint_states
+     timeout 3 ros2 topic hz /cmd_vel
+   All three must be publishing. `/cmd_vel` may be at 0 Hz if no teleop is running — that's OK here, but note it. `/imu/data` and `/joint_states` must be nonzero (ideally near 50 Hz and 500 Hz).
+
+----------------------------------------------------------------
+3. POLICY ARTIFACTS
+----------------------------------------------------------------
+
+Verify these files exist in the T7 clone (they are NOT on GitHub — `.gitignore` excludes `*.pt` and `*.onnx`):
+
+    checkpoints/phoenix-base/model_499.pt        (~6.6 MB)
+    checkpoints/phoenix-base/latest.pt           (~6.6 MB, copy of model_499.pt)
+    checkpoints/phoenix-base/policy.pt           (TorchScript fallback)
+    checkpoints/phoenix-base/policy.onnx         (ONNX file header)
+    checkpoints/phoenix-base/policy.onnx.data    (external weights for ONNX)
+
+IMPORTANT: The Jetson does NOT have Isaac Lab installed. You CANNOT regenerate the ONNX export here. If `policy.onnx` or `policy.onnx.data` is missing, STOP and ask the human to re-run the export on the training machine (mewtwo) and sync the T7. Do not attempt `pip install torch` or to run `scripts/deploy.sh` step 1 — both will fail or waste hours.
+
+Verify ONNX loads and report the input shape:
+    cd "/media/T7 Storage/go2-phoenix"
+    python3 -c "
+    import onnxruntime as ort
+    s = ort.InferenceSession('checkpoints/phoenix-base/policy.onnx', providers=['CPUExecutionProvider'])
+    print('inputs:', [(i.name, i.shape) for i in s.get_inputs()])
+    print('outputs:', [(o.name, o.shape) for o in s.get_outputs()])
+    "
+Expected input: name `obs`, shape `[batch, 235]`. Output: `action` shape `[batch, 12]`.
+
+----------------------------------------------------------------
+4. OBSERVATION LAYOUT MISMATCH (CRITICAL — READ BEFORE LAUNCH)
+----------------------------------------------------------------
+
+The baseline policy was trained on `Isaac-Velocity-Rough-Unitree-Go2-v0` which uses a 235-dim observation:
+
+    [ 48-dim proprioception ] + [ 187-dim height-scanner readings ]
+
+The real GO2 DOES NOT HAVE a height scanner. The repo's `ObservationBuilder` (in `src/phoenix/sim2real/observation.py`) only builds the 48-dim proprioceptive prefix. There is a real mismatch that the on-robot deployment must resolve.
+
+You have three options, in order of preference:
+
+  (a) DEFAULT — stub the height scan with a 187-dim zero vector. Expected failure mode: policy will be fragile on uneven terrain, may tip at edges/steps, because it was trained to rely on a scan it now cannot see. This is acceptable for a first on-stand test and for flat-indoor rollouts.
+
+  (b) If the Jetson has a live RGBD or 2D LiDAR stream (check `ros2 topic list | grep -Ei "depth|scan|lidar|points"`), generate a synthetic height scan by projecting the cloud onto a ground-plane grid matching Isaac Lab's raycaster pattern (1.6 m x 1.0 m, 0.1 m spacing = 17 x 11 = 187 points). This is non-trivial — only attempt it if the human explicitly asks.
+
+  (c) REFUSE to deploy and ask the human to retrain on the flat task (`Isaac-Velocity-Flat-Unitree-Go2-v0`, obs dim = 48). This yields a policy that matches what the robot can actually observe.
+
+If you choose (a), BEFORE launching, paste the exact observation construction snippet you will use into the terminal for the human to sanity-check. Example:
+
+    # Height scan stub (187 zeros appended to 48-dim proprio)
+    import numpy as np
+    proprio = obs_builder.build(...)          # shape (48,)
+    height_scan = np.zeros(187, dtype=np.float32)
+    obs_full = np.concatenate([proprio, height_scan]).astype(np.float32)
+    assert obs_full.shape == (235,), obs_full.shape
+
+The current `ros2_policy_node.py` does NOT do this concatenation — it passes the 48-dim proprio directly to ONNX. You will see a shape-mismatch error from onnxruntime on first launch. You MUST patch the node to append the 187-dim stub before launch, OR confirm with the human that option (c) is preferred.
+
+If you patch, keep the change minimal (local edit in `src/phoenix/sim2real/ros2_policy_node.py` where `self.session.run(["action"], {"obs": obs})` is called — wrap `obs` with the zero-padding). Do NOT refactor observation.py itself for this single deploy run.
+
+----------------------------------------------------------------
+5. LAUNCH RECIPE
+----------------------------------------------------------------
+
+DO NOT run `./scripts/deploy.sh` — its step 1 invokes Isaac Lab for ONNX export, which does not exist on the Jetson and will fail.
+
+Use this block instead. Open three terminals on the Jetson.
+
+Terminal A — GO2 bringup (if not already running from section 2):
+    source /opt/ros/humble/setup.bash
+    source ~/unitree_ros2_ws/install/setup.bash
+    export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    bash "/media/T7 Storage/go2_control.sh"
+
+Terminal B — deadman's-switch publisher (must be up BEFORE terminal C):
+    source /opt/ros/humble/setup.bash
+    # Publish False (not stopped) continuously. Any operator-initiated flip to True halts the policy.
+    ros2 topic pub -r 10 /phoenix/estop std_msgs/msg/Bool "{data: false}"
+
+Terminal C — policy node + trajectory logger:
+    cd "/media/T7 Storage/go2-phoenix"
+    source /opt/ros/humble/setup.bash
+    source ~/unitree_ros2_ws/install/setup.bash
+    export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    export PYTHONPATH="$PWD/src:${PYTHONPATH:-}"
+
+    # Confirm estop publisher is live first:
+    ros2 topic info /phoenix/estop | grep -q "Publisher count: [1-9]" || { echo "ABORT: no estop publisher"; exit 1; }
+
+    # Launch policy (235-dim obs path — ensure section 4 patch is applied):
+    python3 -m phoenix.sim2real.ros2_policy_node \
+        --config configs/sim2real/deploy.yaml \
+        --onnx   checkpoints/phoenix-base/policy.onnx
+
+Terminal D — trajectory logger (runs alongside policy; failures are flushed to parquet):
+    cd "/media/T7 Storage/go2-phoenix"
+    export PYTHONPATH="$PWD/src:${PYTHONPATH:-}"
+    mkdir -p "data/failures"
+    TS=$(date +%Y-%m-%d_%H-%M-%S)
+    python3 -m phoenix.real_world.trajectory_logger \
+        --output "data/failures/realrun_${TS}.parquet" \
+        --flush-on-estop
+
+If `trajectory_logger` does not expose a CLI main, invoke it from within the policy node (inspect `src/phoenix/real_world/trajectory_logger.py` for the exact entrypoint). Do NOT disable logging — the whole point of this run is to capture data for the next Phoenix iteration.
+
+----------------------------------------------------------------
+6. VALIDATION GATES (robot on stand)
+----------------------------------------------------------------
+
+Each gate must pass with observed evidence before moving to the next. Report terminal output for each.
+
+Gate 1 — Clean start:
+    Policy node starts without Python tracebacks. The log shows the ObservationBuilder and the ONNX session initializing. First inference call completes without shape errors. If a shape error appears, return to section 4.
+
+Gate 2 — Command rate:
+    timeout 5 ros2 topic hz /joint_group_position_controller/command
+    Expect ~50 Hz (tolerance 45–55 Hz). If under 30 Hz the Jetson is too slow; stop and report.
+
+Gate 3 — Command sanity:
+    ros2 topic echo --once /joint_group_position_controller/command
+    Compare to current /joint_states. No joint target should deviate from the current joint position by more than 0.175 rad/step (matches `_clip_to_limits` in the ROS node). If you see larger deltas, kill immediately.
+
+Gate 4 — Locomotion intent (robot still on stand):
+    Ask the human to teleop `cmd_vel.linear.x = 0.3`. Observe leg cycling in ~1.5–3 Hz range visually. Report whether cycling starts, whether the gait looks like a trot, and whether all 4 feet cycle.
+
+Only after all four gates pass: STOP. Report to the human and request explicit approval to lower the robot. Do not autonomously lower.
+
+----------------------------------------------------------------
+7. FAILURE CAPTURE & POST-TEST
+----------------------------------------------------------------
+
+During the run:
+  - `trajectory_logger` writes to `data/failures/realrun_<TS>.parquet` at every control step.
+  - On estop (`/phoenix/estop` goes True), on auto-stop (120 s), or on abort, ensure the parquet is flushed before shutdown. If the logger is integrated into the policy node, the default shutdown hook should handle it. Verify the parquet file exists and is non-empty after shutdown:
+      ls -la "data/failures/"
+      python3 -c "import pyarrow.parquet as pq; t=pq.read_table('data/failures/realrun_<TS>.parquet'); print(t.num_rows, t.schema)"
+
+After shutdown:
+  - Capture 10-second topic snapshots for the human to review:
+      for t in /imu/data /joint_states /cmd_vel /joint_group_position_controller/command /phoenix/estop ; do
+          timeout 10 ros2 topic echo "$t" > "data/failures/snapshot_${TS}_$(echo $t | tr '/' '_').log" 2>&1 || true
+      done
+
+Git workflow (deploy-run branch only — never main):
+    cd "/media/T7 Storage/go2-phoenix"
+    DATE=$(date +%Y-%m-%d)
+    git checkout -b "deploy-run-${DATE}"
+    git add data/failures/realrun_${TS}.parquet data/failures/snapshot_${TS}_*.log
+    # Commit any observation-patch diff ONLY if it was needed to run:
+    git add -p src/phoenix/sim2real/ros2_policy_node.py   # interactive — only stage the patch
+    git commit -m "deploy-run ${DATE}: real-robot rollout, $(wc -l < data/failures/snapshot_${TS}__imu_data.log) IMU samples"
+    git push -u origin "deploy-run-${DATE}"
+
+If `git push` fails due to missing credentials (HTTPS clone with no cached token), stop. Report the branch name and the absolute path of the commit hash to the human. Do NOT attempt to switch to SSH.
+
+----------------------------------------------------------------
+8. THINGS YOU MUST NOT DO
+----------------------------------------------------------------
+
+- Do NOT run `./scripts/train.sh` (no Isaac Lab on the Jetson).
+- Do NOT `pip install torch` (3+ GB, will exhaust storage and time).
+- Do NOT raise `safety.max_runtime_s` above 120.
+- Do NOT launch the policy without a `/phoenix/estop` publisher already up.
+- Do NOT commit to `main`. Only to `deploy-run-<date>` branches.
+- Do NOT add `Co-Authored-By: Claude` to any commit.
+- Do NOT attempt `ln -s` on the T7 (the filesystem does not support symlinks).
+- Do NOT silently edit `observation.py` to add a permanent height-scan stub. If you patch, scope it narrowly to `ros2_policy_node.py` and flag the patch in your commit message.
+- Do NOT skip the validation gates in section 6. Each must have reported evidence.
+- Do NOT lower the robot to the ground without explicit human approval.
+
+----------------------------------------------------------------
+9. DELIVERABLE
+----------------------------------------------------------------
+
+At the end of the session, report:
+  - Which gates passed, with evidence (pasted terminal excerpts).
+  - Path to the parquet file and its row count.
+  - Branch name pushed (or, if push failed, local commit hash).
+  - Any emergency-abort events and the reason.
+  - Observed failure modes (tipping, joint saturation, oscillation, etc.) — these are input for the next Phoenix fine-tune iteration.
+  - Whether observation stub (a) was used and any suspected effect on stability.
+
+End of prompt.

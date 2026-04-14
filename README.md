@@ -2,6 +2,8 @@
 
 **Closed-loop sim-to-real learning for the Unitree GO2 quadruped.**
 
+For on-robot deployment, see [`go2_phoenix_deploy_prompt.txt`](./go2_phoenix_deploy_prompt.txt).
+
 The Phoenix loop trains a locomotion policy in simulation, deploys it to the
 real robot, captures the failures that happen on hardware, replays those
 failures in simulation under a randomized physics sweep, and fine-tunes the
