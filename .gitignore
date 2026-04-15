@@ -34,6 +34,7 @@ Thumbs.db
 # ML / data
 checkpoints/**/*.pt
 checkpoints/**/*.onnx
+checkpoints/**/*.onnx.data
 checkpoints/**/*.pth
 !checkpoints/.gitkeep
 data/**/*.parquet
@@ -54,6 +55,7 @@ tb_logs/
 
 # Rendered media that should be regenerated
 media/renders/
+media/**/*.mp4
 
 # Benchmarks (keep summaries, drop raw)
 benchmarks/raw/
