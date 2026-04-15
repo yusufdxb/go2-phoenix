@@ -49,9 +49,17 @@ sim = [
     "scipy>=1.11",
     "imageio[ffmpeg]>=2.31",
 ]
-# Installed inside the system python + ROS 2 context
+# Installed inside the system python + ROS 2 context.
+# onnxruntime is pinned to 1.18.1: 1.19+ and 1.23+ crash on Jetson Orin
+# (Cortex-A78AE, CPU part 0xd42) because ORT's cpuid_info detection trips
+# a std::vector assertion on unrecognised ARM parts. 1.18.1 imports and
+# runs cleanly (pthread_setaffinity_np warnings are non-fatal). If you
+# update this pin, re-verify on hardware with
+# `python3 -c "import onnxruntime; ort.InferenceSession(...)"`.
+# Offline wheel is stashed at T7:LABWORK/PHOENIX/wheels/ since the
+# Jetson often lacks internet at deploy time.
 real = [
-    "onnxruntime>=1.16",
+    "onnxruntime==1.18.1",
     "numpy>=1.24,<2.0",
 ]
 # Developer / test tooling
