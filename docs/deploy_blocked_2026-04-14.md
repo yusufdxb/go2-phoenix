@@ -1,5 +1,13 @@
 # Phoenix Hardware Deploy — Session Blocked (2026-04-14)
 
+> **Update (same day, post-block).** After the block was triaged, the missing
+> pieces listed under "What needs to exist before re-running the prompt" were
+> actually written in the same session. The status on disk now differs from
+> what this doc described at block-time. See **Post-block resolution** at the
+> bottom of this doc, and the current `T7:LABWORK/PHOENIX/RESUME_NEXT.md` for
+> the up-to-date picture. The block-time narrative below is preserved as the
+> historical record.
+
 Status: **blocked at runbook section 2 step 7** (required topics missing). No policy rollout occurred. Robot was not commanded. No failure-mode data produced.
 
 ## TL;DR
@@ -80,3 +88,51 @@ Next Claude session: say `continue phoenix deploy` and point to `T7:LABWORK/PHOE
 - No parquet, no topic snapshots, no rollout data.
 
 Commit: see branch `deploy-run-2026-04-14`, parent `a79c187`.
+
+---
+
+## Post-block resolution (landed same day after the block report)
+
+After writing the block report (commit `57e1004`), the four "What needs to
+exist" items were tackled in-session on branch `deploy-run-2026-04-14`:
+
+| Item | Status | Commit |
+|---|---|---|
+| LowCmd CRC + Phoenix↔Unitree joint permutation (`phoenix.sim2real.motor_crc`) + unit tests | landed | `5aa33a9` |
+| Three ROS 2 bridge nodes: `lowstate_bridge_node`, `lowcmd_bridge_node`, `deadman_joy_node` | landed | `a12dfc0` |
+| `onnxruntime==1.18.1` pin in `pyproject.toml:real` + wheel stashed at `T7:LABWORK/PHOENIX/wheels/` | landed | `8fc9f57` |
+| On-robot low-level mode toggle (L2+A / L2+B) | **still manual**, must be done by operator before launch |
+| Retrain on flat-v0 (obs_dim=48) to drop the 187-dim zero stub | out of scope; optional future work |
+
+`lowcmd_bridge_node` is dry-run by default (publishes to `/lowcmd_dry`). The
+`--live` flag routes to `/lowcmd` and is the only path that actuates motors.
+On-Jetson verification done this session with the GO2 powered on and
+`/lowstate` live:
+
+* `lowstate_bridge`: `/joint_states` 500.96 Hz, `/imu/data` 500.25 Hz.
+* `lowcmd_bridge` (dry, no policy command): `/lowcmd_dry` 49.998 Hz holding
+  `motor_cmd[*].q == motor_state[*].q` with `kp=20 kd=1` — confirms watchdog
+  fallback to hold-current.
+* `lowcmd_bridge` (dry, synthetic policy command with Phoenix index 0 = 0.1):
+  `motor_cmd[3].q ≈ 0.0999` (FL_hip correctly landed at Unitree `FL_0 = 3`),
+  `kp=25 kd=0.5` as configured.
+
+`deadman_joy_node` is not hardware-tested yet — no gamepad was plugged in
+during this session. Its logic is straightforward (hold deadman = estop
+False; release or stale /joy = estop True) and matches what the policy
+node expects.
+
+### Still outstanding before a live run
+
+See `T7:LABWORK/PHOENIX/RESUME_NEXT.md`. Short version:
+
+1. Kill `helix_bringup` and `come_here_bringup` sessions on the Jetson.
+2. Put the GO2 in low-level mode (controller L2+A, then L2+B).
+3. Bench-test the hold pose through the bridge in `--live` mode with the
+   robot held at height — confirm motors move to hold without a snap.
+4. Plug in a gamepad and verify `deadman_joy_node` actually flips
+   `/phoenix/estop` on button release.
+5. Only then launch `ros2_policy_node` per the runbook.
+
+Last local commit on this branch when work paused: `8fc9f57`.
+
