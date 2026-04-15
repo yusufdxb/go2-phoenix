@@ -1,0 +1,50 @@
+# PPO training config for the Flat-v0 (proprio-only) sim2real policy.
+# Used by scripts/train.sh — swaps env to Isaac-Velocity-Flat-Unitree-Go2-v0.
+#
+# Motivation: 2026-04-14 dryrun showed the Rough-v0 baseline saturates the
+# per-step slew clip on 99.5% of motor-steps once the 187-dim height-scanner
+# input is zero-padded at deploy time. Flat-v0 has obs_dim=48 (no scanner),
+# eliminating the distribution shift at the cost of terrain generalization.
+
+run:
+  name: "phoenix-flat"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 50
+  max_iterations: 500
+  seed: 42
+  device: "cuda:0"
+
+env:
+  config: "configs/env/flat.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  entropy_coef: 0.005
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 1.0e-3
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 1.0
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false
+  wandb_project: "go2-phoenix"
