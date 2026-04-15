@@ -1,0 +1,13 @@
+# Flat-terrain overlay. Inherits env/base.yaml.
+# Used for the sim2real hardware-deploy policy — real GO2 has no height
+# scanner, so we train on Flat-v0 (obs_dim=48, proprio only) to avoid the
+# 187-dim zero-padding instability seen with Rough-v0 on 2026-04-14.
+
+defaults:
+  - base
+
+env:
+  task_name: "Isaac-Velocity-Flat-Unitree-Go2-v0"
+
+terrain:
+  type: "plane"

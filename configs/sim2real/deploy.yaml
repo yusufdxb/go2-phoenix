@@ -2,10 +2,13 @@
 
 policy:
   # Path to exported ONNX (produced by sim2real/export.py)
-  onnx_path: "checkpoints/phoenix-base/policy.onnx"
+  onnx_path: "checkpoints/phoenix-flat/policy.onnx"
   # Fallback TorchScript policy if onnxruntime missing.
-  torchscript_path: "checkpoints/phoenix-base/policy.pt"
+  torchscript_path: "checkpoints/phoenix-flat/policy.pt"
   device: "cpu"                  # Jetson/on-robot inference
+  # Flat-v0 policy has obs_dim=48 (proprio only, no height scanner).
+  # Default in code is 187 (for Rough-v0); must be 0 for the flat policy.
+  obs_pad_zeros: 0
 
 control:
   rate_hz: 50                    # matches sim decimation
