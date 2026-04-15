@@ -104,29 +104,31 @@ class LowCmdBridge(Node):
         self._last_measured_unitree: np.ndarray | None = None
         self._estop_latched: bool = False
 
-        qos_sensor = QoSProfile(
+        # The Phoenix policy node uses a single QoSProfile(depth=1, BEST_EFFORT)
+        # for every pub/sub it owns (see ros2_policy_node.py). To match its
+        # publishers as a subscriber, we have to also be BEST_EFFORT — a
+        # RELIABLE subscriber against a BEST_EFFORT publisher is treated as
+        # incompatible by DDS and receives nothing. Sensor-style topics
+        # (LowState from the firmware) and our own /lowcmd output stay
+        # BEST_EFFORT for the same reason and for low-latency control.
+        qos_be = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=10,
-        )
-        qos_cmd = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
             depth=10,
         )
 
         self._sub_cmd = self.create_subscription(
-            Float64MultiArray, cfg.cmd_topic, self._on_cmd, qos_cmd
+            Float64MultiArray, cfg.cmd_topic, self._on_cmd, qos_be
         )
         self._sub_state = self.create_subscription(
-            LowState, cfg.lowstate_topic, self._on_lowstate, qos_sensor
+            LowState, cfg.lowstate_topic, self._on_lowstate, qos_be
         )
         self._sub_estop = self.create_subscription(
-            Bool, cfg.estop_topic, self._on_estop, qos_cmd
+            Bool, cfg.estop_topic, self._on_estop, qos_be
         )
 
         self._pub = self.create_publisher(
-            LowCmd, cfg.live_topic if cfg.live else cfg.dry_topic, qos_cmd
+            LowCmd, cfg.live_topic if cfg.live else cfg.dry_topic, qos_be
         )
         self._timer = self.create_timer(1.0 / cfg.rate_hz, self._tick)
 
