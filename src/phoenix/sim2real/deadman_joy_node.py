@@ -40,6 +40,8 @@ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool
 
+from phoenix.sim2real.safety import deadman_should_estop
+
 
 class DeadmanNode(Node):
     def __init__(
@@ -79,15 +81,14 @@ class DeadmanNode(Node):
             # Controller has fewer buttons than expected — treat as released.
             self._button_held = False
 
-    def _joy_stale(self, now_ns: int) -> bool:
-        if self._last_joy_time_ns is None:
-            return True
-        age_s = (now_ns - self._last_joy_time_ns) / 1e9
-        return age_s > self._joy_timeout_s
-
     def _tick(self) -> None:
         now_ns = self.get_clock().now().nanoseconds
-        estopped = self._joy_stale(now_ns) or (not self._button_held)
+        estopped = deadman_should_estop(
+            last_input_ns=self._last_joy_time_ns,
+            button_held=self._button_held,
+            now_ns=now_ns,
+            timeout_s=self._joy_timeout_s,
+        )
         msg = Bool()
         msg.data = bool(estopped)
         self._pub.publish(msg)

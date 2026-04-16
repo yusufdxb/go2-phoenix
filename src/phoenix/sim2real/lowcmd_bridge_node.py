@@ -63,12 +63,14 @@ from phoenix.sim2real.motor_crc import (
     LowCmdRaw,
     compute_crc,
 )
+from phoenix.sim2real.safety import (
+    MAX_DELTA_PER_STEP_RAD,
+    estop_is_active,
+    per_step_clip_array,
+)
 
-# Max per-step position delta vs last measured joint position (rad). The
-# policy is trained with action_scale=0.25 at 50 Hz; 0.175 rad/step is
-# generous enough to not clip normal gait commands, tight enough to stop a
-# broken policy from snapping a joint.
-MAX_DELTA_PER_STEP_RAD = 0.175
+# MAX_DELTA_PER_STEP_RAD is re-exported from phoenix.sim2real.safety so
+# the policy node and the bridge cannot drift on the slew-rate cap.
 
 
 @dataclass
@@ -85,6 +87,10 @@ class BridgeConfig:
     cmd_topic: str
     lowstate_topic: str
     estop_topic: str
+    # If no /phoenix/estop message has been received within this window we
+    # treat the publisher as dead and force hold-pose. Default matches the
+    # 0.5s window the wireless/joystick adapters use.
+    estop_timeout_s: float = 0.5
 
 
 def _load_deploy_config(path: Path) -> dict[str, Any]:
@@ -103,6 +109,11 @@ class LowCmdBridge(Node):
         self._last_cmd_time_ns: int | None = None
         self._last_measured_unitree: np.ndarray | None = None
         self._estop_latched: bool = False
+        # Freshness tracking for the estop topic. The bridge is the
+        # actuation gate, so it cannot trust a stale "estop is False"
+        # value left over from a publisher that has since died.
+        self._last_estop_value: bool | None = None
+        self._last_estop_ns: int | None = None
 
         # The Phoenix policy node uses a single QoSProfile(depth=1, BEST_EFFORT)
         # for every pub/sub it owns (see ros2_policy_node.py). To match its
@@ -165,6 +176,8 @@ class LowCmdBridge(Node):
         self._last_measured_unitree = q
 
     def _on_estop(self, msg: Bool) -> None:
+        self._last_estop_value = bool(msg.data)
+        self._last_estop_ns = self.get_clock().now().nanoseconds
         if msg.data and not self._estop_latched:
             self.get_logger().warn("/phoenix/estop True; bridge latching to hold")
         if msg.data:
@@ -179,6 +192,23 @@ class LowCmdBridge(Node):
 
         now_ns = self.get_clock().now().nanoseconds
 
+        # Fail-closed estop: stale heartbeat ≡ estop True. The latch is
+        # sticky once flipped so a recovering publisher can't lift it.
+        estop_signal = estop_is_active(
+            last_msg_received_ns=self._last_estop_ns,
+            latest_value=self._last_estop_value,
+            now_ns=now_ns,
+            timeout_s=self._cfg.estop_timeout_s,
+        )
+        if estop_signal and not self._estop_latched:
+            reason = (
+                "no /phoenix/estop publisher"
+                if self._last_estop_ns is None
+                else "stale estop heartbeat"
+            )
+            self.get_logger().warn(f"bridge latching to hold: {reason}")
+            self._estop_latched = True
+
         use_hold = self._estop_latched or self._is_command_stale(now_ns)
         if use_hold or self._last_cmd_phoenix is None:
             target_unitree = self._last_measured_unitree.copy()
@@ -190,10 +220,11 @@ class LowCmdBridge(Node):
                 [phoenix_vec[PHOENIX_FOR_MOTOR[k]] for k in range(12)],
                 dtype=np.float32,
             )
-            # Clip per-step delta vs measured.
-            delta = target_unitree - self._last_measured_unitree
-            np.clip(delta, -MAX_DELTA_PER_STEP_RAD, MAX_DELTA_PER_STEP_RAD, out=delta)
-            target_unitree = self._last_measured_unitree + delta
+            # Clip per-step delta vs measured. Shared helper with the
+            # policy node — see phoenix.sim2real.safety.
+            target_unitree = per_step_clip_array(
+                target_unitree, self._last_measured_unitree, MAX_DELTA_PER_STEP_RAD
+            ).astype(np.float32, copy=False)
             kp, kd = self._cfg.kp, self._cfg.kd
 
         self._publish(target_unitree, kp, kd)
@@ -270,6 +301,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=0.2,
         help="seconds without a policy command before falling back to hold (default 0.2)",
     )
+    p.add_argument(
+        "--estop-timeout-s",
+        type=float,
+        default=None,
+        help=(
+            "seconds without a /phoenix/estop heartbeat before forcing hold. "
+            "Default: read safety.estop_timeout_s from --config (deploy.yaml), "
+            "falling back to 0.5 s if absent."
+        ),
+    )
     return p.parse_args(argv)
 
 
@@ -278,6 +319,7 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
     cmd_topic = "/joint_group_position_controller/command"
     lowstate_topic = "/lowstate"
     estop_topic = "/phoenix/estop"
+    yaml_estop_timeout: float | None = None
     if args.config.exists():
         cfg = _load_deploy_config(args.config)
         rate_hz = float(cfg.get("control", {}).get("rate_hz", rate_hz))
@@ -285,6 +327,21 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         cmd_topic = t.get("joint_command", cmd_topic)
         s = cfg.get("safety", {})
         estop_topic = s.get("emergency_stop_topic", estop_topic)
+        if "estop_timeout_s" in s:
+            yaml_estop_timeout = float(s["estop_timeout_s"])
+
+    # Resolution order for the estop heartbeat timeout, strict-to-loose:
+    #   1. CLI flag --estop-timeout-s if explicitly passed (not None).
+    #   2. safety.estop_timeout_s in deploy.yaml.
+    #   3. Hard-coded 0.5 s last-resort default (matches the BridgeConfig
+    #      default and the wireless/joystick adapter defaults).
+    if args.estop_timeout_s is not None:
+        estop_timeout_s = float(args.estop_timeout_s)
+    elif yaml_estop_timeout is not None:
+        estop_timeout_s = yaml_estop_timeout
+    else:
+        estop_timeout_s = 0.5
+
     return BridgeConfig(
         rate_hz=rate_hz,
         watchdog_s=args.watchdog_s,
@@ -298,6 +355,7 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         cmd_topic=cmd_topic,
         lowstate_topic=lowstate_topic,
         estop_topic=estop_topic,
+        estop_timeout_s=estop_timeout_s,
     )
 
 

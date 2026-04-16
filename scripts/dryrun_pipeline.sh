@@ -56,9 +56,17 @@ LCB_PID=$!
 sleep 2
 
 echo "[$(date +%T)] stage 4: policy node (parquet=${PARQUET})"
+# Resolve the ONNX path from deploy.yaml so the harness stays in sync if
+# the deployed policy switches (e.g. phoenix-base ↔ phoenix-flat).
+ONNX_PATH=$(python3 -c "
+import sys, yaml
+with open('configs/sim2real/deploy.yaml') as fh:
+    cfg = yaml.safe_load(fh)
+print(cfg['policy']['onnx_path'])
+")
 nohup python3 -m phoenix.sim2real.ros2_policy_node \
     --config      configs/sim2real/deploy.yaml \
-    --onnx        checkpoints/phoenix-base/policy.onnx \
+    --onnx        "${ONNX_PATH}" \
     --log-parquet "${PARQUET}" > /tmp/dryrun_policy.log 2>&1 &
 POLICY_PID=$!
 sleep 5

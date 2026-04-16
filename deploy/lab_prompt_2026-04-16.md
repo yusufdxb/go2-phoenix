@@ -1,211 +1,316 @@
-# Phoenix Lab Prompt — 2026-04-16
+# Phoenix Lab Runbook — 2026-04-17
 
-**Target:** Unitree GO2 + Jetson companion (ROS 2 Humble), at the lab
-**Branch on T7:** `deploy-run-2026-04-14` (do NOT merge to main until flat-v0 is hardware-validated)
-**Baseline policy:** `checkpoints/phoenix-flat/policy.onnx` (Flat-v0, obs_dim=48, trained 2026-04-15 on mewtwo)
-
----
-
-## SCOPE: LAB-ONLY
-
-You are running in the lab, on or next to the GO2. **Everything in this prompt requires the physical robot or Jetson.** If a step doesn't need the hardware, it doesn't belong here — it was already done on mewtwo before the session.
-
-**Do NOT do any of the following in this session (they are mewtwo-side and already complete as of 2026-04-15):**
-- Training or retraining (PPO, adaptation, fine-tune)
-- ONNX / TorchScript export
-- Writing new tests or refactoring Python
-- Editing `configs/env/*.yaml`, `configs/train/*.yaml`, or anything under `src/phoenix/training/`
-- Pushing to GitHub or opening PRs
-- Modifying `reset_bridge.py`, `curriculum.py`, or adaptation logic
-- Running `pytest` outside of the two commands in Section 2 below
-
-If you notice a defect in one of the above, **log it in `docs/lab_findings_2026-04-16.md` and move on.** Fixes happen back on mewtwo.
+**Target:** Unitree GO2 + Jetson companion, ROS 2 Humble  
+**Branch on T7 / Jetson clone:** `deploy-run-2026-04-14`  
+**Shipped deploy artifact:** `checkpoints/phoenix-flat/policy.onnx`  
+**Deploy config:** `configs/sim2real/deploy.yaml`
 
 ---
 
-## LAB TASKS (in order)
+## Scope
 
-### 0. Preflight sync
+This runbook is hardware-only. Local cleanup, training, export, replay redesign, and broad refactors are out of scope. The local `mewtwo` fixes are assumed to have landed already:
+
+- replay variation application is partially real
+- projected-gravity deploy bug is fixed
+- estop / sensor freshness is fail-closed locally
+- dry-run tooling resolves ONNX path from `deploy.yaml`
+- docs now match the local code more closely
+
+Tomorrow is about hardware proof only.
+
+---
+
+## Do Not
+
+- Do not train, fine-tune, or export a new policy on Jetson
+- Do not weaken estop, deadman, or watchdog behavior
+- Do not merge to `main`
+- Do not push to GitHub from Jetson
+- Do not continue past a failed gate because the robot “looks fine”
+
+If a hardware-only defect appears, make the smallest safe fix needed, document it, and keep scope tight.
+
+---
+
+## Success Criteria
+
+The narrowest honest success claim for this session is:
+
+1. `verify_deploy` passes on Jetson
+2. `scripts/dry_run_policy.py` passes on Jetson
+3. wireless/controller deadman proves `/phoenix/estop` behavior on the real ROS graph
+4. dry-run bridge output is sane and not pathologically clip-saturated
+5. one stand-only live run completes safely
+6. one real hardware parquet is written and readable
+
+Ground motion is optional and only allowed after all previous gates pass.
+
+---
+
+## 0. Preflight Sync
 
 ```bash
-# T7 → Jetson over the lab LAN:
 cd "/media/T7 Storage" && tar c go2-phoenix | \
   ssh unitree@192.168.0.2 "cd ~/yusuf && rm -rf go2-phoenix && tar x"
-ssh unitree@192.168.0.2 "cd ~/yusuf/go2-phoenix && git status && git log -1 --oneline"
+
+ssh unitree@192.168.0.2 "cd ~/yusuf/go2-phoenix && git status && git log -1 --oneline && git branch --show-current"
 ```
 
-Expect `deploy-run-2026-04-14` branch, HEAD at `c5e34a9` or newer (flat-v0 deploy config). If not, stop.
+Expect:
+
+- repo at `~/yusuf/go2-phoenix`
+- branch `deploy-run-2026-04-14`
+- HEAD newer than or equal to the flat-policy switch
+
+Then verify the actual shipped deploy config on Jetson:
+
+```bash
+cd ~/yusuf/go2-phoenix
+python3 - <<'PY'
+import yaml
+cfg = yaml.safe_load(open('configs/sim2real/deploy.yaml'))
+print(cfg['policy']['onnx_path'])
+print(cfg['policy']['torchscript_path'])
+print(cfg['policy']['obs_pad_zeros'])
+print(cfg['safety'])
+PY
+```
+
+Required:
+
+- `policy.onnx_path == checkpoints/phoenix-flat/policy.onnx`
+- `policy.obs_pad_zeros == 0`
+
+If not, stop and fix the repo sync first.
 
 ---
 
-### 1. Verify the deploy artifacts (offline, no robot motion)
+## 1. Offline Deploy Gate
 
-Before the GO2 powers on, confirm the exported models are internally consistent. The `verify_deploy` gate was added on mewtwo 2026-04-15 specifically for this step.
+Before touching the robot, confirm the shipped artifacts are internally consistent.
 
 ```bash
 cd ~/yusuf/go2-phoenix
 python3 -m phoenix.sim2real.verify_deploy \
-    --parquet data/failures/synth_slippery_trained.parquet \
-    --deploy-cfg configs/sim2real/deploy.yaml \
-    --tol 1e-4 \
-    --max-steps 200
+  --parquet data/failures/synth_slippery_trained.parquet \
+  --deploy-cfg configs/sim2real/deploy.yaml \
+  --tol 1e-4 \
+  --max-steps 200
 ```
 
-Expected: `PASS` with `max_diff` < 1e-4. Non-zero exit code = STOP; don't proceed to hardware.
+Gate:
 
-Also spot-check `scripts/dry_run_policy.py` one more time (Jetson env may differ from mewtwo):
-
-```bash
-python3 scripts/dry_run_policy.py
-```
-
-Must report all four scenarios pass (clean start, attitude abort, estop latch, NaN abort).
+- must return `PASS`
+- non-zero exit code means stop
 
 ---
 
-### 2. Dryrun saturation gate
+## 2. Jetson Dry-Run Policy Gate
 
-Goal: confirm the Flat-v0 policy does **not** saturate the slew clip rate-limiter on the real robot. The old Rough-v0 policy saturated on 99.5% of motor steps — that's the regression this gate catches.
-
-Procedure (robot ON STAND, motors unpowered or low-level disabled):
+This checks the ROS-side policy node on Jetson with synthetic inputs.
 
 ```bash
-# Terminal A — policy in dryrun mode (publishes joint cmds to a sink topic)
-ros2 launch phoenix_bringup dryrun_pipeline.launch.py
-
-# Terminal B — inspector
-python3 scripts/lowcmd_inspector.py --topic /phoenix/lowcmd --window 500
+source /opt/ros/humble/setup.bash
+cd ~/yusuf/go2-phoenix
+PYTHONPATH=$PWD/src python3 scripts/dry_run_policy.py --config configs/sim2real/deploy.yaml
 ```
 
-Gate: **< 5% of steps saturate slew clip.** If higher, stop and log findings. Do not enable motors.
+Gate:
+
+- must pass all scenarios
+- if this fails, do not proceed to real ROS / hardware
 
 ---
 
-### 3. Low-level mode toggle
+## 3. Real ROS Topic Surface Check
 
-Confirm we can switch the GO2 into low-level control mode and back out cleanly. This must work before motors are ever enabled with the policy in the loop.
+Before live actuation, verify the ROS graph you actually have.
+
+Required checks:
+
+- `/lowstate` exists and is healthy
+- `/phoenix/estop` topic exists once the estop adapter is launched
+- bridge and policy topic names match `deploy.yaml`
+- no stale command names or package names are being used from older prompts
+
+Useful commands:
 
 ```bash
-# On the GO2 (via Jetson):
-ros2 run unitree_mode_ctrl mode_ctrl --ros-args -p target:=low
-# Wait 5s, then:
-ros2 run unitree_mode_ctrl mode_ctrl --ros-args -p target:=high
+source /opt/ros/humble/setup.bash
+ros2 topic list | sort
+ros2 topic info /lowstate
+ros2 topic hz --qos-profile sensor_data /lowstate
 ```
 
-Verify:
-- Both transitions succeed (exit code 0).
-- `/lowstate` topic is publishing at ~500 Hz while in low mode.
-- Robot stays in stand pose during both transitions (no joint drift > 0.05 rad).
-
-Do **not** proceed if the transition is jerky or if `/lowstate` rate drops below 400 Hz.
+If the expected topic surface is missing, stop and fix the ROS bringup, not the runbook.
 
 ---
 
-### 4. Gamepad deadman test
+## 4. Wireless Deadman / Estop Gate
 
-Verify the wireless controller → `/phoenix/estop` path works before enabling motors. The `wireless_estop_node` was added 2026-04-14.
+Prove the real deadman path before enabling motors.
+
+Terminal A:
 
 ```bash
-# Terminal A:
-ros2 run phoenix_ros wireless_estop_node
-# Terminal B:
+source /opt/ros/humble/setup.bash
+cd ~/yusuf/go2-phoenix
+PYTHONPATH=$PWD/src python3 -m phoenix.sim2real.wireless_estop_node
+```
+
+Terminal B:
+
+```bash
+source /opt/ros/humble/setup.bash
 ros2 topic echo /phoenix/estop
 ```
 
-Test both directions:
-1. Press deadman button → topic emits `False` (run-enabled).
-2. Release deadman → topic emits `True` (estop latched).
-3. Unplug controller → topic emits `True` within 500 ms of disconnect.
+Gate all three:
 
-All three must work. If any fail, stop; motors stay off.
+1. hold deadman button -> `/phoenix/estop` becomes `False`
+2. release deadman button -> `/phoenix/estop` becomes `True`
+3. controller silence / disconnect -> `/phoenix/estop` returns `True` within timeout
 
----
-
-### 5. First live policy run (STAND ONLY)
-
-Only proceed if Sections 0–4 all passed.
-
-```bash
-# Terminal A — policy node with built-in logging
-python3 -m phoenix.sim2real.ros2_policy_node \
-    --deploy-cfg configs/sim2real/deploy.yaml \
-    --log-parquet data/hardware/run_2026-04-16_stand.parquet
-
-# Terminal B — external estop (redundant with controller deadman)
-bash scripts/estop_publisher.sh
-
-# Terminal C — teleop
-# Operator sends small /cmd_vel commands (<= 0.2 m/s) via joystick.
-```
-
-Gates:
-- Policy runs for the full 120s without auto-aborting on attitude/NaN.
-- No slew saturation warnings from the lowcmd inspector.
-- Parquet is written on completion (`ls -la data/hardware/`).
-
-**STOP HERE.** Do not lower the robot. Ask the human operator for explicit approval before Section 6.
+If any fail, stop. No motor actuation.
 
 ---
 
-### 6. (If human approves) Ground run, 30 seconds
+## 5. Dry-Run Saturation Gate on Real ROS Graph
 
-Same launch as Section 5 but with the robot on the ground. Set `safety.max_runtime_s: 30` as a temporary override:
+Goal: confirm the flat-v0 policy does not recreate the old rough-v0 saturation behavior.
+
+Terminal A:
 
 ```bash
-# Edit deploy.yaml max_runtime_s → 30 for this run only.
+cd ~/yusuf/go2-phoenix
+bash scripts/dryrun_pipeline.sh 30
 ```
 
-If the robot walks without falling or tripping an abort, capture the parquet; this is the **first real failure-curriculum seed.**
+Terminal B:
+
+```bash
+source /opt/ros/humble/setup.bash
+cd ~/yusuf/go2-phoenix
+python3 scripts/lowcmd_inspect.py 6 /lowcmd_dry
+```
+
+Gate:
+
+- sane publish rates
+- no incoherent thrashing
+- output not pinned at the slew cap
+- estop freshness still behaves fail-closed under the real ROS timing
+
+If this fails, do not enable motors.
 
 ---
 
-### 7. Post-run artifacts
+## 6. Stand-Only Live Run
 
-Commit the run log and findings to the `deploy-run-2026-04-14` branch on the Jetson clone. Do NOT push to origin; the push happens back on mewtwo after review.
+Only proceed if Sections 1–5 all passed.
+
+Bring up the live path explicitly.
+
+Terminal A:
 
 ```bash
-git add data/hardware/run_2026-04-16_*.parquet docs/lab_findings_2026-04-16.md
-git commit -m "lab run 2026-04-16: flat-v0 on stand + (maybe) ground"
+source /opt/ros/humble/setup.bash
+cd ~/yusuf/go2-phoenix
+PYTHONPATH=$PWD/src python3 -m phoenix.sim2real.lowstate_bridge_node
 ```
 
-Then sync the Jetson clone back to T7 so the seeds reach mewtwo:
+Terminal B:
 
 ```bash
-# From the Jetson:
+source /opt/ros/humble/setup.bash
+cd ~/yusuf/go2-phoenix
+PYTHONPATH=$PWD/src python3 -m phoenix.sim2real.lowcmd_bridge_node --live
+```
+
+Terminal C:
+
+```bash
+source /opt/ros/humble/setup.bash
+cd ~/yusuf/go2-phoenix
+PYTHONPATH=$PWD/src python3 -m phoenix.sim2real.ros2_policy_node \
+  --config configs/sim2real/deploy.yaml \
+  --onnx checkpoints/phoenix-flat/policy.onnx \
+  --log-parquet data/hardware/run_2026-04-17_stand.parquet
+```
+
+Gate:
+
+- stand-only behavior is clean
+- no unsafe snap or thrash
+- deadman release / disconnect aborts cleanly in live mode
+- parquet is written and readable
+
+Do not lower the bar here. This is the main success condition.
+
+---
+
+## 7. Optional Ground Run
+
+Only if stand-only live validation is clean.
+
+Optional next step:
+
+- limited ground motion
+- operator approval first
+- same deploy path
+- clearly separate this result from the stand result in notes
+
+If the robot walks safely and logs a parquet, that is valuable. If not, the stand run is still the core proof.
+
+---
+
+## 8. Post-Run Artifacts
+
+Record what actually happened.
+
+Suggested artifacts:
+
+- `data/hardware/run_2026-04-17_stand.parquet`
+- any optional ground-run parquet
+- `docs/lab_findings_2026-04-17.md`
+
+Commit only to the deploy branch on the Jetson clone:
+
+```bash
+git add data/hardware/run_2026-04-17*.parquet docs/lab_findings_2026-04-17.md
+git commit -m "lab run 2026-04-17: stand validation and hardware artifacts"
+```
+
+Then sync hardware artifacts back to T7:
+
+```bash
 rsync -av --delete ~/yusuf/go2-phoenix/data/hardware/ \
-    /media/T7\ Storage/LABWORK/PHOENIX/hardware_runs/
+  /media/T7\ Storage/LABWORK/PHOENIX/hardware_runs/
 ```
 
 ---
 
-## FAILURE MODES TO WATCH FOR
+## Failure Modes To Watch
 
-| Symptom | Likely cause | Action |
+| Symptom | Likely Cause | Action |
 |---|---|---|
-| `verify_deploy` reports max_diff ~1e-2 | ONNX↔torch export drift | Stop. Re-export on mewtwo with fresh `policy.pt`. |
-| Slew clip saturates > 5% on dryrun | Wrong policy (rough instead of flat) or wrong `obs_pad_zeros` | Check `deploy.yaml`: `onnx_path` = phoenix-flat, `obs_pad_zeros: 0`. |
-| Low mode transition hangs | SDK / firmware | Power-cycle the GO2; do not force-kill. |
-| Deadman release doesn't latch estop | `wireless_estop_node` not running, or QoS mismatch | Confirm BEST_EFFORT QoS; confirm `/phoenix/estop` has exactly 1 publisher. |
-| Attitude abort fires on stand (no motion) | IMU orientation wrong (GO2 placed on its side) | Reseat; check `/imu/data` orientation. |
-| Node logs "NaN in joint_state" | Lowstate bridge dropped a frame | Restart `lowstate_bridge_node`. Do NOT disable the NaN check. |
+| `verify_deploy` max diff is large | ONNX / TorchScript drift or wrong artifact | Stop. Fix on `mewtwo`. |
+| Dry-run outputs saturate badly | wrong policy or config drift | Check `deploy.yaml` paths and `obs_pad_zeros: 0`. |
+| `/phoenix/estop` does not flip on release/silence | deadman path broken | Stop. Do not enable motors. |
+| Policy node stays silent forever | estop or sensor preconditions never satisfied | Inspect topic freshness and publisher graph. |
+| Live stand run snaps or thrashes | policy/runtime mismatch or bridge issue | Abort immediately, preserve logs, stop session. |
+| Parquet not written | path / permissions / node exit issue | Fix only if safe; otherwise document blocker. |
 
 ---
 
-## DO NOT, UNDER ANY CIRCUMSTANCES
+## End-Of-Session Checklist
 
-- Raise `safety.max_runtime_s` above 120 on any hardware run.
-- Disable the deadman or estop latching in code.
-- Merge `deploy-run-2026-04-14` to `main` during the lab session.
-- Start training on the Jetson.
-- Push to GitHub from the Jetson.
-- Edit `reset_bridge.py`, `curriculum.py`, or anything under `src/phoenix/adaptation/` or `src/phoenix/training/`.
-
----
-
-## END-OF-SESSION CHECKLIST
-
-- [ ] `docs/lab_findings_2026-04-16.md` populated with observations from each section.
-- [ ] All hardware parquets committed to `deploy-run-2026-04-14`.
-- [ ] T7 rsync of `data/hardware/` completed.
-- [ ] Robot powered down, tether removed.
-- [ ] Controller deadman confirmed as released (estop True) on shutdown.
+- [ ] `verify_deploy` passed
+- [ ] `scripts/dry_run_policy.py` passed on Jetson
+- [ ] wireless/controller deadman validated on the real ROS graph
+- [ ] dry-run saturation gate passed
+- [ ] stand-only live run completed safely
+- [ ] at least one readable hardware parquet captured
+- [ ] findings written down with clear proof boundaries
+- [ ] artifacts synced back to T7

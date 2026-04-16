@@ -49,7 +49,13 @@ DEFAULT_JOINT_ORDER = [
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--config", type=Path, default=Path("configs/sim2real/deploy.yaml"))
-    p.add_argument("--onnx", type=Path, default=Path("checkpoints/phoenix-base/policy.onnx"))
+    p.add_argument(
+        "--onnx",
+        type=Path,
+        default=None,
+        help="ONNX path. Defaults to configs/sim2real/deploy.yaml policy.onnx_path "
+             "so the harness can't drift from the shipped deploy config.",
+    )
     p.add_argument("--duration", type=float, default=3.0,
                    help="Seconds per scenario.")
     return p.parse_args()
@@ -183,9 +189,14 @@ def main() -> int:
         dtype=np.float32,
     )
 
+    onnx_path = args.onnx or Path(cfg["policy"]["onnx_path"])
+    if not onnx_path.exists():
+        logger.error("ONNX not found at %s", onnx_path)
+        return 2
+
     rclpy.init()
     try:
-        policy = _PhoenixPolicyNode(cfg, args.onnx, log_parquet=None)
+        policy = _PhoenixPolicyNode(cfg, onnx_path, log_parquet=None)
         fakes = FakeSensorNode(Node, default_q, cfg["safety"]["emergency_stop_topic"])
         recorder = CommandRecorder(Node)
 
@@ -236,7 +247,7 @@ def main() -> int:
         logger.info("Scenario 3: estop latch — re-init node, flip /phoenix/estop True.")
         policy.shutdown()
         policy.node.destroy_node()
-        policy = _PhoenixPolicyNode(cfg, args.onnx, log_parquet=None)
+        policy = _PhoenixPolicyNode(cfg, onnx_path, log_parquet=None)
         executor.add_node(policy.node)
         time.sleep(0.5)
         fakes.estop = True
@@ -253,7 +264,7 @@ def main() -> int:
         logger.info("Scenario 4: NaN in joint_states — expect abort.")
         policy.shutdown()
         policy.node.destroy_node()
-        policy = _PhoenixPolicyNode(cfg, args.onnx, log_parquet=None)
+        policy = _PhoenixPolicyNode(cfg, onnx_path, log_parquet=None)
         executor.add_node(policy.node)
         time.sleep(0.5)
         fakes.inject_nan = True

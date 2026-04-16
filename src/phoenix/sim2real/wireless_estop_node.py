@@ -40,6 +40,8 @@ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 from unitree_go.msg import WirelessController
 
+from phoenix.sim2real.safety import deadman_should_estop
+
 
 class WirelessEstopNode(Node):
     def __init__(
@@ -84,14 +86,14 @@ class WirelessEstopNode(Node):
         self._last_msg_time_ns = self.get_clock().now().nanoseconds
         self._button_held = bool(int(msg.keys) & self._button_mask)
 
-    def _is_stale(self, now_ns: int) -> bool:
-        if self._last_msg_time_ns is None:
-            return True
-        return (now_ns - self._last_msg_time_ns) / 1e9 > self._joy_timeout_s
-
     def _tick(self) -> None:
         now_ns = self.get_clock().now().nanoseconds
-        estopped = self._is_stale(now_ns) or (not self._button_held)
+        estopped = deadman_should_estop(
+            last_input_ns=self._last_msg_time_ns,
+            button_held=self._button_held,
+            now_ns=now_ns,
+            timeout_s=self._joy_timeout_s,
+        )
         msg = Bool()
         msg.data = bool(estopped)
         self._pub.publish(msg)
