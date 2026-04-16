@@ -3,6 +3,21 @@ Date: 2026-04-14 (revised EOD after pre-hardware-fixes)
 Target: Unitree GO2 + Jetson companion computer, ROS 2 Humble
 Expected branch on T7: `pre-hardware-fixes` (merge into main after first successful deploy).
 
+================================================================
+*** CURRENT-STATE NOTE (2026-04-16, post-audit) ***
+The shipped deploy config (`configs/sim2real/deploy.yaml`) now points at
+`checkpoints/phoenix-flat/policy.onnx` (obs_dim=48, `obs_pad_zeros: 0`).
+The 2026-04-14 dryrun showed the original Rough-v0 baseline saturated
+the per-step slew clip on 99.5% of motor-steps once the 187-dim height
+scan was zero-padded; the flat-v0 retrain in `ppo_flat.yaml` exists to
+fix that. Sections 3, 4, 5, and 8 below still describe the older
+phoenix-base flow — when you launch on hardware, follow the current
+`deploy.yaml` paths instead of the literal phoenix-base/* paths quoted
+below. The dry_run_policy.py harness now reads `policy.onnx_path` from
+deploy.yaml directly, so it stays in sync.
+================================================================
+
+
 You are a Claude Code session running on the Jetson companion computer of a Unitree GO2. The T7 SSD is plugged in and this repo lives at `"/media/T7 Storage/go2-phoenix"` (mount point may differ — check `/media/` and `/mnt/` if the quoted path is not present; always quote the path because it contains a space). Your job is to deploy the trained Phoenix baseline policy (`model_499.pt`, 500-iter PPO, 100% success in sim) onto the real robot.
 
 You will not train, refactor, or broadly modify code. You will run checks, launch the policy, gate progress on observed evidence, log failures, and commit results to a deploy-run branch — never to `main`.

@@ -42,8 +42,15 @@ SIM train  ──▶  ONNX export  ──▶  ROS 2 deploy  ──▶  GO2 hardw
 Baseline gets rough right (100%) but slips on slippery (90.6%). The
 adapted policy trades ~3 pp of rough-terrain success for closing the
 entire slip gap on slippery terrain — 100% success, +0.74 in return.
-Exactly the shape of improvement the Phoenix loop is designed to
-produce.
+
+> **What this is and isn't.** The adaptation here is plain warm-start
+> PPO on the ``slippery.yaml`` overlay (low friction). It is **not** a
+> failure-curriculum result — ``configs/train/adaptation.yaml`` ships
+> with ``failure_sample_fraction: 0.0`` because the failure
+> reset-bridge has no hardware-captured parquets to validate against
+> yet. A smoke config (``configs/train/adaptation_smoke.yaml``)
+> exercises the curriculum plumbing with synthesized parquets but is
+> not the producer of the numbers above. See "Known limitations" below.
 
 ### Sim-to-sim artifacts
 
@@ -52,8 +59,12 @@ produce.
   adds ~11 min.
 * ONNX export passes parity check (max torch↔onnxruntime abs-diff 2.98e-6).
 * Failure parquet synthesizer produces 200-step rollouts with
-  attitude/collapse/slip flags; replay reconstruction runs N perturbed
-  variations from the logged initial state.
+  attitude/collapse/slip flags. ``replay/reconstruct.py`` spawns N sim
+  envs from the logged initial state and applies a Halton-sampled
+  per-env perturbation (mass, push velocity, push yaw) — exercised in
+  unit tests against the pure-numpy translation in
+  ``replay/apply_variations.py``; the Isaac Sim hand-off itself is sim-
+  only, so it cannot run in CI.
 * Side-by-side demo videos:
   [`media/side_by_side.mp4`](media/side_by_side.mp4) (training progress)
   and [`media/side_by_side_adapt.mp4`](media/side_by_side_adapt.mp4)
@@ -140,10 +151,14 @@ pip install -e ".[dev]"
 pytest tests -m "not sim and not ros"
 ```
 
-39 unit tests cover the config loader, observation builder, failure
+~100 unit tests cover the config loader, observation builder, failure
 detector, trajectory logger, Parquet round-trip, Halton variation
-sampler, curriculum scheduler, and ffmpeg escape helper. Sim and ROS
-tests are out of CI scope by design — they run manually on the hardware.
+sampler, curriculum scheduler, ffmpeg escape helper, the new per-env
+variation translation feeding ``reconstruct.py``, the fail-closed
+estop / sensor freshness predicates used by the deploy nodes, the
+projected-gravity helper consistency between the policy node and the
+parity gate, and the lowcmd bridge config builder. Sim and ROS tests
+are out of CI scope by design — they run manually on the hardware.
 
 Isaac-Lab integration tests live at `tests/test_sim_integration.py`
 (marked `@pytest.mark.sim`). They instantiate the Phoenix env cfg
@@ -153,24 +168,70 @@ overrides land on the right event terms — run them locally with
 
 ---
 
+## Safety semantics on the deploy path
+
+The real-robot side fails closed by default. ``ros2_policy_node`` and
+``lowcmd_bridge_node`` both treat a stale ``/phoenix/estop`` heartbeat
+as an asserted estop, not as "OK to keep going." Every gate is a free
+function in ``src/phoenix/sim2real/safety.py`` and is unit-tested in
+``tests/test_safety.py``:
+
+* **Startup is locked.** The policy node refuses to run inference or
+  publish a policy-derived command until it has received a fresh
+  ``/phoenix/estop`` heartbeat with ``data == False`` AND fresh
+  ``/imu/data`` AND fresh ``/joint_states``. During cold startup with
+  any precondition unmet, the node stays SILENT — the bridge's own
+  fail-closed watchdog (also fed by ``estop_is_active``) holds the
+  motors with the conservative ``hold_kp`` / ``hold_kd`` gains.
+* **Past the grace window**, an unmet precondition latches the abort
+  with a specific reason (``estop_publisher_missing``,
+  ``estop_heartbeat_stale``, ``external_estop``, ``sensor_missing``,
+  ``sensor_stale``); the node then publishes the safe default stand
+  pose so the bridge can deliberately hold the robot upright.
+* **Slew-rate cap is shared.** The policy node and the bridge both call
+  ``per_step_clip_array(target, current, MAX_DELTA_PER_STEP_RAD)`` —
+  the constant lives in ``safety.py`` and the cap is provably the same
+  on both sides.
+* **Wireless / joystick deadman**: stale input *or* released button →
+  publish ``estop=True`` within one tick (no "last reported held"
+  trust).
+
+The relevant knobs live under ``safety:`` in
+``configs/sim2real/deploy.yaml``; ``estop_timeout_s`` is read all the
+way through to the bridge as well, with a strict resolution order
+(CLI flag → YAML → 0.5 s last-resort default). Defaults are deliberate
+and tighter than the upstream Unitree examples, not looser.
+
+---
+
 ## Known limitations
 
-v0.1 has the full Phoenix-loop *architecture* in place and validated
-end-to-end in sim, including a measurable fine-tune improvement on
+v0.1 has the Phoenix-loop *architecture* in place and validated
+end-to-end in sim, including a measurable warm-start fine-tune on
 the slippery-terrain regime. What's still left for v0.2:
 
 * **Real-robot deployment.** `sim2real.ros2_policy_node` runs but has
-  not been exercised against a live GO2 this cycle. The baseline
-  policy observes 235 dims (includes rough-terrain height scan); the
-  sim2real pipeline will need a real height-scan source or a flat-task
-  variant for genuine deployment.
-* **Failure-parquet-driven curriculum.** The `reset_bridge` that
-  re-seeds selected envs from real failure parquets is wired (env-
-  origin-relative poses, xyzw→wxyz quat conversion) but
-  `failure_sample_fraction` ships at `0.0` because we do not yet have
-  a hardware-captured parquet to avoid contaminating the adapt run
-  with synthesized failures. It is an opt-in knob once real GO2
-  failures are recorded — see `data/failures/README.md`.
+  not been exercised against a live GO2 this cycle. A flat-v0
+  retrained policy (`configs/train/ppo_flat.yaml`) is now the shipped
+  deploy artifact — see `configs/sim2real/deploy.yaml:policy.onnx_path`
+  pointing at `phoenix-flat/policy.onnx`. The Rough-v0 baseline
+  observed 235 dims (proprio + height scan); on hardware-adjacent obs
+  it saturated the per-step slew clip on 99.5% of motor-steps in the
+  2026-04-14 dryrun. Flat-v0 (obs_dim=48, no scanner) is the
+  workaround. Hardware-on-the-stand validation of the flat policy
+  is still pending.
+* **Failure-curriculum adaptation.** The `reset_bridge` that re-seeds
+  selected envs from real failure parquets is wired (env-origin-relative
+  poses, xyzw→wxyz quat conversion) and unit-tested. The headline
+  adaptation result above does **not** use it: `adaptation.yaml` ships
+  with `failure_sample_fraction: 0.0` until a hardware-captured parquet
+  exists. The pipeline can be flipped on with `adaptation_smoke.yaml`,
+  but those numbers are plumbing-only.
+* **Replay variation application is local-only.** The pure-Python
+  variation translation in `replay/apply_variations.py` is unit-tested
+  in CI; the Isaac Sim mass / friction / initial-velocity application
+  in `replay/reconstruct.py` is exercised on `mewtwo` but does not have
+  a hardware-rollout comparison yet.
 * **rsl_rl 3.0 iter-0 logging artifact.** Fine-tune from a trained
   baseline now uses `init_at_random_ep_len=False`; without that,
   `runner.learn` emits iter-0 "mean reward ≈ 0" even with byte-exact

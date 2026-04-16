@@ -43,6 +43,11 @@ from phoenix.real_world.failure_detector import FailureDetector, FailureThreshol
 from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
 
 from .observation import JointOrder, ObservationBuilder
+from .safety import (
+    MAX_DELTA_PER_STEP_RAD,
+    is_ready_to_command_motion,
+    per_step_clip_array,
+)
 
 logger = logging.getLogger("phoenix.sim2real.ros2_policy_node")
 
@@ -105,6 +110,16 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.rate_hz = float(cfg["control"]["rate_hz"])
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
         self.pos_margin = float(cfg["actuator_limits"]["position_margin_rad"])
+        # Fail-closed timeouts. Defaults are deliberate: estop must be
+        # heartbeated faster than 0.5s (heartbeat publisher runs at 10Hz),
+        # IMU/joint state must be alive within 0.2s (the policy can't
+        # operate on stale observations of an actuated robot).
+        safety_cfg = cfg.get("safety", {})
+        self.estop_timeout_s = float(safety_cfg.get("estop_timeout_s", 0.5))
+        self.sensor_timeout_s = float(safety_cfg.get("sensor_timeout_s", 0.2))
+        # We allow the robot up to this long after launch to bring up its
+        # estop publisher + first sensor messages. After that we latch.
+        self.startup_grace_s = float(safety_cfg.get("startup_grace_s", 3.0))
 
         # Policy-side observation padding. The Rough baseline expects
         # 48 proprio + 187 height-scan = 235 dims; the real GO2 has no
@@ -138,6 +153,12 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._started_at = time.monotonic()
         self._step_idx = 0
 
+        # Freshness bookkeeping for the fail-closed estop / sensor watchdogs.
+        self._latest_imu_ns: int | None = None
+        self._latest_joint_state_ns: int | None = None
+        self._latest_estop_ns: int | None = None
+        self._latest_estop_value: bool | None = None
+
         self._logger: TrajectoryLogger | None = None
         if log_parquet is not None:
             self._logger = TrajectoryLogger(log_parquet)
@@ -158,9 +179,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
     def _on_imu(self, msg):
         self._latest_imu = msg
+        self._latest_imu_ns = time.monotonic_ns()
 
     def _on_joint_state(self, msg):
         self._latest_joint_state = msg
+        self._latest_joint_state_ns = time.monotonic_ns()
 
     def _on_cmd_vel(self, msg):
         self._velocity_command = np.asarray(
@@ -168,6 +191,8 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         )
 
     def _on_estop(self, msg):
+        self._latest_estop_ns = time.monotonic_ns()
+        self._latest_estop_value = bool(msg.data)
         if msg.data and not self._estopped:
             self._latch_abort("external_estop")
 
@@ -176,14 +201,54 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._abort_reason = reason
         logger.warning("ABORT: %s — holding stand pose.", reason)
 
+    def _ready_to_command_motion(self, now_ns: int) -> tuple[bool, str | None]:
+        """Bind the shared ``is_ready_to_command_motion`` predicate to this
+        node's freshness state. The predicate itself is in
+        :mod:`phoenix.sim2real.safety` so it can be exhaustively tested
+        in CI without rclpy.
+        """
+        return is_ready_to_command_motion(
+            now_ns=now_ns,
+            estop_last_ns=self._latest_estop_ns,
+            estop_value=self._latest_estop_value,
+            estop_timeout_s=self.estop_timeout_s,
+            imu_last_ns=self._latest_imu_ns,
+            joint_state_last_ns=self._latest_joint_state_ns,
+            sensor_timeout_s=self.sensor_timeout_s,
+        )
+
     def _control_step(self):
-        if time.monotonic() - self._started_at > self.max_runtime and not self._estopped:
+        now_ns = time.monotonic_ns()
+        elapsed_s = time.monotonic() - self._started_at
+
+        if elapsed_s > self.max_runtime and not self._estopped:
             self._latch_abort("max_runtime")
 
         if self._estopped:
             self._publish_default_pose()
             return
-        if self._latest_imu is None or self._latest_joint_state is None:
+
+        ok, reason = self._ready_to_command_motion(now_ns)
+        if not ok:
+            # Two distinct cases share the same conservative posture:
+            # (1) startup — preconditions not yet met, never seen. The node
+            #     stays SILENT (no publish at all) so we cannot even ask
+            #     the bridge to actively servo. The bridge's own fail-closed
+            #     watchdog will hold motors with hold_kp/hold_kd in parallel.
+            # (2) once any precondition has been satisfied at least once,
+            #     subsequent failure (stale heartbeat, dropped sensor, etc.)
+            #     means publish the safe default stand pose so the bridge
+            #     can deliberately hold the robot upright.
+            if elapsed_s > self.startup_grace_s:
+                self._latch_abort(reason or "unknown_safety_gate")
+                self._publish_default_pose()
+            elif self._latest_estop_value is False and self._latest_imu is not None \
+                    and self._latest_joint_state is not None:
+                # Brief blip after we have already heard from every publisher.
+                self._publish_default_pose()
+            # else: STAY SILENT during cold startup. Do NOT publish anything
+            # until estop+sensors have been heard from — the bridge holds
+            # the robot via its own watchdog with conservative gains.
             return
 
         idx = self.joint_order.remap(list(self._latest_joint_state.name))
@@ -271,8 +336,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         )
 
     def _clip_to_limits(self, target: np.ndarray, q: np.ndarray) -> np.ndarray:
-        max_step = 0.175  # rad
-        return np.clip(target, q - max_step, q + max_step)
+        # Single source of truth lives in phoenix.sim2real.safety so the
+        # bridge and the policy node provably share the slew-rate cap.
+        return per_step_clip_array(target, q, MAX_DELTA_PER_STEP_RAD).astype(
+            np.float32, copy=False
+        )
 
     def _publish_default_pose(self) -> None:
         msg = self._float_msg()
@@ -289,12 +357,18 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
 
 def _projected_gravity_from_quat(x: float, y: float, z: float, w: float) -> np.ndarray:
-    """Rotate world-frame gravity (0,0,-1) into the body frame using quat (x,y,z,w)."""
-    gx = 2.0 * (x * z - w * y)
-    gy = 2.0 * (y * z + w * x)
+    """Rotate world-frame gravity (0,0,-1) into the body frame using quat (x,y,z,w).
+
+    Matches Isaac Lab's ``mdp.projected_gravity`` and the parity-gate
+    helper in :func:`phoenix.sim2real.verify_deploy._projected_gravity_from_quat_xyzw`
+    byte-for-byte. The previous implementation had the gx/gy sign flipped
+    (mirror-image gravity in the policy's obs vector) — see the
+    audit fixes in this branch. Tested in ``tests/test_projected_gravity.py``.
+    """
+    gx = -2.0 * (x * z - w * y)
+    gy = -2.0 * (y * z + w * x)
     gz = -(1.0 - 2.0 * (x * x + y * y))
-    g = np.asarray([gx, gy, gz], dtype=np.float32)
-    return g / (np.linalg.norm(g) + 1e-9)
+    return np.asarray([gx, gy, gz], dtype=np.float32)
 
 
 def _rpy_from_quat_xyzw(x: float, y: float, z: float, w: float) -> tuple[float, float, float]:
