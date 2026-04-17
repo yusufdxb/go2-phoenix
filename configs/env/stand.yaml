@@ -1,0 +1,32 @@
+# Stand-only overlay. Every velocity range collapsed to zero and every
+# env is a standing episode — the policy's only job is to hold the
+# default pose under disturbances.
+#
+# Why: the Flat-v0 retrains (v1/v2/v3b on 2026-04-16) drove canonical-stand
+# |a|_inf from 10.72 -> 3.86 but couldn't close to the 0.3 safety threshold.
+# Root cause was architectural: a velocity-tracking policy that's only
+# shown nonzero commands during training extrapolates on cmd=0. Stand-only
+# moves canonical stand INTO the training distribution by construction —
+# it is the training distribution.
+#
+# Used for the first hardware day per docs/dryrun_findings_2026-04-14.md's
+# "safer first hardware test" option.
+
+defaults:
+  - base
+
+env:
+  task_name: "Isaac-Velocity-Flat-Unitree-Go2-v0"
+
+terrain:
+  type: "plane"
+
+command:
+  # All zero: there's no command to track.
+  lin_vel_x: [0.0, 0.0]
+  lin_vel_y: [0.0, 0.0]
+  ang_vel_z: [0.0, 0.0]
+  heading_stiffness: 0.0
+  resample_time_s: 10.0
+  # Redundant when all ranges are zero, but made explicit: every env stands.
+  rel_standing_envs: 1.0
