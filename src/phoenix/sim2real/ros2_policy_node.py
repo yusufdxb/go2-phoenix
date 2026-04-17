@@ -55,7 +55,12 @@ logger = logging.getLogger("phoenix.sim2real.ros2_policy_node")
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the Phoenix policy on the GO2 via ROS 2.")
     p.add_argument("--config", type=Path, required=True)
-    p.add_argument("--onnx", type=Path, required=True)
+    p.add_argument(
+        "--onnx",
+        type=Path,
+        default=None,
+        help="Path to exported ONNX. Falls back to cfg['policy']['onnx_path'].",
+    )
     p.add_argument(
         "--log-parquet",
         type=Path,
@@ -73,8 +78,17 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires R
 
     cfg = yaml.safe_load(args.config.read_text())
 
+    onnx_path = args.onnx
+    if onnx_path is None:
+        cfg_onnx = cfg.get("policy", {}).get("onnx_path")
+        if not cfg_onnx:
+            raise SystemExit(
+                "--onnx not given and cfg['policy']['onnx_path'] is empty"
+            )
+        onnx_path = Path(cfg_onnx)
+
     rclpy.init()
-    node = _PhoenixPolicyNode(cfg, args.onnx, log_parquet=args.log_parquet)
+    node = _PhoenixPolicyNode(cfg, onnx_path, log_parquet=args.log_parquet)
     try:
         rclpy.spin(node.node)
     except KeyboardInterrupt:
@@ -348,7 +362,16 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.cmd_pub.publish(msg)
 
     def shutdown(self) -> None:
-        self._publish_default_pose()
+        import rclpy
+
+        # If rclpy has already been torn down (e.g. Ctrl-C propagated through
+        # spin), publishing raises RCLError. The ABI is: only publish when the
+        # default context is still valid.
+        if rclpy.ok():
+            try:
+                self._publish_default_pose()
+            except Exception as exc:  # noqa: BLE001 - best-effort safe pose
+                logger.warning("shutdown: default-pose publish failed: %s", exc)
         if self._logger is not None:
             self._logger.close()
             self._logger = None

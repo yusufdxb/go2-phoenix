@@ -66,6 +66,9 @@ safety:
   # a stale estop heartbeat is treated as an asserted estop. Sensor
   # silence aborts the policy. Startup grace gives the rest of the
   # pipeline (estop publisher, lowstate bridge) time to come up.
-  estop_timeout_s: 0.5
+  # 0.5s was tight enough to fail-closed on every BT hiccup observed in the
+  # 2026-04-16 lab session. 0.8s still well inside human reaction time but
+  # tolerates typical deadman radio jitter.
+  estop_timeout_s: 0.8
   sensor_timeout_s: 0.2
   startup_grace_s: 3.0
