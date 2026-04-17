@@ -91,6 +91,12 @@ def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
     vel_cmd.ranges.lin_vel_y = tuple(cmd["lin_vel_y"])
     vel_cmd.ranges.ang_vel_z = tuple(cmd["ang_vel_z"])
     vel_cmd.resampling_time_range = (cmd["resample_time_s"], cmd["resample_time_s"])
+    # Fraction of envs that get velocity_command = 0 each episode. Without this,
+    # canonical stand (cmd=0) is a measure-zero event in the sampler → never
+    # seen at train time → extrapolated to huge actions at deploy. 2% matches
+    # Isaac Lab's legged-locomotion baseline defaults.
+    if "rel_standing_envs" in cmd and hasattr(vel_cmd, "rel_standing_envs"):
+        vel_cmd.rel_standing_envs = float(cmd["rel_standing_envs"])
 
 
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:

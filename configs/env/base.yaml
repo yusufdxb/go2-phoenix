@@ -36,6 +36,10 @@ command:
   ang_vel_z: [-1.0, 1.0]      # rad/s
   heading_stiffness: 0.5
   resample_time_s: 10.0
+  # Fraction of envs per episode that get cmd=(0,0,0). Without this,
+  # canonical stand is OOD and the policy extrapolates to huge actions
+  # (retrain v1/v2 canonical-stand |a|∞ was 10.72 / 7.89 vs 0.3 target).
+  rel_standing_envs: 0.02
 
 observation:
   # Proprioceptive-only policy.
