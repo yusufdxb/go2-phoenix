@@ -76,15 +76,16 @@ echo "[$(date +%T)] all stages up. estop=$ESTOP_PID lsb=$LSB_PID lcb=$LCB_PID po
 echo "[$(date +%T)] mid-run sampling..."
 {
   # All Phoenix topics use BEST_EFFORT QoS (matches ros2_policy_node.py).
-  # ros2 topic hz defaults to RELIABLE which is incompatible — pass sensor_data.
+  # ros2 topic hz defaults to RELIABLE which is incompatible — override
+  # reliability (Humble doesn't accept --qos-profile sensor_data here).
   echo "=== /joint_group_position_controller/command hz ==="
-  timeout 4 ros2 topic hz --qos-profile sensor_data /joint_group_position_controller/command 2>&1 | tail -2
+  timeout 4 ros2 topic hz --qos-reliability best_effort /joint_group_position_controller/command 2>&1 | tail -2
   echo "=== /lowcmd_dry hz ==="
-  timeout 4 ros2 topic hz --qos-profile sensor_data /lowcmd_dry 2>&1 | tail -2
+  timeout 4 ros2 topic hz --qos-reliability best_effort /lowcmd_dry 2>&1 | tail -2
   echo "=== /joint_states hz ==="
-  timeout 4 ros2 topic hz --qos-profile sensor_data /joint_states 2>&1 | tail -2
+  timeout 4 ros2 topic hz --qos-reliability best_effort /joint_states 2>&1 | tail -2
   echo "=== /imu/data hz ==="
-  timeout 4 ros2 topic hz --qos-profile sensor_data /imu/data 2>&1 | tail -2
+  timeout 4 ros2 topic hz --qos-reliability best_effort /imu/data 2>&1 | tail -2
 } > /tmp/dryrun_samples.log 2>&1
 
 echo "[$(date +%T)] samples captured"

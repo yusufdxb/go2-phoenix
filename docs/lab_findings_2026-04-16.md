@@ -30,3 +30,51 @@ Baseline policy: `checkpoints/phoenix-flat/policy.onnx` (Flat-v0, obs_dim=48)
 ## Section 6 — Ground run 30s — PENDING
 
 ## Section 7 — Post-run artifacts — PENDING
+
+---
+
+## Mewtwo-side follow-ups (2026-04-16 PM)
+
+### Root cause: flat-v0 export was under-trained
+
+The policy at `checkpoints/phoenix-flat/policy.onnx` (shipped `c5e34a9`)
+was trained for only 500 iters, ~3 min wall-time. Final-iter
+`error_vel_xy` = 0.76 m/s — ~8x the sub-0.1 m/s target for a converged
+Isaac-Velocity-Flat baseline. Isaac Lab references typically need
+5-10M env steps, ours saw ~1M.
+
+**Tell at deploy time:** canonical-stand ONNX inference emits
+|action|∞ = 2.01, far above one-third of the slew-clip threshold. A
+converged policy should be well under 0.3 with a zero-velocity
+command and default pose. Confirmed in <1s via the new bench.
+
+### Changes landed on `audit-fixes-2026-04-16`
+
+1. **`configs/train/ppo_flat.yaml`**: `max_iterations` 500 → 2500 (5x).
+   `save_interval` 50 → 100 to keep checkpoint count manageable.
+   Algorithm hyperparameters match rsl_rl / Isaac-Velocity-Flat-v0
+   defaults; audit found no other deltas worth changing.
+2. **`src/phoenix/sim2real/bench_export.py`** (new, 39 unit tests →
+   now 45): canonical-stand post-export gate. Wired into
+   `scripts/deploy.sh` between `export` and `ros2_policy_node` launch —
+   fails `deploy.sh` before any ROS bringup if |a|∞ ≥ 0.3.
+3. **`ros2_policy_node.main()`**: `--onnx` now optional, falls back to
+   `cfg["policy"]["onnx_path"]`. Matches `verify_deploy` / `dryrun_pipeline.sh`
+   pattern.
+4. **`ros2_policy_node.shutdown()`**: guards `_publish_default_pose()`
+   with `rclpy.ok()` and catches publish exceptions. Fixes the
+   `RCLError: Failed to publish` on every clean exit observed today.
+5. **`scripts/dryrun_pipeline.sh`**: `ros2 topic hz --qos-profile sensor_data`
+   → `--qos-reliability best_effort` (Humble doesn't accept the profile
+   form in Humble's topic CLI).
+6. **`configs/sim2real/deploy.yaml`**: `estop_timeout_s` 0.5 → 0.8. Still
+   well under human reaction time, tolerates the BT hiccups that
+   tripped fail-closed in today's session.
+
+### Retrain kickoff
+
+Retrain kicked off in background on mewtwo (RTX 5070):
+`scripts/train.sh configs/train/ppo_flat.yaml --headless`. Monitor via
+tensorboard at `checkpoints/phoenix-flat/<ts>/`. Success gate is
+`error_vel_xy < 0.1 m/s` at final iter. Deploy gate is the new bench
+(|a|∞ < 0.3 on canonical stand).
