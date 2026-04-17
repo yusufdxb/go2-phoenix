@@ -75,11 +75,16 @@ esac
 
 # ---- Layer 6: phoenix unit tests (pure-python, no CUDA) ---------------------
 echo "=== Layer 6: phoenix unit tests ==="
-PYTEST_OUT=$(PYTHONPATH=src python3 -m pytest -q --ignore=tests/test_sim_integration.py 2>&1 | tail -3)
-case "$PYTEST_OUT" in
-    *"passed"*) pass "pytest: $(printf '%s' "$PYTEST_OUT" | tail -1)" ;;
-    *) fail "phoenix unit tests" "$PYTEST_OUT" ;;
-esac
+PYTEST_LOG=$(mktemp)
+PYTHONPATH=src python3 -m pytest --ignore=tests/test_sim_integration.py > "$PYTEST_LOG" 2>&1
+PYTEST_STATUS=$?
+PYTEST_SUMMARY=$(grep -E "passed|failed|error" "$PYTEST_LOG" | tail -1)
+rm -f "$PYTEST_LOG"
+if [[ $PYTEST_STATUS -eq 0 ]]; then
+    pass "pytest: ${PYTEST_SUMMARY:-exit 0}"
+else
+    fail "phoenix unit tests" "exit $PYTEST_STATUS: $PYTEST_SUMMARY"
+fi
 
 # ---- Layer 7: ROS 2 rclpy import --------------------------------------------
 echo "=== Layer 7: ROS 2 rclpy ==="
@@ -101,12 +106,16 @@ if [[ ! -e "$CKPT" ]]; then
 else
     TMP_ONNX=$(mktemp --suffix=.onnx)
     EXPORT_OUT=$(PYTHONPATH="$REPO_ROOT/src" "$ISAAC_PY" -m phoenix.sim2real.export \
-        --checkpoint "$CKPT" --output "$TMP_ONNX" --verify 2>&1 | tail -5)
+        --checkpoint "$CKPT" --output "$TMP_ONNX" --verify 2>&1)
+    EXPORT_STATUS=$?
     rm -f "$TMP_ONNX" "${TMP_ONNX%.onnx}.pt"
-    case "$EXPORT_OUT" in
-        *"Parity check passed"*) pass "export + parity" ;;
-        *) fail "phoenix export" "$EXPORT_OUT" ;;
-    esac
+    if [[ $EXPORT_STATUS -ne 0 ]]; then
+        fail "phoenix export" "exit $EXPORT_STATUS"
+    elif printf '%s' "$EXPORT_OUT" | grep -q "Parity check passed"; then
+        pass "export + parity"
+    else
+        fail "phoenix export" "no 'Parity check passed' in output"
+    fi
 fi
 
 echo
