@@ -23,7 +23,14 @@ PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" \
     --output "${CKPT%.*}.onnx" \
     --verify
 
-# --- 2) Launch ROS 2 policy node (system python + rclpy)
+# --- 2) Canonical-stand bench: fail fast on an under-trained export
+#        Caught the 2026-04-16 under-trained flat-v0 export in <1s.
+PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" \
+python3 -m phoenix.sim2real.bench_export \
+    --onnx       "${CKPT%.*}.onnx" \
+    --deploy-cfg "$CONFIG"
+
+# --- 3) Launch ROS 2 policy node (system python + rclpy)
 if [[ -z "${ROS_DISTRO:-}" ]]; then
     # shellcheck disable=SC1091
     source /opt/ros/humble/setup.bash

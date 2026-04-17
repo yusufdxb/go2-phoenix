@@ -10,8 +10,8 @@ run:
   name: "phoenix-flat"
   output_dir: "checkpoints"
   log_interval: 1
-  save_interval: 50
-  max_iterations: 500
+  save_interval: 100
+  max_iterations: 2500
   seed: 42
   device: "cuda:0"
 
