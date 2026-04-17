@@ -78,7 +78,7 @@ reward:
   joint_acc: -2.5e-7
   joint_vel: -0.0
   joint_torque: -0.0002
-  action_rate: -0.01
+  action_rate: -0.05
   feet_air_time: 1.0
   collision: -1.0
   termination: -10.0

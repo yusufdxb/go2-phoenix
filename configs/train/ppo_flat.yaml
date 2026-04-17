@@ -35,7 +35,10 @@ algorithm:
 
 policy:
   class_name: "ActorCritic"
-  init_noise_std: 1.0
+  # 1.0 didn't collapse over 2500 iters (mean action std at iter 2495 = 2.27,
+  # canonical-stand |a|∞ = 10.72). Start tighter so the KL-adaptive schedule
+  # has less to anneal.
+  init_noise_std: 0.5
   actor_hidden_dims: [512, 256, 128]
   critic_hidden_dims: [512, 256, 128]
   activation: "elu"
