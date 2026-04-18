@@ -1,0 +1,19 @@
+# Flat-v0 + perturbation overlay. Used for robustness diagnostics on the
+# proprio-only flat policy (v3b and siblings). Not used for training.
+#
+# Why this file exists: perturbation.yaml alone inherits from base.yaml,
+# which uses the rough task (obs_dim=235 including height scanner). The
+# flat policies are obs_dim=48, so loading them against perturbation.yaml
+# fails with a size_mismatch state_dict error. This overlay stacks:
+#   base → flat task + plane terrain → perturbation on.
+
+defaults:
+  - flat
+
+perturbation:
+  enabled: true
+  push_interval_s: 5.0
+  push_velocity_xy: 1.5
+  push_velocity_yaw: 0.75
+  push_warmup_s: 3.0
+  push_probability: 0.8

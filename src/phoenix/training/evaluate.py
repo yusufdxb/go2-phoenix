@@ -31,6 +31,10 @@ class RolloutMetrics:
     failure_rate: float
     mean_lin_vel_error: float
     mean_ang_vel_error: float
+    # Per-reward-term mean step contribution (reward/step averaged over envs).
+    # Keyed by Isaac Lab reward_manager term name (e.g. "track_lin_vel_xy_exp").
+    # Empty dict if reward_manager is unavailable on the env (older Isaac Lab).
+    per_term_rewards: dict[str, float]
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -185,6 +189,15 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     n_steps = 0
     tracking_steps = 0
 
+    # Per-reward-term accumulator. Keyed by term name, stores sum of
+    # (mean across envs) per-step reward contributions. Post-rollout we divide
+    # by n_steps to recover the mean per-step contribution of each term.
+    term_acc: dict[str, float] = {}
+    reward_mgr = getattr(env.unwrapped, "reward_manager", None)
+    if reward_mgr is not None:
+        for term_name in reward_mgr.active_terms:
+            term_acc[term_name] = 0.0
+
     dt_ctrl = env_cfg.decimation * env_cfg.sim.dt  # seconds per env step
 
     with torch.inference_mode():
@@ -231,6 +244,24 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                             "tracking-error exception step=%d: %r", n_steps, err
                         )
 
+            # Per-reward-term accumulation. reward_manager._step_reward is
+            # [num_envs, num_terms] with each column being that term's
+            # contribution (already weighted, scaled by 1/dt). We average
+            # across envs at this step and add to the term's accumulator.
+            if reward_mgr is not None and hasattr(reward_mgr, "_step_reward"):
+                try:
+                    step_rew = reward_mgr._step_reward  # [num_envs, num_terms]
+                    term_means = step_rew.mean(dim=0).detach().cpu().numpy()
+                    for idx, name in enumerate(reward_mgr.active_terms):
+                        term_acc[name] += float(term_means[idx])
+                except Exception as err:  # noqa: BLE001
+                    if n_steps <= 1:
+                        logger.warning(
+                            "per-term reward capture failed step=%d: %r",
+                            n_steps,
+                            err,
+                        )
+
             done_idx = dones.nonzero(as_tuple=False).flatten()
             if len(done_idx) > 0:
                 for i in done_idx.tolist():
@@ -255,6 +286,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         failure_rate=failures / n_eps,
         mean_lin_vel_error=lin_err_acc / max(tracking_steps, 1),
         mean_ang_vel_error=ang_err_acc / max(tracking_steps, 1),
+        per_term_rewards={k: v / max(n_steps, 1) for k, v in term_acc.items()},
     )
     logger.info("Metrics: %s", metrics)
 
