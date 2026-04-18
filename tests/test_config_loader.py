@@ -58,3 +58,65 @@ def test_circular_defaults_raise(tmp_path: Path) -> None:
     b.write_text("defaults:\n  - a\nbar: 2\n")
     with pytest.raises(ValueError, match="Circular"):
         load_layered_config(a)
+
+
+# --- unwired-sections audit ------------------------------------------------
+# These tests guard against the silent no-op class of bugs. `build_env_cfg`
+# only plumbs a subset of YAML into the Isaac Lab env_cfg; the rest is
+# aspirational documentation. `_unwired_sections_present` is called from
+# `build_env_cfg` and emits a log warning on every unwired section, so a
+# future silent-drop regression would surface during any eval or retrain.
+
+from phoenix.sim_env.go2_env_cfg import _unwired_sections_present  # noqa: E402
+
+
+def test_unwired_detects_reward_section() -> None:
+    data = {"env": {}, "reward": {"track_lin_vel_xy": 1.0}}
+    assert "reward" in _unwired_sections_present(data)
+
+
+def test_unwired_detects_observation_noise() -> None:
+    data = {"env": {}, "observation": {"noise": {"joint_pos": 0.01}}}
+    assert "observation.noise" in _unwired_sections_present(data)
+
+
+def test_unwired_detects_termination_and_robot_subsections() -> None:
+    data = {
+        "env": {},
+        "termination": {"pitch_threshold_rad": 0.8},
+        "robot": {"init_state": {}, "actuator": {"stiffness": 25.0}},
+    }
+    result = _unwired_sections_present(data)
+    assert "termination" in result
+    assert "robot.init_state" in result
+    assert "robot.actuator" in result
+
+
+def test_unwired_empty_when_only_wired_sections_present() -> None:
+    # env / command / domain_randomization / perturbation / seed are all
+    # actually plumbed, so a config containing only those should produce
+    # no unwired-section warnings.
+    data = {
+        "env": {},
+        "command": {"lin_vel_x": [-1.0, 1.0]},
+        "domain_randomization": {"enabled": True},
+        "perturbation": {"enabled": False},
+        "seed": 42,
+    }
+    assert _unwired_sections_present(data) == []
+
+
+def test_unwired_flags_base_yaml_current_state() -> None:
+    """Regression guard: base.yaml today contains reward, observation.noise,
+    termination, robot.init_state, and robot.actuator — all unwired. If any
+    of those graduate to wired, this test should be updated at the same time
+    as removing the YAML key from the _UNWIRED_TOP_LEVEL tuple."""
+    cfg = load_layered_config(CONFIGS / "env" / "base.yaml").to_container()
+    unwired = set(_unwired_sections_present(cfg))
+    assert {
+        "reward",
+        "observation.noise",
+        "termination",
+        "robot.init_state",
+        "robot.actuator",
+    }.issubset(unwired)
