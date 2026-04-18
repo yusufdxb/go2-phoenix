@@ -183,6 +183,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     lin_err_acc = 0.0
     ang_err_acc = 0.0
     n_steps = 0
+    tracking_steps = 0
 
     dt_ctrl = env_cfg.decimation * env_cfg.sim.dt  # seconds per env step
 
@@ -194,27 +195,41 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             episode_length += 1
             n_steps += 1
 
-            # tracking error (best effort — Isaac Lab sometimes returns warp
-            # arrays for root velocities which don't support [:, :2] slicing).
+            # tracking error — done on numpy to avoid torch/warp interop pitfalls.
+            # Root velocities are Warp arrays in Isaac Lab 3.x; the matching
+            # conversion pattern in synthesize_failure.py proves the .numpy()
+            # route works. Keep this block loud: if it skips, we want to know.
             unwrapped = env.unwrapped
-            try:
-                if hasattr(unwrapped, "command_manager"):
-                    cmd = unwrapped.command_manager.get_command("base_velocity")
+            if hasattr(unwrapped, "command_manager"):
+                try:
+                    cmd_np = _to_numpy(
+                        unwrapped.command_manager.get_command("base_velocity")
+                    )
                     root = unwrapped.scene["robot"].data
-                    lin_b = _as_torch(root.root_lin_vel_b)
-                    ang_b = _as_torch(root.root_ang_vel_b)
-                    cmd_t = _as_torch(cmd)
-                    if cmd_t.ndim >= 2 and lin_b.ndim >= 2:
+                    lin_b_np = _to_numpy(root.root_lin_vel_b)
+                    ang_b_np = _to_numpy(root.root_ang_vel_b)
+                    if cmd_np.ndim >= 2 and lin_b_np.ndim >= 2:
                         lin_err_acc += float(
-                            torch.mean(
-                                torch.linalg.norm(cmd_t[:, :2] - lin_b[:, :2], dim=-1)
-                            ).item()
+                            np.mean(
+                                np.linalg.norm(cmd_np[:, :2] - lin_b_np[:, :2], axis=-1)
+                            )
                         )
                         ang_err_acc += float(
-                            torch.mean(torch.abs(cmd_t[:, 2] - ang_b[:, 2])).item()
+                            np.mean(np.abs(cmd_np[:, 2] - ang_b_np[:, 2]))
                         )
-            except (IndexError, TypeError, RuntimeError):
-                pass  # skip tracking-error accumulation this step
+                        tracking_steps += 1
+                    else:
+                        if n_steps <= 1:
+                            logger.warning(
+                                "tracking-error skip: cmd ndim=%d lin ndim=%d",
+                                cmd_np.ndim,
+                                lin_b_np.ndim,
+                            )
+                except Exception as err:  # noqa: BLE001
+                    if n_steps <= 1:
+                        logger.warning(
+                            "tracking-error exception step=%d: %r", n_steps, err
+                        )
 
             done_idx = dones.nonzero(as_tuple=False).flatten()
             if len(done_idx) > 0:
@@ -238,8 +253,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         mean_episode_length_s=float(np.mean(lengths)),
         success_rate=successes / n_eps,
         failure_rate=failures / n_eps,
-        mean_lin_vel_error=lin_err_acc / max(n_steps, 1),
-        mean_ang_vel_error=ang_err_acc / max(n_steps, 1),
+        mean_lin_vel_error=lin_err_acc / max(tracking_steps, 1),
+        mean_ang_vel_error=ang_err_acc / max(tracking_steps, 1),
     )
     logger.info("Metrics: %s", metrics)
 
@@ -249,6 +264,22 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     env.close()
     return 0
+
+
+def _to_numpy(x):
+    """Convert a torch tensor / warp array / ndarray to a plain numpy array.
+
+    Mirrors the helper in phoenix.real_world.synthesize_failure so the
+    tracking-error block handles every Isaac Lab 3.x buffer kind without
+    silently returning zeros.
+    """
+    import numpy as np
+
+    if hasattr(x, "cpu"):
+        return x.cpu().numpy()
+    if hasattr(x, "numpy") and not isinstance(x, np.ndarray):
+        return x.numpy()
+    return np.asarray(x)
 
 
 def _as_torch(x):

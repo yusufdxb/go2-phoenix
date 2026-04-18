@@ -1,0 +1,53 @@
+# PPO training config for Flat-v0 v4 — robustness upgrade over v3b.
+#
+# v3b converged (rollout bench 2026-04-17: 32/32 stand + 32/32 flat, 20 s
+# episodes). v4 targets higher-quality behavior, not raw survival:
+#   - entropy_coef 0.005 -> 0.01   : widen policy to escape v3b's basin
+#   - init_noise_std 0.5 -> 1.0    : match ppo.yaml; v2 tightening was premature
+#   - rel_standing_envs 0.02 -> 0.15 (via configs/env/flat_v4.yaml)
+#   - max_iterations 2500 -> 5000   : more budget at 10240 envs
+#
+# Budget: 5000 iters * 10240 envs on RTX 5070 ~ 85 min (v3b was ~17 min / 1000 iters).
+
+run:
+  name: "phoenix-flat-v4"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 100
+  max_iterations: 5000
+  seed: 42
+  device: "cuda:0"
+
+env:
+  config: "configs/env/flat_v4.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  entropy_coef: 0.01
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 1.0e-3
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 1.0
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false
+  wandb_project: "go2-phoenix"
