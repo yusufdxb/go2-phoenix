@@ -1,0 +1,62 @@
+# Deployment config for the v3b velocity-tracking policy (Gate 8 candidate).
+# Copy of deploy.yaml with paths repointed to checkpoints/phoenix-flat/v3b/.
+# deploy.yaml itself stays pointed at the stand-only ONNX for Gate 7 first.
+
+policy:
+  onnx_path: "checkpoints/phoenix-flat/v3b/policy.onnx"
+  torchscript_path: "checkpoints/phoenix-flat/v3b/policy.pt"
+  device: "cpu"
+  obs_pad_zeros: 0
+
+control:
+  rate_hz: 50
+  action_scale: 0.25
+  default_joint_pos:
+    FL_hip_joint: 0.0
+    FR_hip_joint: 0.0
+    RL_hip_joint: 0.0
+    RR_hip_joint: 0.0
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+latency:
+  action_delay_steps: 2
+
+actuator_limits:
+  position_margin_rad: 0.05
+  velocity_max_rad_s: 18.0
+  torque_max_nm: 22.0
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+
+safety:
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120
+  estop_timeout_s: 0.8
+  sensor_timeout_s: 0.2
+  startup_grace_s: 3.0
