@@ -1,0 +1,17 @@
+# Flat-v0 v4 env: wider stand exposure + unchanged proprio-only obs.
+# Motivation (2026-04-17): v3b already survives 20 s at cmd=0 (rollout bench
+# 32/32) with rel_standing_envs=0.02, but that's survival, not robustness.
+# Bumping to 0.15 keeps the task velocity-tracking-dominant while making the
+# canonical stand attractor a stronger training signal.
+
+defaults:
+  - base
+
+env:
+  task_name: "Isaac-Velocity-Flat-Unitree-Go2-v0"
+
+terrain:
+  type: "plane"
+
+command:
+  rel_standing_envs: 0.15
