@@ -6,6 +6,20 @@ upstream ``UnitreeGo2RoughEnvCfg``, then applies failure-oriented overrides:
 * friction / restitution / mass domain randomization
 * slippery terrain overlay (narrowed friction range)
 * base push perturbations via ``base_external_force_torque``
+* velocity-command ranges + ``rel_standing_envs``
+
+**Which YAML sections are wired, which are not** (2026-04-17 audit):
+
+Wired → override upstream defaults:
+    env, command, domain_randomization, perturbation, seed
+
+Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
+    reward, observation.noise, termination, robot.init_state, robot.actuator
+
+``_warn_unwired_sections`` logs a warning when an unwired section is present
+in the loaded config so the drift is loud, not silent. Turning these on is a
+deliberate act that changes training behavior and invalidates v3b
+reproducibility, so it is a separate PR, not a quiet edit here.
 
 Isaac Lab imports are done lazily so the module can still be imported in
 CI (which has no ``torch`` / ``isaaclab``).
@@ -13,6 +27,7 @@ CI (which has no ``torch`` / ``isaaclab``).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +35,33 @@ from .config_loader import PhoenixConfig, load_layered_config
 
 if TYPE_CHECKING:  # pragma: no cover - type hints only
     from isaaclab.envs import ManagerBasedRLEnvCfg
+
+logger = logging.getLogger("phoenix.sim_env.go2_env_cfg")
+
+_UNWIRED_TOP_LEVEL = ("reward", "termination")
+_UNWIRED_ROBOT_SUB = ("init_state", "actuator")
+
+
+def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
+    """Return config-path names of sections present in ``data`` but not applied.
+
+    Used by ``build_env_cfg`` to warn loudly at construction time when the YAML
+    contains overrides we don't actually plumb into the env cfg. Pure function
+    (no Isaac Lab imports) so it can be unit-tested without a sim app.
+    """
+    unwired: list[str] = []
+    for key in _UNWIRED_TOP_LEVEL:
+        if key in data:
+            unwired.append(key)
+    obs = data.get("observation")
+    if isinstance(obs, dict) and "noise" in obs:
+        unwired.append("observation.noise")
+    robot = data.get("robot")
+    if isinstance(robot, dict):
+        for sub in _UNWIRED_ROBOT_SUB:
+            if sub in robot:
+                unwired.append(f"robot.{sub}")
+    return unwired
 
 
 def _events_root(env_cfg: Any) -> Any:
@@ -110,6 +152,14 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
         config = load_layered_config(config)
     data = config.to_container()
     env_blk = data["env"]
+
+    unwired = _unwired_sections_present(data)
+    if unwired:
+        logger.warning(
+            "phoenix env cfg: YAML sections present but not applied to env_cfg — "
+            "upstream Go2 defaults win: %s. See go2_env_cfg.py module docstring.",
+            ", ".join(unwired),
+        )
 
     task_name = env_blk["task_name"]
     env_cfg_entry = gym.spec(task_name).kwargs["env_cfg_entry_point"]
