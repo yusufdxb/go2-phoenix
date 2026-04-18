@@ -1,5 +1,15 @@
 # Base GO2 locomotion environment config.
 # Layer specific overlays (rough.yaml, slippery.yaml, perturbation.yaml) on top.
+#
+# NOT ALL SECTIONS ARE WIRED (2026-04-17 audit, see go2_env_cfg.py).
+# Currently applied to the Isaac Lab env cfg:
+#   env, command, domain_randomization, perturbation, seed
+# Present below but NOT applied (upstream UnitreeGo2RoughEnvCfg defaults win):
+#   reward, observation.noise, termination, robot.init_state, robot.actuator
+# ``build_env_cfg`` logs a warning when it sees an unwired section in a loaded
+# config. Values in unwired sections are aspirational / documentation-only
+# until the wiring is added (deliberate PR — changing any of these invalidates
+# v3b reproducibility).
 
 env:
   # Task: command-conditioned velocity tracking.
