@@ -1,0 +1,9 @@
+{
+  "num_episodes": 32,
+  "mean_episode_return": -410589.02263376117,
+  "mean_episode_length_s": 5.6575,
+  "success_rate": 0.1875,
+  "failure_rate": 0.8125,
+  "mean_lin_vel_error": 167.58857280468942,
+  "mean_ang_vel_error": 5.447837098121643
+}
