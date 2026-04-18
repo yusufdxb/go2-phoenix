@@ -22,31 +22,74 @@ SIM train  ──▶  ONNX export  ──▶  ROS 2 deploy  ──▶  GO2 hardw
     └────── fine-tune (failure curriculum) ◀── replay w/ Halton variations
 ```
 
-## Current results (2026-04-14)
+## Current results (2026-04-18)
 
-### Baseline training — 500 iters, rough terrain
+### Hardware-candidate policies
+
+Two policies are currently exported + parity-gated for live deployment on
+the GO2. Both targets the flat environment; the difference is the task
+specification.
+
+| Candidate | Task | Config | Status |
+|---|---|---|---|
+| `phoenix-stand/latest.pt` | stand-in-place (no velocity command) | `configs/train/ppo_stand.yaml` | **Pre-lab gates green — first hardware day candidate** |
+| `phoenix-flat/v3b/` | flat-terrain velocity tracking | `configs/train/ppo_flat.yaml` | Gate 8 candidate (on deck if stand fails) |
+
+The stand-only pivot (2026-04-17) exists because the flat-v0 policy has
+not yet been validated on a real GO2; standing is a strictly easier
+first hardware task with the same safety envelope. `phoenix-flat/v3b/`
+stays shipped in deploy.yaml as the fallback once the robot is
+confirmed to track the policy cleanly.
+
+### Pre-lab gates — phoenix-stand (2026-04-17)
+
+| Gate | Metric | Result |
+|---|---|---:|
+| 0a — sim rollout | success @ 20.0 s mean length | **16 / 16** |
+| 0b — ONNX staging | hashes match deploy path | ✓ |
+| 0c — verify_deploy parity | max torch↔ort abs-diff | **3.8e-06** (26× under 1e-4 tol) |
+
+Metrics serialized at `docs/pre_lab_gates_2026-04-17.md` +
+`docs/pre_lab_stand_rollout_2026-04-17.json`. Lab-day §1–§6 (Jetson
+offline gates, three-bridge bringup, fail-closed dry-run, Gate 7 live
+stand ×3) are the remaining hardware steps.
+
+### Flat-v0 training — v3b (final, shipped) vs v4 (negative, not shipped)
+
+`phoenix.training.evaluate` on `configs/env/flat.yaml`, 16 envs × 32
+episodes, after the 2026-04-18 warp-array tracking-error fix:
+
+| Metric | v3b (Gate 8 candidate) | v4 (superseded) |
+|---|---:|---:|
+| mean_episode_return | **39.50** | 34.50 |
+| mean_lin_vel_error (m/s) | **0.091** | 0.110 |
+| mean_ang_vel_error (rad/s) | **0.087** | 0.145 |
+| success_rate | 32 / 32 | 32 / 32 |
+
+v4 tried higher entropy (0.005 → 0.01), wider init-noise (0.5 → 1.0),
+and a stronger canonical-stand attractor (rel_standing_envs 0.02 → 0.15)
+at 5000 iters / 10240 envs. Training converged cleanly but the policy
+traded velocity-tracking quality for no measurable robustness gain.
+Full post-mortem at
+[`checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md`](checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md).
+
+### Historical — baseline + fine-tune adaptation (2026-04-14)
 
 | Policy | Terrain | Mean return | Success | Episodes |
 |---|---|---:|---:|---:|
-| `model_100.pt` (early) | rough     | 14.22 | 81.2% | 16 |
-| `model_499.pt` (final) | rough     | **18.95** | **100%** | 16 |
+| `model_499.pt` (final, rough-v0, 500 iters) | rough    | 18.95 | 100% | 16 |
+| `phoenix-base/latest.pt`                    | slippery | 15.90 | 90.6%  | 64 |
+| `phoenix-adapt/latest.pt`                   | slippery | **16.64** | **100%** | 64 |
+| `phoenix-adapt/latest.pt`                   | rough    | 17.56 | 96.9% | 64 |
 
-### Fine-tune adaptation — 200 iters, warm-started from baseline
+The rough-v0 baseline showed 99.5% per-step slew saturation in the
+2026-04-14 hardware-adjacent dryrun (235-obs pipeline, proprio + height
+scan) and was retired from the deploy path in favor of flat-v0.
 
-| Policy | Terrain | Mean return | Success | Episodes |
-|---|---|---:|---:|---:|
-| `phoenix-base/latest.pt`  | slippery | 15.90 | 90.6%  | 64 |
-| `phoenix-adapt/latest.pt` | slippery | **16.64** | **100%** | 64 |
-| `phoenix-adapt/latest.pt` | rough    | 17.56 | 96.9% | 64 |
-
-Baseline gets rough right (100%) but slips on slippery (90.6%). The
-adapted policy trades ~3 pp of rough-terrain success for closing the
-entire slip gap on slippery terrain — 100% success, +0.74 in return.
-
-> **What this is and isn't.** The adaptation here is plain warm-start
-> PPO on the ``slippery.yaml`` overlay (low friction). It is **not** a
-> failure-curriculum result — ``configs/train/adaptation.yaml`` ships
-> with ``failure_sample_fraction: 0.0`` because the failure
+> **What the adapt result is and isn't.** The adaptation is plain
+> warm-start PPO on the ``slippery.yaml`` overlay (low friction). It is
+> **not** a failure-curriculum result — ``configs/train/adaptation.yaml``
+> ships with ``failure_sample_fraction: 0.0`` because the failure
 > reset-bridge has no hardware-captured parquets to validate against
 > yet. A smoke config (``configs/train/adaptation_smoke.yaml``)
 > exercises the curriculum plumbing with synthesized parquets but is
@@ -54,17 +97,22 @@ entire slip gap on slippery terrain — 100% success, +0.74 in return.
 
 ### Sim-to-sim artifacts
 
-* 500-iter PPO baseline trained on `Isaac-Velocity-Rough-Unitree-Go2-v0`,
-  4096 parallel envs, RTX 5070, ~28 min wall time; 200-iter fine-tune
-  adds ~11 min.
-* ONNX export passes parity check (max torch↔onnxruntime abs-diff 2.98e-6).
+* 500-iter PPO rough-v0 baseline on `Isaac-Velocity-Rough-Unitree-Go2-v0`,
+  4096 envs, RTX 5070, ~28 min; 200-iter fine-tune adds ~11 min.
+* 2500-iter flat-v0 (v3b) on `Isaac-Velocity-Flat-Unitree-Go2-v0`,
+  4096 envs, RTX 5070, ~45 min; serves as Gate 8 candidate.
+* Stand-only policy on `configs/train/ppo_stand.yaml`, safer first
+  hardware task; Gate 7 candidate.
+* Every deployed ONNX passes the `verify_deploy` parity gate
+  (torch↔onnxruntime max abs-diff < 1e-4 on 200 sim steps). Current
+  stand candidate: 3.8e-06.
 * Failure parquet synthesizer produces 200-step rollouts with
   attitude/collapse/slip flags. ``replay/reconstruct.py`` spawns N sim
   envs from the logged initial state and applies a Halton-sampled
   per-env perturbation (mass, push velocity, push yaw) — exercised in
   unit tests against the pure-numpy translation in
-  ``replay/apply_variations.py``; the Isaac Sim hand-off itself is sim-
-  only, so it cannot run in CI.
+  ``replay/apply_variations.py``; the Isaac Sim hand-off itself is
+  sim-only, so it cannot run in CI.
 * Side-by-side demo videos:
   [`media/side_by_side.mp4`](media/side_by_side.mp4) (training progress)
   and [`media/side_by_side_adapt.mp4`](media/side_by_side_adapt.mp4)
@@ -151,13 +199,14 @@ pip install -e ".[dev]"
 pytest tests -m "not sim and not ros"
 ```
 
-~100 unit tests cover the config loader, observation builder, failure
+132 unit tests cover the config loader, observation builder, failure
 detector, trajectory logger, Parquet round-trip, Halton variation
-sampler, curriculum scheduler, ffmpeg escape helper, the new per-env
-variation translation feeding ``reconstruct.py``, the fail-closed
-estop / sensor freshness predicates used by the deploy nodes, the
-projected-gravity helper consistency between the policy node and the
-parity gate, and the lowcmd bridge config builder. Sim and ROS tests
+sampler, curriculum scheduler, ffmpeg escape helper, per-env variation
+translation feeding ``reconstruct.py``, the fail-closed estop / sensor
+freshness predicates used by the deploy nodes, the projected-gravity
+helper consistency between the policy node and the parity gate, the
+`verify_deploy` parity gate itself, the `reset_bridge` quat/pose
+conversion, and the lowcmd bridge config builder. Sim and ROS tests
 are out of CI scope by design — they run manually on the hardware.
 
 Isaac-Lab integration tests live at `tests/test_sim_integration.py`
@@ -165,6 +214,15 @@ Isaac-Lab integration tests live at `tests/test_sim_integration.py`
 against real Isaac Lab and assert that the friction / mass / perturbation
 overrides land on the right event terms — run them locally with
 `pytest tests -m sim` before trusting a YAML change.
+
+Policy evaluation (`phoenix.training.evaluate`) reports per-term reward
+contributions in addition to success/return, so two candidate policies
+with the same success rate can be compared on where their gradient
+signal actually went (tracking vs stand vs smoothness). The 2026-04-18
+pass also added a `flat_perturb` diagnostic env and fixed a warp-array
+`flat_tracking_error` computation so rollouts over 16+ envs no longer
+silently report tracking-error from env 0 only. These two additions
+made the v3b vs v4 comparison in "Current results" possible.
 
 ---
 
@@ -211,15 +269,14 @@ end-to-end in sim, including a measurable warm-start fine-tune on
 the slippery-terrain regime. What's still left for v0.2:
 
 * **Real-robot deployment.** `sim2real.ros2_policy_node` runs but has
-  not been exercised against a live GO2 this cycle. A flat-v0
-  retrained policy (`configs/train/ppo_flat.yaml`) is now the shipped
-  deploy artifact — see `configs/sim2real/deploy.yaml:policy.onnx_path`
-  pointing at `phoenix-flat/policy.onnx`. The Rough-v0 baseline
-  observed 235 dims (proprio + height scan); on hardware-adjacent obs
-  it saturated the per-step slew clip on 99.5% of motor-steps in the
-  2026-04-14 dryrun. Flat-v0 (obs_dim=48, no scanner) is the
-  workaround. Hardware-on-the-stand validation of the flat policy
-  is still pending.
+  not been exercised against a live GO2 yet. `phoenix-stand` is the
+  next hardware attempt — pre-lab gates 0a/0b/0c all green
+  (2026-04-17), Gate 7 (10 s live stand ×3) pending the CaresLab lab
+  day. `phoenix-flat/v3b/` stays staged at
+  `configs/sim2real/deploy.yaml:policy.onnx_path` as the fallback.
+  Flat-v0 (obs_dim=48, no scanner) replaced the rough-v0 baseline
+  after the latter saturated the per-step slew clip on 99.5% of
+  motor-steps in the 2026-04-14 dryrun.
 * **Failure-curriculum adaptation.** The `reset_bridge` that re-seeds
   selected envs from real failure parquets is wired (env-origin-relative
   poses, xyzw→wxyz quat conversion) and unit-tested. The headline
