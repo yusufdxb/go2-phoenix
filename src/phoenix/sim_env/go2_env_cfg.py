@@ -182,7 +182,13 @@ def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
                 f"or remove from YAML. Known keys: {sorted(_REWARD_TERM_MAP)}"
             )
         term_name = _REWARD_TERM_MAP[yaml_key]
-        term = getattr(env_cfg.rewards, term_name)
+        term = getattr(env_cfg.rewards, term_name, None)
+        if term is None:
+            raise AttributeError(
+                f"Reward term {term_name!r} (YAML key {yaml_key!r}) not present on "
+                f"{type(env_cfg.rewards).__name__}. Either the upstream task omits "
+                f"this term, or _REWARD_TERM_MAP is stale."
+            )
         term.weight = float(weight)
 
 

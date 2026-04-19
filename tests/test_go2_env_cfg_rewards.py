@@ -95,3 +95,17 @@ def test_unwired_sections_still_flags_termination() -> None:
         {"termination": {"pitch_threshold_rad": 0.8}}
     )
     assert unwired == ["termination"]
+
+
+def test_apply_rewards_missing_term_on_env_cfg_raises_with_context() -> None:
+    """If the env cfg's RewardsCfg doesn't have the mapped term at all
+    (e.g. a flat-env subclass dropped feet_air_time), we want a clear
+    AttributeError that names both the upstream term and the YAML key —
+    not a bare AttributeError from getattr."""
+    env_cfg = _FakeEnvCfg(_FakeRewards())  # no reward terms at all
+    with pytest.raises(AttributeError) as exc:
+        _apply_rewards(env_cfg, {"feet_air_time": 0.5})
+    msg = str(exc.value)
+    assert "feet_air_time" in msg              # upstream term name
+    assert "'feet_air_time'" in msg or "feet_air_time" in msg  # yaml key
+    assert "_REWARD_TERM_MAP" in msg or "upstream task omits" in msg
