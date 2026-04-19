@@ -73,3 +73,25 @@ def test_apply_rewards_empty_dict_is_noop() -> None:
     env_cfg = _FakeEnvCfg(_FakeRewards(action_rate_l2=_FakeRewardTerm(-0.01)))
     _apply_rewards(env_cfg, {})
     assert env_cfg.rewards.action_rate_l2.weight == -0.01
+
+
+def test_reward_no_longer_in_unwired_top_level() -> None:
+    """Phase 0 of the 2026-04-19 retrain removes 'reward' from the
+    unwired list. 'termination' and the robot sub-keys stay unwired
+    (separate PRs)."""
+    from phoenix.sim_env.go2_env_cfg import _UNWIRED_TOP_LEVEL
+
+    assert "reward" not in _UNWIRED_TOP_LEVEL
+    assert "termination" in _UNWIRED_TOP_LEVEL  # intentionally unchanged
+
+
+def test_unwired_sections_does_not_flag_reward() -> None:
+    unwired = _unwired_sections_present({"reward": {"action_rate": -0.5}})
+    assert unwired == []
+
+
+def test_unwired_sections_still_flags_termination() -> None:
+    unwired = _unwired_sections_present(
+        {"termination": {"pitch_threshold_rad": 0.8}}
+    )
+    assert unwired == ["termination"]
