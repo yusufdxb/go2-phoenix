@@ -10,6 +10,21 @@ policy:
   # Default in code is 187 (for Rough-v0); must be 0 for the flat policy.
   obs_pad_zeros: 0
 
+  # Two-policy mode switch (stand-v2 @ cmd=0 / v3b @ walking). When
+  # enabled, the node loads both ONNX sessions each tick and picks a
+  # target via the state machine in phoenix.sim2real.mode_switch. When
+  # disabled (default), only ``onnx_path`` is used — identical behaviour
+  # to pre-mode-switch bringups. Spec:
+  # docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md.
+  mode_switch:
+    enabled: false
+    stand_onnx_path: "checkpoints/phoenix-flat/policy.onnx"        # stand-v2 (Gate 7)
+    walk_onnx_path:  "checkpoints/phoenix-flat/v3b/policy.onnx"    # v3b (re-exported 2026-04-19)
+    enter_walk_thresh: 0.15    # m/s-equivalent; enter TRANS_TO_WALK above this
+    enter_stand_thresh: 0.05   # m/s-equivalent; enter TRANS_TO_STAND below this (hysteresis band = 0.10)
+    yaw_scale: 0.3             # rad/s → m/s equivalent for combined magnitude
+    transition_ticks: 25       # 0.5 s @ 50 Hz linear blend
+
 control:
   rate_hz: 50                    # matches sim decimation
   action_scale: 0.25             # policy output → joint delta
