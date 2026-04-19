@@ -1,11 +1,22 @@
 ---
 title: Phoenix retrain — stand-v2 + flat-v3b-ft
 date: 2026-04-19
-status: approved
+status: approved (revised 2026-04-19 after codex critique — Phase 0 added)
 supersedes: 2026-04-18-stand-v2-and-first-message-gate-design.md (extends)
 ---
 
 # Phoenix retrain — stand-v2 + flat-v3b-ft
+
+> **Revision 2026-04-19 (post-codex critique):** Codex surfaced that the
+> `reward` section in Phoenix env YAMLs is **not applied** to the Isaac
+> Lab env cfg — `src/phoenix/sim_env/go2_env_cfg.py:41` lists
+> `_UNWIRED_TOP_LEVEL = ("reward", "termination")` and only logs a
+> warning. Both the existing `stand_v2.yaml` (commit `bf17f21`) and the
+> newly proposed `flat_v3b_ft.yaml` set `reward.action_rate: -0.5` and
+> `reward.joint_acc: -1.0e-6`, but **neither takes effect** — upstream
+> `UnitreeGo2RoughEnvCfg` reward weights win. Without wiring, running
+> either fine-tune reproduces v3b's training distribution and the
+> hardware failure. **Phase 0 (reward-wiring) is a hard prerequisite.**
 
 ## Objective
 
@@ -22,6 +33,61 @@ Both must clear a <5% slew-saturation gate at cmd=0 on sim rollout without regre
 - **v4** retrain (commit `61fae38`, checkpoints at `phoenix-flat-v4/2026-04-17_21-42-51/`) attempted entropy 0.005→0.01 + init_noise 0.5→1.0 + rel_standing_envs 0.02→0.15 + iters 5000. Lost decisively: return -13%, lin_vel_err +21%, **ang_vel_err +67% worse**. Kept as negative-result reference.
 - **phoenix-stand** never existed as a distinct specialist — the ONNX at `phoenix-stand/` was bit-identical to `phoenix-flat/policy.onnx`.
 - Existing `configs/env/stand_v2.yaml` + `configs/train/ppo_stand_v2.yaml` (commit `bf17f21`) already encode the stand-specialist recipe but have never been run.
+
+## Phase 0 — Wire the `reward` section (prerequisite, blocks everything else)
+
+**Problem.** `src/phoenix/sim_env/go2_env_cfg.py` applies `env`, `command`,
+`domain_randomization`, `perturbation`, and `seed` from the YAML, but
+`reward` is on the `_UNWIRED_TOP_LEVEL` list — silently ignored except for a
+warning log. Every YAML-level `reward.*` override is a no-op today.
+
+**What to build.** An `_apply_rewards(env_cfg, data.get("reward", {}))` helper
+that, for each YAML key in `reward:`, sets
+`env_cfg.rewards.<mapped_term_name>.weight = <value>`. The YAML key ↔ Isaac
+Lab reward term name mapping lives inside the helper (the upstream GO2 task
+uses names like `action_rate_l2`, `joint_acc_l2`, `track_lin_vel_xy_exp`;
+a YAML key like `action_rate` maps to `action_rate_l2`). Unknown keys raise,
+not warn — we do not want more silent drift.
+
+**Code changes.**
+1. Add `_apply_rewards(env_cfg, data.get("reward", {}))` to
+   `src/phoenix/sim_env/go2_env_cfg.py` following the same pattern as
+   `_apply_commands` / `_apply_perturbation`.
+2. Call it from `build_env_cfg` **after** `_apply_perturbation`.
+3. Remove `"reward"` from `_UNWIRED_TOP_LEVEL`. `termination` stays unwired
+   (separate, out-of-scope PR per the existing module docstring).
+4. Update module docstring to reflect the new wired list.
+
+**Tests (must pass before any retrain).**
+- `test_apply_rewards_sets_weights`: load `configs/env/stand_v2.yaml`, build
+  `env_cfg`, assert `env_cfg.rewards.action_rate_l2.weight == -0.5` and
+  `env_cfg.rewards.joint_acc_l2.weight == -1.0e-6`.
+- `test_apply_rewards_missing_term_raises`: synthetic config with
+  `reward.bogus_term: -1.0` must raise, not silently pass.
+- `test_unwired_warning_no_longer_fires_for_reward`: loading any YAML with a
+  `reward` section does not emit the "unwired" warning; loading a YAML with
+  `termination` still does.
+
+**Reproducibility note.** This Phase 0 change **invalidates v3b as a
+reproducible baseline** — v3b was trained under upstream reward weights,
+so once rewards are wired, "re-running v3b's config" would produce a
+different run. Keep the v3b checkpoint untouched at
+`phoenix-flat/2026-04-16_21-39-16/` as the frozen reference. The v3b
+comparisons in the Gates section stay valid because they compare against
+the v3b *checkpoint*, not against a re-trained v3b.
+
+**Commit.** Phase 0 code + tests land as a single commit on
+`audit-fixes-2026-04-16` with subject `sim_env: wire reward section
+(removes silent no-op; blocks retrain)`, before any new training
+artifacts are produced.
+
+**Gate for Phase 0.** Tests green locally + a 1-iter smoke retrain that
+confirms the TensorBoard `Rewards/action_rate_l2` scalar changes when the
+YAML weight changes (sanity: the value actually propagated).
+
+Only after Phase 0 is green do Runs 1 + 2 below execute.
+
+---
 
 ## Runs
 
@@ -111,6 +177,8 @@ stand-v2 is **not** required to pass G2/G4/G5 (specialist, not commanded to move
 
 ## Out of scope
 
+- Wiring the `termination`, `observation.noise`, `robot.init_state`, or
+  `robot.actuator` sections — separate PRs. Phase 0 only wires `reward`.
 - No DR / IMU-noise / friction curriculum (ruled out in Q2-A; reserved for a follow-on redesign if hardware still fails after this retrain).
 - No new reward terms beyond action_rate + joint_acc scaling.
 - No PPO hyperparameter changes besides `init_noise_std` and `max_iterations`.
