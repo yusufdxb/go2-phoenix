@@ -11,10 +11,15 @@ upstream ``UnitreeGo2RoughEnvCfg``, then applies failure-oriented overrides:
 **Which YAML sections are wired, which are not** (2026-04-17 audit):
 
 Wired → override upstream defaults:
-    env, command, domain_randomization, perturbation, seed
+    env, command, domain_randomization, perturbation, reward, seed
 
 Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
-    reward, observation.noise, termination, robot.init_state, robot.actuator
+    observation.noise, termination, robot.init_state, robot.actuator
+
+Reward wiring added 2026-04-19 (retrain spec Phase 0); prior to this,
+YAML reward.* overrides were silent no-ops. This change invalidates
+v3b as a reproducible baseline — v3b checkpoint stays as the frozen
+reference for comparisons but cannot be re-created from its config.
 
 ``_warn_unwired_sections`` logs a warning when an unwired section is present
 in the loaded config so the drift is loud, not silent. Turning these on is a
@@ -38,7 +43,7 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
 
 logger = logging.getLogger("phoenix.sim_env.go2_env_cfg")
 
-_UNWIRED_TOP_LEVEL = ("reward", "termination")
+_UNWIRED_TOP_LEVEL = ("termination",)
 _UNWIRED_ROBOT_SUB = ("init_state", "actuator")
 
 # YAML reward key -> upstream Isaac Lab RewardsCfg term attribute name.
@@ -217,6 +222,7 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     _apply_commands(cfg, data.get("command", {}))
     _apply_domain_randomization(cfg, data.get("domain_randomization", {}))
     _apply_perturbation(cfg, data.get("perturbation", {}))
+    _apply_rewards(cfg, data.get("reward", {}))
 
     return cfg
 
