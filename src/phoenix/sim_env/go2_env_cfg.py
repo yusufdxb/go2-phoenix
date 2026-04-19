@@ -159,6 +159,28 @@ def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
         vel_cmd.rel_standing_envs = float(cmd["rel_standing_envs"])
 
 
+def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
+    """Apply YAML reward overrides to Isaac Lab env cfg reward term weights.
+
+    For each key in ``rewards``, look up the upstream term name in
+    ``_REWARD_TERM_MAP`` and set ``env_cfg.rewards.<term>.weight``. An
+    unknown key raises KeyError — this is deliberate, to prevent the
+    silent-no-op drift that motivated adding this helper (see
+    :mod:`phoenix.sim_env.go2_env_cfg` module docstring, 2026-04-19).
+    """
+    if not rewards:
+        return
+    for yaml_key, weight in rewards.items():
+        if yaml_key not in _REWARD_TERM_MAP:
+            raise KeyError(
+                f"Unknown reward key {yaml_key!r} — add it to _REWARD_TERM_MAP "
+                f"or remove from YAML. Known keys: {sorted(_REWARD_TERM_MAP)}"
+            )
+        term_name = _REWARD_TERM_MAP[yaml_key]
+        term = getattr(env_cfg.rewards, term_name)
+        term.weight = float(weight)
+
+
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     """Build a GO2 env cfg, applying YAML overrides on top of the upstream task."""
     import importlib

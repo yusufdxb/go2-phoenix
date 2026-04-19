@@ -10,7 +10,11 @@ import logging
 
 import pytest
 
-from phoenix.sim_env.go2_env_cfg import _REWARD_TERM_MAP
+from phoenix.sim_env.go2_env_cfg import (
+    _REWARD_TERM_MAP,
+    _apply_rewards,
+    _unwired_sections_present,
+)
 
 
 def test_reward_term_map_covers_phoenix_base_keys() -> None:
@@ -27,3 +31,45 @@ def test_reward_term_map_covers_phoenix_base_keys() -> None:
         "feet_air_time": "feet_air_time",
     }
     assert _REWARD_TERM_MAP == expected
+
+
+class _FakeRewardTerm:
+    """Stand-in for Isaac Lab RewardTermCfg — only `.weight` is exercised."""
+    def __init__(self, weight: float):
+        self.weight = weight
+
+
+class _FakeRewards:
+    """Attribute-access container matching RewardsCfg's term-as-attr pattern."""
+    def __init__(self, **terms):
+        for k, v in terms.items():
+            setattr(self, k, v)
+
+
+class _FakeEnvCfg:
+    def __init__(self, rewards):
+        self.rewards = rewards
+
+
+def test_apply_rewards_sets_weights() -> None:
+    env_cfg = _FakeEnvCfg(
+        _FakeRewards(
+            action_rate_l2=_FakeRewardTerm(-0.01),
+            dof_acc_l2=_FakeRewardTerm(-2.5e-7),
+        )
+    )
+    _apply_rewards(env_cfg, {"action_rate": -0.5, "joint_acc": -1.0e-6})
+    assert env_cfg.rewards.action_rate_l2.weight == -0.5
+    assert env_cfg.rewards.dof_acc_l2.weight == -1.0e-6
+
+
+def test_apply_rewards_unknown_key_raises() -> None:
+    env_cfg = _FakeEnvCfg(_FakeRewards())
+    with pytest.raises(KeyError, match="bogus_term"):
+        _apply_rewards(env_cfg, {"bogus_term": -1.0})
+
+
+def test_apply_rewards_empty_dict_is_noop() -> None:
+    env_cfg = _FakeEnvCfg(_FakeRewards(action_rate_l2=_FakeRewardTerm(-0.01)))
+    _apply_rewards(env_cfg, {})
+    assert env_cfg.rewards.action_rate_l2.weight == -0.01
