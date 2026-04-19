@@ -1,0 +1,50 @@
+# PPO training config for flat-scratch — from-random-init Gate 8 attempt.
+#
+# Mirrors ppo_flat.yaml (the v3b-producing config) except the env points
+# at flat_scratch.yaml, which adds slew_sat_hinge_l2 active from iter 0.
+#
+# No --resume. init_noise_std=0.5 (not the 0.1 fine-tune value).
+# entropy_coef=0.005 (v4's 0.01 was a documented mistake).
+
+run:
+  name: "phoenix-flat-scratch"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 100
+  max_iterations: 2500
+  seed: 42
+  device: "cuda:0"
+
+env:
+  config: "configs/env/flat_scratch.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  entropy_coef: 0.005
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 1.0e-3
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 0.5
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false
+  wandb_project: "go2-phoenix"
