@@ -1,0 +1,22 @@
+# Flat-slewhinge weight-sweep fallback: 10x lighter hinge (w=-5).
+#
+# w=-50 run (checkpoints/phoenix-flat-slewhinge/2026-04-19_12-18-33)
+# reduced slew_saturation_pct 33.5% -> 12.3% (2.7x improvement vs
+# flat-v3b-ft) but still over the <5% gate, AND tracking collapsed
+# the same way flat-v3b-ft did (lin_vel_err 0.62, ang_vel_err 0.61).
+# Training-time mean_reward hit min -1983 — the hinge penalty was so
+# heavy it clobbered v3b's converged tracking solution before the
+# policy could rebuild.
+#
+# This -5 variant tests whether lighter pressure lets v3b's tracking
+# priors survive. Expected outcome: slew ~20% (still fail G2), but
+# tracking closer to v3b's 0.091 m/s baseline. If this preserves
+# tracking, a weight between 5 and 50 may hit both gates; if this
+# ALSO collapses tracking, fine-tuning v3b is architecturally wrong
+# and we should pivot to deploy-layer mode-switch instead.
+
+defaults:
+  - flat
+
+reward:
+  slew_sat_hinge: -5.0
