@@ -71,8 +71,13 @@ from phoenix.sim_env.go2_env_cfg import _unwired_sections_present  # noqa: E402
 
 
 def test_unwired_detects_reward_section() -> None:
+    # Reward was wired in Phase 0 of the 2026-04-19 retrain; it should
+    # no longer show up in the unwired list. termination is the remaining
+    # top-level unwired section.
     data = {"env": {}, "reward": {"track_lin_vel_xy": 1.0}}
-    assert "reward" in _unwired_sections_present(data)
+    assert "reward" not in _unwired_sections_present(data)
+    data2 = {"env": {}, "termination": {"pitch_threshold_rad": 0.8}}
+    assert "termination" in _unwired_sections_present(data2)
 
 
 def test_unwired_detects_observation_noise() -> None:
@@ -107,16 +112,17 @@ def test_unwired_empty_when_only_wired_sections_present() -> None:
 
 
 def test_unwired_flags_base_yaml_current_state() -> None:
-    """Regression guard: base.yaml today contains reward, observation.noise,
-    termination, robot.init_state, and robot.actuator — all unwired. If any
-    of those graduate to wired, this test should be updated at the same time
-    as removing the YAML key from the _UNWIRED_TOP_LEVEL tuple."""
+    """Regression guard: base.yaml today contains observation.noise,
+    termination, robot.init_state, and robot.actuator — all unwired.
+    (reward was wired in Phase 0 of the 2026-04-19 retrain.) If any of
+    these graduate to wired, this test should be updated at the same
+    time as removing the YAML key from the _UNWIRED_TOP_LEVEL tuple."""
     cfg = load_layered_config(CONFIGS / "env" / "base.yaml").to_container()
     unwired = set(_unwired_sections_present(cfg))
     assert {
-        "reward",
         "observation.noise",
         "termination",
         "robot.init_state",
         "robot.actuator",
     }.issubset(unwired)
+    assert "reward" not in unwired
