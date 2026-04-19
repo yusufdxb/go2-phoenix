@@ -1,0 +1,22 @@
+# Stand-v2 — retrain specialist for hardware stand.
+#
+# Stand-v1 (2026-04-16_22-04-28) passed sim-rollout (16/16 at cmd=0, 20 s
+# survival) but on GO2 hardware 2026-04-18 saturated ±0.175 rad/step slew
+# clip on 30.23% of motor steps at cmd_vel=0. Gate is <5%. Not safe to
+# enable motors.
+#
+# Hypothesis: stand-v1 was trained with action_rate=-0.05 (base.yaml) and
+# init_noise_std=0.5. Under hardware-grade IMU noise the policy mean
+# reacts too aggressively. Stand-v2 targets the action-smoothness axis
+# directly: 10x stronger action_rate penalty, 4x stronger joint_acc
+# penalty, quieter initial exploration via ppo_stand_v2.yaml.
+#
+# Evaluation criterion: slew_saturation_pct < 0.05 on sim rollout at
+# cmd=0 (sim-side proxy for the Jetson dryrun gate).
+
+defaults:
+  - stand
+
+reward:
+  action_rate: -0.5     # was -0.05 (from base.yaml)
+  joint_acc: -1.0e-6    # was -2.5e-7 (from base.yaml)
