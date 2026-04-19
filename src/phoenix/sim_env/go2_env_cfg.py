@@ -38,6 +38,16 @@ from typing import TYPE_CHECKING, Any
 
 from .config_loader import PhoenixConfig, load_layered_config
 
+# Isaac Lab's RewardTermCfg — lazy-import guard so this module can
+# still be imported in CI without isaaclab. The actual usage is
+# gated behind _NEW_TERM_FACTORIES, which only fires at env build.
+try:  # pragma: no cover - exercised only on machines with Isaac Lab
+    from isaaclab.managers import RewardTermCfg as _RewTerm
+except ImportError:  # pragma: no cover
+    _RewTerm = None  # type: ignore[assignment]
+
+from phoenix.sim_env.rewards import slew_sat_hinge_l2
+
 if TYPE_CHECKING:  # pragma: no cover - type hints only
     from isaaclab.envs import ManagerBasedRLEnvCfg
 
@@ -62,6 +72,22 @@ _REWARD_TERM_MAP: dict[str, str] = {
     "joint_acc": "dof_acc_l2",
     "action_rate": "action_rate_l2",
     "feet_air_time": "feet_air_time",
+}
+
+# Factories for Phoenix-owned reward terms — not in upstream
+# UnitreeGo2RoughEnvCfg.rewards. When a YAML key lands here,
+# _apply_rewards constructs a RewTerm via the factory and setattrs
+# it onto env_cfg.rewards. Keys must not collide with
+# _REWARD_TERM_MAP — see _apply_rewards dispatch.
+_NEW_TERM_FACTORIES: dict[str, tuple[str, callable]] = {
+    "slew_sat_hinge": (
+        "slew_sat_hinge_l2",  # attribute name on env_cfg.rewards
+        lambda weight: _RewTerm(
+            func=slew_sat_hinge_l2,
+            weight=float(weight),
+            params={"threshold": 0.15},
+        ),
+    ),
 }
 
 
@@ -165,31 +191,42 @@ def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
 
 
 def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
-    """Apply YAML reward overrides to Isaac Lab env cfg reward term weights.
+    """Apply YAML reward overrides to Isaac Lab env cfg.
 
-    For each key in ``rewards``, look up the upstream term name in
-    ``_REWARD_TERM_MAP`` and set ``env_cfg.rewards.<term>.weight``. An
-    unknown key raises KeyError — this is deliberate, to prevent the
-    silent-no-op drift that motivated adding this helper (see
+    Upstream-term keys (in ``_REWARD_TERM_MAP``) reweight an existing
+    ``env_cfg.rewards.<term>`` by setting its ``weight``.
+
+    Phoenix-owned-term keys (in ``_NEW_TERM_FACTORIES``) construct a
+    new ``RewTerm`` via the factory and attach it to
+    ``env_cfg.rewards`` under the factory's attribute name.
+
+    Unknown keys raise ``KeyError`` — this is deliberate, to prevent
+    the silent-no-op drift that motivated adding this helper (see
     :mod:`phoenix.sim_env.go2_env_cfg` module docstring, 2026-04-19).
     """
     if not rewards:
         return
     for yaml_key, weight in rewards.items():
-        if yaml_key not in _REWARD_TERM_MAP:
+        if yaml_key in _REWARD_TERM_MAP:
+            term_name = _REWARD_TERM_MAP[yaml_key]
+            term = getattr(env_cfg.rewards, term_name, None)
+            if term is None:
+                raise AttributeError(
+                    f"Reward term {term_name!r} (YAML key {yaml_key!r}) not present on "
+                    f"{type(env_cfg.rewards).__name__}. Either the upstream task omits "
+                    f"this term, or _REWARD_TERM_MAP is stale."
+                )
+            term.weight = float(weight)
+        elif yaml_key in _NEW_TERM_FACTORIES:
+            attr_name, factory = _NEW_TERM_FACTORIES[yaml_key]
+            setattr(env_cfg.rewards, attr_name, factory(weight))
+        else:
             raise KeyError(
-                f"Unknown reward key {yaml_key!r} — add it to _REWARD_TERM_MAP "
-                f"or remove from YAML. Known keys: {sorted(_REWARD_TERM_MAP)}"
+                f"Unknown reward key {yaml_key!r} — add it to _REWARD_TERM_MAP, "
+                f"add it to _NEW_TERM_FACTORIES, or remove from YAML. "
+                f"Known upstream keys: {sorted(_REWARD_TERM_MAP)}; "
+                f"known phoenix keys: {sorted(_NEW_TERM_FACTORIES)}"
             )
-        term_name = _REWARD_TERM_MAP[yaml_key]
-        term = getattr(env_cfg.rewards, term_name, None)
-        if term is None:
-            raise AttributeError(
-                f"Reward term {term_name!r} (YAML key {yaml_key!r}) not present on "
-                f"{type(env_cfg.rewards).__name__}. Either the upstream task omits "
-                f"this term, or _REWARD_TERM_MAP is stale."
-            )
-        term.weight = float(weight)
 
 
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
