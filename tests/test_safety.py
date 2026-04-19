@@ -295,3 +295,94 @@ def test_startup_predicate_blocks_until_estop_arrives() -> None:
         )
         assert ok is False
         assert reason == "estop_publisher_missing"
+
+
+# ---------------- startup_state (first-message gate) -----------------------
+
+
+from phoenix.sim2real.safety import startup_state
+
+
+def _startup_kw(
+    *,
+    now_ns: int,
+    node_started_ns: int = 0,
+    seen_estop: bool = False,
+    seen_imu: bool = False,
+    seen_joint_state: bool = False,
+    first_message_timeout_s: float = 15.0,
+) -> dict:
+    return {
+        "seen_estop": seen_estop,
+        "seen_imu": seen_imu,
+        "seen_joint_state": seen_joint_state,
+        "node_started_ns": node_started_ns,
+        "now_ns": now_ns,
+        "first_message_timeout_s": first_message_timeout_s,
+    }
+
+
+def test_startup_waiting_when_none_seen_within_timeout() -> None:
+    state, reason = startup_state(**_startup_kw(now_ns=1_000 * MS))
+    assert (state, reason) == ("waiting", None)
+
+
+def test_startup_waiting_when_two_of_three_seen() -> None:
+    state, reason = startup_state(
+        **_startup_kw(now_ns=1_000 * MS, seen_estop=True, seen_imu=True)
+    )
+    assert (state, reason) == ("waiting", None)
+
+
+def test_startup_ready_when_all_three_seen() -> None:
+    state, reason = startup_state(
+        **_startup_kw(
+            now_ns=1_000 * MS,
+            seen_estop=True,
+            seen_imu=True,
+            seen_joint_state=True,
+        )
+    )
+    assert (state, reason) == ("ready", None)
+
+
+def test_startup_aborts_after_timeout_with_missing_topic() -> None:
+    # 20s elapsed > 15s timeout, estop + imu seen, joint_state missing.
+    state, reason = startup_state(
+        **_startup_kw(
+            now_ns=20_000 * MS,
+            seen_estop=True,
+            seen_imu=True,
+            seen_joint_state=False,
+        )
+    )
+    assert state == "abort"
+    assert reason == "first_message_timeout_joint_state"
+
+
+def test_startup_abort_names_all_missing_topics() -> None:
+    state, reason = startup_state(
+        **_startup_kw(
+            now_ns=20_000 * MS,
+            seen_estop=False,
+            seen_imu=False,
+            seen_joint_state=False,
+        )
+    )
+    assert state == "abort"
+    # The reason must identify which topics missed. Exact wording: the
+    # names are comma-joined in a stable order (estop, imu, joint_state).
+    assert reason == "first_message_timeout_estop,imu,joint_state"
+
+
+def test_startup_ready_before_timeout_even_if_slow() -> None:
+    # 14s elapsed < 15s timeout, all seen — ready, not abort.
+    state, reason = startup_state(
+        **_startup_kw(
+            now_ns=14_000 * MS,
+            seen_estop=True,
+            seen_imu=True,
+            seen_joint_state=True,
+        )
+    )
+    assert (state, reason) == ("ready", None)
