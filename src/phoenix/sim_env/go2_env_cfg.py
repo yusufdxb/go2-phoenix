@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from .config_loader import PhoenixConfig, load_layered_config
 
@@ -79,7 +79,7 @@ _REWARD_TERM_MAP: dict[str, str] = {
 # _apply_rewards constructs a RewTerm via the factory and setattrs
 # it onto env_cfg.rewards. Keys must not collide with
 # _REWARD_TERM_MAP — see _apply_rewards dispatch.
-_NEW_TERM_FACTORIES: dict[str, tuple[str, callable]] = {
+_NEW_TERM_FACTORIES: dict[str, tuple[str, Callable[[float], Any]]] = {
     "slew_sat_hinge": (
         "slew_sat_hinge_l2",  # attribute name on env_cfg.rewards
         lambda weight: _RewTerm(

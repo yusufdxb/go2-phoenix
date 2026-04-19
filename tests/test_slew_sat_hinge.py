@@ -78,3 +78,20 @@ def test_threshold_parameter() -> None:
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env, threshold=0.175)
     assert torch.allclose(r, torch.zeros(1))
+
+
+def test_default_hinge_threshold_tracks_hardware_slew_clip() -> None:
+    """The default hinge threshold is designed to sit 0.025 rad below
+    the hardware slew clip MAX_DELTA_PER_STEP_RAD. If either constant
+    changes without the other, the safety margin drifts silently; this
+    test catches that."""
+    from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
+    from phoenix.sim_env.rewards import _DEFAULT_HINGE_THRESHOLD
+
+    margin = MAX_DELTA_PER_STEP_RAD - _DEFAULT_HINGE_THRESHOLD
+    assert margin == pytest.approx(0.025, abs=1e-9), (
+        f"Expected 0.025 rad margin between _DEFAULT_HINGE_THRESHOLD "
+        f"({_DEFAULT_HINGE_THRESHOLD}) and MAX_DELTA_PER_STEP_RAD "
+        f"({MAX_DELTA_PER_STEP_RAD}); got {margin}. If hardware clip "
+        f"changed, update the hinge threshold to match."
+    )
