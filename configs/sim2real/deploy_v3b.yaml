@@ -60,3 +60,9 @@ safety:
   estop_timeout_s: 0.8
   sensor_timeout_s: 0.2
   startup_grace_s: 3.0
+  # Maximum time the node will wait for the first message on each required
+  # topic (estop, imu, joint_state) before latching abort. Replaces the
+  # old startup_grace_s wallclock gate. DDS discovery on the Jetson can
+  # take >3s; 15s gives a generous margin without masking real publisher
+  # failures.
+  first_message_timeout_s: 15.0
