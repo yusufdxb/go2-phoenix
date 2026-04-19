@@ -7,6 +7,7 @@ added in Phase 0 of the 2026-04-19 phoenix retrain plan.
 from __future__ import annotations
 
 import logging
+from unittest.mock import patch
 
 import pytest
 
@@ -109,3 +110,43 @@ def test_apply_rewards_missing_term_on_env_cfg_raises_with_context() -> None:
     assert "feet_air_time" in msg              # upstream term name
     assert "'feet_air_time'" in msg or "feet_air_time" in msg  # yaml key
     assert "_REWARD_TERM_MAP" in msg or "upstream task omits" in msg
+
+
+def test_apply_rewards_new_term_factory_attaches_reward() -> None:
+    from phoenix.sim_env.go2_env_cfg import _NEW_TERM_FACTORIES
+
+    assert "slew_sat_hinge" in _NEW_TERM_FACTORIES
+
+    class _StubRewTerm:
+        def __init__(self, *, func, weight, params):
+            self.func = func
+            self.weight = weight
+            self.params = params
+
+    env_cfg = _FakeEnvCfg(_FakeRewards())
+    with patch("phoenix.sim_env.go2_env_cfg._RewTerm", _StubRewTerm):
+        _apply_rewards(env_cfg, {"slew_sat_hinge": -50.0})
+
+    assert hasattr(env_cfg.rewards, "slew_sat_hinge_l2")
+    assert env_cfg.rewards.slew_sat_hinge_l2.weight == -50.0
+    # Sanity: the factory passed threshold=0.15 per the spec.
+    assert env_cfg.rewards.slew_sat_hinge_l2.params == {"threshold": 0.15}
+
+
+def test_apply_rewards_new_term_factory_mixed_with_upstream() -> None:
+    class _StubRewTerm:
+        def __init__(self, *, func, weight, params):
+            self.func = func
+            self.weight = weight
+            self.params = params
+
+    env_cfg = _FakeEnvCfg(
+        _FakeRewards(action_rate_l2=_FakeRewardTerm(-0.01)),
+    )
+    with patch("phoenix.sim_env.go2_env_cfg._RewTerm", _StubRewTerm):
+        _apply_rewards(
+            env_cfg,
+            {"action_rate": -0.5, "slew_sat_hinge": -50.0},
+        )
+    assert env_cfg.rewards.action_rate_l2.weight == -0.5
+    assert env_cfg.rewards.slew_sat_hinge_l2.weight == -50.0
