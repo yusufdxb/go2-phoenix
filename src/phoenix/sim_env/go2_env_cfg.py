@@ -41,6 +41,24 @@ logger = logging.getLogger("phoenix.sim_env.go2_env_cfg")
 _UNWIRED_TOP_LEVEL = ("reward", "termination")
 _UNWIRED_ROBOT_SUB = ("init_state", "actuator")
 
+# YAML reward key -> upstream Isaac Lab RewardsCfg term attribute name.
+# Upstream term names live at
+# IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/
+#   velocity/velocity_env_cfg.py (class RewardsCfg).
+# Only terms supported by UnitreeGo2RoughEnvCfg are listed. Keys in YAML
+# not present here raise KeyError in _apply_rewards — we do NOT want
+# silent drift reappearing.
+_REWARD_TERM_MAP: dict[str, str] = {
+    "track_lin_vel_xy": "track_lin_vel_xy_exp",
+    "track_ang_vel_z": "track_ang_vel_z_exp",
+    "lin_vel_z": "lin_vel_z_l2",
+    "ang_vel_xy": "ang_vel_xy_l2",
+    "joint_torque": "dof_torques_l2",
+    "joint_acc": "dof_acc_l2",
+    "action_rate": "action_rate_l2",
+    "feet_air_time": "feet_air_time",
+}
+
 
 def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
     """Return config-path names of sections present in ``data`` but not applied.
