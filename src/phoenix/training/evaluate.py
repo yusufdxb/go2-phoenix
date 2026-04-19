@@ -35,6 +35,10 @@ class RolloutMetrics:
     # Keyed by Isaac Lab reward_manager term name (e.g. "track_lin_vel_xy_exp").
     # Empty dict if reward_manager is unavailable on the env (older Isaac Lab).
     per_term_rewards: dict[str, float]
+    # Fraction of per-(env, step, motor) action-delta samples whose absolute
+    # value >= MAX_DELTA_PER_STEP_RAD (0.175 rad). Matches the Jetson
+    # dryrun definition so sim and hardware can be compared 1:1.
+    slew_saturation_pct: float
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -48,6 +52,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--video-length", type=int, default=500, help="Video length in env steps (50 Hz)"
     )
     p.add_argument("--metrics-out", type=Path, default=None)
+    p.add_argument(
+        "--slew-saturation-max",
+        type=float,
+        default=None,
+        help="If set, exit non-zero when slew_saturation_pct exceeds this value",
+    )
     p.add_argument("--device", type=str, default="cuda:0")
     p.add_argument("--seed", type=int, default=1234)
     return p.parse_args(argv)
@@ -200,9 +210,26 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     dt_ctrl = env_cfg.decimation * env_cfg.sim.dt  # seconds per env step
 
+    from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
+    from phoenix.training.slew import slew_saturation_rate
+
+    prev_actions_np: np.ndarray | None = None
+    slew_sat_acc = 0.0
+    slew_sat_steps = 0
+
     with torch.inference_mode():
         while len(returns) < args.num_episodes:
             actions = policy(obs)
+            actions_np = _to_numpy(actions)
+            if prev_actions_np is not None and actions_np.shape == prev_actions_np.shape:
+                slew_sat_acc += slew_saturation_rate(
+                    prev_actions_np, actions_np, threshold=MAX_DELTA_PER_STEP_RAD
+                )
+                slew_sat_steps += 1
+            # First step after an env reset will contribute a small delta because
+            # the policy sees the default stand obs again — acceptable noise at
+            # thousands of steps; no per-env reset bookkeeping needed.
+            prev_actions_np = actions_np
             obs, reward, dones, extras = env.step(actions)
             episode_return += reward
             episode_length += 1
@@ -278,6 +305,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                     episode_length[i] = 0.0
 
     n_eps = max(len(returns), 1)
+    slew_pct = slew_sat_acc / max(slew_sat_steps, 1)
     metrics = RolloutMetrics(
         num_episodes=n_eps,
         mean_episode_return=float(np.mean(returns)),
@@ -287,8 +315,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         mean_lin_vel_error=lin_err_acc / max(tracking_steps, 1),
         mean_ang_vel_error=ang_err_acc / max(tracking_steps, 1),
         per_term_rewards={k: v / max(n_steps, 1) for k, v in term_acc.items()},
+        slew_saturation_pct=slew_pct,
     )
     logger.info("Metrics: %s", metrics)
+
+    if args.slew_saturation_max is not None and slew_pct > args.slew_saturation_max:
+        logger.error(
+            "slew_saturation_pct=%.4f exceeds --slew-saturation-max=%.4f",
+            slew_pct,
+            args.slew_saturation_max,
+        )
+        env.close()
+        return 1
 
     if args.metrics_out:
         args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
