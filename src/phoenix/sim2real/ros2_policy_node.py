@@ -281,6 +281,15 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._estopped = True
         self._abort_reason = reason
         logger.warning("ABORT: %s — holding stand pose.", reason)
+        # Flush the parquet footer at abort time. A hard kill during the
+        # post-abort default-pose hold (e.g. operator SIGKILL after
+        # max_runtime latched) otherwise skips shutdown() and leaves a
+        # footerless parquet — see 2026-04-20 lab_findings bug #1.
+        if self._logger is not None:
+            try:
+                self._logger.close()
+            finally:
+                self._logger = None
 
     def _ready_to_command_motion(self, now_ns: int) -> tuple[bool, str | None]:
         """Bind the shared ``is_ready_to_command_motion`` predicate to this
