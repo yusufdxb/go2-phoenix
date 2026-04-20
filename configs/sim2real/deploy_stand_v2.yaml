@@ -1,0 +1,74 @@
+# Deployment config for the stand-v2 specialist on the real GO2.
+#
+# Stand-v1 (bit-identical to phoenix-flat) saturated the ±0.175 rad/step
+# slew clip on 30.23% of motor-steps on hardware 2026-04-18 (need <5%).
+# Stand-v2 retrained on mewtwo 2026-04-19 with action_rate=-0.5 (10x) and
+# joint_acc=-1.0e-6 (4x). The ONNX was re-exported on the Jetson
+# 2026-04-20 from latest.pt after the original export was discovered to
+# be a byte-copy of flat's export.
+#
+# Deploy identical to deploy.yaml except policy paths.
+
+policy:
+  onnx_path: "checkpoints/phoenix-stand-v2/policy.onnx"
+  torchscript_path: "checkpoints/phoenix-stand-v2/policy.pt"
+  device: "cpu"
+  obs_pad_zeros: 0
+
+control:
+  rate_hz: 50
+  action_scale: 0.25
+  default_joint_pos:
+    FL_hip_joint: 0.0
+    FR_hip_joint: 0.0
+    RL_hip_joint: 0.0
+    RR_hip_joint: 0.0
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+latency:
+  action_delay_steps: 2
+
+actuator_limits:
+  position_margin_rad: 0.05
+  velocity_max_rad_s: 18.0
+  torque_max_nm: 22.0
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+
+safety:
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120
+  estop_timeout_s: 0.5
+  sensor_timeout_s: 0.2
+  # first_message_timeout_s replaces the old startup_grace_s wallclock gate.
+  # cyclonedds discovery on the Jetson routinely takes >3 s; 15 s gives a
+  # generous first-message window without masking real publisher failures.
+  # Once every required topic has delivered one message, steady-state
+  # freshness reverts to the canonical estop/sensor timeouts above.
+  first_message_timeout_s: 15.0
