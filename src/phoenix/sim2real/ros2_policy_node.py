@@ -315,7 +315,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             self._latch_abort("max_runtime")
 
         if self._estopped:
-            self._publish_default_pose()
+            # Single default-pose publish already happened at abort time.
+            # Do NOT re-broadcast every tick: the bridge's 0.2s command-stale
+            # watchdog takes over and holds at last-measured q (safe). See
+            # lab_findings_2026-04-21 — per-tick rebroadcast walked default_q
+            # against real posture → motor fight → Jetson brownout.
             return
 
         startup, startup_reason = startup_state(

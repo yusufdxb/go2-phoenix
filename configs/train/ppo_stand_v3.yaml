@@ -1,0 +1,58 @@
+# PPO fine-tune config for stand-v3.
+#
+# Fine-tunes from phoenix-stand-v2/2026-04-19_11-20-36/model_499.pt (the
+# current hardware-staged stand-v2 checkpoint, source of the 2026-04-21
+# 33% saturation result). Must be invoked with --resume pointed at that
+# path (see scripts/train_stand_v3.sh).
+#
+# 500 iters same as v2: this is an action-smoothness refinement pass,
+# not a from-scratch retrain.
+#
+# Lower init_noise_std (0.05 vs v2's 0.1) — the objective is to tighten
+# the mean policy, not to re-explore. With the harsher action_rate=-2.0
+# and joint_acc=-5e-6 penalties in stand_v3.yaml, even modest exploration
+# noise would be amplified into the training signal and fight the
+# smoothness gradient.
+
+run:
+  name: "phoenix-stand-v3"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 50
+  max_iterations: 500
+  seed: 42
+  device: "cuda:0"
+
+env:
+  config: "configs/env/stand_v3.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  entropy_coef: 0.005
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 1.0e-3
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 0.05
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false
+  wandb_project: "go2-phoenix"
