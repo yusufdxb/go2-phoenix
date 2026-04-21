@@ -1,0 +1,47 @@
+# Stand-v3 — Gate 7 retry after 2026-04-21 live run failed sat gate (33.06%).
+#
+# What failed:
+#   Live on-stand Gate 7 run (120 s, 5961 rows, parquet
+#   gate7_live_2026-04-21_18-33-17.parquet) showed 100% per-step-slew
+#   saturation on RL/RR thigh, 99.8% on FL thigh, 96.7% on FL calf.
+#
+# Why — two coupled causes (see docs/lab_findings_2026-04-21.md):
+#   (1) Stand-posture offset. Dog held on stand has legs unloaded.
+#       Measured rest q (medians of full run):
+#         FL_thigh=0.773 FR_thigh=0.664 RL_thigh=0.630 RR_thigh=0.954
+#       Trained default was symmetric 0.80 front / 1.00 rear. RL in
+#       particular sits 0.37 rad below trained default → every step the
+#       per_step_clip (0.175 rad) fires.
+#   (2) Out-of-distribution policy output. On stand the feet do not
+#       touch ground, so qd ≈ 0 and the obs window is outside anything
+#       stand-v2 saw in training (training always had ground contact).
+#       Policy emits asymmetric large actions: a_mabs=0.90 on FL_thigh
+#       despite q near default. 0.25·a > 0.175 ⇒ sat regardless of
+#       posture alignment.
+#
+# What v3 attacks and what it does NOT attack:
+#   v3 addresses (2): 4x stronger action_rate penalty vs v2, 5x stronger
+#   joint_acc penalty. Expected: action magnitudes drop → FL/RR/FL-calf
+#   saturation falls. Approximate target: drop overall sat from 33% to
+#   ~10–15%. Still above Gate 7's <5% bar — v3 is a stepping stone, not
+#   a one-shot fix.
+#
+#   v3 does NOT address (1). Stand-posture offset is a training-env
+#   distribution problem — sim trains feet-on-ground, deploy tests
+#   feet-in-air. Proper fix requires a stand-on-stand sim scenario (v4
+#   scoped: add `rel_floating_envs` that suspend robot above ground).
+#   Alternative: move Gate 7 test to the FLOOR, which is the
+#   in-distribution scenario.
+#
+# Evaluation criterion (sim-side proxy):
+#   slew_saturation_pct < 0.05 on sim rollout at cmd=0, num_envs=16,
+#   episode_length=20s. Matches Gate 0a in pre_lab_gates_2026-04-17.md.
+
+defaults:
+  - stand
+
+reward:
+  # v2 used -0.5 / -1.0e-6. Bumping both to chase the on-stand OOD
+  # action magnitudes seen in gate7_live_2026-04-21_18-33-17.parquet.
+  action_rate: -2.0
+  joint_acc: -5.0e-6
