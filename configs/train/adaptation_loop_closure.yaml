@@ -1,0 +1,71 @@
+# Adaptation fine-tune config for the 5-day Gate-9 loop closure.
+# Fine-tunes v3b (phoenix-flat walking policy) on the failure parquets
+# collected from the 2026-04-22 lab floor session. Uses the reset_bridge
+# curriculum pathway that reseeds envs from parquets post-normal-reset.
+#
+# CLI overrides (set by scripts/loop_closure.sh):
+#   --resume           v3b model_999.pt path
+#   --trajectory-dir   directory of training parquets (not held-out)
+#   --num-envs         10240
+#
+# Seed is set per-run by the script (three seeds: 42, 43, 44).
+
+run:
+  name: "phoenix-adapt-loop-closure"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 50
+  max_iterations: 500
+  seed: 42
+  device: "cuda:0"
+
+resume:
+  path: "checkpoints/phoenix-flat/2026-04-16_21-39-16/model_999.pt"
+  load_optimizer: false
+
+env:
+  # Walking policy adaptation — flat terrain with standard DR envelope.
+  # reset_bridge reseeds a fraction of envs from real-failure parquets
+  # (see curriculum block); the remainder train on the baseline flat
+  # distribution to preserve tracking precision.
+  config: "configs/env/flat.yaml"
+
+curriculum:
+  # 30% of rollouts seeded from recorded real failures. The reset_bridge
+  # monkey-patches env._reset_idx to pull from trajectory_dir parquets.
+  # 0.3 is the fraction the 2026-04-19 negative results (flat-v3b-ft,
+  # slewhinge) did NOT use — this is its first real test with real data.
+  failure_sample_fraction: 0.3
+  trajectory_dir: "data/failures/loop_closure_train"
+  variation:
+    config: "configs/replay/variations.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.1
+  entropy_coef: 0.003
+  num_learning_epochs: 4
+  num_mini_batches: 4
+  learning_rate: 1.0e-4
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.005
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 1.0
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false
