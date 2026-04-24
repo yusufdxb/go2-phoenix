@@ -1,0 +1,49 @@
+# PPO fine-tune config for flat-slewhinge.
+#
+# Fine-tunes from phoenix-flat/2026-04-16_21-39-16/model_999.pt (v3b).
+# Invoke with --resume pointed at that path. 500 iters matches the
+# budget used by flat-v3b-ft; reward signal is now per-motor and much
+# more targeted. entropy_coef stays at 0.005 (v4's 0.01 was a mistake).
+
+run:
+  name: "phoenix-flat-slewhinge"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 50
+  max_iterations: 500
+  seed: 42
+  device: "cuda:0"
+
+env:
+  config: "configs/env/flat_slewhinge.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  entropy_coef: 0.005
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 1.0e-3
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 0.1
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false
+  wandb_project: "go2-phoenix"

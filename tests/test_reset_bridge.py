@@ -102,9 +102,7 @@ def test_patched_reset_calls_original_and_rewrites_pose(tmp_path: Path) -> None:
     torch = pytest.importorskip("torch")
     p = tmp_path / "f.parquet"
     _write_failure_parquet(p)
-    curriculum = FailureCurriculum(
-        TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0
-    )
+    curriculum = FailureCurriculum(TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0)
     robot = _FakeRobot()
     device = "cpu"
     env_origins = torch.zeros(4, 3)  # 4 envs, zeroed origins
@@ -137,9 +135,7 @@ def test_patched_reset_is_noop_when_no_envs(tmp_path: Path) -> None:
     torch = pytest.importorskip("torch")
     p = tmp_path / "f.parquet"
     _write_failure_parquet(p)
-    curriculum = FailureCurriculum(
-        TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0
-    )
+    curriculum = FailureCurriculum(TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0)
     robot = _FakeRobot()
     env, inner_calls, unwrapped = _fake_env(robot, torch.zeros(2, 3), "cpu")
 

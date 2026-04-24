@@ -1,0 +1,24 @@
+# Flat-slewhinge: v3b + direct per-motor slew-clip penalty.
+#
+# See docs/superpowers/specs/2026-04-19-phoenix-gate8-slewhinge-design.md
+# for why L2 action_rate was insufficient (flat-v3b-ft negative result).
+# This overlay adds slew_sat_hinge_l2 — a per-motor squared hinge that
+# penalizes motors approaching the ±0.175 rad/step hardware slew clip
+# (threshold 0.15 rad = 85% of clip).
+#
+# Scope: walking-only. cmd_vel=0 is handled by a deploy-layer
+# mode-switch to stand-v2 (separate spec). rel_standing_envs stays at
+# base 0.02; action_rate / joint_acc stay at base (0.05 / -2.5e-7) so
+# any delta vs v3b is attributable to the new term.
+#
+# Evaluation criteria (from retrain spec Phase 2b gates):
+# - slew_saturation_pct < 0.05 on flat.yaml (nonzero cmds)
+# - mean_lin_vel_err <= 0.10 m/s on flat.yaml
+# - mean_ang_vel_err <= 0.10 rad/s on flat.yaml
+# - 32/32 success @ 20 s on flat.yaml
+
+defaults:
+  - flat
+
+reward:
+  slew_sat_hinge: -50.0

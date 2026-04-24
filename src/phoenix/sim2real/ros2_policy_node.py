@@ -39,14 +39,17 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from phoenix.real_world.failure_detector import FailureDetector, FailureThresholds
+from phoenix.real_world.failure_detector import FailureThresholds
 from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
 
+from .mode_switch import ModeSwitchCfg, State, initial_state
+from .mode_switch import step as mode_step
 from .observation import JointOrder, ObservationBuilder
 from .safety import (
     MAX_DELTA_PER_STEP_RAD,
     is_ready_to_command_motion,
     per_step_clip_array,
+    startup_state,
 )
 
 logger = logging.getLogger("phoenix.sim2real.ros2_policy_node")
@@ -82,9 +85,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires R
     if onnx_path is None:
         cfg_onnx = cfg.get("policy", {}).get("onnx_path")
         if not cfg_onnx:
-            raise SystemExit(
-                "--onnx not given and cfg['policy']['onnx_path'] is empty"
-            )
+            raise SystemExit("--onnx not given and cfg['policy']['onnx_path'] is empty")
         onnx_path = Path(cfg_onnx)
 
     rclpy.init()
@@ -131,9 +132,29 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         safety_cfg = cfg.get("safety", {})
         self.estop_timeout_s = float(safety_cfg.get("estop_timeout_s", 0.5))
         self.sensor_timeout_s = float(safety_cfg.get("sensor_timeout_s", 0.2))
-        # We allow the robot up to this long after launch to bring up its
-        # estop publisher + first sensor messages. After that we latch.
-        self.startup_grace_s = float(safety_cfg.get("startup_grace_s", 3.0))
+        # New contract: gate startup on per-topic first-message receipt
+        # rather than wallclock grace. DDS discovery regularly takes >3s
+        # on the Jetson; the old wallclock gate (startup_grace_s) raced
+        # discovery and aborted healthy bringups.
+        self.first_message_timeout_s = float(
+            safety_cfg.get(
+                "first_message_timeout_s",
+                # Back-compat: if only the old key is present, honor it and
+                # emit a deprecation warning so deploy.yaml migrations land.
+                safety_cfg.get("startup_grace_s", 15.0),
+            )
+        )
+        if "startup_grace_s" in safety_cfg and "first_message_timeout_s" not in safety_cfg:
+            import warnings
+
+            warnings.warn(
+                "safety.startup_grace_s is deprecated; use safety.first_message_timeout_s",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        self._seen_estop = False
+        self._seen_imu = False
+        self._seen_joint_state = False
 
         # Policy-side observation padding. The Rough baseline expects
         # 48 proprio + 187 height-scan = 235 dims; the real GO2 has no
@@ -154,6 +175,48 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 f"Set policy.obs_pad_zeros in deploy.yaml."
             )
 
+        # Two-policy mode switch (stand-v2 + v3b). Opt-in via deploy.yaml.
+        # When disabled, ``self.session`` is the only policy and the
+        # behaviour below is a straight passthrough — backwards-compatible
+        # with all pre-mode-switch bringups.
+        ms_cfg = cfg.get("policy", {}).get("mode_switch", {}) or {}
+        self.mode_switch_enabled = bool(ms_cfg.get("enabled", False))
+        self.stand_session = None
+        self.walk_session = None
+        self.mode_cfg: ModeSwitchCfg | None = None
+        self.mode_state: State | None = None
+        self.mode_ticks: int = 0
+        self._last_action_stand = np.zeros(len(self.joint_order), dtype=np.float32)
+        self._last_action_walk = np.zeros(len(self.joint_order), dtype=np.float32)
+        if self.mode_switch_enabled:
+            stand_path = Path(ms_cfg["stand_onnx_path"])
+            walk_path = Path(ms_cfg["walk_onnx_path"])
+            if not stand_path.is_file():
+                raise FileNotFoundError(f"mode_switch.stand_onnx_path missing: {stand_path}")
+            if not walk_path.is_file():
+                raise FileNotFoundError(f"mode_switch.walk_onnx_path missing: {walk_path}")
+            self.stand_session = ort.InferenceSession(
+                str(stand_path), providers=["CPUExecutionProvider"]
+            )
+            self.walk_session = ort.InferenceSession(
+                str(walk_path), providers=["CPUExecutionProvider"]
+            )
+            self.mode_cfg = ModeSwitchCfg(
+                enter_walk_thresh=float(ms_cfg.get("enter_walk_thresh", 0.15)),
+                enter_stand_thresh=float(ms_cfg.get("enter_stand_thresh", 0.05)),
+                yaw_scale=float(ms_cfg.get("yaw_scale", 0.3)),
+                transition_ticks=int(ms_cfg.get("transition_ticks", 25)),
+            )
+            self.mode_state, self.mode_ticks = initial_state(self.mode_cfg)
+            logger.info(
+                "mode_switch enabled: stand=%s walk=%s thresh=[%.2f,%.2f] trans=%d ticks",
+                stand_path.name,
+                walk_path.name,
+                self.mode_cfg.enter_stand_thresh,
+                self.mode_cfg.enter_walk_thresh,
+                self.mode_cfg.transition_ticks,
+            )
+
         # Failure thresholds reused from the offline detector so the
         # on-robot abort and the sim replay flag the same regimes.
         self.thresholds = FailureThresholds()
@@ -165,6 +228,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._estopped = False
         self._abort_reason: str | None = None
         self._started_at = time.monotonic()
+        self._started_ns = time.monotonic_ns()
         self._step_idx = 0
 
         # Freshness bookkeeping for the fail-closed estop / sensor watchdogs.
@@ -194,10 +258,12 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
     def _on_imu(self, msg):
         self._latest_imu = msg
         self._latest_imu_ns = time.monotonic_ns()
+        self._seen_imu = True
 
     def _on_joint_state(self, msg):
         self._latest_joint_state = msg
         self._latest_joint_state_ns = time.monotonic_ns()
+        self._seen_joint_state = True
 
     def _on_cmd_vel(self, msg):
         self._velocity_command = np.asarray(
@@ -207,6 +273,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
     def _on_estop(self, msg):
         self._latest_estop_ns = time.monotonic_ns()
         self._latest_estop_value = bool(msg.data)
+        self._seen_estop = True
         if msg.data and not self._estopped:
             self._latch_abort("external_estop")
 
@@ -214,6 +281,15 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._estopped = True
         self._abort_reason = reason
         logger.warning("ABORT: %s — holding stand pose.", reason)
+        # Flush the parquet footer at abort time. A hard kill during the
+        # post-abort default-pose hold (e.g. operator SIGKILL after
+        # max_runtime latched) otherwise skips shutdown() and leaves a
+        # footerless parquet — see 2026-04-20 lab_findings bug #1.
+        if self._logger is not None:
+            try:
+                self._logger.close()
+            finally:
+                self._logger = None
 
     def _ready_to_command_motion(self, now_ns: int) -> tuple[bool, str | None]:
         """Bind the shared ``is_ready_to_command_motion`` predicate to this
@@ -239,30 +315,43 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             self._latch_abort("max_runtime")
 
         if self._estopped:
+            # Single default-pose publish already happened at abort time.
+            # Do NOT re-broadcast every tick: the bridge's 0.2s command-stale
+            # watchdog takes over and holds at last-measured q (safe). See
+            # lab_findings_2026-04-21 — per-tick rebroadcast walked default_q
+            # against real posture → motor fight → Jetson brownout.
+            return
+
+        startup, startup_reason = startup_state(
+            seen_estop=self._seen_estop,
+            seen_imu=self._seen_imu,
+            seen_joint_state=self._seen_joint_state,
+            node_started_ns=self._started_ns,
+            now_ns=now_ns,
+            first_message_timeout_s=self.first_message_timeout_s,
+        )
+
+        if startup == "waiting":
+            # Publish the safe default stand pose on every tick. The bridge
+            # holds the robot upright; we will not run policy inference
+            # until every required topic has been heard from at least once.
             self._publish_default_pose()
             return
 
+        if startup == "abort":
+            # A required topic never arrived within first_message_timeout_s.
+            # Latch abort with the specific missing-topic reason.
+            self._latch_abort(startup_reason or "first_message_timeout_unknown")
+            self._publish_default_pose()
+            return
+
+        # startup == "ready": fall through to the steady-state freshness check.
         ok, reason = self._ready_to_command_motion(now_ns)
         if not ok:
-            # Two distinct cases share the same conservative posture:
-            # (1) startup — preconditions not yet met, never seen. The node
-            #     stays SILENT (no publish at all) so we cannot even ask
-            #     the bridge to actively servo. The bridge's own fail-closed
-            #     watchdog will hold motors with hold_kp/hold_kd in parallel.
-            # (2) once any precondition has been satisfied at least once,
-            #     subsequent failure (stale heartbeat, dropped sensor, etc.)
-            #     means publish the safe default stand pose so the bridge
-            #     can deliberately hold the robot upright.
-            if elapsed_s > self.startup_grace_s:
-                self._latch_abort(reason or "unknown_safety_gate")
-                self._publish_default_pose()
-            elif self._latest_estop_value is False and self._latest_imu is not None \
-                    and self._latest_joint_state is not None:
-                # Brief blip after we have already heard from every publisher.
-                self._publish_default_pose()
-            # else: STAY SILENT during cold startup. Do NOT publish anything
-            # until estop+sensors have been heard from — the bridge holds
-            # the robot via its own watchdog with conservative gains.
+            # Steady-state failure (stale heartbeat, dropped sensor) — publish
+            # the safe default stand pose and latch abort.
+            self._latch_abort(reason or "unknown_safety_gate")
+            self._publish_default_pose()
             return
 
         idx = self.joint_order.remap(list(self._latest_joint_state.name))
@@ -280,9 +369,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         roll, pitch, _yaw = _rpy_from_quat_xyzw(ori.x, ori.y, ori.z, ori.w)
 
         if abs(pitch) > self.thresholds.pitch_rad or abs(roll) > self.thresholds.roll_rad:
-            self._latch_abort(
-                f"attitude pitch={pitch:.2f} roll={roll:.2f}"
-            )
+            self._latch_abort(f"attitude pitch={pitch:.2f} roll={roll:.2f}")
             self._publish_default_pose()
             return
 
@@ -296,26 +383,36 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         )
         base_lin_vel = np.zeros(3, dtype=np.float32)
 
-        proprio = self.obs_builder.build(
-            base_lin_vel=base_lin_vel,
-            base_ang_vel=base_ang_vel,
-            projected_gravity=pg,
-            velocity_command=self._velocity_command,
-            joint_pos=q,
-            joint_vel=qd,
-            last_action=self._last_action,
-        )
-        if self.obs_pad_zeros > 0:
-            obs = np.concatenate(
-                [proprio, np.zeros(self.obs_pad_zeros, dtype=np.float32)]
-            ).reshape(1, -1)
+        if self.mode_switch_enabled:
+            target, action = self._compute_mode_switch_target(
+                q=q,
+                qd=qd,
+                pg=pg,
+                base_ang_vel=base_ang_vel,
+                base_lin_vel=base_lin_vel,
+            )
         else:
-            obs = proprio.reshape(1, -1)
+            proprio = self.obs_builder.build(
+                base_lin_vel=base_lin_vel,
+                base_ang_vel=base_ang_vel,
+                projected_gravity=pg,
+                velocity_command=self._velocity_command,
+                joint_pos=q,
+                joint_vel=qd,
+                last_action=self._last_action,
+            )
+            if self.obs_pad_zeros > 0:
+                obs = np.concatenate(
+                    [proprio, np.zeros(self.obs_pad_zeros, dtype=np.float32)]
+                ).reshape(1, -1)
+            else:
+                obs = proprio.reshape(1, -1)
 
-        action = self.session.run(["action"], {"obs": obs})[0][0]
-        self._last_action = action.astype(np.float32, copy=False)
+            action = self.session.run(["action"], {"obs": obs})[0][0]
+            self._last_action = action.astype(np.float32, copy=False)
 
-        target = self.default_q + self.action_scale * action
+            target = self.default_q + self.action_scale * action
+
         target = self._clip_to_limits(target, q)
 
         msg = self._float_msg()
@@ -323,8 +420,13 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.cmd_pub.publish(msg)
 
         if self._logger is not None:
-            self._log_step(q=q, qd=qd, action=action, quat_xyzw=(ori.x, ori.y, ori.z, ori.w),
-                           ang_vel=base_ang_vel)
+            self._log_step(
+                q=q,
+                qd=qd,
+                action=action,
+                quat_xyzw=(ori.x, ori.y, ori.z, ori.w),
+                ang_vel=base_ang_vel,
+            )
         self._step_idx += 1
 
     def _log_step(self, *, q, qd, action, quat_xyzw, ang_vel) -> None:
@@ -349,12 +451,106 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             )
         )
 
+    def _compute_mode_switch_target(
+        self,
+        *,
+        q: np.ndarray,
+        qd: np.ndarray,
+        pg: np.ndarray,
+        base_ang_vel: np.ndarray,
+        base_lin_vel: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Run both policies, advance the state machine, blend joint targets.
+
+        See docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md
+        for the contract. The ``self._last_action`` field is kept in sync
+        with whichever policy is currently active so external consumers
+        (logger, tests) see a coherent last_action.
+        """
+        assert self.mode_cfg is not None
+        assert self.stand_session is not None
+        assert self.walk_session is not None
+
+        # Each policy receives its own last_action so observations stay
+        # on-distribution relative to training. The inactive policy's
+        # last_action is held at zero (set on state entry; see below).
+        proprio_stand = self.obs_builder.build(
+            base_lin_vel=base_lin_vel,
+            base_ang_vel=base_ang_vel,
+            projected_gravity=pg,
+            velocity_command=self._velocity_command,
+            joint_pos=q,
+            joint_vel=qd,
+            last_action=self._last_action_stand,
+        )
+        proprio_walk = self.obs_builder.build(
+            base_lin_vel=base_lin_vel,
+            base_ang_vel=base_ang_vel,
+            projected_gravity=pg,
+            velocity_command=self._velocity_command,
+            joint_pos=q,
+            joint_vel=qd,
+            last_action=self._last_action_walk,
+        )
+
+        def _prepare(obs: np.ndarray) -> np.ndarray:
+            if self.obs_pad_zeros > 0:
+                return np.concatenate(
+                    [obs, np.zeros(self.obs_pad_zeros, dtype=np.float32)]
+                ).reshape(1, -1)
+            return obs.reshape(1, -1)
+
+        stand_action = self.stand_session.run(["action"], {"obs": _prepare(proprio_stand)})[0][0]
+        walk_action = self.walk_session.run(["action"], {"obs": _prepare(proprio_walk)})[0][0]
+        stand_target = self.default_q + self.action_scale * stand_action
+        walk_target = self.default_q + self.action_scale * walk_action
+
+        prev_state = self.mode_state
+        new_state, new_ticks, alpha = mode_step(
+            prev_state, self.mode_ticks, self._velocity_command, self.mode_cfg
+        )
+
+        if prev_state is State.STAND:
+            target = stand_target
+            active = "stand"
+        elif prev_state is State.WALK:
+            target = walk_target
+            active = "walk"
+        elif prev_state is State.TRANS_TO_WALK:
+            target = (1.0 - alpha) * stand_target + alpha * walk_target
+            active = "walk"  # walk is accumulating last_action during the blend
+        elif prev_state is State.TRANS_TO_STAND:
+            target = (1.0 - alpha) * walk_target + alpha * stand_target
+            active = "stand"
+        else:  # pragma: no cover - defensive; prev_state comes from mode_step
+            raise RuntimeError(f"unexpected mode state: {prev_state!r}")
+
+        # Update per-policy last_action per the spec's contract. The policy
+        # that is (or is becoming) active owns a fresh last_action; the
+        # other is held at zero so its next entry starts on-distribution.
+        if active == "stand":
+            self._last_action_stand = stand_action.astype(np.float32, copy=False)
+            self._last_action_walk = np.zeros_like(self._last_action_walk)
+        else:
+            self._last_action_walk = walk_action.astype(np.float32, copy=False)
+            self._last_action_stand = np.zeros_like(self._last_action_stand)
+
+        # Legacy ``self._last_action`` kept coherent with the active policy
+        # so parquet logging stays on-distribution.
+        self._last_action = self._last_action_stand if active == "stand" else self._last_action_walk
+
+        self.mode_state = new_state
+        self.mode_ticks = new_ticks
+
+        # Return both the blended target and the active policy's action;
+        # the action is what the caller logs to parquet.
+        active_action = stand_action if active == "stand" else walk_action
+        return target.astype(np.float32, copy=False), active_action.astype(np.float32, copy=False)
+
     def _clip_to_limits(self, target: np.ndarray, q: np.ndarray) -> np.ndarray:
         # Single source of truth lives in phoenix.sim2real.safety so the
         # bridge and the policy node provably share the slew-rate cap.
-        return per_step_clip_array(target, q, MAX_DELTA_PER_STEP_RAD).astype(
-            np.float32, copy=False
-        )
+        return per_step_clip_array(target, q, MAX_DELTA_PER_STEP_RAD).astype(np.float32, copy=False)
 
     def _publish_default_pose(self) -> None:
         msg = self._float_msg()
