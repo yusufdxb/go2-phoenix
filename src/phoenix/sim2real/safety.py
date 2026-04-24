@@ -75,9 +75,7 @@ def deadman_should_estop(
     return not button_held
 
 
-def per_step_clip(
-    target: float, current: float, max_delta: float
-) -> float:
+def per_step_clip(target: float, current: float, max_delta: float) -> float:
     """Clip ``target`` to ``current ± max_delta``. Scalar form used by tests
     and small call sites; the policy node + bridge use
     :func:`per_step_clip_array` for the vectorized version (single source

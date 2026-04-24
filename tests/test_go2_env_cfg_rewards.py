@@ -6,7 +6,6 @@ added in Phase 0 of the 2026-04-19 phoenix retrain plan.
 
 from __future__ import annotations
 
-import logging
 from unittest.mock import patch
 
 import pytest
@@ -36,12 +35,14 @@ def test_reward_term_map_covers_phoenix_base_keys() -> None:
 
 class _FakeRewardTerm:
     """Stand-in for Isaac Lab RewardTermCfg — only `.weight` is exercised."""
+
     def __init__(self, weight: float):
         self.weight = weight
 
 
 class _FakeRewards:
     """Attribute-access container matching RewardsCfg's term-as-attr pattern."""
+
     def __init__(self, **terms):
         for k, v in terms.items():
             setattr(self, k, v)
@@ -92,9 +93,7 @@ def test_unwired_sections_does_not_flag_reward() -> None:
 
 
 def test_unwired_sections_still_flags_termination() -> None:
-    unwired = _unwired_sections_present(
-        {"termination": {"pitch_threshold_rad": 0.8}}
-    )
+    unwired = _unwired_sections_present({"termination": {"pitch_threshold_rad": 0.8}})
     assert unwired == ["termination"]
 
 
@@ -107,7 +106,7 @@ def test_apply_rewards_missing_term_on_env_cfg_raises_with_context() -> None:
     with pytest.raises(AttributeError) as exc:
         _apply_rewards(env_cfg, {"feet_air_time": 0.5})
     msg = str(exc.value)
-    assert "feet_air_time" in msg              # upstream term name
+    assert "feet_air_time" in msg  # upstream term name
     assert "'feet_air_time'" in msg or "feet_air_time" in msg  # yaml key
     assert "_REWARD_TERM_MAP" in msg or "upstream task omits" in msg
 

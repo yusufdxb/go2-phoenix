@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import ctypes
 import struct
-from typing import Iterable, Sequence
-
+from collections.abc import Iterable, Sequence
 
 # --- joint index constants (matching motor_crc.h) ---------------------------
 FR_0, FR_1, FR_2 = 0, 1, 2
@@ -41,10 +40,18 @@ RL_0, RL_1, RL_2 = 9, 10, 11
 #
 # So for motor_cmd[k] we pull phoenix[PHOENIX_FOR_MOTOR[k]].
 PHOENIX_FOR_MOTOR: tuple[int, ...] = (
-    1, 5, 9,    # FR: hip, thigh, calf
-    0, 4, 8,    # FL: hip, thigh, calf
-    3, 7, 11,   # RR: hip, thigh, calf
-    2, 6, 10,   # RL: hip, thigh, calf
+    1,
+    5,
+    9,  # FR: hip, thigh, calf
+    0,
+    4,
+    8,  # FL: hip, thigh, calf
+    3,
+    7,
+    11,  # RR: hip, thigh, calf
+    2,
+    6,
+    10,  # RL: hip, thigh, calf
 )
 
 
