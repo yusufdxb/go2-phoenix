@@ -41,8 +41,8 @@ def slew_sat_hinge_l2(
         threshold: Hinge threshold in radians. Motors with
             ``|delta| <= threshold`` contribute 0.
     """
-    action = env.action_manager.action            # [E, num_actions]
-    prev = env.action_manager.prev_action         # [E, num_actions]
+    action = env.action_manager.action  # [E, num_actions]
+    prev = env.action_manager.prev_action  # [E, num_actions]
     delta = torch.abs(action - prev)
     excess = torch.clamp(delta - threshold, min=0.0)
-    return (excess ** 2).sum(dim=-1)              # [E]
+    return (excess**2).sum(dim=-1)  # [E]
