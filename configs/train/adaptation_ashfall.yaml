@@ -1,0 +1,58 @@
+# Ashfall experiment: adaptation with failure curriculum ENABLED.
+# Identical to adaptation.yaml except:
+#   - failure_sample_fraction: 0.25 (was 0.0)
+#   - resume path: ashfall-baseline checkpoint
+#   - run name: ashfall-adapted
+#   - trajectory_dir: Ashfall's synth failure parquets
+
+run:
+  name: "ashfall-adapted"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 25
+  max_iterations: 200
+  seed: 42
+  device: "cuda:0"
+
+resume:
+  path: "checkpoints/ashfall-baseline/latest.pt"
+  load_optimizer: false
+
+env:
+  config: "configs/env/slippery.yaml"
+
+curriculum:
+  failure_sample_fraction: 0.25
+  trajectory_dir: "/home/yusuf/Projects/ashfall/data/failures"
+  variation:
+    config: "configs/replay/variations.yaml"
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.1
+  entropy_coef: 0.003
+  num_learning_epochs: 4
+  num_mini_batches: 4
+  learning_rate: 1.0e-4
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.005
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 1.0
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false

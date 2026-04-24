@@ -18,9 +18,9 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 

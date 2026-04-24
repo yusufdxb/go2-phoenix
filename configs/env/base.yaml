@@ -3,9 +3,9 @@
 #
 # NOT ALL SECTIONS ARE WIRED (2026-04-17 audit, see go2_env_cfg.py).
 # Currently applied to the Isaac Lab env cfg:
-#   env, command, domain_randomization, perturbation, seed
+#   env, command, domain_randomization, perturbation, reward, seed
 # Present below but NOT applied (upstream UnitreeGo2RoughEnvCfg defaults win):
-#   reward, observation.noise, termination, robot.init_state, robot.actuator
+#   observation.noise, termination, robot.init_state, robot.actuator
 # ``build_env_cfg`` logs a warning when it sees an unwired section in a loaded
 # config. Values in unwired sections are aspirational / documentation-only
 # until the wiring is added (deliberate PR — changing any of these invalidates
@@ -83,19 +83,19 @@ perturbation:
   push_velocity_yaw: 0.5
 
 reward:
-  # Standard legged-gym style reward shaping.
+  # Applied via go2_env_cfg._apply_rewards. Only upstream
+  # UnitreeGo2RoughEnvCfg reward term names are accepted — see
+  # phoenix.sim_env.go2_env_cfg._REWARD_TERM_MAP. Removed 2026-04-19:
+  # base_height, joint_vel, collision, termination (no upstream term;
+  # aspirational pre-wiring).
   track_lin_vel_xy: 1.0
   track_ang_vel_z: 0.5
-  base_height: -1.0
   ang_vel_xy: -0.05
   lin_vel_z: -2.0
   joint_acc: -2.5e-7
-  joint_vel: -0.0
   joint_torque: -0.0002
   action_rate: -0.05
   feet_air_time: 1.0
-  collision: -1.0
-  termination: -10.0
 
 termination:
   base_contact: true

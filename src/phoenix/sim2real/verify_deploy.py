@@ -14,10 +14,9 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
@@ -55,9 +54,7 @@ def verify_parity(
         a_onnx = np.asarray(onnx_infer(obs), dtype=np.float32).reshape(-1)
         a_torch = np.asarray(torch_infer(obs), dtype=np.float32).reshape(-1)
         if a_onnx.shape != a_torch.shape:
-            raise ValueError(
-                f"Action shape mismatch: onnx={a_onnx.shape} torch={a_torch.shape}"
-            )
+            raise ValueError(f"Action shape mismatch: onnx={a_onnx.shape} torch={a_torch.shape}")
         diff = np.abs(a_onnx - a_torch)
         step_max = float(diff.max())
         per_step.append(step_max)
@@ -108,9 +105,7 @@ def build_obs_from_parquet(
             last_action=last_action,
         )
         if pad_zeros > 0:
-            obs = np.concatenate(
-                [proprio, np.zeros(pad_zeros, dtype=np.float32)], axis=-1
-            )
+            obs = np.concatenate([proprio, np.zeros(pad_zeros, dtype=np.float32)], axis=-1)
         else:
             obs = proprio
         yield obs
