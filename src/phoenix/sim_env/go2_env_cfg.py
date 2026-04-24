@@ -33,8 +33,9 @@ CI (which has no ``torch`` / ``isaaclab``).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from .config_loader import PhoenixConfig, load_layered_config
 

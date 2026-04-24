@@ -27,14 +27,14 @@ class PerEnvInitialConditions(TypedDict):
     All arrays have leading dimension ``num_envs == len(variations)``.
     """
 
-    base_pos: np.ndarray         # (N, 3)   world-frame, env_origin must be added by caller
-    base_quat_wxyz: np.ndarray   # (N, 4)   wxyz for Isaac Lab — converted from xyzw
-    base_lin_vel: np.ndarray     # (N, 3)   logged + push_velocity_delta along x
-    base_ang_vel: np.ndarray     # (N, 3)   logged + push_yaw_delta on z
-    joint_pos: np.ndarray        # (N, 12)
-    joint_vel: np.ndarray        # (N, 12)
-    base_mass_delta_kg: np.ndarray   # (N,)  added to body[0] mass via root_physx_view
-    friction_scale: np.ndarray   # (N,)  multiplicative factor on the scene friction range
+    base_pos: np.ndarray  # (N, 3)   world-frame, env_origin must be added by caller
+    base_quat_wxyz: np.ndarray  # (N, 4)   wxyz for Isaac Lab — converted from xyzw
+    base_lin_vel: np.ndarray  # (N, 3)   logged + push_velocity_delta along x
+    base_ang_vel: np.ndarray  # (N, 3)   logged + push_yaw_delta on z
+    joint_pos: np.ndarray  # (N, 12)
+    joint_vel: np.ndarray  # (N, 12)
+    base_mass_delta_kg: np.ndarray  # (N,)  added to body[0] mass via root_physx_view
+    friction_scale: np.ndarray  # (N,)  multiplicative factor on the scene friction range
 
 
 def _quat_xyzw_to_wxyz(quat_xyzw: np.ndarray) -> np.ndarray:
@@ -78,12 +78,12 @@ def build_per_env_initial_conditions(
         initial.joint_vel.reshape(1, -1), (n, initial.joint_vel.shape[0])
     ).astype(np.float32, copy=True)
 
-    base_lin_vel = np.broadcast_to(
-        initial.base_lin_vel_body.reshape(1, 3), (n, 3)
-    ).astype(np.float32, copy=True)
-    base_ang_vel = np.broadcast_to(
-        initial.base_ang_vel_body.reshape(1, 3), (n, 3)
-    ).astype(np.float32, copy=True)
+    base_lin_vel = np.broadcast_to(initial.base_lin_vel_body.reshape(1, 3), (n, 3)).astype(
+        np.float32, copy=True
+    )
+    base_ang_vel = np.broadcast_to(initial.base_ang_vel_body.reshape(1, 3), (n, 3)).astype(
+        np.float32, copy=True
+    )
 
     push_lin = np.asarray([v.push_velocity_delta for v in variations], dtype=np.float32)
     push_yaw = np.asarray([v.push_yaw_delta for v in variations], dtype=np.float32)
@@ -94,9 +94,9 @@ def build_per_env_initial_conditions(
     # friction_delta is interpreted as Δμ around the scene's nominal μ; we
     # express it as a multiplicative factor so callers that can only set a
     # single per-scene friction range still get a meaningful sweep.
-    friction_scale = (1.0 + np.asarray(
-        [v.friction_delta for v in variations], dtype=np.float32
-    )).clip(min=0.05)
+    friction_scale = (
+        1.0 + np.asarray([v.friction_delta for v in variations], dtype=np.float32)
+    ).clip(min=0.05)
 
     return PerEnvInitialConditions(
         base_pos=base_pos,

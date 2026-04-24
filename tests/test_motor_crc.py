@@ -59,9 +59,18 @@ def test_phoenix_stand_pose_matches_locked_crc() -> None:
     # first-deploy gains kp=25 kd=0.5 — remapped to Unitree motor order
     # before the CRC is computed.
     phoenix_vec = [
-        0.0, 0.0, 0.0, 0.0,    # FL_hip, FR_hip, RL_hip, RR_hip
-        0.8, 0.8, 1.0, 1.0,    # FL_thigh, FR_thigh, RL_thigh, RR_thigh
-        -1.5, -1.5, -1.5, -1.5,  # FL_calf, FR_calf, RL_calf, RR_calf
+        0.0,
+        0.0,
+        0.0,
+        0.0,  # FL_hip, FR_hip, RL_hip, RR_hip
+        0.8,
+        0.8,
+        1.0,
+        1.0,  # FL_thigh, FR_thigh, RL_thigh, RR_thigh
+        -1.5,
+        -1.5,
+        -1.5,
+        -1.5,  # FL_calf, FR_calf, RL_calf, RR_calf
     ]
     unitree_vec = phoenix_to_unitree(phoenix_vec)
     raw = build_raw_from_motor_values(unitree_vec, [25.0] * 12, [0.5] * 12)
@@ -72,10 +81,18 @@ def test_phoenix_to_unitree_permutation() -> None:
     # Inject markers so we can read off which phoenix slot landed where.
     phoenix_vec = [float(i) for i in range(12)]
     expected_unitree = [
-        1.0, 5.0, 9.0,    # FR: hip=P1, thigh=P5, calf=P9
-        0.0, 4.0, 8.0,    # FL: hip=P0, thigh=P4, calf=P8
-        3.0, 7.0, 11.0,   # RR: hip=P3, thigh=P7, calf=P11
-        2.0, 6.0, 10.0,   # RL: hip=P2, thigh=P6, calf=P10
+        1.0,
+        5.0,
+        9.0,  # FR: hip=P1, thigh=P5, calf=P9
+        0.0,
+        4.0,
+        8.0,  # FL: hip=P0, thigh=P4, calf=P8
+        3.0,
+        7.0,
+        11.0,  # RR: hip=P3, thigh=P7, calf=P11
+        2.0,
+        6.0,
+        10.0,  # RL: hip=P2, thigh=P6, calf=P10
     ]
     assert phoenix_to_unitree(phoenix_vec) == expected_unitree
 

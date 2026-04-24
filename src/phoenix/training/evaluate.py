@@ -242,21 +242,15 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             unwrapped = env.unwrapped
             if hasattr(unwrapped, "command_manager"):
                 try:
-                    cmd_np = _to_numpy(
-                        unwrapped.command_manager.get_command("base_velocity")
-                    )
+                    cmd_np = _to_numpy(unwrapped.command_manager.get_command("base_velocity"))
                     root = unwrapped.scene["robot"].data
                     lin_b_np = _to_numpy(root.root_lin_vel_b)
                     ang_b_np = _to_numpy(root.root_ang_vel_b)
                     if cmd_np.ndim >= 2 and lin_b_np.ndim >= 2:
                         lin_err_acc += float(
-                            np.mean(
-                                np.linalg.norm(cmd_np[:, :2] - lin_b_np[:, :2], axis=-1)
-                            )
+                            np.mean(np.linalg.norm(cmd_np[:, :2] - lin_b_np[:, :2], axis=-1))
                         )
-                        ang_err_acc += float(
-                            np.mean(np.abs(cmd_np[:, 2] - ang_b_np[:, 2]))
-                        )
+                        ang_err_acc += float(np.mean(np.abs(cmd_np[:, 2] - ang_b_np[:, 2])))
                         tracking_steps += 1
                     else:
                         if n_steps <= 1:
@@ -267,9 +261,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                             )
                 except Exception as err:  # noqa: BLE001
                     if n_steps <= 1:
-                        logger.warning(
-                            "tracking-error exception step=%d: %r", n_steps, err
-                        )
+                        logger.warning("tracking-error exception step=%d: %r", n_steps, err)
 
             # Per-reward-term accumulation. reward_manager._step_reward is
             # [num_envs, num_terms] with each column being that term's
