@@ -21,7 +21,6 @@ from phoenix.sim2real.verify_deploy import (
     verify_parity,
 )
 
-
 # ------------ verify_parity -------------------------------------------------
 
 
@@ -99,9 +98,7 @@ def _write_tiny_parquet(path: Path, n: int = 4) -> None:
                     base_quat=np.asarray([0.0, 0.0, 0.0, 1.0], dtype=np.float32),
                     base_lin_vel_body=np.asarray([0.5, 0.0, 0.0], dtype=np.float32),
                     base_ang_vel_body=np.zeros(3, dtype=np.float32),
-                    joint_pos=np.asarray(
-                        [_DEFAULT_Q[n] for n in _JOINTS], dtype=np.float32
-                    ),
+                    joint_pos=np.asarray([_DEFAULT_Q[n] for n in _JOINTS], dtype=np.float32),
                     joint_vel=np.zeros(12, dtype=np.float32),
                     command_vel=np.asarray([0.5, 0.0, 0.0], dtype=np.float32),
                     action=np.zeros(12, dtype=np.float32),

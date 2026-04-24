@@ -40,9 +40,18 @@ logger = logging.getLogger("phoenix.dry_run")
 
 
 DEFAULT_JOINT_ORDER = [
-    "FL_hip_joint", "FR_hip_joint", "RL_hip_joint", "RR_hip_joint",
-    "FL_thigh_joint", "FR_thigh_joint", "RL_thigh_joint", "RR_thigh_joint",
-    "FL_calf_joint", "FR_calf_joint", "RL_calf_joint", "RR_calf_joint",
+    "FL_hip_joint",
+    "FR_hip_joint",
+    "RL_hip_joint",
+    "RR_hip_joint",
+    "FL_thigh_joint",
+    "FR_thigh_joint",
+    "RL_thigh_joint",
+    "RR_thigh_joint",
+    "FL_calf_joint",
+    "FR_calf_joint",
+    "RL_calf_joint",
+    "RR_calf_joint",
 ]
 
 
@@ -54,10 +63,9 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="ONNX path. Defaults to configs/sim2real/deploy.yaml policy.onnx_path "
-             "so the harness can't drift from the shipped deploy config.",
+        "so the harness can't drift from the shipped deploy config.",
     )
-    p.add_argument("--duration", type=float, default=3.0,
-                   help="Seconds per scenario.")
+    p.add_argument("--duration", type=float, default=3.0, help="Seconds per scenario.")
     return p.parse_args()
 
 
@@ -75,9 +83,9 @@ def _euler_to_quat(roll: float, pitch: float, yaw: float) -> tuple[float, float,
 class FakeSensorNode:
     def __init__(self, node_cls, default_q: np.ndarray, estop_topic: str):
         from geometry_msgs.msg import Twist
+        from rclpy.qos import QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Imu, JointState
         from std_msgs.msg import Bool
-        from rclpy.qos import QoSProfile, ReliabilityPolicy
 
         self._imu_cls = Imu
         self._js_cls = JointState
@@ -130,8 +138,8 @@ class FakeSensorNode:
 
 class CommandRecorder:
     def __init__(self, node_cls):
-        from std_msgs.msg import Float64MultiArray
         from rclpy.qos import QoSProfile, ReliabilityPolicy
+        from std_msgs.msg import Float64MultiArray
 
         self.node = node_cls("phoenix_dry_run_recorder")
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -222,8 +230,9 @@ def main() -> int:
         samples = _run_scenario(recorder, args.duration)
         rate = _rate(samples)
         max_dev = _max_abs(samples, default_q)
-        logger.info("  rate=%.1f Hz, max|cmd-default|=%.3f rad, samples=%d",
-                    rate, max_dev, len(samples))
+        logger.info(
+            "  rate=%.1f Hz, max|cmd-default|=%.3f rad, samples=%d", rate, max_dev, len(samples)
+        )
         if not (45 <= rate <= 55):
             logger.error("  FAIL: rate out of 45-55 Hz band.")
             failed = True
