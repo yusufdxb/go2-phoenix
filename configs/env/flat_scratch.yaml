@@ -1,0 +1,22 @@
+# Flat-scratch: from-random-init training with slew-sat hinge active from iter 0.
+#
+# See docs/superpowers/specs/2026-04-19-phoenix-gate8-fromscratch-design.md
+# for why this supersedes the v3b-fine-tune approach (3 runs all failed
+# at lin_vel_err ≈ 0.6 m/s; root cause was fine-tune destabilization,
+# not reward shape).
+#
+# Only delta vs flat.yaml (the env that produced v3b) is the new
+# slew_sat_hinge term at -50 (matches flat_slewhinge.yaml weight for
+# apples-to-apples comparison).
+#
+# Gate targets on flat.yaml (nonzero cmd):
+# - slew_saturation_pct < 0.05
+# - mean_lin_vel_err <= 0.10 m/s
+# - mean_ang_vel_err <= 0.10 rad/s
+# - 32/32 survival @ 20 s
+
+defaults:
+  - flat
+
+reward:
+  slew_sat_hinge: -50.0

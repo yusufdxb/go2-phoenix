@@ -52,7 +52,7 @@ class Inspect(Node):
         q = [float(msg.motor_cmd[i].q) for i in range(12)]
         self.last_q = q
         if self.last_state_q is not None:
-            self.diffs.append(max(abs(a - b) for a, b in zip(q, self.last_state_q)))
+            self.diffs.append(max(abs(a - b) for a, b in zip(q, self.last_state_q, strict=False)))
 
     def _on_state(self, msg: LowState) -> None:
         self.last_state_q = [float(msg.motor_state[i].q) for i in range(12)]

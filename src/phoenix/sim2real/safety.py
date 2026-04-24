@@ -75,9 +75,7 @@ def deadman_should_estop(
     return not button_held
 
 
-def per_step_clip(
-    target: float, current: float, max_delta: float
-) -> float:
+def per_step_clip(target: float, current: float, max_delta: float) -> float:
     """Clip ``target`` to ``current ± max_delta``. Scalar form used by tests
     and small call sites; the policy node + bridge use
     :func:`per_step_clip_array` for the vectorized version (single source
@@ -166,6 +164,53 @@ def is_ready_to_command_motion(
     return True, None
 
 
+def startup_state(
+    *,
+    seen_estop: bool,
+    seen_imu: bool,
+    seen_joint_state: bool,
+    node_started_ns: int,
+    now_ns: int,
+    first_message_timeout_s: float,
+) -> tuple[str, str | None]:
+    """Classify the node's startup state based on per-topic first-message seen flags.
+
+    Returns one of:
+      ("waiting", None) — at least one required first message still pending,
+                          within the configured timeout. The node should hold
+                          the default pose and refuse policy inference.
+      ("ready",   None) — all three required first messages have arrived at
+                          least once. Caller transitions to normal
+                          freshness-based gating via is_ready_to_command_motion.
+      ("abort",   reason) — the timeout expired with one or more topics still
+                            missing. ``reason`` is ``first_message_timeout_<csv>``
+                            where the CSV lists missing topics in the stable
+                            order (estop, imu, joint_state).
+
+    Fail-closed semantics:
+      * All three seen → "ready" regardless of elapsed time.
+      * Before timeout + any missing → "waiting".
+      * After timeout + any missing → "abort".
+      * After timeout + all seen → "ready" (would already have returned
+        "ready" in the first clause; kept explicit for clarity).
+    """
+    if seen_estop and seen_imu and seen_joint_state:
+        return ("ready", None)
+
+    elapsed_s = (now_ns - node_started_ns) / 1e9
+    if elapsed_s <= first_message_timeout_s:
+        return ("waiting", None)
+
+    missing: list[str] = []
+    if not seen_estop:
+        missing.append("estop")
+    if not seen_imu:
+        missing.append("imu")
+    if not seen_joint_state:
+        missing.append("joint_state")
+    return ("abort", "first_message_timeout_" + ",".join(missing))
+
+
 __all__ = [
     "estop_is_active",
     "sensor_is_stale",
@@ -174,4 +219,5 @@ __all__ = [
     "per_step_clip",
     "per_step_clip_array",
     "MAX_DELTA_PER_STEP_RAD",
+    "startup_state",
 ]

@@ -1,0 +1,30 @@
+# Flat-v3b fine-tune — smoothness recipe + modest cmd=0 exposure.
+#
+# v3b (checkpoints/phoenix-flat/2026-04-16_21-39-16/model_999.pt) passed
+# sim but saturated ±0.175 rad/step slew clip on 30.23% of motor steps
+# at cmd_vel=0 on GO2 hardware (2026-04-18). This fine-tune mirrors the
+# stand_v2 action-smoothness knobs and bumps rel_standing_envs
+# 0.02 -> 0.10 so the policy actually sees cmd=0 during training.
+#
+# This is NOT the v4 over-reach: v4 went to rel_standing_envs=0.15 AND
+# doubled init_noise AND doubled entropy, which wrecked yaw tracking
+# (ang_vel_error +67% vs v3b). See commit 61fae38 for v4 post-mortem.
+#
+# Evaluation criterion (2026-04-19 retrain spec Phase 2 gate A):
+# - slew_saturation_pct < 0.05 at cmd=0 on stand.yaml
+# - lin_vel_err <= 0.10 m/s on flat.yaml
+# - ang_vel_err <= 0.10 rad/s on flat.yaml
+# - 32/32 success on both stand.yaml and flat.yaml
+
+defaults:
+  - flat
+
+reward:
+  action_rate: -0.5     # was -0.05 (base.yaml); 10x stronger
+  joint_acc: -1.0e-6    # was -2.5e-7 (base.yaml); 4x stronger
+
+command:
+  # v3b trained with base's 0.02 (effectively no cmd=0 samples).
+  # v4 jumped to 0.15 and over-corrected. 0.10 = 5x more cmd=0 exposure
+  # than v3b without flooding the distribution.
+  rel_standing_envs: 0.10

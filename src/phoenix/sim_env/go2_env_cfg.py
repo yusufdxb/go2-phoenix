@@ -11,10 +11,15 @@ upstream ``UnitreeGo2RoughEnvCfg``, then applies failure-oriented overrides:
 **Which YAML sections are wired, which are not** (2026-04-17 audit):
 
 Wired → override upstream defaults:
-    env, command, domain_randomization, perturbation, seed
+    env, command, domain_randomization, perturbation, reward, seed
 
 Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
-    reward, observation.noise, termination, robot.init_state, robot.actuator
+    observation.noise, termination, robot.init_state, robot.actuator
+
+Reward wiring added 2026-04-19 (retrain spec Phase 0); prior to this,
+YAML reward.* overrides were silent no-ops. This change invalidates
+v3b as a reproducible baseline — v3b checkpoint stays as the frozen
+reference for comparisons but cannot be re-created from its config.
 
 ``_warn_unwired_sections`` logs a warning when an unwired section is present
 in the loaded config so the drift is loud, not silent. Turning these on is a
@@ -28,18 +33,63 @@ CI (which has no ``torch`` / ``isaaclab``).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .config_loader import PhoenixConfig, load_layered_config
+
+# Isaac Lab's RewardTermCfg — lazy-import guard so this module can
+# still be imported in CI without isaaclab. The actual usage is
+# gated behind _NEW_TERM_FACTORIES, which only fires at env build.
+try:  # pragma: no cover - exercised only on machines with Isaac Lab
+    from isaaclab.managers import RewardTermCfg as _RewTerm
+except ImportError:  # pragma: no cover
+    _RewTerm = None  # type: ignore[assignment]
+
+from phoenix.sim_env.rewards import slew_sat_hinge_l2
 
 if TYPE_CHECKING:  # pragma: no cover - type hints only
     from isaaclab.envs import ManagerBasedRLEnvCfg
 
 logger = logging.getLogger("phoenix.sim_env.go2_env_cfg")
 
-_UNWIRED_TOP_LEVEL = ("reward", "termination")
+_UNWIRED_TOP_LEVEL = ("termination",)
 _UNWIRED_ROBOT_SUB = ("init_state", "actuator")
+
+# YAML reward key -> upstream Isaac Lab RewardsCfg term attribute name.
+# Upstream term names live at
+# IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/
+#   velocity/velocity_env_cfg.py (class RewardsCfg).
+# Only terms supported by UnitreeGo2RoughEnvCfg are listed. Keys in YAML
+# not present here raise KeyError in _apply_rewards — we do NOT want
+# silent drift reappearing.
+_REWARD_TERM_MAP: dict[str, str] = {
+    "track_lin_vel_xy": "track_lin_vel_xy_exp",
+    "track_ang_vel_z": "track_ang_vel_z_exp",
+    "lin_vel_z": "lin_vel_z_l2",
+    "ang_vel_xy": "ang_vel_xy_l2",
+    "joint_torque": "dof_torques_l2",
+    "joint_acc": "dof_acc_l2",
+    "action_rate": "action_rate_l2",
+    "feet_air_time": "feet_air_time",
+}
+
+# Factories for Phoenix-owned reward terms — not in upstream
+# UnitreeGo2RoughEnvCfg.rewards. When a YAML key lands here,
+# _apply_rewards constructs a RewTerm via the factory and setattrs
+# it onto env_cfg.rewards. Keys must not collide with
+# _REWARD_TERM_MAP — see _apply_rewards dispatch.
+_NEW_TERM_FACTORIES: dict[str, tuple[str, Callable[[float], Any]]] = {
+    "slew_sat_hinge": (
+        "slew_sat_hinge_l2",  # attribute name on env_cfg.rewards
+        lambda weight: _RewTerm(
+            func=slew_sat_hinge_l2,
+            weight=float(weight),
+            params={"threshold": 0.15},
+        ),
+    ),
+}
 
 
 def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
@@ -141,6 +191,45 @@ def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
         vel_cmd.rel_standing_envs = float(cmd["rel_standing_envs"])
 
 
+def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
+    """Apply YAML reward overrides to Isaac Lab env cfg.
+
+    Upstream-term keys (in ``_REWARD_TERM_MAP``) reweight an existing
+    ``env_cfg.rewards.<term>`` by setting its ``weight``.
+
+    Phoenix-owned-term keys (in ``_NEW_TERM_FACTORIES``) construct a
+    new ``RewTerm`` via the factory and attach it to
+    ``env_cfg.rewards`` under the factory's attribute name.
+
+    Unknown keys raise ``KeyError`` — this is deliberate, to prevent
+    the silent-no-op drift that motivated adding this helper (see
+    :mod:`phoenix.sim_env.go2_env_cfg` module docstring, 2026-04-19).
+    """
+    if not rewards:
+        return
+    for yaml_key, weight in rewards.items():
+        if yaml_key in _REWARD_TERM_MAP:
+            term_name = _REWARD_TERM_MAP[yaml_key]
+            term = getattr(env_cfg.rewards, term_name, None)
+            if term is None:
+                raise AttributeError(
+                    f"Reward term {term_name!r} (YAML key {yaml_key!r}) not present on "
+                    f"{type(env_cfg.rewards).__name__}. Either the upstream task omits "
+                    f"this term, or _REWARD_TERM_MAP is stale."
+                )
+            term.weight = float(weight)
+        elif yaml_key in _NEW_TERM_FACTORIES:
+            attr_name, factory = _NEW_TERM_FACTORIES[yaml_key]
+            setattr(env_cfg.rewards, attr_name, factory(weight))
+        else:
+            raise KeyError(
+                f"Unknown reward key {yaml_key!r} — add it to _REWARD_TERM_MAP, "
+                f"add it to _NEW_TERM_FACTORIES, or remove from YAML. "
+                f"Known upstream keys: {sorted(_REWARD_TERM_MAP)}; "
+                f"known phoenix keys: {sorted(_NEW_TERM_FACTORIES)}"
+            )
+
+
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     """Build a GO2 env cfg, applying YAML overrides on top of the upstream task."""
     import importlib
@@ -177,6 +266,7 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     _apply_commands(cfg, data.get("command", {}))
     _apply_domain_randomization(cfg, data.get("domain_randomization", {}))
     _apply_perturbation(cfg, data.get("perturbation", {}))
+    _apply_rewards(cfg, data.get("reward", {}))
 
     return cfg
 

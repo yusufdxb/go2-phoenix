@@ -42,30 +42,46 @@ def bridge_module(monkeypatch):
         def __init__(self, name: str) -> None:
             self.name = name
 
-        def create_subscription(self, *a, **kw): return None
-        def create_publisher(self, *a, **kw): return None
-        def create_timer(self, *a, **kw): return None
+        def create_subscription(self, *a, **kw):
+            return None
+
+        def create_publisher(self, *a, **kw):
+            return None
+
+        def create_timer(self, *a, **kw):
+            return None
+
         def get_logger(self):
             class _L:
-                def info(self, *a, **kw): pass
-                def warn(self, *a, **kw): pass
+                def info(self, *a, **kw):
+                    pass
+
+                def warn(self, *a, **kw):
+                    pass
+
             return _L()
+
         def get_clock(self):
             class _C:
                 @property
                 def now(self):
                     class _N:
                         nanoseconds = 0
+
                     return _N()
+
             return _C()
-        def destroy_node(self): pass
+
+        def destroy_node(self):
+            pass
 
     rclpy_node.Node = _Node
 
     rclpy_qos = types.ModuleType("rclpy.qos")
 
     class _QoS:
-        def __init__(self, *a, **kw): pass
+        def __init__(self, *a, **kw):
+            pass
 
     class _Reliability:
         BEST_EFFORT = 1
@@ -82,9 +98,11 @@ def bridge_module(monkeypatch):
     std_msgs_msg = types.ModuleType("std_msgs.msg")
     std_msgs.msg = std_msgs_msg
 
-    class _Bool: data = False
+    class _Bool:
+        data = False
 
-    class _Float64MultiArray: data: list = []
+    class _Float64MultiArray:
+        data: list = []
 
     std_msgs_msg.Bool = _Bool
     std_msgs_msg.Float64MultiArray = _Float64MultiArray
@@ -93,7 +111,8 @@ def bridge_module(monkeypatch):
     unitree_msg = types.ModuleType("unitree_go.msg")
     unitree.msg = unitree_msg
 
-    class _LowState: motor_state: list = []
+    class _LowState:
+        motor_state: list = []
 
     class _MotorCmd:
         mode = 0
@@ -182,9 +201,7 @@ def test_build_config_picks_up_topic_overrides(bridge_module, tmp_path) -> None:
     assert cfg.live is True
 
 
-def test_build_config_falls_back_to_defaults_on_missing_yaml(
-    bridge_module, tmp_path
-) -> None:
+def test_build_config_falls_back_to_defaults_on_missing_yaml(bridge_module, tmp_path) -> None:
     args = argparse.Namespace(
         config=tmp_path / "absent.yaml",
         live=False,
@@ -209,9 +226,7 @@ def test_build_config_reads_estop_timeout_from_yaml(bridge_module, tmp_path) -> 
     # silently leaving the bridge on the CLI default. Audit-driven fix.
     deploy_yaml = tmp_path / "deploy.yaml"
     deploy_yaml.write_text(
-        "safety:\n"
-        "  emergency_stop_topic: /phoenix/estop\n"
-        "  estop_timeout_s: 0.3\n"
+        "safety:\n" "  emergency_stop_topic: /phoenix/estop\n" "  estop_timeout_s: 0.3\n"
     )
     args = argparse.Namespace(
         config=deploy_yaml,
@@ -248,12 +263,14 @@ def test_shipped_deploy_yaml_estop_timeout_is_loaded() -> None:
     # End-to-end check against the actually-shipped configs/sim2real/deploy.yaml.
     # If someone removes safety.estop_timeout_s from the file, this test
     # surfaces it immediately — keeps the docs honest.
-    import yaml as _yaml
     from pathlib import Path as _Path
+
+    import yaml as _yaml
+
     cfg_path = _Path("configs/sim2real/deploy.yaml")
     if not cfg_path.exists():  # pragma: no cover - only when run from elsewhere
         pytest.skip("deploy.yaml not at expected path")
     cfg = _yaml.safe_load(cfg_path.read_text())
-    assert "estop_timeout_s" in cfg.get("safety", {}), (
-        "configs/sim2real/deploy.yaml must declare safety.estop_timeout_s"
-    )
+    assert "estop_timeout_s" in cfg.get(
+        "safety", {}
+    ), "configs/sim2real/deploy.yaml must declare safety.estop_timeout_s"

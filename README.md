@@ -22,24 +22,48 @@ SIM train  ──▶  ONNX export  ──▶  ROS 2 deploy  ──▶  GO2 hardw
     └────── fine-tune (failure curriculum) ◀── replay w/ Halton variations
 ```
 
-## Current results (2026-04-18)
+## Current results (2026-04-19)
 
 ### Hardware-candidate policies
 
-Two policies are currently exported + parity-gated for live deployment on
-the GO2. Both targets the flat environment; the difference is the task
-specification.
+Three policies are currently exported + parity-gated for live deployment.
+The two-policy deploy-layer mode switch (shipped 2026-04-19) lets the
+ROS 2 node route between them on a `cmd_vel` magnitude threshold, so
+the robot no longer has to pick one.
 
 | Candidate | Task | Config | Status |
 |---|---|---|---|
-| `phoenix-stand/latest.pt` | stand-in-place (no velocity command) | `configs/train/ppo_stand.yaml` | **Pre-lab gates green — first hardware day candidate** |
-| `phoenix-flat/v3b/` | flat-terrain velocity tracking | `configs/train/ppo_flat.yaml` | Gate 8 candidate (on deck if stand fails) |
+| `phoenix-stand-v2/latest.pt` | stand-in-place (cmd=0) | `configs/train/ppo_stand_v2.yaml` | **Gate 7 candidate**, sim slew 0.00254 @ cmd=0 (89× under the 2026-04-18 hardware failure) |
+| `phoenix-flat/v3b/` | flat-terrain velocity tracking | `configs/train/ppo_flat.yaml` | **Gate 8 walking half**, sim lin_err 0.091 / ang_err 0.087 |
+| `mode_switch` runtime | stand-v2 + v3b, hysteresis + 25-tick blend | `configs/sim2real/deploy.yaml` `policy.mode_switch` | **Gate 8 path B, shipped** — opt-in flag, zero retraining, 179 unit tests green |
 
-The stand-only pivot (2026-04-17) exists because the flat-v0 policy has
-not yet been validated on a real GO2; standing is a strictly easier
-first hardware task with the same safety envelope. `phoenix-flat/v3b/`
-stays shipped in deploy.yaml as the fallback once the robot is
-confirmed to track the policy cleanly.
+The 2026-04-18 hardware dryrun saturated the per-step slew clip at
+30.23% specifically when `cmd_vel = (0, 0, 0)`. Stand-v2 solves that
+directly in sim; the mode switch preserves v3b for all nonzero commands
+while delegating the zero-cmd regime to stand-v2.
+
+### 2026-04-19 session summary — how the single-policy path got exhausted
+
+Four attempts at a single v3b replacement, all with `slew_sat_hinge_l2`
+as the new reward term, all sharing the same tracking-collapse outcome:
+
+| run | init | iters | slew_sat | lin_err | ang_err | verdict |
+|---|---|---:|---:|---:|---:|---|
+| v3b baseline | scratch (pre-hinge) | 1000 | 0.302 hw | **0.091** | **0.087** | reference |
+| `flat-v3b-ft` | fine-tune v3b | 500 | 0.341 | 0.619 | 0.435 | ❌ negative |
+| `flat-slewhinge` (w=-50) | fine-tune v3b | 500 | 0.123 | 0.623 | 0.607 | ❌ negative |
+| `flat-slewhinge-w5` (w=-5) | fine-tune v3b | 500 | 0.186 | 0.572 | 0.576 | ❌ negative |
+| `flat-scratch` (w=-50) | scratch | 2500 | **0.00254** | 0.579 | 0.658 | ❌ negative |
+
+The flat-scratch run disproved the fine-tune-destabilization
+hypothesis: scratch vs fine-tune, init_noise_std 0.1 vs 0.5, 500 vs
+2500 iters all converge to the same ~0.57–0.66 m/s lin_err band with
+`slew_sat_hinge @ w=-50`. Root cause is **reward-landscape dominance**
+(expected return from minimizing motion exceeds expected return from
+tracking), not init conditioning. Full analysis at
+[`docs/retrain_flat_scratch_2026-04-19.md`](docs/retrain_flat_scratch_2026-04-19.md);
+the mode-switch design that followed lives at
+[`docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md`](docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md).
 
 ### Pre-lab gates — phoenix-stand (2026-04-17)
 
@@ -268,12 +292,15 @@ v0.1 has the Phoenix-loop *architecture* in place and validated
 end-to-end in sim, including a measurable warm-start fine-tune on
 the slippery-terrain regime. What's still left for v0.2:
 
-* **Real-robot deployment.** `sim2real.ros2_policy_node` runs but has
-  not been exercised against a live GO2 yet. `phoenix-stand` is the
-  next hardware attempt — pre-lab gates 0a/0b/0c all green
-  (2026-04-17), Gate 7 (10 s live stand ×3) pending the CaresLab lab
-  day. `phoenix-flat/v3b/` stays staged at
-  `configs/sim2real/deploy.yaml:policy.onnx_path` as the fallback.
+* **Real-robot deployment.** `sim2real.ros2_policy_node` ran against
+  a live GO2 on 2026-04-18 end-to-end; the deploy chain (bridges,
+  estop, parity gates) is hardware-green. Gate 7 (10 s live stand
+  ×3) is pending with `phoenix-stand-v2` staged at
+  `configs/sim2real/deploy.yaml:policy.onnx_path`. The 2026-04-19
+  two-policy mode switch adds a `policy.mode_switch.enabled` flag
+  that loads `stand-v2 + v3b` both and routes on `cmd_vel` magnitude;
+  flip on at the lab bench per
+  [`docs/deploy_mode_switch_runbook.md`](docs/deploy_mode_switch_runbook.md).
   Flat-v0 (obs_dim=48, no scanner) replaced the rough-v0 baseline
   after the latter saturated the per-step slew clip on 99.5% of
   motor-steps in the 2026-04-14 dryrun.
