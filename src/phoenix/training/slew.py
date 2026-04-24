@@ -10,6 +10,7 @@ policy is trying to ask for a larger step than the bridge will allow.
 Keeping this helper pure-python (no torch, no warp) lets it live in the
 CI-gated test suite alongside ``tests/test_safety.py``.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -30,8 +31,6 @@ def slew_saturation_rate(
     if threshold <= 0.0:
         raise ValueError(f"threshold must be positive, got {threshold}")
     if prev_actions.shape != current_actions.shape:
-        raise ValueError(
-            f"shape mismatch: prev={prev_actions.shape} curr={current_actions.shape}"
-        )
+        raise ValueError(f"shape mismatch: prev={prev_actions.shape} curr={current_actions.shape}")
     deltas = np.abs(current_actions - prev_actions)
     return float(np.mean(deltas >= threshold))

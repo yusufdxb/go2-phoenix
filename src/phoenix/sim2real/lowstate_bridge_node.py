@@ -30,14 +30,21 @@ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu, JointState
 from unitree_go.msg import LowState
 
-
 # Unitree motor indices 0..11 map to these joint names. Matches the
 # convention used in the repo's URDF and ``deploy.yaml:joint_order``.
 MOTOR_NAMES: tuple[str, ...] = (
-    "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
-    "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
-    "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
-    "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint",
 )
 
 
@@ -55,9 +62,7 @@ class LowStateBridge(Node):
         self._imu_pub = self.create_publisher(Imu, "/imu/data", qos)
         self._sub = self.create_subscription(LowState, "/lowstate", self._on_state, qos)
 
-        self.get_logger().info(
-            "lowstate bridge up: /lowstate → /joint_states + /imu/data"
-        )
+        self.get_logger().info("lowstate bridge up: /lowstate → /joint_states + /imu/data")
 
     def _on_state(self, msg: LowState) -> None:
         now = self.get_clock().now().to_msg()

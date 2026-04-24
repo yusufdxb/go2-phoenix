@@ -28,7 +28,7 @@ class _FakeEnv:
 
 def test_zero_below_threshold() -> None:
     # All deltas = 0.1 (< 0.15 threshold)
-    prev   = torch.zeros(2, 12)
+    prev = torch.zeros(2, 12)
     action = torch.full((2, 12), 0.1)
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env)
@@ -43,7 +43,7 @@ def test_squared_above_threshold() -> None:
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env)
     # excess = 0.025, squared = 6.25e-4
-    assert torch.allclose(r, torch.tensor([0.025 ** 2]), atol=1e-8)
+    assert torch.allclose(r, torch.tensor([0.025**2]), atol=1e-8)
 
 
 def test_sums_across_motors() -> None:
@@ -55,7 +55,7 @@ def test_sums_across_motors() -> None:
     action[0, 11] = 0.175
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env)
-    assert torch.allclose(r, torch.tensor([3 * 0.025 ** 2]), atol=1e-8)
+    assert torch.allclose(r, torch.tensor([3 * 0.025**2]), atol=1e-8)
 
 
 def test_per_env_independent() -> None:
@@ -67,7 +67,7 @@ def test_per_env_independent() -> None:
     r = slew_sat_hinge_l2(env)
     assert r.shape == (2,)
     assert torch.allclose(r[0], torch.tensor(0.0))
-    assert torch.allclose(r[1], torch.tensor(0.025 ** 2), atol=1e-8)
+    assert torch.allclose(r[1], torch.tensor(0.025**2), atol=1e-8)
 
 
 def test_threshold_parameter() -> None:

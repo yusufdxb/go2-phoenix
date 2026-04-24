@@ -141,9 +141,7 @@ class TrajectoryLogger:
 
 
 def _parse_standalone_args(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Subscribe to GO2 ROS 2 topics and log to parquet."
-    )
+    p = argparse.ArgumentParser(description="Subscribe to GO2 ROS 2 topics and log to parquet.")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--rate-hz", type=float, default=50.0)
     p.add_argument("--flush-on-estop", action="store_true")
@@ -181,9 +179,7 @@ def _standalone_main(argv: list[str] | None = None) -> int:  # pragma: no cover 
         state["joint"] = msg
 
     def _on_cmd(msg):
-        state["cmd"] = np.asarray(
-            [msg.linear.x, msg.linear.y, msg.angular.z], dtype=np.float32
-        )
+        state["cmd"] = np.asarray([msg.linear.x, msg.linear.y, msg.angular.z], dtype=np.float32)
 
     def _on_estop(msg):
         if msg.data:
@@ -198,6 +194,7 @@ def _standalone_main(argv: list[str] | None = None) -> int:  # pragma: no cover 
     step_idx = 0
 
     with TrajectoryLogger(args.output) as log:
+
         def _tick():
             nonlocal step_idx
             if state["imu"] is None or state["joint"] is None:

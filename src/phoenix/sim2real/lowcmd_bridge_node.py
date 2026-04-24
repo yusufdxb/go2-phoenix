@@ -54,7 +54,7 @@ import numpy as np
 import rclpy
 import yaml
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray
 from unitree_go.msg import LowCmd, LowState
 
@@ -134,9 +134,7 @@ class LowCmdBridge(Node):
         self._sub_state = self.create_subscription(
             LowState, cfg.lowstate_topic, self._on_lowstate, qos_be
         )
-        self._sub_estop = self.create_subscription(
-            Bool, cfg.estop_topic, self._on_estop, qos_be
-        )
+        self._sub_estop = self.create_subscription(Bool, cfg.estop_topic, self._on_estop, qos_be)
 
         self._pub = self.create_publisher(
             LowCmd, cfg.live_topic if cfg.live else cfg.dry_topic, qos_be
@@ -155,9 +153,7 @@ class LowCmdBridge(Node):
 
     def _on_cmd(self, msg: Float64MultiArray) -> None:
         if len(msg.data) != 12:
-            self.get_logger().warn(
-                f"ignoring command with len={len(msg.data)} (expected 12)"
-            )
+            self.get_logger().warn(f"ignoring command with len={len(msg.data)} (expected 12)")
             return
         arr = np.asarray(msg.data, dtype=np.float32)
         if not np.all(np.isfinite(arr)):
