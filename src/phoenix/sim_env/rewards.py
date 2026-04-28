@@ -8,7 +8,10 @@ the upstream Isaac Lab signature `func(env, **params) -> Tensor[E]`.
 
 from __future__ import annotations
 
-import torch
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - type hints only
+    import torch
 
 # 85% of MAX_DELTA_PER_STEP_RAD=0.175, the per-step slew clip enforced
 # in phoenix.sim2real.safety and on the GO2 hardware deploy path.
@@ -41,6 +44,8 @@ def slew_sat_hinge_l2(
         threshold: Hinge threshold in radians. Motors with
             ``|delta| <= threshold`` contribute 0.
     """
+    import torch
+
     action = env.action_manager.action  # [E, num_actions]
     prev = env.action_manager.prev_action  # [E, num_actions]
     delta = torch.abs(action - prev)
