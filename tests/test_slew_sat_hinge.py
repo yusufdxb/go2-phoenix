@@ -10,9 +10,10 @@ IsaacLab/source/isaaclab/isaaclab/envs/mdp/rewards.py:action_rate_l2).
 from __future__ import annotations
 
 import pytest
-import torch
 
-from phoenix.sim_env.rewards import slew_sat_hinge_l2
+torch = pytest.importorskip("torch")
+
+from phoenix.sim_env.rewards import slew_sat_hinge_l2  # noqa: E402
 
 
 class _FakeActionManager:
