@@ -57,3 +57,20 @@ def test_reproducible_assignment(tmp_path: Path) -> None:
     a1 = FailureCurriculum(pool, failure_fraction=0.5, seed=42).assign(32)
     a2 = FailureCurriculum(pool, failure_fraction=0.5, seed=42).assign(32)
     assert np.array_equal(a1, a2)
+
+
+def test_different_seeds_yield_different_assignments(tmp_path: Path) -> None:
+    """Multi-seed pilots rely on the curriculum RNG actually varying.
+
+    Regression guard for the 2026-05-07 fine_tune patch that threads
+    cfg.run.seed into FailureCurriculum. Without distinct draws across
+    seeds, the per-env failure-vs-clean reset pattern is held constant
+    across cells and one stochastic input is silently shared.
+    """
+    pool = _make_pool(tmp_path, 4)
+    a_42 = FailureCurriculum(pool, failure_fraction=0.5, seed=42).assign(64)
+    a_123 = FailureCurriculum(pool, failure_fraction=0.5, seed=123).assign(64)
+    a_7 = FailureCurriculum(pool, failure_fraction=0.5, seed=7).assign(64)
+    assert not np.array_equal(a_42, a_123)
+    assert not np.array_equal(a_42, a_7)
+    assert not np.array_equal(a_123, a_7)
