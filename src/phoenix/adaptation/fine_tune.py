@@ -83,8 +83,15 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # ---- Failure curriculum ----------------------------------------------
     traj_dir = Path(args.trajectory_dir or cfg["curriculum"]["trajectory_dir"])
     pool = TrajectoryPool.from_directory(traj_dir)
+    # Couple the curriculum RNG to the training seed so multi-seed pilots
+    # vary the per-env failure-vs-clean reset assignment across cells.
+    # Without this the curriculum draws are identical between seeds (the
+    # RNG defaults to seed=0), holding one stochastic input constant.
+    curriculum_seed = int(cfg["run"].get("seed", 42))
     curriculum = FailureCurriculum(
-        pool, failure_fraction=float(cfg["curriculum"]["failure_sample_fraction"])
+        pool,
+        failure_fraction=float(cfg["curriculum"]["failure_sample_fraction"]),
+        seed=curriculum_seed,
     )
     if pool.empty():
         logger.warning(
