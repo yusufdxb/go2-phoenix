@@ -15,6 +15,27 @@ from pathlib import Path
 import numpy as np
 
 
+def _parquet_modes(path: Path) -> set[str]:
+    """Return the set of non-null ``failure_mode`` values in a parquet.
+
+    Used by :meth:`TrajectoryPool.from_directory` when filtering a pool
+    by failure mode. Reads only the ``failure_mode`` column (cheap) via
+    pyarrow. Returns an empty set if the column is missing or the file
+    is unreadable, so an unfilterable file is excluded rather than
+    silently kept.
+    """
+    try:
+        import pyarrow.parquet as pq
+    except ImportError:  # pragma: no cover - pyarrow is a hard dep
+        return set()
+    try:
+        tbl = pq.read_table(path, columns=["failure_mode"])
+    except Exception:
+        return set()
+    vals = tbl.column("failure_mode").to_pylist()
+    return {v for v in vals if v}
+
+
 @dataclass
 class TrajectoryPool:
     """List of Parquet trajectories available as failure seeds."""
@@ -22,11 +43,42 @@ class TrajectoryPool:
     paths: Sequence[Path]
 
     @classmethod
-    def from_directory(cls, directory: str | Path, pattern: str = "*.parquet") -> TrajectoryPool:
+    def from_directory(
+        cls,
+        directory: str | Path,
+        pattern: str = "*.parquet",
+        *,
+        failure_modes: Sequence[str] | None = None,
+    ) -> TrajectoryPool:
+        """Load parquets matching ``pattern`` under ``directory``.
+
+        Parameters
+        ----------
+        directory
+            Directory containing failure-trajectory parquets.
+        pattern
+            Glob pattern; defaults to ``*.parquet``.
+        failure_modes
+            Optional whitelist of failure-mode strings. If ``None`` or
+            empty, every matching parquet is included (legacy behavior).
+            Otherwise each parquet is opened and only kept when at least
+            one of its non-null ``failure_mode`` rows is a member of the
+            whitelist. Files without a ``failure_mode`` column are
+            excluded under a non-empty filter.
+        """
         p = Path(directory)
         if not p.exists():
             return cls(paths=[])
-        return cls(paths=sorted(p.glob(pattern)))
+        candidates = sorted(p.glob(pattern))
+        if not failure_modes:
+            return cls(paths=candidates)
+        wanted = set(failure_modes)
+        kept: list[Path] = []
+        for path in candidates:
+            modes = _parquet_modes(path)
+            if modes & wanted:
+                kept.append(path)
+        return cls(paths=kept)
 
     def __len__(self) -> int:
         return len(self.paths)
