@@ -82,7 +82,15 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     # ---- Failure curriculum ----------------------------------------------
     traj_dir = Path(args.trajectory_dir or cfg["curriculum"]["trajectory_dir"])
-    pool = TrajectoryPool.from_directory(traj_dir)
+    # Optional per-cell mode-subset filter (mode-subset ablation, 2026-05-08).
+    # Ashfall writes ``curriculum.failure_modes`` into the per-cell adapt
+    # YAML; if present and non-empty, only parquets whose recorded
+    # ``failure_mode`` column intersects this whitelist are eligible.
+    # An empty list / missing field preserves legacy "all modes" behavior.
+    failure_modes_cfg = cfg.get("curriculum", {}).get("failure_modes") or None
+    if failure_modes_cfg:
+        failure_modes_cfg = list(failure_modes_cfg)
+    pool = TrajectoryPool.from_directory(traj_dir, failure_modes=failure_modes_cfg)
     # Couple the curriculum RNG to the training seed so multi-seed pilots
     # vary the per-env failure-vs-clean reset assignment across cells.
     # Without this the curriculum draws are identical between seeds (the
@@ -95,11 +103,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     )
     if pool.empty():
         logger.warning(
-            "Curriculum trajectory dir %s is empty — adaptation will behave like plain fine-tune.",
+            "Curriculum trajectory dir %s is empty (modes=%s) — "
+            "adaptation will behave like plain fine-tune.",
             traj_dir,
+            failure_modes_cfg,
         )
     else:
-        logger.info("Curriculum loaded %d failure trajectories from %s", len(pool), traj_dir)
+        logger.info(
+            "Curriculum loaded %d failure trajectories from %s (modes=%s)",
+            len(pool),
+            traj_dir,
+            failure_modes_cfg or "all",
+        )
 
     # ---- Logging / checkpoint dirs ---------------------------------------
     run_name = cfg["run"]["name"]
