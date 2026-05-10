@@ -99,17 +99,35 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     env_cfg.sim.device = args.device
     env_cfg.seed = args.seed
 
+    # Track the robot in env 0 so the captured video shows the GO2 walking
+    # rather than the world origin (which is empty terrain). The default
+    # ViewerCfg points /OmniverseKit_Persp at world (0,0,0) — for rough
+    # terrain that's empty space and produces black frames.
+    if args.video_out is not None:
+        # Note: env_cfg.viewer.* settings are intentionally NOT set here.
+        # In headless+rendering mode ManagerBasedEnv skips constructing the
+        # ViewportCameraController, so any env_cfg.viewer.eye/lookat/origin
+        # settings would be silently ignored. We instead call
+        # sim.set_camera_view() directly below, after env construction.
+        env_cfg.viewer.resolution = (1280, 720)
+
     task_name = env_cfg_loaded.to_container()["env"]["task_name"]
     render_mode = "rgb_array" if args.video_out else None
     env = gym.make(task_name, cfg=env_cfg, render_mode=render_mode)
 
     if args.video_out:
         args.video_out.parent.mkdir(parents=True, exist_ok=True)
+        # gym >=0.29 RecordVideo emits "<name_prefix>-episode-<N>.mp4". To get
+        # the exact path the caller asked for, we record into a temp folder
+        # under name_prefix, then rename to the requested video_out path
+        # after env.close(). step_trigger (not episode_trigger) so recording
+        # starts at step 0 — episode_trigger fires on reset and a 16-env
+        # vec env's "episode 0" boundary is fuzzy.
         env = gym.wrappers.RecordVideo(
             env,
             video_folder=str(args.video_out.parent),
             name_prefix=args.video_out.stem,
-            episode_trigger=lambda ep: ep == 0,
+            step_trigger=lambda step: step == 0,
             video_length=args.video_length,
             disable_logger=True,
         )
@@ -176,6 +194,57 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     if not ckpt_info.get("actor_match", False):
         raise RuntimeError(f"Actor weights did not round-trip from {args.checkpoint}: {ckpt_info}")
     policy = runner.get_inference_policy(device=args.device)
+
+    # ---- Renderer warmup + camera framing --------------------------------
+    # Two diagnosed issues on RTX 5070 + Isaac Sim 5.0 headless+rendering
+    # (verified 2026-04-30 against Phoenix and IsaacLab test_record_video.py):
+    #
+    #   1. The /OmniverseKit_Persp annotator returns all-zero (black) frames
+    #      for the first several render calls. Empirically ~5+
+    #      simulation_app.update() ticks are required AFTER the annotator
+    #      is lazily created (by the first env.render() call) before it
+    #      starts returning non-empty pixels.
+    #
+    #   2. ManagerBasedEnv only constructs a ViewportCameraController when
+    #      sim.has_gui or a visualizer is active (manager_based_env.py:171).
+    #      In fully-headless mode neither holds, so env_cfg.viewer.eye/lookat
+    #      are silently ignored and the camera sits at kit-default world
+    #      pose, framing the scene from far away. Workaround: call
+    #      sim.set_camera_view(eye, target) directly to position
+    #      /OmniverseKit_Persp at a useful pose for env 0.
+    if args.video_out is not None:
+        unwrapped_env = env.unwrapped
+
+        # Manually frame env 0. Use env 0's origin offset so this also works
+        # for multi-env scenes where the cloner spreads envs across the world.
+        try:
+            import torch as _torch  # local import — torch is already loaded
+
+            env_origin = unwrapped_env.scene.env_origins[0]
+            if hasattr(env_origin, "cpu"):
+                ox, oy, oz = (float(v) for v in env_origin.cpu().tolist())
+            else:
+                ox, oy, oz = float(env_origin[0]), float(env_origin[1]), float(env_origin[2])
+            cam_eye = (ox + 1.8, oy + 1.8, oz + 1.0)
+            cam_target = (ox + 0.0, oy + 0.0, oz + 0.3)
+            unwrapped_env.sim.set_camera_view(eye=cam_eye, target=cam_target)
+            logger.info(
+                "framed camera: env0 origin=(%.2f, %.2f, %.2f) eye=(%.2f, %.2f, %.2f)",
+                ox, oy, oz, *cam_eye,
+            )
+            del _torch
+        except Exception as cam_err:  # noqa: BLE001
+            logger.warning("set_camera_view failed: %r — using default pose", cam_err)
+
+        # Annotator warmup — first env.render() lazily creates it, then we
+        # need several Kit ticks for the renderer to populate its buffer.
+        try:
+            _ = unwrapped_env.render()
+        except Exception as warmup_err:  # noqa: BLE001
+            logger.warning("warmup render() raised: %r — continuing", warmup_err)
+        for _ in range(12):
+            simulation_app.update()
+        logger.info("renderer warmup: 12 simulation_app.update() ticks complete")
 
     # ---- Rollout -----------------------------------------------------------
     # rsl_rl 3.0's RslRlVecEnvWrapper.get_observations returns a dict
@@ -325,6 +394,32 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         args.metrics_out.write_text(json.dumps(asdict(metrics), indent=2))
 
     env.close()
+
+    # gym >=0.29 RecordVideo writes "<stem>-step-<N>.mp4" with step_trigger
+    # (or "<stem>-episode-<N>.mp4" with episode_trigger). Rename to the exact
+    # path the caller requested so downstream tools (video_compose) find it.
+    if args.video_out is not None:
+        target = args.video_out
+        # Prefer the canonical step-0 name; fall back to episode-0 then any
+        # matching pattern. Skip the target itself in the glob so we don't
+        # pick a stale file with the requested name.
+        candidates: list[Path] = []
+        for name in (f"{target.stem}-step-0.mp4", f"{target.stem}-episode-0.mp4"):
+            p = target.parent / name
+            if p.exists() and p != target:
+                candidates.append(p)
+        if not candidates:
+            for p in sorted(target.parent.glob(f"{target.stem}-*.mp4")):
+                if p != target and p.exists():
+                    candidates.append(p)
+        if candidates:
+            src = candidates[0]
+            if target.exists():
+                target.unlink()
+            src.rename(target)
+            logger.info("Renamed %s -> %s", src.name, target.name)
+        else:
+            logger.warning("No recorded video found at %s", target)
     return 0
 
 
