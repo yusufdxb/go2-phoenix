@@ -22,8 +22,12 @@ cd "$REPO_ROOT"
 mkdir -p media/renders
 
 ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/IsaacLab}"
-PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" \
-"$ISAACLAB_PATH/isaaclab.sh" -p -m phoenix.demo.benchmark \
+export ISAACLAB_PATH
+# benchmark.py is now a thin orchestrator that subprocess-spawns isaaclab.sh
+# once per checkpoint (Isaac Sim's app is a process-global singleton — running
+# both evals in one process kills the second). Run benchmark with plain python.
+export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
+python3 -m phoenix.demo.benchmark \
     --baseline "$BASELINE" \
     --adapted "$ADAPTED" \
     --render-dir media/renders
