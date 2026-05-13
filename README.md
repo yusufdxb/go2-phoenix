@@ -13,13 +13,15 @@ own CLI, configuration, and (where possible) unit tests.
 
 ![Phoenix architecture](docs/architecture.svg)
 
-```
-SIM train  ──▶  ONNX export  ──▶  ROS 2 deploy  ──▶  GO2 hardware
-    ▲                                                      │
-    │                                                      ▼
-    │                                        failure detector + parquet log
-    │                                                      │
-    └────── fine-tune (failure curriculum) ◀── replay w/ Halton variations
+```mermaid
+graph LR
+    A[SIM train] --> B[ONNX export]
+    B --> C[ROS 2 deploy]
+    C --> D[GO2 hardware]
+    D --> E[failure detector + parquet log]
+    E --> F[replay w/ Halton variations]
+    F --> G[fine-tune, failure curriculum]
+    G --> A
 ```
 
 ## Current results (2026-04-19)
