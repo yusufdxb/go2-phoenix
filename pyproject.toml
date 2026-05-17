@@ -26,7 +26,10 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
 ]
 
 # Runtime dependencies split across two Python contexts.
@@ -73,7 +76,10 @@ dev = [
 
 [project.urls]
 "Homepage" = "https://github.com/yusufdxb/go2-phoenix"
+"Repository" = "https://github.com/yusufdxb/go2-phoenix"
 "Bug Tracker" = "https://github.com/yusufdxb/go2-phoenix/issues"
+"Changelog" = "https://github.com/yusufdxb/go2-phoenix/blob/main/docs/changelog.md"
+"Documentation" = "https://github.com/yusufdxb/go2-phoenix/blob/main/docs/structure.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
