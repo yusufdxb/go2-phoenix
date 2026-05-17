@@ -1,0 +1,44 @@
+# Sweep spec: stand-v3 stress grid (2026-05-17).
+#
+# 3 friction regimes x 2 push magnitudes x 2 action_rate penalties = 12 cells.
+# See docs/sweep_design_2026-05-17.md for rationale + axis selection.
+#
+# Consumed by scripts/sweep_run.py. All fields are required unless marked
+# optional. The runner ignores unknown top-level keys (forward-compat).
+
+name: stand-v3-stress-2026-05-17
+
+# Cell configs inherit from these. The runner copies them into the
+# generated cell config via the layered loader's `defaults:` key.
+base_train_config: configs/train/ppo_stand_v3.yaml
+base_env_config: configs/env/stand_v3.yaml
+
+# All cells fine-tune from this checkpoint. Path is relative to repo root.
+# If missing, --dry-run still works; an actual run will fail fast.
+resume: checkpoints/phoenix-stand-v3/latest.pt
+
+axes:
+  friction_range:
+    field: domain_randomization.friction_range
+    values:
+      - [0.3, 1.5]
+      - [0.15, 0.8]
+      - [0.05, 0.4]
+  push_velocity_xy:
+    field: perturbation.push_velocity_xy
+    # When value > 0, the runner also flips perturbation.enabled = true.
+    enable_field: perturbation.enabled
+    values: [0.0, 1.0]
+  action_rate:
+    field: reward.action_rate
+    values: [-2.0, -3.0]
+
+scales:
+  smoke:
+    num_envs: 256
+    max_iterations: 50
+    eval: false
+  full:
+    num_envs: 4096
+    max_iterations: 300
+    eval: true
