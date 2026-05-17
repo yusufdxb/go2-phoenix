@@ -6,7 +6,7 @@ Spec: `docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md`.
 ## 1. Sync T7 → Jetson
 
 On mewtwo (host):
-- Confirm `checkpoints/phoenix-flat/policy.onnx` is stand-v2 (`md5sum` matches the value in `docs/retrain_stand_v2_2026-04-19.md`).
+- Confirm `checkpoints/phoenix-flat/policy.onnx` is stand-v2 (`md5sum` matches the value in `docs/sessions/retrain_stand_v2_2026-04-19.md`).
 - Confirm `checkpoints/phoenix-flat/v3b/policy.onnx` exists (export done 2026-04-19).
 - `rsync -avL` both dirs to T7 under `go2-phoenix/checkpoints/`.
 
@@ -36,7 +36,7 @@ Leave all thresholds at spec defaults for the first bringup. `stand_onnx_path` /
 
 ## 4. Three-bridge bringup + estop heartbeat
 
-Unchanged from prior bringup procedure — see `docs/lab_session_2026-04-16.md` for the sequence. Mode-switch has no ROS 2 topic changes.
+Unchanged from prior bringup procedure — see `docs/sessions/lab_session_2026-04-16.md` for the sequence. Mode-switch has no ROS 2 topic changes.
 
 ## 5. Hardware gates
 
