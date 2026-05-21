@@ -17,7 +17,9 @@ A 60-second walkthrough: thousands of robots training in parallel in Isaac
 Sim, the trained policy tracking velocity commands with a live telemetry
 overlay, and where the project stands.
 
-[**Watch the demo — `media/demos/phoenix_demo.mp4`**](media/demos/phoenix_demo.mp4)
+<video src="https://github.com/yusufdxb/go2-phoenix/raw/main/media/demos/phoenix_demo.mp4" controls muted width="100%"></video>
+
+> Player not loading in your viewer? [Download the clip](media/demos/phoenix_demo.mp4) (1080p, 60s).
 
 ## Status
 
