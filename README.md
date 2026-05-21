@@ -32,11 +32,9 @@ overlay, and where the project stands.
 
 <p align="center">
   <a href="https://youtu.be/Nu0oWyJJbEM">
-    <img src="media/demos/phoenix_demo_poster.jpg" alt="Watch the Phoenix demo on YouTube" width="100%">
+    <img src="https://img.youtube.com/vi/Nu0oWyJJbEM/sddefault.jpg" alt="Watch the Phoenix demo on YouTube" width="640">
   </a>
 </p>
-
-<p align="center"><sub>Click to watch the 60-second demo on YouTube.</sub></p>
 
 ## Project status
 
