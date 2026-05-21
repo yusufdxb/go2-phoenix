@@ -43,7 +43,7 @@ RUN_DIR="data/lab/${DATE_DIR}/${BLOCK}_${SCENARIO}_${TS}"
 mkdir -p "$RUN_DIR"
 LOG_FILE="$RUN_DIR/record.log"
 
-# Topic set. Justification (see LAB_CARD_NEXT.md "topic capture rationale"):
+# Topic set. Justification:
 #   /lowstate                        : raw firmware state (full fidelity)
 #   /lowcmd, /lowcmd_dry             : motor command (both live + dry modes)
 #   /joint_states                    : lowstate_bridge_node publish

@@ -118,9 +118,7 @@ def test_failure_modes_filter_multi_mode(tmp_path: Path) -> None:
     _write_mode_parquet(tmp_path / "b_attitude.parquet", "attitude")
     _write_mode_parquet(tmp_path / "c_collapse.parquet", "collapse")
     _write_mode_parquet(tmp_path / "d_command_mismatch.parquet", "command_mismatch")
-    pool = TrajectoryPool.from_directory(
-        tmp_path, failure_modes=["attitude", "collapse"]
-    )
+    pool = TrajectoryPool.from_directory(tmp_path, failure_modes=["attitude", "collapse"])
     assert len(pool) == 2
     names = sorted(p.name for p in pool.paths)
     assert names == ["b_attitude.parquet", "c_collapse.parquet"]

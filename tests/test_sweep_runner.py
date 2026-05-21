@@ -147,7 +147,10 @@ def test_materialize_writes_valid_yaml(tmp_path: Path) -> None:
     out_dir = tmp_path / "_generated" / "sweep_test"
 
     env_path, train_path = sweep_run.materialize_cell_configs(
-        cells[0], spec, scale, out_dir,
+        cells[0],
+        spec,
+        scale,
+        out_dir,
     )
     assert env_path.exists() and train_path.exists()
 
@@ -189,10 +192,13 @@ def test_dry_run_creates_expected_cell_count(tmp_path: Path, capsys) -> None:
     spec_path = _write_minimal_spec(tmp_path / "spec.yaml")
     rc = sweep_run.main(
         [
-            "--spec", str(spec_path),
+            "--spec",
+            str(spec_path),
             "--dry-run",
-            "--config-root", str(tmp_path / "_generated"),
-            "--out-root", str(tmp_path / "logs"),
+            "--config-root",
+            str(tmp_path / "_generated"),
+            "--out-root",
+            str(tmp_path / "logs"),
         ]
     )
     assert rc == 0
@@ -213,11 +219,15 @@ def test_dry_run_with_limit(tmp_path: Path, capsys) -> None:
     spec_path = _write_minimal_spec(tmp_path / "spec.yaml")
     rc = sweep_run.main(
         [
-            "--spec", str(spec_path),
+            "--spec",
+            str(spec_path),
             "--dry-run",
-            "--limit", "2",
-            "--config-root", str(tmp_path / "_generated"),
-            "--out-root", str(tmp_path / "logs"),
+            "--limit",
+            "2",
+            "--config-root",
+            str(tmp_path / "_generated"),
+            "--out-root",
+            str(tmp_path / "logs"),
         ]
     )
     assert rc == 0

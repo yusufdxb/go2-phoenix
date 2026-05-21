@@ -250,7 +250,6 @@ def materialize_cell_configs(
     # since we write into configs/_generated/sweep_<ts>/, we need a relative
     # ../../env/<stem> reference for the loader to find the base.
     env_overrides: dict[str, Any] = {}
-    train_overrides: dict[str, Any] = {}
     # Heuristic: env-side fields are anything other than the reward.* and
     # the run.*/algorithm.* train fields. We treat any dotted-field that
     # starts with reward. as env-side (reward lives in env yaml in Phoenix).

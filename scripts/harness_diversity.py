@@ -4,7 +4,7 @@
 Post-block diversity validator. Walks a directory of failure parquets, runs
 the rule-based :class:`phoenix.real_world.FailureDetector` on each, and prints
 a coverage matrix grouped by filename prefix mode label. Returns non-zero if
-the Block-3 diversity gate from LAB_CARD_NEXT.md fails:
+the Block-3 diversity gate fails:
 
   * fewer than 4 distinct mode prefixes, OR
   * any chosen mode has fewer than 2 replicate parquets, OR
@@ -18,7 +18,7 @@ Usage:
     python3 scripts/harness_diversity.py --self-test
         runs against a tmp dir of synthetic in-memory parquets and exits 0.
 
-The prefix convention matches LAB_CARD: parquets are named like
+The prefix convention: parquets are named like
 ``pqa_<mode>_<ts>.parquet`` and the mode token is the second underscore-
 separated segment (``slip``, ``push_lat``, ``ramp_dn`` ...). Gate7/Gate8
 parquets (``gate7_floor_*.parquet``) are excluded from diversity counting
@@ -217,8 +217,6 @@ def _write_synth_parquet(path: Path, *, rows: int, force_failure: bool, mode: st
     import numpy as np
     import pyarrow as pa
     import pyarrow.parquet as pq
-
-    rng = np.random.default_rng(hash(mode) & 0xFFFFFFFF)
 
     def vec(n):
         return [np.zeros(n, dtype=np.float32).tolist() for _ in range(rows)]

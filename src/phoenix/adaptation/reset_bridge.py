@@ -92,9 +92,7 @@ class _InitialStateCache:
 
     def get(self, pool_idx: int) -> InitialState:
         if pool_idx not in self._cache:
-            row = _resolve_seed_row(
-                self._paths[pool_idx], self._strategy, self._offset_k
-            )
+            row = _resolve_seed_row(self._paths[pool_idx], self._strategy, self._offset_k)
             self._resolved_rows[pool_idx] = row
             self._cache[pool_idx] = load_initial_state(self._paths[pool_idx], row=row)
         return self._cache[pool_idx]
@@ -169,9 +167,7 @@ def install(
             quat = torch.roll(quat_xyzw, shifts=1, dims=-1)
             jpos = torch.as_tensor(state.joint_pos, device=device, dtype=torch.float32)
             jvel = torch.as_tensor(state.joint_vel, device=device, dtype=torch.float32)
-            env_id_tensor = torch.as_tensor(
-                [global_env_id], device=device, dtype=torch.int64
-            )
+            env_id_tensor = torch.as_tensor([global_env_id], device=device, dtype=torch.int64)
 
             robot.write_root_pose_to_sim(
                 torch.cat([pos, quat], dim=-1).unsqueeze(0),

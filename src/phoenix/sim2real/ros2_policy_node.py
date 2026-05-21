@@ -284,7 +284,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # Flush the parquet footer at abort time. A hard kill during the
         # post-abort default-pose hold (e.g. operator SIGKILL after
         # max_runtime latched) otherwise skips shutdown() and leaves a
-        # footerless parquet — see 2026-04-20 lab_findings bug #1.
+        # footerless parquet.
         if self._logger is not None:
             try:
                 self._logger.close()
@@ -317,8 +317,8 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         if self._estopped:
             # Single default-pose publish already happened at abort time.
             # Do NOT re-broadcast every tick: the bridge's 0.2s command-stale
-            # watchdog takes over and holds at last-measured q (safe). See
-            # docs/sessions/lab_findings_2026-04-21 — per-tick rebroadcast walked default_q
+            # watchdog takes over and holds at last-measured q (safe).
+            # Per-tick rebroadcast walked default_q
             # against real posture → motor fight → Jetson brownout.
             return
 
@@ -462,8 +462,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
     ) -> tuple[np.ndarray, np.ndarray]:
         """Run both policies, advance the state machine, blend joint targets.
 
-        See docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md
-        for the contract. The ``self._last_action`` field is kept in sync
+        The ``self._last_action`` field is kept in sync
         with whichever policy is currently active so external consumers
         (logger, tests) see a coherent last_action.
         """

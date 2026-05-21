@@ -9,8 +9,7 @@
 # moves canonical stand INTO the training distribution by construction —
 # it is the training distribution.
 #
-# Used for the first hardware day per docs/sessions/dryrun_findings_2026-04-14.md's
-# "safer first hardware test" option.
+# Used for the first hardware day as the safer first hardware test option.
 
 defaults:
   - base

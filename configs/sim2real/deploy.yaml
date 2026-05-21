@@ -14,8 +14,7 @@ policy:
   # enabled, the node loads both ONNX sessions each tick and picks a
   # target via the state machine in phoenix.sim2real.mode_switch. When
   # disabled (default), only ``onnx_path`` is used — identical behaviour
-  # to pre-mode-switch bringups. Spec:
-  # docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md.
+  # to pre-mode-switch bringups.
   mode_switch:
     enabled: false
     stand_onnx_path: "checkpoints/phoenix-flat/policy.onnx"        # stand-v2 (Gate 7)

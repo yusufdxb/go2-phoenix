@@ -29,8 +29,7 @@ curriculum:
   # Kept at 0.0 until the reset_bridge world-frame mapping has a
   # hardware-captured parquet to validate against; the bridge itself is
   # wired and unit-tested (pos-relative-to-env-origin, xyzw→wxyz), it is
-  # just disabled here to keep v0.2 results uncontaminated. See
-  # ``docs/adapt_load_debug.md`` for the rationale.
+  # just disabled here to keep v0.2 results uncontaminated.
   failure_sample_fraction: 0.0
   trajectory_dir: "data/failures"
   variation:

@@ -13,10 +13,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "harness_preflight.sh"
@@ -41,11 +38,9 @@ def test_mock_runs_to_completion(tmp_path):
     (repo / "tests" / "test_harness_diversity.py").write_text(
         "def test_trivial():\n    assert True\n"
     )
-    (repo / "tests" / "test_harness_record.py").write_text(
-        "def test_trivial():\n    assert True\n"
-    )
+    (repo / "tests" / "test_harness_record.py").write_text("def test_trivial():\n    assert True\n")
     # Provide a pyproject so pytest doesn't traverse upward into the real repo
-    (repo / "pyproject.toml").write_text("[tool.pytest.ini_options]\ntestpaths=[\"tests\"]\n")
+    (repo / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths=["tests"]\n')
 
     env = os.environ.copy()
     env["PYTHONDONTWRITEBYTECODE"] = "1"
