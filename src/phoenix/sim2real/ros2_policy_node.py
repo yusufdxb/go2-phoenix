@@ -126,10 +126,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.action_scale = float(cfg["control"]["action_scale"])
         self.rate_hz = float(cfg["control"]["rate_hz"])
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
-        # Fail-closed timeouts. Defaults are deliberate: estop must be
-        # heartbeated faster than 0.5s (heartbeat publisher runs at 10Hz),
-        # IMU/joint state must be alive within 0.2s (the policy can't
-        # operate on stale observations of an actuated robot).
+        # Fail-closed timeouts. estop must be heartbeated well inside
+        # estop_timeout_s (code default 0.5s; deploy.yaml sets 0.8s; the
+        # heartbeat publisher runs at 10Hz). IMU/joint state must be alive
+        # within sensor_timeout_s (default 0.2s); the policy can't operate
+        # on stale observations of an actuated robot.
         safety_cfg = cfg.get("safety", {})
         self.estop_timeout_s = float(safety_cfg.get("estop_timeout_s", 0.5))
         self.sensor_timeout_s = float(safety_cfg.get("sensor_timeout_s", 0.2))

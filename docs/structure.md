@@ -46,7 +46,7 @@ go2-phoenix/
 │
 ├── checkpoints/              .pt + .onnx artifacts (gitignored)
 ├── data/                     parquets, videos, npz (gitignored)
-├── media/                    demo video (media/demos/) + rendered media
+├── media/                    demo + render clips (gitignored)
 └── docker/                   CPU-only testbox image for CI
 ```
 
@@ -68,7 +68,7 @@ No module imports `torch` *and* `rclpy`.
 CI-safe suite with:
 
 ```bash
-pytest tests/ --ignore=tests/test_sim_integration.py
+pytest tests -m "not sim and not ros"
 ```
 
 Isaac Lab and ROS 2 paths are exercised manually on the hardware.
@@ -77,7 +77,7 @@ Isaac Lab and ROS 2 paths are exercised manually on the hardware.
 
 For a single-pass orientation:
 
-1. `src/phoenix/sim_env/env_cfg.py` — what the env looks like
+1. `src/phoenix/sim_env/go2_env_cfg.py` — what the env looks like
 2. `src/phoenix/training/ppo_runner.py` — how it trains
 3. `src/phoenix/sim2real/export.py` + `verify_deploy.py` — sim-to-real handoff with parity
 4. `src/phoenix/sim2real/ros2_policy_node.py` + `safety.py` — on-robot loop with fail-closed semantics

@@ -39,9 +39,6 @@ joint_order:
   - "RL_calf_joint"
   - "RR_calf_joint"
 
-latency:
-  action_delay_steps: 2
-
 topics:
   imu: "/imu/data"
   joint_states: "/joint_states"
@@ -54,7 +51,6 @@ safety:
   max_runtime_s: 120
   estop_timeout_s: 0.8
   sensor_timeout_s: 0.2
-  startup_grace_s: 3.0
   # Maximum time the node will wait for the first message on each required
   # topic (estop, imu, joint_state) before latching abort. Replaces the
   # old startup_grace_s wallclock gate. DDS discovery on the Jetson can
