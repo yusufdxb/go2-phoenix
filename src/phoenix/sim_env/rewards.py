@@ -1,8 +1,7 @@
 """Phoenix-owned reward functions not provided by upstream Isaac Lab.
 
-Added 2026-04-19 (Phase 2b retrain, spec
-`docs/superpowers/specs/2026-04-19-phoenix-gate8-slewhinge-design.md`)
-as a template for custom reward terms. Each function here follows
+Added 2026-04-19 (Phase 2b retrain) as a template for custom reward
+terms. Each function here follows
 the upstream Isaac Lab signature `func(env, **params) -> Tensor[E]`.
 """
 

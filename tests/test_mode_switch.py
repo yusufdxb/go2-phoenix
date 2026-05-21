@@ -3,8 +3,6 @@
 All tests are pure-numpy. The state machine in ``phoenix.sim2real.mode_switch``
 has no rclpy / onnxruntime dependency so it can be exhaustively covered in
 CI without the robot or Isaac Lab.
-
-See docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md.
 """
 
 from __future__ import annotations

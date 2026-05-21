@@ -67,9 +67,7 @@ def test_mock_rsync_runs_clean(staged_repo, tmp_path):
     assert (
         t7 / "data" / "lab" / "2026-05-17" / "gate7_floor_hold_120000" / "manifest.json"
     ).exists()
-    assert (
-        t7 / "data" / "lab" / "2026-05-17" / "gate7_floor_hold_120000" / "camera.mp4"
-    ).exists()
+    assert (t7 / "data" / "lab" / "2026-05-17" / "gate7_floor_hold_120000" / "camera.mp4").exists()
     assert "OK" in res.stdout
 
 

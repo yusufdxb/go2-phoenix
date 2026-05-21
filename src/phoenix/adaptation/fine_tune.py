@@ -181,7 +181,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # episode *terminates*. With random initial episode lengths most
     # envs time-out within the first 24-step rollout and contribute an
     # artificially low partial reward, which misleadingly looks like the
-    # loaded policy forgot how to walk (see ``docs/adapt_load_debug.md``).
+    # loaded policy forgot how to walk.
     # Starting at step 0 for every env means the metrics in iteration 0
     # reflect the actual warm-started behaviour rather than a truncated
     # window artifact.

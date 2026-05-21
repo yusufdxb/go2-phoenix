@@ -9,5 +9,5 @@ PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" python3 -m phoenix.training.evaluate
     --env-config configs/env/stand.yaml \
     --num-envs 16 \
     --num-episodes 32 \
-    --metrics-out docs/sessions/pre_lab_stand_v3_rollout_2026-04-21.json \
+    --metrics-out checkpoints/phoenix-stand-v3/eval_rollout.json \
     "$@"

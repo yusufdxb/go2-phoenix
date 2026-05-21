@@ -12,8 +12,6 @@ hardware slew constraint is always respected.
 This module has no rclpy / onnxruntime dependency on purpose: every
 branch is covered in ``tests/test_mode_switch.py`` without Isaac Lab
 or the robot.
-
-See docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md.
 """
 
 from __future__ import annotations

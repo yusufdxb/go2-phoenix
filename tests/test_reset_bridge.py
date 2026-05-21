@@ -142,9 +142,7 @@ def test_patched_reset_calls_original_and_rewrites_pose(tmp_path: Path) -> None:
 # -------------------- H0 bridge-fix: seed-row + velocity write -------------
 
 
-def _write_multi_row_parquet(
-    path: Path, n_stable: int, n_failure: int, vx_stable: float
-) -> None:
+def _write_multi_row_parquet(path: Path, n_stable: int, n_failure: int, vx_stable: float) -> None:
     """Write a parquet with ``n_stable`` rows of normal trot then ``n_failure``
     rows of failure-flagged kinematics. Velocity is encoded per-row so the
     seeded row can be uniquely identified by its ``base_lin_vel_body``.
@@ -161,9 +159,7 @@ def _write_multi_row_parquet(
                     base_lin_vel_body=np.asarray(
                         [vx_stable + 0.01 * i, 0.0, 0.0], dtype=np.float32
                     ),
-                    base_ang_vel_body=np.asarray(
-                        [0.0, 0.0, 0.001 * i], dtype=np.float32
-                    ),
+                    base_ang_vel_body=np.asarray([0.0, 0.0, 0.001 * i], dtype=np.float32),
                     joint_pos=np.full(12, 0.1 * i, dtype=np.float32),
                     joint_vel=np.zeros(12, dtype=np.float32),
                     command_vel=np.asarray([0.5, 0.0, 0.0], dtype=np.float32),
@@ -205,9 +201,7 @@ def test_resolve_seed_row_rejects_parquet_with_no_failure(tmp_path: Path) -> Non
 def test_cache_loads_failure_onset_row(tmp_path: Path) -> None:
     p = tmp_path / "slip.parquet"
     _write_multi_row_parquet(p, n_stable=70, n_failure=20, vx_stable=0.5)
-    cache = _InitialStateCache(
-        [p], seed_row_strategy="failure_onset_minus_k", seed_row_offset_k=5
-    )
+    cache = _InitialStateCache([p], seed_row_strategy="failure_onset_minus_k", seed_row_offset_k=5)
     state = cache.get(0)
     assert cache.resolved_row(0) == 65
     # Row 65: vx_stable + 0.01 * 65 = 0.5 + 0.65 = 1.15
@@ -220,9 +214,7 @@ def test_install_writes_velocity_when_opted_in(tmp_path: Path) -> None:
     torch = pytest.importorskip("torch")
     p = tmp_path / "slip.parquet"
     _write_multi_row_parquet(p, n_stable=70, n_failure=20, vx_stable=0.5)
-    curriculum = FailureCurriculum(
-        TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0
-    )
+    curriculum = FailureCurriculum(TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0)
     robot = _FakeRobot()
     env, _, unwrapped = _fake_env(robot, torch.zeros(2, 3), "cpu")
 
@@ -253,9 +245,7 @@ def test_install_skips_velocity_by_default(tmp_path: Path) -> None:
     torch = pytest.importorskip("torch")
     p = tmp_path / "slip.parquet"
     _write_multi_row_parquet(p, n_stable=70, n_failure=20, vx_stable=0.5)
-    curriculum = FailureCurriculum(
-        TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0
-    )
+    curriculum = FailureCurriculum(TrajectoryPool(paths=[p]), failure_fraction=1.0, seed=0)
     robot = _FakeRobot()
     env, _, unwrapped = _fake_env(robot, torch.zeros(2, 3), "cpu")
 
