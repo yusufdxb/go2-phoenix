@@ -16,7 +16,7 @@
 #
 # Runs phoenix.sim2real.export (torch-based, no IsaacLab required).
 # On an air-gapped Jetson, onnx==1.16.2 is sufficient (see
-# lab_findings_2026-04-20.md "onnx install path on the air-gapped Jetson").
+# docs/sessions/lab_findings_2026-04-20.md "onnx install path on the air-gapped Jetson").
 # On the training machine onnx is already available via isaac-sim-venv.
 
 set -euo pipefail
