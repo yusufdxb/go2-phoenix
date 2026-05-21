@@ -39,9 +39,12 @@ overlay, and where the project stands.
 ## Project status
 
 The locomotion policy is trained and verified in simulation. The sim-to-real
-deploy path (ONNX export, the ROS 2 policy node, the fail-closed safety layer)
-is hardware-verified on the GO2. On-robot locomotion validation is the current
-front line.
+deploy stack (ONNX export, the ROS 2 policy node, the fail-closed safety
+layer) has run end-to-end on the real GO2; that live run surfaced a per-step
+slew-rate saturation (about 33% at `cmd_vel = 0`) that no on-robot stand has
+yet cleared. On-robot locomotion validation (Gate 7) is the current front
+line. [`EVIDENCE.md`](EVIDENCE.md) is the verified / inferred / not-validated
+ledger for every claim below.
 
 | Stage | State | Detail |
 |---|:---:|---|
@@ -49,7 +52,7 @@ front line.
 | Locomotion policy trained and sim-verified | ✅ Done | stand-v3 in sim: 32/32 success, 0.33% slew saturation |
 | ONNX export and torch / onnxruntime parity gate | ✅ Done | `verify_deploy`, max drift 9.5e-7 |
 | ROS 2 deploy stack and fail-closed safety layer | ✅ Done | 3 bridges, policy node, shared slew cap |
-| Deploy chain hardware-verified on the GO2 | ✅ Done | end-to-end on the Jetson, 2026-04 |
+| Deploy stack ran end-to-end on the GO2 | ✅ Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
 | Failure detector and Parquet trajectory logging | ✅ Done | rule-based attitude / collapse / slip |
 | Replay and failure-curriculum fine-tune | ✅ Done | wired and unit-tested; awaiting real parquets |
 | Live on-robot stand (Gate 7) | 🟡 In progress | last live run 33% slew saturation; stand-v3 staged for retry |
@@ -105,7 +108,7 @@ pip install -e ".[dev]"
 pytest tests -m "not sim and not ros"
 ```
 
-220+ unit tests, torch-free and ROS-free by construction. They cover the
+228 unit tests, torch-free and ROS-free by construction. They cover the
 config loader, observation builder, failure detector, trajectory logger,
 Parquet round-trip, Halton variation sampler, curriculum scheduler, per-env
 variation translation, the fail-closed estop / sensor-freshness predicates,

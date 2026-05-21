@@ -73,7 +73,6 @@ data/lab/
 
 # Local scratchpads (not part of the public repo)
 hardware prompt run*.txt
-EVIDENCE.md
 
 # Internal lab notes and planning: kept in the Obsidian vault, not the public repo
 docs/sessions/
