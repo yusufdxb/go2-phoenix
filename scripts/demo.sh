@@ -21,7 +21,7 @@ cd "$REPO_ROOT"
 
 mkdir -p media/renders
 
-ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/IsaacLab}"
+ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Sim/IsaacLab}"
 export ISAACLAB_PATH
 # benchmark.py is now a thin orchestrator that subprocess-spawns isaaclab.sh
 # once per checkpoint (Isaac Sim's app is a process-global singleton — running
