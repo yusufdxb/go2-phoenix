@@ -16,7 +16,9 @@ Safety:
 
 * Dead-man's-switch on ``/phoenix/estop`` (std_msgs/Bool).
 * Hard max runtime after which the node exits and sends the stand pose.
-* Per-joint position, velocity, and torque clipping relative to URDF limits.
+* Per-step joint slew-rate clip, shared with the bridge via
+  ``per_step_clip_array`` in ``phoenix.sim2real.safety``. NOTE: per-joint
+  position / velocity / torque limit clipping is not implemented here.
 * Attitude abort (pitch/roll) and NaN-in-joint-state abort; same latch path
   as an external estop — node stops publishing policy actions and holds
   the default stand pose.
@@ -124,11 +126,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.action_scale = float(cfg["control"]["action_scale"])
         self.rate_hz = float(cfg["control"]["rate_hz"])
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
-        self.pos_margin = float(cfg["actuator_limits"]["position_margin_rad"])
-        # Fail-closed timeouts. Defaults are deliberate: estop must be
-        # heartbeated faster than 0.5s (heartbeat publisher runs at 10Hz),
-        # IMU/joint state must be alive within 0.2s (the policy can't
-        # operate on stale observations of an actuated robot).
+        # Fail-closed timeouts. estop must be heartbeated well inside
+        # estop_timeout_s (code default 0.5s; deploy.yaml sets 0.8s; the
+        # heartbeat publisher runs at 10Hz). IMU/joint state must be alive
+        # within sensor_timeout_s (default 0.2s); the policy can't operate
+        # on stale observations of an actuated robot.
         safety_cfg = cfg.get("safety", {})
         self.estop_timeout_s = float(safety_cfg.get("estop_timeout_s", 0.5))
         self.sensor_timeout_s = float(safety_cfg.get("sensor_timeout_s", 0.2))
