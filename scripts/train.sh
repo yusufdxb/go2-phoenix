@@ -5,14 +5,14 @@
 #   ./scripts/train.sh [config=configs/train/ppo.yaml] [--headless] [--num_envs N]
 #
 # Requires Isaac Lab. Set ISAACLAB_PATH to point at your IsaacLab install;
-# defaults to ~/IsaacLab.
+# defaults to ~/Sim/IsaacLab.
 
 set -euo pipefail
 
 CONFIG="${1:-configs/train/ppo.yaml}"
 shift || true
 
-ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/IsaacLab}"
+ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Sim/IsaacLab}"
 if [[ ! -x "$ISAACLAB_PATH/isaaclab.sh" ]]; then
     echo "[train.sh] error: IsaacLab not found at $ISAACLAB_PATH" >&2
     echo "            set ISAACLAB_PATH=/path/to/IsaacLab" >&2

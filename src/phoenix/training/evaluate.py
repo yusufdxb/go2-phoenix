@@ -16,6 +16,7 @@ import argparse
 import json
 import logging
 import sys
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -60,6 +61,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--device", type=str, default="cuda:0")
     p.add_argument("--seed", type=int, default=1234)
+    p.add_argument(
+        "--gui",
+        action="store_true",
+        help="Run non-headless (visible Isaac Sim window) for screen-recorded demos",
+    )
+    p.add_argument(
+        "--telemetry-out",
+        type=Path,
+        default=None,
+        help="If set, write a per-step CSV of commanded vs actual base velocity",
+    )
+    p.add_argument(
+        "--cam-dist",
+        type=float,
+        default=2.6,
+        help="Follow-cam per-axis offset: smaller frames the robot closer",
+    )
     return p.parse_args(argv)
 
 
@@ -70,7 +88,15 @@ def main(argv: list[str] | None = None) -> int:
 
     from isaaclab.app import AppLauncher
 
-    app_launcher = AppLauncher(headless=True, enable_cameras=args.video_out is not None)
+    # This Isaac Lab version decoupled `headless` from window creation:
+    # headless=False alone still runs windowless. A Kit GUI window requires
+    # the `visualizer="kit"` argument. --gui uses it; default stays headless.
+    launcher_kwargs: dict = {"enable_cameras": args.video_out is not None}
+    if args.gui:
+        launcher_kwargs["visualizer"] = "kit"
+    else:
+        launcher_kwargs["headless"] = True
+    app_launcher = AppLauncher(**launcher_kwargs)
     simulation_app = app_launcher.app
     print("[eval] app launched", flush=True)
     try:
@@ -109,7 +135,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         # ViewportCameraController, so any env_cfg.viewer.eye/lookat/origin
         # settings would be silently ignored. We instead call
         # sim.set_camera_view() directly below, after env construction.
-        env_cfg.viewer.resolution = (1280, 720)
+        env_cfg.viewer.resolution = (1920, 1080)
 
     task_name = env_cfg_loaded.to_container()["env"]["task_name"]
     render_mode = "rgb_array" if args.video_out else None
@@ -285,7 +311,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     prev_actions_np: np.ndarray | None = None
     slew_sat_acc = 0.0
     slew_sat_steps = 0
+    telemetry_rows: list | None = [] if args.telemetry_out else None
 
+    print("[eval] rollout started", flush=True)
     with torch.inference_mode():
         while len(returns) < args.num_episodes:
             actions = policy(obs)
@@ -304,6 +332,24 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             episode_length += 1
             n_steps += 1
 
+            # Follow-cam: keep the GO2 framed as the velocity-tracking policy
+            # walks it away from spawn. Active for GUI (screen-recorded demos)
+            # and for video_out captures; metric-only runs are unaffected.
+            if args.gui or args.video_out is not None:
+                try:
+                    rpos = _to_numpy(env.unwrapped.scene["robot"].data.root_pos_w)[0]
+                    rx, ry, rz = float(rpos[0]), float(rpos[1]), float(rpos[2])
+                    env.unwrapped.sim.set_camera_view(
+                        eye=(
+                            rx - args.cam_dist,
+                            ry - args.cam_dist,
+                            rz + args.cam_dist * 0.4,
+                        ),
+                        target=(rx, ry, rz + 0.30),
+                    )
+                except Exception:  # noqa: BLE001, S110
+                    pass
+
             # tracking error — done on numpy to avoid torch/warp interop pitfalls.
             # Root velocities are Warp arrays in Isaac Lab 3.x; the matching
             # conversion pattern in synthesize_failure.py proves the .numpy()
@@ -321,6 +367,13 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                         )
                         ang_err_acc += float(np.mean(np.abs(cmd_np[:, 2] - ang_b_np[:, 2])))
                         tracking_steps += 1
+                        if telemetry_rows is not None:
+                            telemetry_rows.append((
+                                n_steps, time.time(),
+                                float(cmd_np[0, 0]), float(cmd_np[0, 1]),
+                                float(cmd_np[0, 2]), float(lin_b_np[0, 0]),
+                                float(lin_b_np[0, 1]), float(ang_b_np[0, 2]),
+                            ))
                     else:
                         if n_steps <= 1:
                             logger.warning(
@@ -392,6 +445,17 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     if args.metrics_out:
         args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
         args.metrics_out.write_text(json.dumps(asdict(metrics), indent=2))
+
+    if args.telemetry_out and telemetry_rows:
+        args.telemetry_out.parent.mkdir(parents=True, exist_ok=True)
+        with args.telemetry_out.open("w") as tf:
+            tf.write("step,wall_time,vx_cmd,vy_cmd,vyaw_cmd,vx_act,vy_act,vyaw_act\n")
+            for row in telemetry_rows:
+                tf.write(",".join(str(x) for x in row) + "\n")
+        print(
+            f"[eval] telemetry: {len(telemetry_rows)} rows -> {args.telemetry_out}",
+            flush=True,
+        )
 
     env.close()
 
