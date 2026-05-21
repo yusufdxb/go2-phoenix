@@ -318,7 +318,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             # Single default-pose publish already happened at abort time.
             # Do NOT re-broadcast every tick: the bridge's 0.2s command-stale
             # watchdog takes over and holds at last-measured q (safe). See
-            # lab_findings_2026-04-21 — per-tick rebroadcast walked default_q
+            # docs/sessions/lab_findings_2026-04-21 — per-tick rebroadcast walked default_q
             # against real posture → motor fight → Jetson brownout.
             return
 

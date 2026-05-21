@@ -14,7 +14,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$REPO_ROOT/scripts/_activate.sh"
 cd "$REPO_ROOT"
 
-ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/IsaacLab}"
+ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Sim/IsaacLab}"
 PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" \
 "$ISAACLAB_PATH/isaaclab.sh" -p -m phoenix.adaptation.fine_tune \
     --config "$CONFIG"
