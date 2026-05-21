@@ -31,12 +31,12 @@ Sim, the trained policy tracking velocity commands with a live telemetry
 overlay, and where the project stands.
 
 <p align="center">
-  <a href="media/demos/phoenix_demo.mp4">
-    <img src="media/demos/phoenix_demo_poster.jpg" alt="Watch the Phoenix demo" width="100%">
+  <a href="https://youtu.be/Nu0oWyJJbEM">
+    <img src="media/demos/phoenix_demo_poster.jpg" alt="Watch the Phoenix demo on YouTube" width="100%">
   </a>
 </p>
 
-<p align="center"><sub>Click the image to play the 60-second demo (1080p).</sub></p>
+<p align="center"><sub>Click to watch the 60-second demo on YouTube.</sub></p>
 
 ## Project status
 
