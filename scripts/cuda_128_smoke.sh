@@ -52,7 +52,7 @@ esac
 
 # ---- Layer 4: isaac-sim-venv torch sees CUDA --------------------------------
 echo "=== Layer 4: isaac-sim-venv torch CUDA ==="
-ISAAC_PY="${HOME}/isaac-sim-venv/bin/python"
+ISAAC_PY="${HOME}/Sim/isaac-sim-venv/bin/python"
 if [[ ! -x "$ISAAC_PY" ]]; then
     fail "isaac-sim-venv missing" "Expected $ISAAC_PY"
 fi
@@ -66,7 +66,7 @@ esac
 
 # ---- Layer 5: Isaac Sim launch (headless, tiny) -----------------------------
 echo "=== Layer 5: Isaac Sim launch ==="
-ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/IsaacLab}"
+ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Sim/IsaacLab}"
 LAUNCH_OUT=$("$ISAACLAB_PATH/isaaclab.sh" -p -c 'print("isaac_ok")' 2>&1 | tail -20)
 case "$LAUNCH_OUT" in
     *"isaac_ok"*) pass "Isaac Sim launches" ;;

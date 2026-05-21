@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     # same Python process, so doing both rollouts back-to-back in-process
     # silently kills the second run (this exact bug was hit on 2026-04-30).
     # Subprocess isolation guarantees each rollout gets a fresh app.
-    isaaclab_path = os.environ.get("ISAACLAB_PATH", os.path.expanduser("~/IsaacLab"))
+    isaaclab_path = os.environ.get("ISAACLAB_PATH", os.path.expanduser("~/Sim/IsaacLab"))
     isaaclab_sh = Path(isaaclab_path) / "isaaclab.sh"
 
     rc = 0

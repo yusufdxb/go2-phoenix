@@ -39,18 +39,14 @@ go2-phoenix/
 │
 ├── docs/
 │   ├── architecture.{dot,svg}    rendered system diagram
-│   ├── adapt_load_debug.md       rsl_rl 3.0 fine-tune iter-0 logging diagnostic
 │   ├── deploy_mode_switch_runbook.md   how to flip the two-policy mode switch on
 │   ├── sweep_design_2026-05-17.md      sweep grid + axes + rationale
-│   ├── LAB_CARD_NEXT.md          operator card for the next CaresLab session
 │   ├── structure.md              this file
-│   ├── changelog.md              release-style summary of past gates
-│   ├── sessions/                 archived session notes (see sessions/README.md)
-│   └── superpowers/              plan + spec docs from the writing-plans workflow
+│   └── changelog.md              release-style summary of past gates
 │
-├── checkpoints/              .pt + .onnx artifacts (gitignored; rsync from T7)
+├── checkpoints/              .pt + .onnx artifacts (gitignored)
 ├── data/                     parquets, videos, npz (gitignored)
-├── media/                    rendered demos (mp4s gitignored, source kept)
+├── media/                    demo video (media/demos/) + rendered media
 └── docker/                   CPU-only testbox image for CI
 ```
 
