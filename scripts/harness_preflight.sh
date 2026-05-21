@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness_preflight.sh
-# Single-command preflight wrapping P1 through P7 from LAB_CARD_NEXT.md.
+# Single-command preflight wrapping P1 through P7.
 #
 # Usage (Jetson-side, real run):
 #   bash scripts/harness_preflight.sh

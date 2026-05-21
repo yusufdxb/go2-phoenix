@@ -2,7 +2,7 @@
 
 The helper measures the fraction of per-(env, timestep, motor) action
 deltas whose absolute value exceeds a threshold, matching the Jetson
-dryrun saturation definition in docs/sessions/dryrun_findings_2026-04-14.md.
+dryrun saturation definition.
 """
 
 from __future__ import annotations

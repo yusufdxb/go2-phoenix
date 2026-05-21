@@ -1,7 +1,6 @@
 # Flat-slewhinge: v3b + direct per-motor slew-clip penalty.
 #
-# See docs/superpowers/specs/2026-04-19-phoenix-gate8-slewhinge-design.md
-# for why L2 action_rate was insufficient (flat-v3b-ft negative result).
+# Motivation: L2 action_rate was insufficient (flat-v3b-ft negative result).
 # This overlay adds slew_sat_hinge_l2 — a per-motor squared hinge that
 # penalizes motors approaching the ±0.175 rad/step hardware slew clip
 # (threshold 0.15 rad = 85% of clip).

@@ -256,7 +256,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             unwrapped_env.sim.set_camera_view(eye=cam_eye, target=cam_target)
             logger.info(
                 "framed camera: env0 origin=(%.2f, %.2f, %.2f) eye=(%.2f, %.2f, %.2f)",
-                ox, oy, oz, *cam_eye,
+                ox,
+                oy,
+                oz,
+                *cam_eye,
             )
             del _torch
         except Exception as cam_err:  # noqa: BLE001
@@ -368,12 +371,18 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                         ang_err_acc += float(np.mean(np.abs(cmd_np[:, 2] - ang_b_np[:, 2])))
                         tracking_steps += 1
                         if telemetry_rows is not None:
-                            telemetry_rows.append((
-                                n_steps, time.time(),
-                                float(cmd_np[0, 0]), float(cmd_np[0, 1]),
-                                float(cmd_np[0, 2]), float(lin_b_np[0, 0]),
-                                float(lin_b_np[0, 1]), float(ang_b_np[0, 2]),
-                            ))
+                            telemetry_rows.append(
+                                (
+                                    n_steps,
+                                    time.time(),
+                                    float(cmd_np[0, 0]),
+                                    float(cmd_np[0, 1]),
+                                    float(cmd_np[0, 2]),
+                                    float(lin_b_np[0, 0]),
+                                    float(lin_b_np[0, 1]),
+                                    float(ang_b_np[0, 2]),
+                                )
+                            )
                     else:
                         if n_steps <= 1:
                             logger.warning(
