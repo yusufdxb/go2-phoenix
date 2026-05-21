@@ -60,12 +60,6 @@ latency:
   # Must match what the policy was trained with.
   action_delay_steps: 2          # @ 50 Hz = 40 ms
 
-actuator_limits:
-  # Per-joint safety clipping (rad, rad/s, N·m).
-  position_margin_rad: 0.05      # stay inside URDF limits by this margin
-  velocity_max_rad_s: 18.0
-  torque_max_nm: 22.0
-
 topics:
   imu: "/imu/data"
   joint_states: "/joint_states"
