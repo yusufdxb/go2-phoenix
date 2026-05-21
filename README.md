@@ -1,15 +1,28 @@
+<div align="center">
+
 # go2-phoenix
 
 **Closed-loop sim-to-real learning for the Unitree GO2 quadruped.**
 
-The Phoenix loop trains a locomotion policy in simulation, deploys it to the
-real robot, captures the failures that happen on hardware, replays those
+[![CI](https://github.com/yusufdxb/go2-phoenix/actions/workflows/ci.yml/badge.svg)](https://github.com/yusufdxb/go2-phoenix/actions/workflows/ci.yml)
+&nbsp;![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+&nbsp;[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+&nbsp;![Robot](https://img.shields.io/badge/robot-Unitree%20GO2-orange)
+
+</div>
+
+---
+
+The **Phoenix loop** trains a locomotion policy in simulation, deploys it to
+the real robot, captures the failures that happen on hardware, replays those
 failures in simulation under a randomized physics sweep, and fine-tunes the
 policy on that failure-seeded distribution. The improved policy goes back to
 the robot. Every stage is a concrete Python module with its own CLI,
 configuration, and (where possible) unit tests.
 
-![Phoenix architecture](docs/architecture.svg)
+<p align="center">
+  <img src="docs/architecture.svg" alt="Phoenix architecture" width="90%">
+</p>
 
 ## Demo
 
@@ -21,12 +34,27 @@ overlay, and where the project stands.
 
 > Player not loading in your viewer? [Download the clip](media/demos/phoenix_demo.mp4) (1080p, 60s).
 
-## Status
+## Project status
 
 The locomotion policy is trained and verified in simulation. The sim-to-real
-deploy path (ONNX export, the ROS 2 policy node, and the fail-closed safety
-layer) is hardware-verified on the GO2; on-robot locomotion validation is in
-progress. See [`docs/changelog.md`](docs/changelog.md) for the milestone trail.
+deploy path (ONNX export, the ROS 2 policy node, the fail-closed safety layer)
+is hardware-verified on the GO2. On-robot locomotion validation is the current
+front line.
+
+| Stage | State | Detail |
+|---|:---:|---|
+| Simulation training (PPO, layered-YAML env) | ✅ Done | rsl_rl, ~10 shell entry points |
+| Locomotion policy trained and sim-verified | ✅ Done | stand-v3 in sim: 32/32 success, 0.33% slew saturation |
+| ONNX export and torch / onnxruntime parity gate | ✅ Done | `verify_deploy`, max drift 9.5e-7 |
+| ROS 2 deploy stack and fail-closed safety layer | ✅ Done | 3 bridges, policy node, shared slew cap |
+| Deploy chain hardware-verified on the GO2 | ✅ Done | end-to-end on the Jetson, 2026-04 |
+| Failure detector and Parquet trajectory logging | ✅ Done | rule-based attitude / collapse / slip |
+| Replay and failure-curriculum fine-tune | ✅ Done | wired and unit-tested; awaiting real parquets |
+| Live on-robot stand (Gate 7) | 🟡 In progress | last live run 33% slew saturation; stand-v3 staged for retry |
+| Live velocity tracking (Gate 8) | ⬜ Planned | two-policy mode-switch runtime is ready |
+| Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
+
+Full milestone trail: [`docs/changelog.md`](docs/changelog.md).
 
 ## Why this repo exists
 
@@ -72,10 +100,10 @@ no module imports `torch` *and* `rclpy`.
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ --ignore=tests/test_sim_integration.py
+pytest tests -m "not sim and not ros"
 ```
 
-228 unit tests, torch-free and ROS-free by construction. They cover the
+220+ unit tests, torch-free and ROS-free by construction. They cover the
 config loader, observation builder, failure detector, trajectory logger,
 Parquet round-trip, Halton variation sampler, curriculum scheduler, per-env
 variation translation, the fail-closed estop / sensor-freshness predicates,
@@ -133,7 +161,7 @@ All configs are serialized into each run's log directory as `train.yaml` /
 ## Known limitations
 
 - **Failure-curriculum adaptation.** The `reset_bridge` is wired
-  (env-origin-relative poses, xyzw→wxyz quat conversion, configurable
+  (env-origin-relative poses, xyzw to wxyz quat conversion, configurable
   seed-row and opt-in velocity write) and unit-tested. `adaptation.yaml`
   still ships with `failure_sample_fraction: 0.0` until enough
   hardware-captured parquets exist to validate against.
@@ -142,8 +170,8 @@ All configs are serialized into each run's log directory as `train.yaml` /
   Isaac Sim hand-off in `replay/reconstruct.py` is sim-only.
 - **rsl_rl 3.0 iter-0 logging artifact.** Fine-tune from a trained baseline
   uses `init_at_random_ep_len=False`; without it, `runner.learn` reports an
-  iter-0 "mean reward ≈ 0" even with a byte-exact warm-start. Cosmetic only,
-  the warm-start itself is correct.
+  iter-0 "mean reward near 0" even with a byte-exact warm-start. Cosmetic
+  only, the warm-start itself is correct.
 
 ## Citation
 
@@ -151,4 +179,4 @@ See [`CITATION.cff`](CITATION.cff).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).
