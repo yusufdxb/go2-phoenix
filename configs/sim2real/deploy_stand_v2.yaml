@@ -46,9 +46,6 @@ joint_order:
   - "RL_calf_joint"
   - "RR_calf_joint"
 
-latency:
-  action_delay_steps: 2
-
 topics:
   imu: "/imu/data"
   joint_states: "/joint_states"

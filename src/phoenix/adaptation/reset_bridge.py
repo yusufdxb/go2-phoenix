@@ -23,7 +23,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pyarrow.parquet as pq
 
 from phoenix.replay.trajectory_reader import InitialState, load_initial_state
@@ -223,4 +222,3 @@ __all__ = ["install"]
 
 # Re-export InitialState so `from phoenix.adaptation.reset_bridge import InitialState`
 # works without pulling in the replay module name.
-_ = np  # silence unused-import warning in type-stub consumers
