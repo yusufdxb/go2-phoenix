@@ -8,6 +8,21 @@ onnxruntime on 16 random inputs.
 
 The verify step is what makes the deploy script trustworthy — a silent
 normalization mismatch is the most common cause of sim-to-real failure.
+
+Observation normalization
+-------------------------
+When trained with ``empirical_normalization: true`` (the default for
+every config in ``configs/train/``), rsl_rl wraps the MLP in an
+:class:`rsl_rl.modules.EmpiricalNormalization` layer. In rsl_rl 3.x that
+layer lives *inside* the actor module, so its running statistics are
+serialized inside ``actor_state_dict`` under the buffer keys
+``obs_normalizer._mean`` / ``obs_normalizer._var``. The exported policy
+MUST reapply that same normalization or the deployed policy sees raw,
+un-normalized observations — a silent train/deploy mismatch that the
+ONNX-vs-TorchScript parity gate cannot catch, because both sides export
+the same (wrong) wrapper. :func:`_extract_normalizer_stats` locates
+those buffers; :class:`_Normalizer` reproduces rsl_rl's exact
+``(x - mean) / (sqrt(var) + eps)`` with ``eps = 1e-2``.
 """
 
 from __future__ import annotations
@@ -16,8 +31,19 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger("phoenix.sim2real.export")
+
+# Must match rsl_rl.modules.EmpiricalNormalization's default ``eps``.
+# rsl_rl normalizes as ``(x - mean) / (std + eps)`` with eps=1e-2; using a
+# different epsilon at export time silently shifts every observation the
+# deployed policy sees, badly so for near-constant (low-variance) dims.
+_RSL_RL_NORM_EPS = 1e-2
+
+# Buffer name fragments rsl_rl 3.x uses for the in-actor EmpiricalNormalization.
+_NORM_MEAN_SUFFIXES = ("obs_normalizer._mean", "obs_normalizer.mean")
+_NORM_VAR_SUFFIXES = ("obs_normalizer._var", "obs_normalizer.var")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -68,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     _load_actor_weights(actor, actor_sd, layer_keys)
     actor.to(args.device).eval()
 
-    policy = _ExportablePolicy(actor, ckpt).to(args.device).eval()
+    policy = _ExportablePolicy(actor, ckpt, actor_sd).to(args.device).eval()
 
     dummy = torch.zeros(1, obs_dim, dtype=torch.float32, device=args.device)
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -165,6 +191,56 @@ def _load_actor_weights(module, actor_sd: dict, layer_keys: list[str]) -> None:
             seq[idx].bias.copy_(b)
 
 
+def _find_buffer(state: dict[str, Any], suffixes: tuple[str, ...]) -> Any | None:
+    """Return the first value in ``state`` whose key ends with any suffix.
+
+    rsl_rl 3.x stores the EmpiricalNormalization buffers inside the actor
+    state dict under ``obs_normalizer._mean`` / ``obs_normalizer._var``.
+    Older / variant layouts may key them slightly differently or nest
+    them under a sub-module prefix, so we match by suffix.
+    """
+    for key, value in state.items():
+        if any(key.endswith(s) for s in suffixes):
+            return value
+    return None
+
+
+def _extract_normalizer_stats(ckpt: dict, actor_sd: dict) -> tuple[Any, Any] | None:
+    """Locate the observation-normalizer (mean, var) statistics, if any.
+
+    Pure dict traversal (no torch) so the lookup logic is unit-testable
+    in CI. Searches, in order:
+
+    1. ``actor_sd`` itself — rsl_rl 3.x keeps the EmpiricalNormalization
+       buffers inside ``actor_state_dict``.
+    2. Legacy top-level checkpoint dicts (``obs_norm_state_dict`` etc.)
+       used by older rsl_rl / hand-rolled exporters.
+
+    Returns ``(mean, var)`` (whatever array-like type the checkpoint
+    stored) or ``None`` when the policy was trained without obs
+    normalization.
+    """
+    mean = _find_buffer(actor_sd, _NORM_MEAN_SUFFIXES)
+    var = _find_buffer(actor_sd, _NORM_VAR_SUFFIXES)
+    if mean is not None and var is not None:
+        return mean, var
+
+    for legacy_key in (
+        "obs_norm_state_dict",
+        "empirical_normalization",
+        "obs_normalizer_state_dict",
+    ):
+        state = ckpt.get(legacy_key)
+        if not isinstance(state, dict):
+            continue
+        l_mean = _find_buffer(state, _NORM_MEAN_SUFFIXES) or state.get("mean")
+        l_var = _find_buffer(state, _NORM_VAR_SUFFIXES) or state.get("var")
+        if l_mean is not None and l_var is not None:
+            return l_mean, l_var
+
+    return None
+
+
 # --- nn.Module wrappers -----------------------------------------------------
 
 try:  # pragma: no cover - only meaningful with torch available
@@ -174,10 +250,17 @@ try:  # pragma: no cover - only meaningful with torch available
     class _ExportablePolicy(nn.Module):
         """Wraps the actor Sequential + optional input normalizer."""
 
-        def __init__(self, actor: nn.Module, ckpt: dict) -> None:
+        def __init__(self, actor: nn.Module, ckpt: dict, actor_sd: dict) -> None:
             super().__init__()
             self.actor = actor
-            self.normalizer = _load_normalizer(ckpt)
+            self.normalizer = _load_normalizer(ckpt, actor_sd)
+            if self.normalizer is None:
+                logger.info("No obs normalizer found in checkpoint; exporting raw-obs policy.")
+            else:
+                logger.info(
+                    "Reconstructed obs normalizer (eps=%.0e) from checkpoint.",
+                    _RSL_RL_NORM_EPS,
+                )
 
         def forward(self, obs):  # noqa: D401
             if self.normalizer is not None:
@@ -185,31 +268,40 @@ try:  # pragma: no cover - only meaningful with torch available
             return self.actor(obs)
 
     class _Normalizer(nn.Module):
-        """Applies saved empirical normalization to the observation tensor."""
+        """Applies saved empirical normalization to the observation tensor.
+
+        Reproduces ``rsl_rl.modules.EmpiricalNormalization.forward`` exactly:
+        ``(x - mean) / (sqrt(var) + eps)`` with ``eps = 1e-2``. The
+        epsilon is part of the trained transform — it is added to the
+        standard deviation, not buried under it — so it must match the
+        training-time value or low-variance observation dims are scaled
+        wrong by orders of magnitude.
+        """
 
         def __init__(self, mean: torch.Tensor, var: torch.Tensor) -> None:
             super().__init__()
             self.register_buffer("mean", mean.to(torch.float32))
-            self.register_buffer("std", torch.sqrt(var.to(torch.float32)) + 1e-8)
+            std = torch.sqrt(var.to(torch.float32)) + _RSL_RL_NORM_EPS
+            self.register_buffer("std", std)
 
         def forward(self, x):
             return (x - self.mean) / self.std
 
-    def _load_normalizer(ckpt: dict):
-        """Rebuild the EmpiricalNormalization layer from the checkpoint, if present."""
-        state = (
-            ckpt.get("obs_norm_state_dict")
-            or ckpt.get("empirical_normalization")
-            or ckpt.get("obs_normalizer_state_dict")
-            or {}
-        )
-        mean = state.get("mean") if isinstance(state, dict) else None
-        var = state.get("var") if isinstance(state, dict) else None
-        if mean is None or var is None:
+    def _load_normalizer(ckpt: dict, actor_sd: dict):
+        """Rebuild the EmpiricalNormalization layer from the checkpoint, if present.
+
+        rsl_rl 3.x serializes the normalizer buffers inside
+        ``actor_state_dict``; :func:`_extract_normalizer_stats` finds them
+        wherever they live. Returns ``None`` when the policy was trained
+        without obs normalization.
+        """
+        stats = _extract_normalizer_stats(ckpt, actor_sd)
+        if stats is None:
             return None
+        mean, var = stats
         return _Normalizer(
-            torch.as_tensor(mean, dtype=torch.float32),
-            torch.as_tensor(var, dtype=torch.float32),
+            torch.as_tensor(mean, dtype=torch.float32).reshape(-1),
+            torch.as_tensor(var, dtype=torch.float32).reshape(-1),
         )
 
 except ImportError:  # pragma: no cover - CI context

@@ -10,12 +10,22 @@ Not validated until proven otherwise.
 
 Claims with a reproducible artifact in this repo or a captured log.
 
-- **228 unit tests green in CI**: `pytest tests -m "not sim and not ros"`. Coverage
+- **235 unit tests green in CI**: `pytest tests -m "not sim and not ros"`. Coverage
   listed in [README §Tests](README.md#tests). CI configured to lazy-import torch
   (commit `f235171`).
 - **ONNX↔torch parity gate** — `verify_deploy` reports max abs-diff
   **3.8e-06** on the stand-v2 candidate, against a 1e-4 tolerance. Serialized
   at [`docs/pre_lab_gates_2026-04-17.md`](docs/pre_lab_gates_2026-04-17.md).
+  Caveat (audit 2026-05-21): this gate compares ONNX vs TorchScript exports
+  of the *same* `_ExportablePolicy` wrapper, so it verifies runtime numeric
+  parity but **cannot** catch a wrong wrapper. The audit found that
+  `export._load_normalizer` searched for checkpoint keys rsl_rl 3.x never
+  writes (the `EmpiricalNormalization` buffers live inside `actor_state_dict`
+  as `obs_normalizer._mean/_var`), so every pre-2026-05-21 export silently
+  dropped observation normalization despite `empirical_normalization: true`
+  in every training config. Fixed in branch `audit-fix/skeptic-2026-05-21`;
+  all checkpoints must be re-exported and re-parity-checked, and the
+  corrected export must be re-verified on hardware before any Gate-7 retry.
 - **Stand-v2 sim rollout** — 16 / 16 success @ 20.0 s mean length, 4096-env
   PPO. Raw metrics at
   [`docs/pre_lab_stand_rollout_2026-04-17.json`](docs/pre_lab_stand_rollout_2026-04-17.json).
