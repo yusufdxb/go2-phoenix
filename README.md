@@ -108,13 +108,14 @@ pip install -e ".[dev]"
 pytest tests -m "not sim and not ros"
 ```
 
-228 unit tests, torch-free and ROS-free by construction. They cover the
+235 unit tests, torch-free and ROS-free by construction. They cover the
 config loader, observation builder, failure detector, trajectory logger,
 Parquet round-trip, Halton variation sampler, curriculum scheduler, per-env
 variation translation, the fail-closed estop / sensor-freshness predicates,
-the projected-gravity helper, the `verify_deploy` parity gate, the
-`reset_bridge` quat/pose conversion, the lowcmd bridge config builder, the
-sweep runner, and the lab-day harness.
+the projected-gravity helper, the `verify_deploy` parity gate, the ONNX-export
+observation-normalizer reconstruction, the `reset_bridge` quat/pose
+conversion, the lowcmd bridge config builder, the sweep runner, and the
+lab-day harness.
 
 Isaac Lab and ROS 2 paths run manually on the hardware:
 

@@ -75,11 +75,16 @@ def load_runner_checkpoint(
         summary.update(_verify_module(runner.alg.critic, ckpt[_CRITIC_KEY], prefix="critic"))
 
     # Surface the Gaussian std we are *actually* starting fine-tuning from.
+    # Guard the ``ckpt[_ACTOR_KEY]`` access: ``load_actor`` being True does
+    # not guarantee the key is present (a malformed / partial checkpoint).
+    actor_ckpt = ckpt.get(_ACTOR_KEY) if load_actor else None
     std_key = (
-        next((k for k in _STD_PARAM_KEYS if k in ckpt[_ACTOR_KEY]), None) if load_actor else None
+        next((k for k in _STD_PARAM_KEYS if k in actor_ckpt), None)
+        if isinstance(actor_ckpt, dict)
+        else None
     )
     if std_key is not None:
-        std_tensor = ckpt[_ACTOR_KEY][std_key].detach().float()
+        std_tensor = actor_ckpt[std_key].detach().float()
         summary["actor_std_mean"] = float(std_tensor.mean().item())
         summary["actor_std_min"] = float(std_tensor.min().item())
         summary["actor_std_max"] = float(std_tensor.max().item())
@@ -89,7 +94,7 @@ def load_runner_checkpoint(
     # it's expected to be absent from the checkpoint — the helper just
     # notes whether it was there so a config mismatch is obvious.
     summary["actor_obs_normalizer_in_ckpt"] = bool(
-        load_actor and any(k in ckpt[_ACTOR_KEY] for k in _OBS_NORM_KEYS)
+        isinstance(actor_ckpt, dict) and any(k in actor_ckpt for k in _OBS_NORM_KEYS)
     )
 
     logger.info("Checkpoint summary: %s", summary)
