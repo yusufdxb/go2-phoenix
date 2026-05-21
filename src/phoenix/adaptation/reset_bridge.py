@@ -23,7 +23,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pyarrow.parquet as pq
 
 from phoenix.replay.trajectory_reader import InitialState, load_initial_state
@@ -179,12 +178,15 @@ def install(
                 env_ids=env_id_tensor,
             )
             if write_velocity:
-                # base_lin_vel_body / base_ang_vel_body are in body frame;
-                # Isaac Lab's write_root_velocity_to_sim expects world frame.
-                # Phoenix's replay.reconstruct uses the same body-frame
-                # values directly (see reconstruct.py:126) because the
-                # quaternion convention there is normalized at the same
-                # call site; we follow that precedent here.
+                # KNOWN LIMITATION: base_lin_vel_body / base_ang_vel_body are
+                # body-frame, but write_root_velocity_to_sim expects world
+                # frame. We pass the body-frame values unrotated (matching
+                # replay.reconstruct.py:126). For a failure seeded at a
+                # non-trivial orientation the injected velocity points the
+                # wrong way. Acceptable only because write_velocity is opt-in
+                # and currently unused (failure_sample_fraction 0.0); a proper
+                # fix rotates by the base quaternion before the write. See
+                # README "Known limitations".
                 lin_vel = torch.as_tensor(
                     state.base_lin_vel_body, device=device, dtype=torch.float32
                 )
@@ -220,4 +222,3 @@ __all__ = ["install"]
 
 # Re-export InitialState so `from phoenix.adaptation.reset_bridge import InitialState`
 # works without pulling in the replay module name.
-_ = np  # silence unused-import warning in type-stub consumers

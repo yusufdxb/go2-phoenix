@@ -10,21 +10,25 @@ upstream ``UnitreeGo2RoughEnvCfg``, then applies failure-oriented overrides:
 
 **Which YAML sections are wired, which are not** (2026-04-17 audit):
 
-Wired → override upstream defaults:
-    env, command, domain_randomization, perturbation, reward, seed
+Wired (override upstream defaults):
+    env, command, domain_randomization (friction / restitution / mass
+    only), perturbation, reward, seed
 
 Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
-    observation.noise, termination, robot.init_state, robot.actuator
+    observation.noise, termination, robot.init_state, robot.actuator,
+    domain_randomization.motor_strength_scale,
+    domain_randomization.actuator_latency_steps
 
 Reward wiring added 2026-04-19 (retrain spec Phase 0); prior to this,
 YAML reward.* overrides were silent no-ops. This change invalidates
 v3b as a reproducible baseline — v3b checkpoint stays as the frozen
 reference for comparisons but cannot be re-created from its config.
 
-``_warn_unwired_sections`` logs a warning when an unwired section is present
-in the loaded config so the drift is loud, not silent. Turning these on is a
-deliberate act that changes training behavior and invalidates v3b
-reproducibility, so it is a separate PR, not a quiet edit here.
+``_unwired_sections_present`` flags both unwired sections and unapplied keys
+inside a wired section (e.g. ``domain_randomization.motor_strength_scale``);
+``build_env_cfg`` logs a warning on each, so the drift is loud, not silent.
+Turning these on is a deliberate act that changes training behavior and
+invalidates v3b reproducibility, so it is a separate PR, not a quiet edit here.
 
 Isaac Lab imports are done lazily so the module can still be imported in
 CI (which has no ``torch`` / ``isaaclab``).
@@ -56,6 +60,12 @@ logger = logging.getLogger("phoenix.sim_env.go2_env_cfg")
 
 _UNWIRED_TOP_LEVEL = ("termination",)
 _UNWIRED_ROBOT_SUB = ("init_state", "actuator")
+
+# Keys inside the (wired) ``domain_randomization`` block that
+# ``_apply_domain_randomization`` actually plumbs into the env cfg. Any other
+# key under ``domain_randomization`` is declared-but-dropped, and
+# ``_unwired_sections_present`` flags it so the drift is loud, not silent.
+_APPLIED_DR_KEYS = ("enabled", "friction_range", "restitution_range", "mass_offset_kg")
 
 # YAML reward key -> upstream Isaac Lab RewardsCfg term attribute name.
 # Upstream term names live at
@@ -95,6 +105,8 @@ _NEW_TERM_FACTORIES: dict[str, tuple[str, Callable[[float], Any]]] = {
 def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
     """Return config-path names of sections present in ``data`` but not applied.
 
+    Covers both fully unwired sections and unapplied keys inside an otherwise
+    wired section (any ``domain_randomization`` key outside ``_APPLIED_DR_KEYS``).
     Used by ``build_env_cfg`` to warn loudly at construction time when the YAML
     contains overrides we don't actually plumb into the env cfg. Pure function
     (no Isaac Lab imports) so it can be unit-tested without a sim app.
@@ -111,6 +123,11 @@ def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
         for sub in _UNWIRED_ROBOT_SUB:
             if sub in robot:
                 unwired.append(f"robot.{sub}")
+    dr = data.get("domain_randomization")
+    if isinstance(dr, dict):
+        for sub in dr:
+            if sub not in _APPLIED_DR_KEYS:
+                unwired.append(f"domain_randomization.{sub}")
     return unwired
 
 
@@ -126,7 +143,14 @@ def _events_root(env_cfg: Any) -> Any:
 
 
 def _apply_domain_randomization(env_cfg: Any, dr: dict[str, Any]) -> None:
-    """Patch friction / restitution / mass DR ranges in the event terms."""
+    """Patch friction / restitution / mass DR ranges in the event terms.
+
+    Only those three DR knobs are wired. ``motor_strength_scale`` and
+    ``actuator_latency_steps`` are declared in ``base.yaml`` but NOT applied;
+    ``_unwired_sections_present`` flags them so the drop is loud. Wiring them
+    changes training behavior and invalidates v3b reproducibility, so it is a
+    separate PR (see module docstring).
+    """
     if not dr.get("enabled", True):
         return
     events = _events_root(env_cfg)
