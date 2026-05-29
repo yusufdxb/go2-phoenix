@@ -97,6 +97,64 @@ def test_unwired_sections_still_flags_termination() -> None:
     assert unwired == ["termination"]
 
 
+def test_unwired_sections_flags_dropped_dr_keys() -> None:
+    """Audit 2026-05-21 (FIXLIST Critical): ``domain_randomization`` is a
+    wired section, but ``motor_strength_scale`` / ``actuator_latency_steps``
+    are declared in base.yaml and silently dropped by
+    ``_apply_domain_randomization``. The unwired check must flag dropped keys
+    *inside* a wired section, not just unwired section names, so the train/sim
+    mismatch is loud. This was the most plausible mechanical cause of the
+    33 percent hardware slew saturation. Locking it against regression to the
+    section-name-only check that originally hid the drop."""
+    dr = {
+        "enabled": True,
+        "friction_range": [0.4, 1.0],
+        "restitution_range": [0.0, 0.1],
+        "mass_offset_kg": [-1.0, 1.0],
+        "motor_strength_scale": [0.9, 1.1],
+        "actuator_latency_steps": 2,
+    }
+    unwired = _unwired_sections_present({"domain_randomization": dr})
+    assert "domain_randomization.motor_strength_scale" in unwired
+    assert "domain_randomization.actuator_latency_steps" in unwired
+    # The genuinely applied keys must NOT be flagged.
+    assert "domain_randomization.enabled" not in unwired
+    assert "domain_randomization.friction_range" not in unwired
+    assert "domain_randomization.restitution_range" not in unwired
+    assert "domain_randomization.mass_offset_kg" not in unwired
+
+
+def test_unwired_sections_does_not_flag_fully_applied_dr() -> None:
+    """A ``domain_randomization`` block containing only applied keys produces
+    no warning — the check must not be noisy on the supported config."""
+    dr = {
+        "enabled": True,
+        "friction_range": [0.4, 1.0],
+        "restitution_range": [0.0, 0.1],
+        "mass_offset_kg": [-1.0, 1.0],
+    }
+    assert _unwired_sections_present({"domain_randomization": dr}) == []
+
+
+def test_unwired_sections_flags_observation_noise() -> None:
+    unwired = _unwired_sections_present({"observation": {"noise": {"scale": 0.1}}})
+    assert unwired == ["observation.noise"]
+
+
+def test_unwired_sections_flags_robot_sub_keys() -> None:
+    """``robot.init_state`` and ``robot.actuator`` are present-but-unwired;
+    upstream Go2 defaults win for both."""
+    unwired = _unwired_sections_present(
+        {"robot": {"init_state": {"pos": [0, 0, 0.4]}, "actuator": {"stiffness": 25.0}}}
+    )
+    assert "robot.init_state" in unwired
+    assert "robot.actuator" in unwired
+
+
+def test_unwired_sections_empty_config_is_clean() -> None:
+    assert _unwired_sections_present({}) == []
+
+
 def test_apply_rewards_missing_term_on_env_cfg_raises_with_context() -> None:
     """If the env cfg's RewardsCfg doesn't have the mapped term at all
     (e.g. a flat-env subclass dropped feet_air_time), we want a clear
