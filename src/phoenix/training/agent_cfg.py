@@ -39,9 +39,23 @@ def build_runner_cfg(data: dict[str, Any], task_name: str) -> RslRlOnPolicyRunne
     cfg.max_iterations = int(run["max_iterations"])
     cfg.save_interval = int(run["save_interval"])
     cfg.experiment_name = run["name"]
-    cfg.empirical_normalization = bool(runner.get("empirical_normalization", True))
     cfg.seed = int(run.get("seed", 42))
     cfg.device = run.get("device", "cuda:0")
+
+    # Observation normalization.
+    #
+    # For rsl-rl >= 4.0.0 the runner-level ``empirical_normalization`` flag is a
+    # deprecated no-op UNLESS the policy's per-network flags are MISSING — and
+    # the upstream UnitreeGo2 cfg sets ``actor_obs_normalization`` /
+    # ``critic_obs_normalization`` explicitly to ``False`` (not MISSING), so the
+    # deprecated flag is silently ignored. We therefore drive the *policy*
+    # fields directly from the YAML and keep setting ``empirical_normalization``
+    # too, so the same config also normalizes correctly on rsl-rl < 4.0.0.
+    # See isaaclab_rl/rsl_rl/utils.py::_handle_empirical_normalization.
+    normalize_obs = bool(runner.get("empirical_normalization", True))
+    cfg.empirical_normalization = normalize_obs
+    cfg.policy.actor_obs_normalization = normalize_obs
+    cfg.policy.critic_obs_normalization = normalize_obs
 
     cfg.policy.init_noise_std = float(pol["init_noise_std"])
     cfg.policy.actor_hidden_dims = list(pol["actor_hidden_dims"])
