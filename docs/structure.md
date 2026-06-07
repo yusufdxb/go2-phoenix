@@ -35,7 +35,7 @@ go2-phoenix/
 │   └── harness_*.{sh,py}     lab-day preflight, recorder, diversity, EOD
 │
 ├── tests/                    unit tests (torch-free, ROS-free; CI-safe)
-│   └── test_sim_integration.py   marked @pytest.mark.sim — runs locally only
+│   └── test_sim_integration.py   marked @pytest.mark.sim, runs locally only
 │
 ├── docs/
 │   ├── architecture.{dot,svg}    rendered system diagram
@@ -77,9 +77,9 @@ Isaac Lab and ROS 2 paths are exercised manually on the hardware.
 
 For a single-pass orientation:
 
-1. `src/phoenix/sim_env/go2_env_cfg.py` — what the env looks like
-2. `src/phoenix/training/ppo_runner.py` — how it trains
-3. `src/phoenix/sim2real/export.py` + `verify_deploy.py` — sim-to-real handoff with parity
-4. `src/phoenix/sim2real/ros2_policy_node.py` + `safety.py` — on-robot loop with fail-closed semantics
-5. `src/phoenix/real_world/failure_detector.py` — what gets flagged as a failure
-6. `src/phoenix/adaptation/curriculum.py` + `reset_bridge.py` — close the loop
+1. `src/phoenix/sim_env/go2_env_cfg.py`: what the env looks like
+2. `src/phoenix/training/ppo_runner.py`: how it trains
+3. `src/phoenix/sim2real/export.py` + `verify_deploy.py`: sim-to-real handoff with parity
+4. `src/phoenix/sim2real/ros2_policy_node.py` + `safety.py`: on-robot loop with fail-closed semantics
+5. `src/phoenix/real_world/failure_detector.py`: what gets flagged as a failure
+6. `src/phoenix/adaptation/curriculum.py` + `reset_bridge.py`: close the loop
