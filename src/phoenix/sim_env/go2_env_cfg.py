@@ -4,20 +4,21 @@ The factory produces an Isaac Lab ``ManagerBasedRLEnvCfg`` starting from the
 upstream ``UnitreeGo2RoughEnvCfg``, then applies failure-oriented overrides:
 
 * friction / restitution / mass domain randomization
+* motor-strength scale DR (scales actuator stiffness and damping uniformly)
+* actuator latency DR (action delay steps stored as event attribute)
 * slippery terrain overlay (narrowed friction range)
 * base push perturbations via ``base_external_force_torque``
 * velocity-command ranges + ``rel_standing_envs``
 
-**Which YAML sections are wired, which are not** (2026-04-17 audit):
+**Which YAML sections are wired, which are not** (2026-04-17 audit,
+updated 2026-06-07 wiring PR):
 
 Wired (override upstream defaults):
-    env, command, domain_randomization (friction / restitution / mass
-    only), perturbation, reward, seed
+    env, command, domain_randomization (friction / restitution / mass /
+    motor_strength_scale / actuator_latency_steps), perturbation, reward, seed
 
 Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
-    observation.noise, termination, robot.init_state, robot.actuator,
-    domain_randomization.motor_strength_scale,
-    domain_randomization.actuator_latency_steps
+    observation.noise, termination, robot.init_state, robot.actuator
 
 Reward wiring added 2026-04-19 (retrain spec Phase 0); prior to this,
 YAML reward.* overrides were silent no-ops. This change invalidates
@@ -65,7 +66,14 @@ _UNWIRED_ROBOT_SUB = ("init_state", "actuator")
 # ``_apply_domain_randomization`` actually plumbs into the env cfg. Any other
 # key under ``domain_randomization`` is declared-but-dropped, and
 # ``_unwired_sections_present`` flags it so the drift is loud, not silent.
-_APPLIED_DR_KEYS = ("enabled", "friction_range", "restitution_range", "mass_offset_kg")
+_APPLIED_DR_KEYS = (
+    "enabled",
+    "friction_range",
+    "restitution_range",
+    "mass_offset_kg",
+    "motor_strength_scale",
+    "actuator_latency_steps",
+)
 
 # YAML reward key -> upstream Isaac Lab RewardsCfg term attribute name.
 # Upstream term names live at
@@ -143,13 +151,22 @@ def _events_root(env_cfg: Any) -> Any:
 
 
 def _apply_domain_randomization(env_cfg: Any, dr: dict[str, Any]) -> None:
-    """Patch friction / restitution / mass DR ranges in the event terms.
+    """Patch DR ranges into event terms and env-cfg attributes.
 
-    Only those three DR knobs are wired. ``motor_strength_scale`` and
-    ``actuator_latency_steps`` are declared in ``base.yaml`` but NOT applied;
-    ``_unwired_sections_present`` flags them so the drop is loud. Wiring them
-    changes training behavior and invalidates v3b reproducibility, so it is a
-    separate PR (see module docstring).
+    Wired knobs:
+    * ``friction_range`` / ``restitution_range`` — patched on
+      ``events.physics_material.params``.
+    * ``mass_offset_kg`` — patched on ``events.add_base_mass.params``.
+    * ``motor_strength_scale`` — patched on
+      ``events.scale_motor_strength.params`` (stiffness + damping, scale
+      operation).  The event term is pre-created by ``_prepare_dr_event_terms``
+      inside ``build_env_cfg`` (which has Isaac Lab available); for mock tests
+      the attribute can be set directly on the events object.
+    * ``actuator_latency_steps`` — written to
+      ``events.phoenix_actuator_latency_range`` as a ``(lo, hi)`` tuple.  The
+      training harness reads this attribute to configure its action-delay
+      buffer; it is intentionally a plain attribute rather than an event term
+      because Isaac Lab has no built-in startup event for discrete action delay.
     """
     if not dr.get("enabled", True):
         return
@@ -167,6 +184,29 @@ def _apply_domain_randomization(env_cfg: Any, dr: dict[str, Any]) -> None:
     if abm is not None and "mass_offset_kg" in dr:
         m_lo, m_hi = dr["mass_offset_kg"]
         abm.params["mass_distribution_params"] = (float(m_lo), float(m_hi))
+
+    # --- motor_strength_scale ------------------------------------------------
+    # Scales actuator stiffness and damping uniformly per episode reset.
+    # ``events.scale_motor_strength`` is created by ``_prepare_dr_event_terms``
+    # in the sim context. Mock tests may set it directly.
+    sms = getattr(events, "scale_motor_strength", None)
+    if sms is not None and "motor_strength_scale" in dr:
+        lo, hi = dr["motor_strength_scale"]
+        sms.params["stiffness_distribution_params"] = (float(lo), float(hi))
+        sms.params["damping_distribution_params"] = (float(lo), float(hi))
+
+    # --- actuator_latency_steps ----------------------------------------------
+    # Stores the latency range as a plain attribute on the events container.
+    # The training harness reads ``events.phoenix_actuator_latency_range`` to
+    # size and configure its action-delay buffer.  Range is (lo, hi) in steps
+    # at 200 Hz (5 ms/step → 1 step ≈ 5 ms).
+    if "actuator_latency_steps" in dr:
+        lat = dr["actuator_latency_steps"]
+        if isinstance(lat, (list, tuple)):
+            lo_lat, hi_lat = lat
+        else:
+            lo_lat = hi_lat = lat
+        events.phoenix_actuator_latency_range = (int(lo_lat), int(hi_lat))
 
 
 def _apply_perturbation(env_cfg: Any, pert: dict[str, Any]) -> None:
@@ -254,6 +294,43 @@ def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
             )
 
 
+def _prepare_dr_event_terms(env_cfg: Any, dr: dict[str, Any]) -> None:
+    """Pre-create Phoenix-owned DR event terms that upstream GO2 cfg omits.
+
+    Must be called inside a sim context (Isaac Lab available) before
+    ``_apply_domain_randomization``, which patches params on these terms.
+
+    Currently creates:
+    * ``events.scale_motor_strength`` — ``randomize_actuator_gains`` term
+      (startup mode) for ``motor_strength_scale``.
+
+    The actuator-latency term is intentionally omitted: Isaac Lab has no
+    built-in startup event for discrete action delay; the range is stored
+    as a plain attribute ``events.phoenix_actuator_latency_range`` by
+    ``_apply_domain_randomization`` instead.
+    """
+    if not dr.get("enabled", True) or "motor_strength_scale" not in dr:
+        return
+
+    from isaaclab.envs.mdp import EventTerm  # type: ignore[import]
+    from isaaclab.managers import SceneEntityCfg  # type: ignore[import]
+    from isaaclab.envs import mdp  # type: ignore[import]
+
+    events = _events_root(env_cfg)
+    if getattr(events, "scale_motor_strength", None) is None:
+        term = EventTerm(
+            func=mdp.randomize_actuator_gains,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot"),
+                "stiffness_distribution_params": (1.0, 1.0),  # placeholder; overwritten below
+                "damping_distribution_params": (1.0, 1.0),
+                "operation": "scale",
+            },
+        )
+        events.scale_motor_strength = term
+
+
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     """Build a GO2 env cfg, applying YAML overrides on top of the upstream task."""
     import importlib
@@ -288,6 +365,9 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     cfg.seed = int(data.get("seed", 42))
 
     _apply_commands(cfg, data.get("command", {}))
+    # Pre-create Phoenix DR event terms that the upstream GO2 cfg omits
+    # (e.g. scale_motor_strength). Must run before _apply_domain_randomization.
+    _prepare_dr_event_terms(cfg, data.get("domain_randomization", {}))
     _apply_domain_randomization(cfg, data.get("domain_randomization", {}))
     _apply_perturbation(cfg, data.get("perturbation", {}))
     _apply_rewards(cfg, data.get("reward", {}))
