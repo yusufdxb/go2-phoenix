@@ -303,13 +303,14 @@ def test_apply_dr_motor_strength_scale_skipped_when_term_absent() -> None:
 
 def test_apply_dr_actuator_latency_steps_sets_range_list() -> None:
     """When actuator_latency_steps is a [lo, hi] list, the range tuple must
-    be stored on events.phoenix_actuator_latency_range."""
+    be stored on env_cfg.phoenix_actuator_latency_range (NOT on events: Isaac's
+    EventManager rejects non-EventTermCfg attributes on the events cfg)."""
     events = _FakeEvents()
     env_cfg = _FakeEventEnvCfg(events)
     dr = {"enabled": True, "friction_range": [0.3, 1.5], "actuator_latency_steps": [1, 5]}
     _apply_domain_randomization(env_cfg, dr)
-    assert hasattr(events, "phoenix_actuator_latency_range")
-    assert events.phoenix_actuator_latency_range == (1, 5)
+    assert hasattr(env_cfg, "phoenix_actuator_latency_range")
+    assert env_cfg.phoenix_actuator_latency_range == (1, 5)
 
 
 def test_apply_dr_actuator_latency_steps_sets_range_scalar() -> None:
@@ -318,7 +319,7 @@ def test_apply_dr_actuator_latency_steps_sets_range_scalar() -> None:
     env_cfg = _FakeEventEnvCfg(events)
     dr = {"enabled": True, "friction_range": [0.3, 1.5], "actuator_latency_steps": 2}
     _apply_domain_randomization(env_cfg, dr)
-    assert events.phoenix_actuator_latency_range == (2, 2)
+    assert env_cfg.phoenix_actuator_latency_range == (2, 2)
 
 
 def test_apply_dr_actuator_latency_steps_absent_leaves_no_attr() -> None:
@@ -328,7 +329,7 @@ def test_apply_dr_actuator_latency_steps_absent_leaves_no_attr() -> None:
     env_cfg = _FakeEventEnvCfg(events)
     dr = {"enabled": True, "friction_range": [0.3, 1.5]}
     _apply_domain_randomization(env_cfg, dr)
-    assert not hasattr(events, "phoenix_actuator_latency_range")
+    assert not hasattr(env_cfg, "phoenix_actuator_latency_range")
 
 
 def test_apply_dr_disabled_skips_all_new_wiring() -> None:
@@ -349,7 +350,7 @@ def test_apply_dr_disabled_skips_all_new_wiring() -> None:
     # scale_motor_strength params must remain at placeholder defaults
     assert events.scale_motor_strength.params["stiffness_distribution_params"] == (1.0, 1.0)
     # latency attr must not have been set
-    assert not hasattr(events, "phoenix_actuator_latency_range")
+    assert not hasattr(env_cfg, "phoenix_actuator_latency_range")
 
 
 def test_unwired_base_yaml_no_longer_flags_motor_and_latency() -> None:

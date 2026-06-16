@@ -196,17 +196,20 @@ def _apply_domain_randomization(env_cfg: Any, dr: dict[str, Any]) -> None:
         sms.params["damping_distribution_params"] = (float(lo), float(hi))
 
     # --- actuator_latency_steps ----------------------------------------------
-    # Stores the latency range as a plain attribute on the events container.
-    # The training harness reads ``events.phoenix_actuator_latency_range`` to
-    # size and configure its action-delay buffer.  Range is (lo, hi) in steps
-    # at 200 Hz (5 ms/step → 1 step ≈ 5 ms).
+    # Stores the latency range on the env_cfg ROOT (not on ``events``): Isaac's
+    # EventManager._prepare_terms scans every attribute of the events cfg and
+    # rejects anything that is not an EventTermCfg, so a bare tuple there crashes
+    # env init. The action-delay buffer reads ``env_cfg.phoenix_actuator_latency_range``.
+    # Range is (lo, hi) in steps at 200 Hz (5 ms/step → 1 step ≈ 5 ms).
+    # ponytail: plain attribute, no action-delay buffer consumes it yet (no Isaac
+    # primitive for discrete action delay); implement the buffer when latency DR matters.
     if "actuator_latency_steps" in dr:
         lat = dr["actuator_latency_steps"]
         if isinstance(lat, (list, tuple)):
             lo_lat, hi_lat = lat
         else:
             lo_lat = hi_lat = lat
-        events.phoenix_actuator_latency_range = (int(lo_lat), int(hi_lat))
+        env_cfg.phoenix_actuator_latency_range = (int(lo_lat), int(hi_lat))
 
 
 def _apply_perturbation(env_cfg: Any, pert: dict[str, Any]) -> None:
@@ -294,6 +297,53 @@ def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
             )
 
 
+def scale_explicit_actuator_gains(
+    env: Any,
+    env_ids: Any,
+    asset_cfg: Any,
+    stiffness_distribution_params: tuple[float, float] | None = None,
+    damping_distribution_params: tuple[float, float] | None = None,
+) -> None:
+    """Startup motor-strength DR for EXPLICIT actuators (e.g. Go2 ``DCMotor``).
+
+    Per-env, per-joint scales the actuator MODEL's stiffness and damping in
+    place by a uniform factor drawn from the given ranges.
+
+    Why not ``isaaclab...randomize_actuator_gains``: that term resets gains to
+    ``asset.data.joint_stiffness`` (the implicit sim drive, which is 0 for an
+    explicit actuator since its PD is computed in software) and writes that
+    back to ``actuator.stiffness`` for every actuator, ZEROING explicit-actuator
+    gains. The Go2 uses ``DCMotor`` (explicit), so it collapses. The DCMotor PD
+    law reads ``actuator.stiffness``/``actuator.damping`` each step, so scaling
+    those directly is the correct, sim-write-free DR for it.
+
+    Args:
+        env: The environment instance.
+        env_ids: Indices of environments to randomize, or None for all.
+        asset_cfg: Scene-entity config selecting the articulation.
+        stiffness_distribution_params: ``(lo, hi)`` scale range for stiffness.
+        damping_distribution_params: ``(lo, hi)`` scale range for damping.
+    """
+    import torch
+
+    asset = env.scene[asset_cfg.name]
+    if env_ids is None:
+        env_ids = torch.arange(asset.num_instances, device=asset.device)
+    for actuator in asset.actuators.values():
+        if stiffness_distribution_params is not None:
+            lo, hi = stiffness_distribution_params
+            fac = torch.empty(
+                (len(env_ids), actuator.stiffness.shape[1]), device=asset.device
+            ).uniform_(float(lo), float(hi))
+            actuator.stiffness[env_ids] = actuator.stiffness[env_ids] * fac
+        if damping_distribution_params is not None:
+            lo, hi = damping_distribution_params
+            fac = torch.empty(
+                (len(env_ids), actuator.damping.shape[1]), device=asset.device
+            ).uniform_(float(lo), float(hi))
+            actuator.damping[env_ids] = actuator.damping[env_ids] * fac
+
+
 def _prepare_dr_event_terms(env_cfg: Any, dr: dict[str, Any]) -> None:
     """Pre-create Phoenix-owned DR event terms that upstream GO2 cfg omits.
 
@@ -301,31 +351,31 @@ def _prepare_dr_event_terms(env_cfg: Any, dr: dict[str, Any]) -> None:
     ``_apply_domain_randomization``, which patches params on these terms.
 
     Currently creates:
-    * ``events.scale_motor_strength`` — ``randomize_actuator_gains`` term
-      (startup mode) for ``motor_strength_scale``.
+    * ``events.scale_motor_strength`` — a startup term that scales the explicit
+      DCMotor actuator gains for ``motor_strength_scale`` (see
+      :func:`scale_explicit_actuator_gains` for why the built-in
+      ``randomize_actuator_gains`` cannot be used here).
 
     The actuator-latency term is intentionally omitted: Isaac Lab has no
     built-in startup event for discrete action delay; the range is stored
-    as a plain attribute ``events.phoenix_actuator_latency_range`` by
+    as a plain attribute ``env_cfg.phoenix_actuator_latency_range`` by
     ``_apply_domain_randomization`` instead.
     """
     if not dr.get("enabled", True) or "motor_strength_scale" not in dr:
         return
 
-    from isaaclab.envs.mdp import EventTerm  # type: ignore[import]
+    from isaaclab.managers import EventTermCfg as EventTerm  # type: ignore[import]
     from isaaclab.managers import SceneEntityCfg  # type: ignore[import]
-    from isaaclab.envs import mdp  # type: ignore[import]
 
     events = _events_root(env_cfg)
     if getattr(events, "scale_motor_strength", None) is None:
         term = EventTerm(
-            func=mdp.randomize_actuator_gains,
+            func=scale_explicit_actuator_gains,
             mode="startup",
             params={
                 "asset_cfg": SceneEntityCfg("robot"),
                 "stiffness_distribution_params": (1.0, 1.0),  # placeholder; overwritten below
                 "damping_distribution_params": (1.0, 1.0),
-                "operation": "scale",
             },
         )
         events.scale_motor_strength = term
