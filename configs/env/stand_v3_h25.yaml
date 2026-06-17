@@ -1,0 +1,9 @@
+# Stand-v3 + per-motor slew hinge (targeted) + action_rate -3, full DR.
+# slew_sat_hinge_l2 directly penalizes per-motor deltas approaching the
+# 0.175 rad/step deploy clip (the exact slew_saturation failure mode) which
+# the L2 action_rate cannot bound. DR [0.85,1.15] inherited (gain-robust).
+defaults:
+  - stand_v3
+reward:
+  action_rate: -3.0
+  slew_sat_hinge: -25.0
