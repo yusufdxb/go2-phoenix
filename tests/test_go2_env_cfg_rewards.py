@@ -11,7 +11,9 @@ from unittest.mock import patch
 import pytest
 
 from phoenix.sim_env.go2_env_cfg import (
+    _APPLIED_DR_KEYS,
     _REWARD_TERM_MAP,
+    _apply_domain_randomization,
     _apply_rewards,
     _unwired_sections_present,
 )
@@ -97,15 +99,12 @@ def test_unwired_sections_still_flags_termination() -> None:
     assert unwired == ["termination"]
 
 
-def test_unwired_sections_flags_dropped_dr_keys() -> None:
-    """Audit 2026-05-21 (FIXLIST Critical): ``domain_randomization`` is a
-    wired section, but ``motor_strength_scale`` / ``actuator_latency_steps``
-    are declared in base.yaml and silently dropped by
-    ``_apply_domain_randomization``. The unwired check must flag dropped keys
-    *inside* a wired section, not just unwired section names, so the train/sim
-    mismatch is loud. This was the most plausible mechanical cause of the
-    33 percent hardware slew saturation. Locking it against regression to the
-    section-name-only check that originally hid the drop."""
+def test_wired_dr_keys_not_flagged() -> None:
+    """2026-06-07 DR-wiring PR: ``motor_strength_scale`` and
+    ``actuator_latency_steps`` are now wired into ``_apply_domain_randomization``
+    and added to ``_APPLIED_DR_KEYS``. ``_unwired_sections_present`` must NOT
+    flag them — regression guard against accidental removal from
+    ``_APPLIED_DR_KEYS``."""
     dr = {
         "enabled": True,
         "friction_range": [0.4, 1.0],
@@ -115,9 +114,9 @@ def test_unwired_sections_flags_dropped_dr_keys() -> None:
         "actuator_latency_steps": 2,
     }
     unwired = _unwired_sections_present({"domain_randomization": dr})
-    assert "domain_randomization.motor_strength_scale" in unwired
-    assert "domain_randomization.actuator_latency_steps" in unwired
-    # The genuinely applied keys must NOT be flagged.
+    assert "domain_randomization.motor_strength_scale" not in unwired
+    assert "domain_randomization.actuator_latency_steps" not in unwired
+    # The other applied keys must also not be flagged.
     assert "domain_randomization.enabled" not in unwired
     assert "domain_randomization.friction_range" not in unwired
     assert "domain_randomization.restitution_range" not in unwired
@@ -207,3 +206,166 @@ def test_apply_rewards_new_term_factory_mixed_with_upstream() -> None:
         )
     assert env_cfg.rewards.action_rate_l2.weight == -0.5
     assert env_cfg.rewards.slew_sat_hinge_l2.weight == -50.0
+
+
+# ---------------------------------------------------------------------------
+# DR-wiring regression tests (2026-06-07)
+# These guard the two keys that were previously declared-but-dropped:
+#   motor_strength_scale  — wired via events.scale_motor_strength.params
+#   actuator_latency_steps — wired via events.phoenix_actuator_latency_range
+# ---------------------------------------------------------------------------
+
+
+class _FakeEventTerm:
+    """Minimal stand-in for an Isaac Lab EventTerm — only .params is used."""
+
+    def __init__(self, **params):
+        self.params: dict = dict(params)
+
+
+class _FakeEvents:
+    """Attribute container mimicking events.default on Go2PhysxEventsCfg."""
+
+    def __init__(self, **terms):
+        for k, v in terms.items():
+            setattr(self, k, v)
+
+
+class _FakeEventEnvCfg:
+    """Minimal env_cfg whose .events has no .default (flat events)."""
+
+    def __init__(self, events):
+        self.events = events
+
+
+def test_applied_dr_keys_contains_new_keys() -> None:
+    """_APPLIED_DR_KEYS must include both newly wired keys so
+    _unwired_sections_present does not flag them."""
+    assert "motor_strength_scale" in _APPLIED_DR_KEYS
+    assert "actuator_latency_steps" in _APPLIED_DR_KEYS
+
+
+def test_apply_dr_motor_strength_scale_patches_event_params() -> None:
+    """When events.scale_motor_strength exists, _apply_domain_randomization
+    must set stiffness_distribution_params and damping_distribution_params
+    to the configured range."""
+    sms_term = _FakeEventTerm(
+        stiffness_distribution_params=(1.0, 1.0),
+        damping_distribution_params=(1.0, 1.0),
+        operation="scale",
+    )
+    events = _FakeEvents(
+        physics_material=_FakeEventTerm(
+            static_friction_range=(0.8, 0.8),
+            dynamic_friction_range=(0.6, 0.6),
+            restitution_range=(0.0, 0.0),
+        ),
+        add_base_mass=_FakeEventTerm(mass_distribution_params=(-1.0, 3.0)),
+        scale_motor_strength=sms_term,
+    )
+    env_cfg = _FakeEventEnvCfg(events)
+
+    dr = {
+        "enabled": True,
+        "friction_range": [0.3, 1.5],
+        "restitution_range": [0.0, 0.5],
+        "mass_offset_kg": [-2.0, 2.0],
+        "motor_strength_scale": [0.85, 1.15],
+    }
+    _apply_domain_randomization(env_cfg, dr)
+
+    assert sms_term.params["stiffness_distribution_params"] == pytest.approx((0.85, 1.15))
+    assert sms_term.params["damping_distribution_params"] == pytest.approx((0.85, 1.15))
+
+
+def test_apply_dr_motor_strength_scale_skipped_when_term_absent() -> None:
+    """If events.scale_motor_strength is not present (upstream cfg not pre-prepared),
+    _apply_domain_randomization must not raise — it silently skips."""
+    events = _FakeEvents(
+        physics_material=_FakeEventTerm(
+            static_friction_range=(0.8, 0.8),
+            dynamic_friction_range=(0.6, 0.6),
+            restitution_range=(0.0, 0.0),
+        ),
+        add_base_mass=_FakeEventTerm(mass_distribution_params=(-1.0, 3.0)),
+        # no scale_motor_strength
+    )
+    env_cfg = _FakeEventEnvCfg(events)
+    dr = {
+        "enabled": True,
+        "friction_range": [0.3, 1.5],
+        "motor_strength_scale": [0.85, 1.15],
+    }
+    # Must not raise even though the term is absent.
+    _apply_domain_randomization(env_cfg, dr)
+    assert not hasattr(events, "scale_motor_strength")
+
+
+def test_apply_dr_actuator_latency_steps_sets_range_list() -> None:
+    """When actuator_latency_steps is a [lo, hi] list, the range tuple must
+    be stored on env_cfg.phoenix_actuator_latency_range (NOT on events: Isaac's
+    EventManager rejects non-EventTermCfg attributes on the events cfg)."""
+    events = _FakeEvents()
+    env_cfg = _FakeEventEnvCfg(events)
+    dr = {"enabled": True, "friction_range": [0.3, 1.5], "actuator_latency_steps": [1, 5]}
+    _apply_domain_randomization(env_cfg, dr)
+    assert hasattr(env_cfg, "phoenix_actuator_latency_range")
+    assert env_cfg.phoenix_actuator_latency_range == (1, 5)
+
+
+def test_apply_dr_actuator_latency_steps_sets_range_scalar() -> None:
+    """When actuator_latency_steps is a scalar, lo == hi == scalar."""
+    events = _FakeEvents()
+    env_cfg = _FakeEventEnvCfg(events)
+    dr = {"enabled": True, "friction_range": [0.3, 1.5], "actuator_latency_steps": 2}
+    _apply_domain_randomization(env_cfg, dr)
+    assert env_cfg.phoenix_actuator_latency_range == (2, 2)
+
+
+def test_apply_dr_actuator_latency_steps_absent_leaves_no_attr() -> None:
+    """If actuator_latency_steps is not in the DR block, the attribute must
+    NOT be created."""
+    events = _FakeEvents()
+    env_cfg = _FakeEventEnvCfg(events)
+    dr = {"enabled": True, "friction_range": [0.3, 1.5]}
+    _apply_domain_randomization(env_cfg, dr)
+    assert not hasattr(env_cfg, "phoenix_actuator_latency_range")
+
+
+def test_apply_dr_disabled_skips_all_new_wiring() -> None:
+    """When DR is disabled the new wiring must not write any attributes."""
+    events = _FakeEvents(
+        scale_motor_strength=_FakeEventTerm(
+            stiffness_distribution_params=(1.0, 1.0),
+            damping_distribution_params=(1.0, 1.0),
+        ),
+    )
+    env_cfg = _FakeEventEnvCfg(events)
+    dr = {
+        "enabled": False,
+        "motor_strength_scale": [0.85, 1.15],
+        "actuator_latency_steps": [1, 5],
+    }
+    _apply_domain_randomization(env_cfg, dr)
+    # scale_motor_strength params must remain at placeholder defaults
+    assert events.scale_motor_strength.params["stiffness_distribution_params"] == (1.0, 1.0)
+    # latency attr must not have been set
+    assert not hasattr(env_cfg, "phoenix_actuator_latency_range")
+
+
+def test_unwired_base_yaml_no_longer_flags_motor_and_latency() -> None:
+    """Regression: _unwired_sections_present on a config with both newly wired
+    keys must return an empty list for the DR block (all DR keys are applied)."""
+    dr_only = {
+        "domain_randomization": {
+            "enabled": True,
+            "friction_range": [0.3, 1.5],
+            "restitution_range": [0.0, 0.5],
+            "mass_offset_kg": [-2.0, 2.0],
+            "motor_strength_scale": [0.85, 1.15],
+            "actuator_latency_steps": [1, 5],
+        }
+    }
+    unwired = _unwired_sections_present(dr_only)
+    # No DR sub-key should be flagged.
+    assert not any(u.startswith("domain_randomization.") for u in unwired)

@@ -111,11 +111,9 @@ def test_unwired_empty_when_only_wired_sections_present() -> None:
     assert _unwired_sections_present(data) == []
 
 
-def test_unwired_detects_dropped_domain_randomization_keys() -> None:
-    # domain_randomization is a wired section, but _apply_domain_randomization
-    # only plumbs friction / restitution / mass. motor_strength_scale and
-    # actuator_latency_steps are declared-but-dropped keys and must be flagged
-    # so the silent-no-op drift surfaces during any eval or retrain.
+def test_wired_domain_randomization_keys_not_flagged() -> None:
+    # motor_strength_scale and actuator_latency_steps are now wired
+    # (2026-06-07 DR-wiring PR). _unwired_sections_present must NOT flag them.
     data = {
         "env": {},
         "domain_randomization": {
@@ -126,21 +124,20 @@ def test_unwired_detects_dropped_domain_randomization_keys() -> None:
         },
     }
     unwired = _unwired_sections_present(data)
-    assert "domain_randomization.motor_strength_scale" in unwired
-    assert "domain_randomization.actuator_latency_steps" in unwired
-    # Applied keys must NOT be flagged.
+    assert "domain_randomization.motor_strength_scale" not in unwired
+    assert "domain_randomization.actuator_latency_steps" not in unwired
+    # Other applied keys must also not be flagged.
     assert "domain_randomization.friction_range" not in unwired
     assert "domain_randomization.enabled" not in unwired
 
 
 def test_unwired_flags_base_yaml_current_state() -> None:
     """Regression guard: base.yaml today contains observation.noise,
-    termination, robot.init_state, and robot.actuator (unwired sections),
-    plus domain_randomization.motor_strength_scale and
-    domain_randomization.actuator_latency_steps (declared-but-dropped keys
-    inside the wired domain_randomization section). reward was wired in
-    Phase 0 of the 2026-04-19 retrain. If any of these graduate to wired,
-    update this test at the same time as the wiring."""
+    termination, robot.init_state, and robot.actuator (unwired sections).
+    reward was wired in Phase 0 of the 2026-04-19 retrain.
+    motor_strength_scale and actuator_latency_steps were wired in the
+    2026-06-07 DR-wiring PR — they must NOT appear in the unwired list.
+    If any remaining unwired sections graduate to wired, update this test."""
     cfg = load_layered_config(CONFIGS / "env" / "base.yaml").to_container()
     unwired = set(_unwired_sections_present(cfg))
     assert {
@@ -148,7 +145,7 @@ def test_unwired_flags_base_yaml_current_state() -> None:
         "termination",
         "robot.init_state",
         "robot.actuator",
-        "domain_randomization.motor_strength_scale",
-        "domain_randomization.actuator_latency_steps",
     }.issubset(unwired)
     assert "reward" not in unwired
+    assert "domain_randomization.motor_strength_scale" not in unwired
+    assert "domain_randomization.actuator_latency_steps" not in unwired
