@@ -1,0 +1,8 @@
+# Eval-only: stand with ALL domain randomization OFF (nominal actuator gains).
+# Used to measure the DR-trained policy's intrinsic slew saturation at spec
+# gains, comparable to the no-DR baseline and to a deterministic hardware run.
+defaults:
+  - stand
+
+domain_randomization:
+  enabled: false

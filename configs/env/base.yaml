@@ -76,10 +76,13 @@ domain_randomization:
   friction_range: [0.3, 1.5]
   restitution_range: [0.0, 0.5]
   mass_offset_kg: [-2.0, 2.0]
-  # NOT APPLIED by _apply_domain_randomization (build_env_cfg warns if present).
-  # Declared for the planned DR-wiring PR; wiring them invalidates v3b repro.
+  # WIRED 2026-06-16. motor_strength_scale scales the explicit DCMotor actuator
+  # gains per-env at startup via scale_explicit_actuator_gains (the built-in
+  # randomize_actuator_gains zeroes explicit-actuator gains, see that function).
+  # actuator_latency_steps is stored on env_cfg for a future action-delay buffer
+  # (declared, not yet consumed). Wiring these invalidates the v3b repro.
   motor_strength_scale: [0.85, 1.15]
-  actuator_latency_steps: [1, 5]   # at 200 Hz → 5-25 ms
+  actuator_latency_steps: [1, 5]   # at 200 Hz, 5-25 ms
 
 perturbation:
   enabled: false      # overlay enables this
