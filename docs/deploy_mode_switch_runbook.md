@@ -19,10 +19,10 @@ On Jetson:
 
 ## 2. Offline gates on Jetson
 
-- `python3 -m phoenix.sim2real.verify_deploy --deploy-cfg configs/sim2real/deploy.yaml --parquet <trained-distribution parquet>` — parity gate on whichever ONNX `onnx_path` points at (defaults to stand-v2).
+- `python3 -m phoenix.sim2real.verify_deploy --deploy-cfg configs/sim2real/deploy.yaml --parquet <trained-distribution parquet>`: parity gate on whichever ONNX `onnx_path` points at (defaults to stand-v2).
 - Temporarily swap `onnx_path` to the v3b path and re-run verify_deploy. Both should show `max_diff < 1e-4`.
 - Revert `onnx_path` back to stand-v2.
-- `pytest tests/test_mode_switch.py -q` — all mode-switch unit tests green.
+- `pytest tests/test_mode_switch.py -q`: all mode-switch unit tests green.
 
 ## 3. Edit `configs/sim2real/deploy.yaml`
 
@@ -36,17 +36,17 @@ Leave all thresholds at spec defaults for the first bringup. `stand_onnx_path` /
 
 ## 4. Three-bridge bringup + estop heartbeat
 
-Unchanged from prior bringup procedure — see `docs/sessions/lab_session_2026-04-16.md` for the sequence. Mode-switch has no ROS 2 topic changes.
+Unchanged from prior bringup procedure, see `docs/sessions/lab_session_2026-04-16.md` for the sequence. Mode-switch has no ROS 2 topic changes.
 
 ## 5. Hardware gates
 
-### G7 — live stand (cmd=0 throughout)
+### G7: live stand (cmd=0 throughout)
 Publish `cmd_vel = (0, 0, 0)` for 10 s × 3 attempts. Expect:
 - Mode stays STAND throughout (no state transitions). Confirm via `ros2 topic echo /phoenix/estop` plus any debug logging enabled.
 - No attitude abort, no collapse, no estop latch.
 - Slew saturation in the parquet log < 5%.
 
-### G8a — step 0 → 0.3 m/s forward → 0
+### G8a: step 0 → 0.3 m/s forward → 0
 Teleop sequence: `(0, 0, 0)` for 3 s → `(0.3, 0, 0)` for 5 s → `(0, 0, 0)` for 3 s. Expect:
 - One STAND→WALK transition at the 3 s mark, completing in ~0.5 s (25 ticks).
 - One WALK→STAND transition at the 8 s mark, completing in ~0.5 s.
@@ -54,7 +54,7 @@ Teleop sequence: `(0, 0, 0)` for 3 s → `(0.3, 0, 0)` for 5 s → `(0, 0, 0)` f
 - Walking-phase slew saturation in parquet < 5%.
 - Stopping-phase slew saturation < 5% (this is the pattern that failed at 30% pre-mode-switch).
 
-### G8d — combined lin + yaw
+### G8d: combined lin + yaw
 `(0, 0, 0)` for 3 s → `(0.3, 0, 0.3)` for 5 s → `(0, 0, 0)` for 3 s. Same pass criteria as G8a.
 
 ### G8b / G8c / G8e (nice-to-have)
@@ -66,7 +66,7 @@ Teleop sequence: `(0, 0, 0)` for 3 s → `(0.3, 0, 0)` for 5 s → `(0, 0, 0)` f
 
 - Tag `v0.3.0-gate8-mode-switch`.
 - Push T7 + origin.
-- Update `docs/PHOENIX_NEXT_STEPS.md` — mode-switch replaces the v3b-retrain ask.
+- Update `docs/PHOENIX_NEXT_STEPS.md`: mode-switch replaces the v3b-retrain ask.
 - Write `docs/gate8_mode_switch_<date>.md` with parquet evidence.
 
 ## 7. Rollback
