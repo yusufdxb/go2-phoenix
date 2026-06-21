@@ -1,0 +1,85 @@
+# Deployment config for the RATE-LIMITER stand-v3-h25 deliverable on the real GO2.
+#
+# This is the transfer-faithful stand policy: an 800-iter fine-tune from stand-v2
+# on stand_v3_h25.yaml (action_rate -3 + per-motor slew_sat_hinge_l2 -25 + full
+# DR) RETRAINED WITH THE DEPLOY RATE LIMITER INSIDE THE TRAINING MDP. The policy
+# now experiences the exact +/-0.175 rad/step cap (vs measured q) it faces on the
+# Jetson, so there is no longer a train/deploy closed-loop mismatch. This is what
+# the 0.33%-sim -> 33%-hardware blowup of the no-limiter policies came from.
+#
+# Verified 2026-06-21 (checkpoints/phoenix-stand-h25-ratelimit/, model_799):
+#   nominal (stand_nodr):    32/32 stand, 20 s episodes, slew 2.40%
+#   full DR (stand_v3_h25):  32/32 stand, 20 s episodes, slew 3.47%   (gate <5%)
+#   tracking ~2x tighter than the pre-limiter deliverable (lin 0.0085 / ang 0.0197)
+#   ONNX parity: max torch<->onnx abs diff 5.245e-06   (gate <1e-5) PASS
+#
+# WATCH AT LAB: flat_orientation penalty is higher than the pre-limiter policy
+# (the limiter slows posture leveling); never falls in sim, but do the
+# stand-fixture L/R level-check before reading the live slew number.
+#
+# Supersedes deploy_stand_v3.yaml and the pre-limiter phoenix-stand-v3-h25-final.
+#
+# DEPLOY NOTE: the export is external-data format. BOTH policy.onnx AND
+# policy.onnx.data must ship to the Jetson, in the same directory. onnxruntime
+# resolves the .data file relative to the .onnx path automatically.
+
+policy:
+  onnx_path: "checkpoints/phoenix-stand-h25-ratelimit/policy.onnx"
+  torchscript_path: "checkpoints/phoenix-stand-h25-ratelimit/policy.pt"
+  device: "cpu"
+  obs_pad_zeros: 0
+
+control:
+  rate_hz: 50
+  action_scale: 0.25
+  # MUST equal the training default_joint_pos (IsaacLab unitree.py GO2 init_state),
+  # because use_default_offset=True makes this the action offset AND the
+  # joint-relative observation reference. The previous deploy configs set all
+  # hips to 0.0, but training uses L=+0.1 / R=-0.1 — a constant 0.1 rad hip
+  # offset the policy never saw (off-distribution obs + offset on all 4 hips).
+  default_joint_pos:
+    FL_hip_joint: 0.1
+    FR_hip_joint: -0.1
+    RL_hip_joint: 0.1
+    RR_hip_joint: -0.1
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+
+safety:
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120
+  estop_timeout_s: 0.5
+  sensor_timeout_s: 0.2
+  # first_message_timeout_s replaces the old startup_grace_s wallclock gate.
+  # cyclonedds discovery on the Jetson routinely takes >3 s; 15 s gives a
+  # generous first-message window without masking real publisher failures.
+  # Once every required topic has delivered one message, steady-state
+  # freshness reverts to the canonical estop/sensor timeouts above.
+  first_message_timeout_s: 15.0
