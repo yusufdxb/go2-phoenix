@@ -80,3 +80,7 @@ docs/superpowers/
 docs/attachments/
 docs/LAB_CARD_NEXT.md
 docs/adapt_load_debug.md
+
+# training artifacts / scratch
+checkpoints/
+FIXLIST.md
