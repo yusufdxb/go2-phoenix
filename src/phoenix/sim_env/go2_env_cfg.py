@@ -52,6 +52,7 @@ try:  # pragma: no cover - exercised only on machines with Isaac Lab
 except ImportError:  # pragma: no cover
     _RewTerm = None  # type: ignore[assignment]
 
+from phoenix.sim_env.rate_limit import MAX_DELTA_PER_STEP_RAD
 from phoenix.sim_env.rewards import slew_sat_hinge_l2
 
 if TYPE_CHECKING:  # pragma: no cover - type hints only
@@ -381,6 +382,52 @@ def _prepare_dr_event_terms(env_cfg: Any, dr: dict[str, Any]) -> None:
         events.scale_motor_strength = term
 
 
+def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
+    """Swap the joint-position action term for the rate-limited variant.
+
+    Makes the deploy-side per-step slew cap part of the MDP: the policy is
+    trained against ``current_q ± max_delta_per_step``, the exact limiter the
+    Jetson bridge enforces (``sim2real.safety.per_step_clip_array``). Without
+    this the limiter exists only at deploy and the policy meets it for the first
+    time on hardware — the closed-loop mismatch behind the 0.33%->33% slew blowup.
+
+    Defaults to ENABLED with the canonical ``MAX_DELTA_PER_STEP_RAD``. Set
+    ``action.rate_limit.enabled: false`` only to reproduce a pre-limiter baseline.
+    """
+    rl = (action or {}).get("rate_limit", {})
+    if not rl.get("enabled", True):
+        logger.warning(
+            "phoenix env cfg: per-step rate limiter DISABLED "
+            "(action.rate_limit.enabled=false) — sim will NOT match the deploy "
+            "slew cap; do this only for a pre-limiter baseline."
+        )
+        return
+
+    # Lazy import: this pulls in Isaac Lab, so it must not touch the no-sim CI path.
+    from phoenix.sim_env.rate_limited_action import RateLimitedJointPositionActionCfg
+
+    base = env_cfg.actions.joint_pos
+    max_delta = float(rl.get("max_delta_per_step", MAX_DELTA_PER_STEP_RAD))
+    env_cfg.actions.joint_pos = RateLimitedJointPositionActionCfg(
+        asset_name=base.asset_name,
+        joint_names=base.joint_names,
+        scale=base.scale,
+        offset=base.offset,
+        use_default_offset=base.use_default_offset,
+        preserve_order=base.preserve_order,
+        clip=getattr(base, "clip", None),
+        max_delta_per_step=max_delta,
+    )
+    # Warning-level on purpose: this alters the training action distribution to
+    # match deploy, and given this repo's history of silent DR no-ops it must be
+    # loudly visible in every run's log, not buried at info level.
+    logger.warning(
+        "phoenix env cfg: per-step rate limiter ACTIVE (max_delta=%.4f rad/step) "
+        "— sim action pipeline now matches the deploy slew cap.",
+        max_delta,
+    )
+
+
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     """Build a GO2 env cfg, applying YAML overrides on top of the upstream task."""
     import importlib
@@ -421,6 +468,7 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     _apply_domain_randomization(cfg, data.get("domain_randomization", {}))
     _apply_perturbation(cfg, data.get("perturbation", {}))
     _apply_rewards(cfg, data.get("reward", {}))
+    _apply_rate_limit(cfg, data.get("action", {}))
 
     return cfg
 
