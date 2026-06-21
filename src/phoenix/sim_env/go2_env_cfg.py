@@ -428,6 +428,29 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
     )
 
 
+def _apply_fixture(env_cfg: Any, fixture: dict[str, Any]) -> None:
+    """Stash the unloaded-feet fixture config on the env cfg root.
+
+    The fixture clamp needs the LIVE env (per-substep root writes), which does
+    not exist at cfg-build time, so this only records the request as
+    ``env_cfg.phoenix_fixture``. The eval/training entry point installs the
+    clamp via ``phoenix.sim_env.fixture_hold.install_fixture_hold`` after the
+    env is constructed. Stored on the cfg root (not on ``events``) for the same
+    reason as ``phoenix_actuator_latency_range``: EventManager rejects non-
+    EventTermCfg attributes on the events cfg.
+    """
+    if fixture and fixture.get("enabled", False):
+        env_cfg.phoenix_fixture = dict(fixture)
+        logger.warning(
+            "phoenix env cfg: stand-fixture scenario REQUESTED "
+            "(rel=%.2f, hold_height=%.2fm, roll=%.2frad) — trunk will be pinned "
+            "in the air at env construction; this is an OOD eval, not ground standing.",
+            float(fixture.get("rel_fixture_envs", 1.0)),
+            float(fixture.get("hold_height_m", 0.55)),
+            float(fixture.get("roll_rad", 0.0)),
+        )
+
+
 def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     """Build a GO2 env cfg, applying YAML overrides on top of the upstream task."""
     import importlib
@@ -469,6 +492,7 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     _apply_perturbation(cfg, data.get("perturbation", {}))
     _apply_rewards(cfg, data.get("reward", {}))
     _apply_rate_limit(cfg, data.get("action", {}))
+    _apply_fixture(cfg, data.get("fixture", {}))
 
     return cfg
 

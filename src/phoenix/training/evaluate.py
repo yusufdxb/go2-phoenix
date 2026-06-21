@@ -160,6 +160,21 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)
 
+    # Unloaded-feet stand-fixture scenario (Phase A): pin the trunk in the air
+    # so the rollout measures slew on the OOD fixture contact state. No-op
+    # unless the env config carries a `fixture:` block.
+    _fixture = getattr(env_cfg, "phoenix_fixture", None)
+    if _fixture:
+        from phoenix.sim_env.fixture_hold import install_fixture_hold
+
+        n_fix = install_fixture_hold(env, _fixture)
+        logger.warning(
+            "fixture-hold ACTIVE: %d env(s) trunk-pinned (hold_height=%.2fm, roll=%.2frad)",
+            n_fix,
+            float(_fixture.get("hold_height_m", 0.55)),
+            float(_fixture.get("roll_rad", 0.0)),
+        )
+
     # Use the upstream rsl_rl cfg to stay compatible with whatever version
     # of rsl_rl is installed (actor/critic cfg shape changed in 3.0).
     import importlib.metadata as metadata
