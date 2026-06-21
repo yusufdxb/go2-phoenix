@@ -1,0 +1,24 @@
+# Unloaded-feet stand-fixture EVAL scenario (Phase A — no retrain).
+#
+# Pins the trunk rigidly in the air with the feet hanging — the
+# off-distribution contact state that drove ~33% slew saturation (100% on
+# RL/RR thigh) on the CaresLab stand 2026-04-21. Training has the feet loaded
+# on the ground; the rig has them dangling, so the policy goes OOD there
+# regardless of the slew limiter.
+#
+# Purpose: measure whether a policy saturates on the fixture IN SIM, replacing
+# the hardware dryrun. Inherits stand_v3_h25 (so the in-training rate limiter
+# and full DR are active via build_env_cfg) and adds the fixture clamp.
+#
+# This is an EVALUATION config, NOT a training config: every env is on the
+# fixture (rel_fixture_envs: 1.0). Phase B (training with a small fixture
+# fraction) is a separate config.
+
+defaults:
+  - stand_v3_h25
+
+fixture:
+  enabled: true
+  rel_fixture_envs: 1.0    # eval: every env clamped on the fixture
+  hold_height_m: 0.55      # trunk world height so the feet clear the ground
+  roll_rad: 0.16           # fixed trunk roll ~= 0.32 rad L/R differential (rig asymmetry)
