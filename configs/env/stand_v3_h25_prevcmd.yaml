@@ -1,0 +1,14 @@
+# A/B variant: stand_v3_h25 with the rate limiter in TRUE slew-rate mode.
+#
+# Identical to stand_v3_h25 (rate limiter + gain DR + latency + obs noise) except
+# the limiter clips the per-step delta vs the PREVIOUS COMMAND instead of the
+# measured q (clip_mode: prev_command). Tests Gemini's hypothesis that a true
+# slew-rate limiter yields a much smoother stand (slew -> ~0), at the cost of
+# letting the command drift from measured state. Only an experiment config;
+# shipping it would require switching the Jetson lowcmd bridge to match.
+defaults:
+  - stand_v3_h25
+
+action:
+  rate_limit:
+    clip_mode: prev_command

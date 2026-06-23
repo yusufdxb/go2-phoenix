@@ -39,13 +39,38 @@ class RateLimitedJointPositionAction(JointPositionAction):
 
     cfg: RateLimitedJointPositionActionCfg
 
+    def reset(self, env_ids=None) -> None:
+        super().reset(env_ids)
+        # prev_command mode needs a per-env memory of the last applied target.
+        # Reset it to the default pose (use_default_offset) for the reset envs;
+        # the robot also resets near the default pose, so the first post-reset
+        # command starts on-distribution.
+        if self.cfg.clip_mode != "prev_command":
+            return
+        if getattr(self, "_prev_target", None) is None:
+            self._prev_target = self._offset.detach().clone()
+        elif env_ids is None:
+            self._prev_target[:] = self._offset
+        else:
+            self._prev_target[env_ids] = self._offset[env_ids]
+
     def process_actions(self, actions: torch.Tensor) -> None:
         super().process_actions(actions)
+        if self.cfg.clip_mode == "prev_command":
+            # True slew-rate limiter: clip the delta vs the PREVIOUS COMMAND, not
+            # the measured state. Decouples the command from sensor noise and lets
+            # the command stay anchored to the intended target under disturbance,
+            # at the cost of allowing the command to drift from measured q.
+            if getattr(self, "_prev_target", None) is None:
+                self._prev_target = self._offset.detach().clone()
+            self._processed_actions = rate_limit_targets(
+                self._processed_actions, self._prev_target, self.cfg.max_delta_per_step
+            )
+            self._prev_target = self._processed_actions.detach().clone()
+            return
+        # Default measured_q mode: clip vs the joint position (matches the deploy
+        # bridge). Optional clip_ref_noise models the deploy noisy-encoder clip.
         current_q = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
-        # Deploy clips against the NOISY measured encoder q, not the true state.
-        # Adding matching uniform noise to the clip reference models that
-        # noise-coupling (the bound jitters with sensor noise when the clip is
-        # active). Default 0.0 = clean clip (clip ref = true joint_pos).
         if self.cfg.clip_ref_noise > 0.0:
             current_q = current_q + (
                 (torch.rand_like(current_q) * 2.0 - 1.0) * self.cfg.clip_ref_noise
@@ -60,11 +85,17 @@ class RateLimitedJointPositionActionCfg(JointPositionActionCfg):
     """Cfg for :class:`RateLimitedJointPositionAction`.
 
     ``max_delta_per_step`` defaults to the canonical deploy cap so sim and the
-    Jetson bridge share one value by construction. ``clip_ref_noise`` (half-width,
-    rad) adds uniform noise to the clip reference q to model the deploy clip
-    referencing the noisy measured encoder; 0.0 = clean (sim's true joint_pos).
+    Jetson bridge share one value by construction.
+
+    ``clip_mode``:
+      * ``"measured_q"`` (default) clips the target to ``measured_q ± max_delta``,
+        matching the current Jetson bridge. ``clip_ref_noise`` (half-width, rad)
+        adds uniform noise to that reference to model the noisy encoder.
+      * ``"prev_command"`` clips the per-step delta vs the previous applied target
+        (a true slew-rate limiter). ``clip_ref_noise`` is ignored in this mode.
     """
 
     class_type: type = RateLimitedJointPositionAction
     max_delta_per_step: float = MAX_DELTA_PER_STEP_RAD
     clip_ref_noise: float = 0.0
+    clip_mode: str = "measured_q"
