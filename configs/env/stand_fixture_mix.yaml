@@ -1,0 +1,26 @@
+# Phase B — fixture-mixed TRAINING config.
+#
+# Trains the stand policy with a fraction of envs held on the unloaded-feet
+# stand fixture, so it learns to keep joint commands bounded in that OOD contact
+# state instead of meeting it for the first time on the rig. Inherits
+# stand_v3_h25 (rate limiter + full DR active via build_env_cfg).
+#
+# roll_rad: 0.0 on purpose. The rig's ~0.32 rad L/R asymmetry is a MECHANICAL
+# DEFECT ("would defeat any policy", lab note 2026-04-21), not a winnable
+# training target — teaching the policy to compensate for a tilted fixture is
+# wrong. The legitimate, trainable OOD here is the unloaded feet. (The probe
+# also confirmed the policy's gravity observation does not reflect a mid-substep
+# pose injection, so a nonzero roll would not even reach the policy.)
+#
+# rel_fixture_envs: a deterministic first-fraction of envs is held for the whole
+# run (simple, reproducible). 0.15 keeps ground standing — the actual deploy
+# goal — dominant in the data.
+
+defaults:
+  - stand_v3_h25
+
+fixture:
+  enabled: true
+  rel_fixture_envs: 0.15   # ~15% of envs on the fixture; ground stays dominant
+  hold_height_m: 0.55      # trunk height so feet clear the ground
+  roll_rad: 0.0            # unloaded-feet only; asymmetry is a rig defect, not trained

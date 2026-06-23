@@ -123,6 +123,24 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
     print("[phoenix] after gym.make, wrapping", flush=True)
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)
+
+    # Phase B: train against the unloaded-feet stand fixture on a fraction of
+    # envs (no-op unless the env config carries a `fixture:` block). The held
+    # envs experience the fixture OOD contact state so the policy learns to keep
+    # joint commands bounded with the feet off the ground.
+    _fixture = getattr(env_cfg, "phoenix_fixture", None)
+    if _fixture:
+        from phoenix.sim_env.fixture_hold import install_fixture_hold
+
+        n_fix = install_fixture_hold(env, _fixture)
+        logger.warning(
+            "fixture-hold ACTIVE in TRAINING: %d/%d env(s) trunk-pinned "
+            "(hold_height=%.2fm, roll=%.2frad)",
+            n_fix,
+            env_cfg.scene.num_envs,
+            float(_fixture.get("hold_height_m", 0.55)),
+            float(_fixture.get("roll_rad", 0.0)),
+        )
     print("[phoenix] wrapped; building runner cfg", flush=True)
 
     runner_cfg = build_runner_cfg(train_cfg, task_name)
