@@ -125,8 +125,10 @@ def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
         if key in data:
             unwired.append(key)
     obs = data.get("observation")
-    if isinstance(obs, dict) and "noise" in obs:
-        unwired.append("observation.noise")
+    # observation.noise is now wired by _apply_observation_noise; observation.include
+    # is still upstream-defaults-win, so flag only that.
+    if isinstance(obs, dict) and "include" in obs:
+        unwired.append("observation.include")
     robot = data.get("robot")
     if isinstance(robot, dict):
         for sub in _UNWIRED_ROBOT_SUB:
@@ -201,9 +203,10 @@ def _apply_domain_randomization(env_cfg: Any, dr: dict[str, Any]) -> None:
     # EventManager._prepare_terms scans every attribute of the events cfg and
     # rejects anything that is not an EventTermCfg, so a bare tuple there crashes
     # env init. The action-delay buffer reads ``env_cfg.phoenix_actuator_latency_range``.
-    # Range is (lo, hi) in steps at 200 Hz (5 ms/step → 1 step ≈ 5 ms).
-    # ponytail: plain attribute, no action-delay buffer consumes it yet (no Isaac
-    # primitive for discrete action delay); implement the buffer when latency DR matters.
+    # Range is (lo, hi) in steps at 200 Hz (5 ms/step → 1 step ≈ 5 ms). This
+    # attribute is kept for reference; the latency is now actually applied by
+    # _apply_actuator_latency, which swaps the DCMotor for a DelayedDCMotor that
+    # lags the setpoints by this many physics steps (wired 2026-06-21).
     if "actuator_latency_steps" in dr:
         lat = dr["actuator_latency_steps"]
         if isinstance(lat, (list, tuple)):
@@ -428,6 +431,53 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
     )
 
 
+# YAML observation.noise key -> Go2 PolicyCfg obs-term attribute. Each YAML value
+# is a symmetric half-width: ``v`` -> UniformNoiseCfg(n_min=-v, n_max=+v).
+_OBS_NOISE_TERM_MAP: dict[str, str] = {
+    "base_lin_vel": "base_lin_vel",
+    "base_ang_vel": "base_ang_vel",
+    "projected_gravity": "projected_gravity",
+    "joint_pos": "joint_pos",
+    "joint_vel": "joint_vel",
+}
+
+
+def _apply_observation_noise(env_cfg: Any, observation: dict[str, Any]) -> None:
+    """Enable + set proprioceptive observation noise on the policy obs group.
+
+    The Go2 task ships ``enable_corruption = False`` (clean sensors), so the
+    policy trains on noise-free observations even though the upstream terms
+    define Uniform noise. The real robot's IMU/encoders are noisy, so a clean-obs
+    policy is a known sim-to-real gap. This flips corruption ON and overrides the
+    per-term noise half-widths from the YAML ``observation.noise`` block.
+    """
+    noise = (observation or {}).get("noise")
+    if not noise:
+        return
+    from isaaclab.utils.noise import UniformNoiseCfg as Unoise  # type: ignore[import]
+
+    policy = env_cfg.observations.policy
+    policy.enable_corruption = True
+    applied = []
+    for yaml_key, level in noise.items():
+        term_attr = _OBS_NOISE_TERM_MAP.get(yaml_key)
+        if term_attr is None:
+            raise KeyError(
+                f"Unknown observation.noise key {yaml_key!r} — known keys: "
+                f"{sorted(_OBS_NOISE_TERM_MAP)}."
+            )
+        term = getattr(policy, term_attr, None)
+        if term is None:
+            continue  # term not present in this obs group (e.g. flat drops height_scan)
+        term.noise = Unoise(n_min=-float(level), n_max=float(level))
+        applied.append(f"{yaml_key}=±{float(level)}")
+    logger.warning(
+        "phoenix env cfg: observation noise ENABLED (enable_corruption=True) — "
+        "policy trains on noisy IMU/encoder obs to match the real robot: %s",
+        ", ".join(applied),
+    )
+
+
 def _apply_fixture(env_cfg: Any, fixture: dict[str, Any]) -> None:
     """Stash the unloaded-feet fixture config on the env cfg root.
 
@@ -448,6 +498,53 @@ def _apply_fixture(env_cfg: Any, fixture: dict[str, Any]) -> None:
             float(fixture.get("rel_fixture_envs", 1.0)),
             float(fixture.get("hold_height_m", 0.55)),
             float(fixture.get("roll_rad", 0.0)),
+        )
+
+
+def _apply_actuator_latency(env_cfg: Any, dr: dict[str, Any]) -> None:
+    """Swap the Go2 ``DCMotor`` actuators for ``DelayedDCMotor`` to apply latency.
+
+    Consumes ``domain_randomization.actuator_latency_steps`` ``[lo, hi]`` (physics
+    steps). Until now that range was stored on the env cfg but never applied, so
+    the policy trained with zero actuation delay. Replaces each ``DCMotorCfg``
+    with a ``DelayedDCMotorCfg`` copying every field plus ``min_delay/max_delay``.
+    Only the setpoints are delayed; stiffness/damping are preserved, so this
+    composes with ``motor_strength_scale`` and does not zero the PD gains.
+    """
+    if not dr.get("enabled", True) or "actuator_latency_steps" not in dr:
+        return
+    lat = dr["actuator_latency_steps"]
+    lo, hi = (lat[0], lat[1]) if isinstance(lat, (list, tuple)) else (lat, lat)
+    lo, hi = int(lo), int(hi)
+    if hi <= 0:
+        return
+
+    from dataclasses import fields as dc_fields
+
+    from isaaclab.actuators import DCMotorCfg  # type: ignore[import]
+
+    from phoenix.sim_env.delayed_dc_motor import DelayedDCMotorCfg
+
+    robot = env_cfg.scene.robot
+    swapped = []
+    for name, act in list(robot.actuators.items()):
+        if not isinstance(act, DCMotorCfg) or isinstance(act, DelayedDCMotorCfg):
+            continue
+        # Shallow per-field copy (preserves nested cfg objects); drop class_type
+        # so the DelayedDCMotorCfg default (DelayedDCMotor) is used.
+        kwargs = {f.name: getattr(act, f.name) for f in dc_fields(act) if f.name != "class_type"}
+        kwargs["min_delay"] = lo
+        kwargs["max_delay"] = hi
+        robot.actuators[name] = DelayedDCMotorCfg(**kwargs)
+        swapped.append(name)
+
+    if swapped:
+        logger.warning(
+            "phoenix env cfg: actuator latency WIRED — %s now DelayedDCMotor "
+            "(delay=[%d,%d] physics steps); stiffness/damping preserved.",
+            ", ".join(swapped),
+            lo,
+            hi,
         )
 
 
@@ -489,9 +586,11 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     # (e.g. scale_motor_strength). Must run before _apply_domain_randomization.
     _prepare_dr_event_terms(cfg, data.get("domain_randomization", {}))
     _apply_domain_randomization(cfg, data.get("domain_randomization", {}))
+    _apply_actuator_latency(cfg, data.get("domain_randomization", {}))
     _apply_perturbation(cfg, data.get("perturbation", {}))
     _apply_rewards(cfg, data.get("reward", {}))
     _apply_rate_limit(cfg, data.get("action", {}))
+    _apply_observation_noise(cfg, data.get("observation", {}))
     _apply_fixture(cfg, data.get("fixture", {}))
 
     return cfg

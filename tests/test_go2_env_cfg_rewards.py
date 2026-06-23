@@ -135,9 +135,15 @@ def test_unwired_sections_does_not_flag_fully_applied_dr() -> None:
     assert _unwired_sections_present({"domain_randomization": dr}) == []
 
 
-def test_unwired_sections_flags_observation_noise() -> None:
-    unwired = _unwired_sections_present({"observation": {"noise": {"scale": 0.1}}})
-    assert unwired == ["observation.noise"]
+def test_unwired_sections_does_not_flag_observation_noise() -> None:
+    # observation.noise is wired (2026-06-21) by _apply_observation_noise.
+    unwired = _unwired_sections_present({"observation": {"noise": {"joint_pos": 0.01}}})
+    assert "observation.noise" not in unwired
+
+
+def test_unwired_sections_flags_observation_include() -> None:
+    unwired = _unwired_sections_present({"observation": {"include": ["joint_pos"]}})
+    assert unwired == ["observation.include"]
 
 
 def test_unwired_sections_flags_robot_sub_keys() -> None:
