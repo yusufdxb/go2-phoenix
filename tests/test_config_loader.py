@@ -80,9 +80,17 @@ def test_unwired_detects_reward_section() -> None:
     assert "termination" in _unwired_sections_present(data2)
 
 
-def test_unwired_detects_observation_noise() -> None:
+def test_unwired_does_not_flag_observation_noise() -> None:
+    # observation.noise is now wired by _apply_observation_noise (enable_corruption
+    # + per-term Uniform noise from the YAML), so it must NOT be flagged.
     data = {"env": {}, "observation": {"noise": {"joint_pos": 0.01}}}
-    assert "observation.noise" in _unwired_sections_present(data)
+    assert "observation.noise" not in _unwired_sections_present(data)
+
+
+def test_unwired_detects_observation_include() -> None:
+    # observation.include is still upstream-defaults-win, so it IS flagged.
+    data = {"env": {}, "observation": {"include": ["joint_pos"]}}
+    assert "observation.include" in _unwired_sections_present(data)
 
 
 def test_unwired_detects_termination_and_robot_subsections() -> None:
@@ -132,20 +140,22 @@ def test_wired_domain_randomization_keys_not_flagged() -> None:
 
 
 def test_unwired_flags_base_yaml_current_state() -> None:
-    """Regression guard: base.yaml today contains observation.noise,
+    """Regression guard: base.yaml today contains observation.include,
     termination, robot.init_state, and robot.actuator (unwired sections).
     reward was wired in Phase 0 of the 2026-04-19 retrain.
     motor_strength_scale and actuator_latency_steps were wired in the
-    2026-06-07 DR-wiring PR — they must NOT appear in the unwired list.
+    2026-06-07 DR-wiring PR; observation.noise was wired 2026-06-21 — they
+    must NOT appear in the unwired list.
     If any remaining unwired sections graduate to wired, update this test."""
     cfg = load_layered_config(CONFIGS / "env" / "base.yaml").to_container()
     unwired = set(_unwired_sections_present(cfg))
     assert {
-        "observation.noise",
+        "observation.include",
         "termination",
         "robot.init_state",
         "robot.actuator",
     }.issubset(unwired)
     assert "reward" not in unwired
+    assert "observation.noise" not in unwired
     assert "domain_randomization.motor_strength_scale" not in unwired
     assert "domain_randomization.actuator_latency_steps" not in unwired
