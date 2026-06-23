@@ -42,6 +42,14 @@ class RateLimitedJointPositionAction(JointPositionAction):
     def process_actions(self, actions: torch.Tensor) -> None:
         super().process_actions(actions)
         current_q = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
+        # Deploy clips against the NOISY measured encoder q, not the true state.
+        # Adding matching uniform noise to the clip reference models that
+        # noise-coupling (the bound jitters with sensor noise when the clip is
+        # active). Default 0.0 = clean clip (clip ref = true joint_pos).
+        if self.cfg.clip_ref_noise > 0.0:
+            current_q = current_q + (
+                (torch.rand_like(current_q) * 2.0 - 1.0) * self.cfg.clip_ref_noise
+            )
         self._processed_actions = rate_limit_targets(
             self._processed_actions, current_q, self.cfg.max_delta_per_step
         )
@@ -52,8 +60,11 @@ class RateLimitedJointPositionActionCfg(JointPositionActionCfg):
     """Cfg for :class:`RateLimitedJointPositionAction`.
 
     ``max_delta_per_step`` defaults to the canonical deploy cap so sim and the
-    Jetson bridge share one value by construction.
+    Jetson bridge share one value by construction. ``clip_ref_noise`` (half-width,
+    rad) adds uniform noise to the clip reference q to model the deploy clip
+    referencing the noisy measured encoder; 0.0 = clean (sim's true joint_pos).
     """
 
     class_type: type = RateLimitedJointPositionAction
     max_delta_per_step: float = MAX_DELTA_PER_STEP_RAD
+    clip_ref_noise: float = 0.0

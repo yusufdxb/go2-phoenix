@@ -1,0 +1,12 @@
+# Full-DR stand eval with the rate-limiter clip referencing a NOISY q.
+#
+# Same as stand_v3_h25 but adds ±0.01 rad uniform noise to the rate-limiter clip
+# reference (matching the joint_pos observation noise) so the eval models the
+# deploy bridge clipping against the noisy measured encoder q rather than the
+# clean sim joint_pos. The worst-case noise-coupling check before hardware.
+defaults:
+  - stand_v3_h25
+
+action:
+  rate_limit:
+    clip_ref_noise: 0.01

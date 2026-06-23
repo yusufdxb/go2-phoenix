@@ -1,0 +1,14 @@
+# Nominal stand eval with the rate-limiter clip referencing a NOISY q.
+#
+# The deploy bridge clips the joint-target delta against the MEASURED encoder q
+# (noisy), but the sim limiter clips against the true joint_pos (clean). This
+# overlay adds ±0.01 rad uniform noise to the clip reference (matching the
+# joint_pos observation noise) so the eval models the deploy noise-coupling
+# through the clip. Tests whether the policy stays stable / how much slew rises
+# when the clip bound jitters with sensor noise.
+defaults:
+  - stand_nodr
+
+action:
+  rate_limit:
+    clip_ref_noise: 0.01
