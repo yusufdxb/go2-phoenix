@@ -413,6 +413,11 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
     base = env_cfg.actions.joint_pos
     max_delta = float(rl.get("max_delta_per_step", MAX_DELTA_PER_STEP_RAD))
     clip_ref_noise = float(rl.get("clip_ref_noise", 0.0))
+    clip_mode = str(rl.get("clip_mode", "measured_q"))
+    if clip_mode not in ("measured_q", "prev_command"):
+        raise ValueError(
+            f"action.rate_limit.clip_mode must be 'measured_q' or 'prev_command', got {clip_mode!r}"
+        )
     env_cfg.actions.joint_pos = RateLimitedJointPositionActionCfg(
         asset_name=base.asset_name,
         joint_names=base.joint_names,
@@ -423,14 +428,16 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
         clip=getattr(base, "clip", None),
         max_delta_per_step=max_delta,
         clip_ref_noise=clip_ref_noise,
+        clip_mode=clip_mode,
     )
     # Warning-level on purpose: this alters the training action distribution to
     # match deploy, and given this repo's history of silent DR no-ops it must be
     # loudly visible in every run's log, not buried at info level.
     logger.warning(
         "phoenix env cfg: per-step rate limiter ACTIVE (max_delta=%.4f rad/step, "
-        "clip_ref_noise=%.4f) — sim action pipeline matches the deploy slew cap%s.",
+        "clip_mode=%s, clip_ref_noise=%.4f) — sim action pipeline matches the deploy slew cap%s.",
         max_delta,
+        clip_mode,
         clip_ref_noise,
         (
             " (clip ref carries encoder noise, modelling the deploy noisy-q clip)"
