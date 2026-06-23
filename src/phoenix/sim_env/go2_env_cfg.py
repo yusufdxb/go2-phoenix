@@ -15,10 +15,11 @@ updated 2026-06-07 wiring PR):
 
 Wired (override upstream defaults):
     env, command, domain_randomization (friction / restitution / mass /
-    motor_strength_scale / actuator_latency_steps), perturbation, reward, seed
+    motor_strength_scale / actuator_latency_steps via DelayedDCMotor),
+    perturbation, reward, observation.noise (enable_corruption), action.rate_limit, seed
 
 Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
-    observation.noise, termination, robot.init_state, robot.actuator
+    observation.include, termination, robot.init_state, robot.actuator
 
 Reward wiring added 2026-04-19 (retrain spec Phase 0); prior to this,
 YAML reward.* overrides were silent no-ops. This change invalidates
@@ -411,6 +412,7 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
 
     base = env_cfg.actions.joint_pos
     max_delta = float(rl.get("max_delta_per_step", MAX_DELTA_PER_STEP_RAD))
+    clip_ref_noise = float(rl.get("clip_ref_noise", 0.0))
     env_cfg.actions.joint_pos = RateLimitedJointPositionActionCfg(
         asset_name=base.asset_name,
         joint_names=base.joint_names,
@@ -420,14 +422,21 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
         preserve_order=base.preserve_order,
         clip=getattr(base, "clip", None),
         max_delta_per_step=max_delta,
+        clip_ref_noise=clip_ref_noise,
     )
     # Warning-level on purpose: this alters the training action distribution to
     # match deploy, and given this repo's history of silent DR no-ops it must be
     # loudly visible in every run's log, not buried at info level.
     logger.warning(
-        "phoenix env cfg: per-step rate limiter ACTIVE (max_delta=%.4f rad/step) "
-        "— sim action pipeline now matches the deploy slew cap.",
+        "phoenix env cfg: per-step rate limiter ACTIVE (max_delta=%.4f rad/step, "
+        "clip_ref_noise=%.4f) — sim action pipeline matches the deploy slew cap%s.",
         max_delta,
+        clip_ref_noise,
+        (
+            " (clip ref carries encoder noise, modelling the deploy noisy-q clip)"
+            if clip_ref_noise > 0.0
+            else ""
+        ),
     )
 
 
