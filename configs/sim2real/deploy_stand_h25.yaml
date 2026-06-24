@@ -1,31 +1,36 @@
-# Deployment config for the RATE-LIMITER stand-v3-h25 deliverable on the real GO2.
+# Deployment config for the FULLY-HARDENED stand-v3-h25 deliverable on the real GO2.
 #
-# This is the transfer-faithful stand policy: an 800-iter fine-tune from stand-v2
-# on stand_v3_h25.yaml (action_rate -3 + per-motor slew_sat_hinge_l2 -25 + full
-# DR) RETRAINED WITH THE DEPLOY RATE LIMITER INSIDE THE TRAINING MDP. The policy
-# now experiences the exact +/-0.175 rad/step cap (vs measured q) it faces on the
-# Jetson, so there is no longer a train/deploy closed-loop mismatch. This is what
-# the 0.33%-sim -> 33%-hardware blowup of the no-limiter policies came from.
+# Transfer-hardened stand policy with all four sim-to-real layers active in
+# training: (1) per-step rate limiter inside the MDP (sim == the Jetson +/-0.175
+# rad/step cap vs measured q, no train/deploy mismatch), (2) motor-strength gain
+# DR, (3) DelayedDCMotor actuator latency [1,5] physics steps, (4) observation
+# noise (enable_corruption: noisy IMU/encoder obs). It is trained against the
+# disturbances the real robot actually has, which is the point — not the lowest
+# clean-sim number.
 #
-# Verified 2026-06-21 (checkpoints/phoenix-stand-h25-ratelimit/, model_799):
-#   nominal (stand_nodr):    32/32 stand, 20 s episodes, slew 2.40%
-#   full DR (stand_v3_h25):  32/32 stand, 20 s episodes, slew 3.47%   (gate <5%)
-#   tracking ~2x tighter than the pre-limiter deliverable (lin 0.0085 / ang 0.0197)
-#   ONNX parity: max torch<->onnx abs diff 5.245e-06   (gate <1e-5) PASS
+# Verified 2026-06-23 (checkpoints/phoenix-stand-h25-lat-noise/, model_799):
+#   nominal (stand_nodr):    32/32 stand, 20 s episodes, slew 3.65%
+#   full DR (stand_v3_h25):  32/32 stand, 20 s episodes, slew 4.23%   (gate <5%)
+#   ONNX parity: max torch<->onnx abs diff 5.722e-06   (gate <1e-5) PASS
 #
-# WATCH AT LAB: flat_orientation penalty is higher than the pre-limiter policy
-# (the limiter slows posture leveling); never falls in sim, but do the
-# stand-fixture L/R level-check before reading the live slew number.
+# MARGIN NOTE: slew is higher than the limiter-only policy (2.40/3.47%) because
+# this one trains under latency+noise. 4.23% under DR is the honest worst case and
+# leaves less headroom to the 5% gate; if the live number is tight, dial back the
+# DR (actuator_latency_steps / observation.noise) rather than the limiter.
 #
-# Supersedes deploy_stand_v3.yaml and the pre-limiter phoenix-stand-v3-h25-final.
+# WATCH AT LAB: the limiter slows posture leveling (slightly slower settle than a
+# Sport-mode stand); never falls in sim. Test FEET-ON-GROUND, not on a fixture
+# (the fixture is a degenerate/OOD test, see the lab-card).
+#
+# Supersedes phoenix-stand-h25-ratelimit, phoenix-stand-v3-h25-final, deploy_stand_v3.yaml.
 #
 # DEPLOY NOTE: the export is external-data format. BOTH policy.onnx AND
 # policy.onnx.data must ship to the Jetson, in the same directory. onnxruntime
 # resolves the .data file relative to the .onnx path automatically.
 
 policy:
-  onnx_path: "checkpoints/phoenix-stand-h25-ratelimit/policy.onnx"
-  torchscript_path: "checkpoints/phoenix-stand-h25-ratelimit/policy.pt"
+  onnx_path: "checkpoints/phoenix-stand-h25-lat-noise/policy.onnx"
+  torchscript_path: "checkpoints/phoenix-stand-h25-lat-noise/policy.pt"
   device: "cpu"
   obs_pad_zeros: 0
 
