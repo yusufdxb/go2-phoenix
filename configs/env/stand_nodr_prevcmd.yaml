@@ -1,0 +1,8 @@
+# Nominal stand eval under the prev_command (true slew-rate) limiter.
+# Matches how the prev_command policy was trained / would deploy.
+defaults:
+  - stand_nodr
+
+action:
+  rate_limit:
+    clip_mode: prev_command
