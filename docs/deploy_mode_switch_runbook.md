@@ -1,7 +1,6 @@
 # Mode-switch bringup runbook
 
 Lab-day checklist for the two-policy runtime (stand-v2 @ cmd=0, v3b @ walking).
-Spec: `docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md`.
 
 ## 1. Sync T7 → Jetson
 

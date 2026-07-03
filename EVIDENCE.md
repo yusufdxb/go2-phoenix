@@ -116,7 +116,6 @@ true**.
   `docs/pre_lab_stand_rollout_2026-04-17.json`
 - Negative results: `checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md`,
   `docs/retrain_flat_scratch_2026-04-19.md`
-- Design specs: `docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md`
 - Deploy runbook: `docs/deploy_mode_switch_runbook.md`
 - Demo videos: `media/side_by_side.mp4`, `media/side_by_side_adapt.mp4`
 - Hardware logs (parquet) live on T7 portable storage, not in this repo.
