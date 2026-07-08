@@ -117,5 +117,5 @@ true**.
 - Negative results: `checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md`,
   `docs/retrain_flat_scratch_2026-04-19.md`
 - Deploy runbook: `docs/deploy_mode_switch_runbook.md`
-- Demo videos: `media/side_by_side.mp4`, `media/side_by_side_adapt.mp4`
+- Demo videos: regenerated locally via `scripts/demo.sh` (media/ is not tracked)
 - Hardware logs (parquet) live on T7 portable storage, not in this repo.
