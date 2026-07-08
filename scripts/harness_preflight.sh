@@ -5,11 +5,11 @@
 # Usage (Jetson-side, real run):
 #   bash scripts/harness_preflight.sh
 #
-# Usage (self-test on mewtwo, skips ROS2 and motor checks):
+# Usage (self-test on the dev workstation, skips ROS2 and motor checks):
 #   bash scripts/harness_preflight.sh --mock
 #
 # Optional env vars:
-#   T7_MOUNT          path to the T7 checkpoint root (default: /media/yusuf/T7 Storage/go2-phoenix)
+#   T7_MOUNT          path to the T7 checkpoint root (default: /media/external/go2-phoenix)
 #   JETSON_REPO       repo root on Jetson (default: $HOME/workspace/go2-phoenix)
 #   PHOENIX_BRANCH    branch to ff-only (default: main)
 #   DEPLOY_CFG        deploy yaml (default: configs/sim2real/deploy_stand_v3.yaml)
@@ -25,7 +25,7 @@ if [[ "${1:-}" == "--mock" ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-T7_MOUNT="${T7_MOUNT:-/media/yusuf/T7 Storage/go2-phoenix}"
+T7_MOUNT="${T7_MOUNT:-/media/external/go2-phoenix}"
 JETSON_REPO="${JETSON_REPO:-$HOME/workspace/go2-phoenix}"
 PHOENIX_BRANCH="${PHOENIX_BRANCH:-main}"
 DEPLOY_CFG="${DEPLOY_CFG:-configs/sim2real/deploy_stand_v3.yaml}"
@@ -73,7 +73,7 @@ fi
 # ---- P1: T7 -> Jetson rsync with md5 verification ---------------------------
 step "P1: rsync checkpoint + deploy yaml from T7"
 if [[ $MOCK -eq 1 ]]; then
-    c_yellow "[mock] skipping T7 rsync (no T7 mount on mewtwo for self-test)"
+    c_yellow "[mock] skipping T7 rsync (no external drive mounted for self-test)"
 else
     if [[ ! -d "$T7_MOUNT" ]]; then
         halt "P1: T7 not mounted at $T7_MOUNT"
@@ -105,7 +105,7 @@ fi
 # ---- P2: git fetch + ff-only merge ------------------------------------------
 step "P2: git fetch + ff-only merge $PHOENIX_BRANCH"
 if [[ $MOCK -eq 1 ]]; then
-    c_yellow "[mock] skipping git ff-only (would mutate local repo on mewtwo)"
+    c_yellow "[mock] skipping git ff-only (would mutate the local repo)"
 else
     cd "$JETSON_REPO"
     git fetch origin "$PHOENIX_BRANCH" | tee "$LOG_DIR/p2_fetch.log"
