@@ -11,7 +11,6 @@ rsync).
 
 - `scripts/sweep_run.py`, `configs/train/sweep_stand_v3_stress.yaml`
 - `scripts/harness_{preflight,record,diversity,eod}.{sh,py}`
-- `docs/sweep_design_2026-05-17.md`
 - +28 tests, full no-sim suite at 228 passed.
 
 No `src/phoenix/*` changes; no policy retrain.
