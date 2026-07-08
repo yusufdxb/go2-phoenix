@@ -40,7 +40,6 @@ go2-phoenix/
 ├── docs/
 │   ├── architecture.{dot,svg}    rendered system diagram
 │   ├── deploy_mode_switch_runbook.md   how to flip the two-policy mode switch on
-│   ├── sweep_design_2026-05-17.md      sweep grid + axes + rationale
 │   ├── structure.md              this file
 │   └── changelog.md              release-style summary of past gates
 │
