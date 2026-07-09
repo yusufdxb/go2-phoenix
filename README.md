@@ -48,14 +48,14 @@ ledger for every claim below.
 
 | Stage | State | Detail |
 |---|:---:|---|
-| Simulation training (PPO, layered-YAML env) | ✅ Done | rsl_rl, ~10 shell entry points |
-| Locomotion policy trained and sim-verified | ✅ Done | stand-v3 sim eval: 32/32 success, 0.33% slew saturation (sim only) |
-| ONNX export and torch / onnxruntime parity gate | ✅ Done | `verify_deploy`, max drift 9.5e-7 |
-| ROS 2 deploy stack and fail-closed safety layer | ✅ Done | 3 bridges, policy node, shared slew cap |
-| Deploy stack ran end-to-end on the GO2 | ✅ Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
-| Failure detector and Parquet trajectory logging | ✅ Done | rule-based attitude / collapse / slip |
-| Replay and failure-curriculum fine-tune | ✅ Done | wired and unit-tested; awaiting real parquets |
-| Live on-robot stand (Gate 7) | 🟡 In progress | last live run 33% slew saturation on hardware; stand-v3 staged for retry |
+| Simulation training (PPO, layered-YAML env) | Done | rsl_rl, ~10 shell entry points |
+| Locomotion policy trained and sim-verified | Done | stand-v3 sim eval: 32/32 success, 0.33% slew saturation (sim only) |
+| ONNX export and torch / onnxruntime parity gate | Done | `verify_deploy`, max drift 9.5e-7 |
+| ROS 2 deploy stack and fail-closed safety layer | Done | 3 bridges, policy node, shared slew cap |
+| Deploy stack ran end-to-end on the GO2 | Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
+| Failure detector and Parquet trajectory logging | Done | rule-based attitude / collapse / slip |
+| Replay and failure-curriculum fine-tune | Done | wired and unit-tested; awaiting real parquets |
+| Live on-robot stand (Gate 7) | In progress | last live run 33% slew saturation on hardware; stand-v3 staged for retry |
 | Live velocity tracking (Gate 8) | ⬜ Planned | two-policy mode-switch runtime is ready |
 | Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
 
