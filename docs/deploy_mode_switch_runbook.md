@@ -4,7 +4,7 @@ Lab-day checklist for the two-policy runtime (stand-v2 @ cmd=0, v3b @ walking).
 
 ## 1. Sync T7 → Jetson
 
-On mewtwo (host):
+On the dev workstation (host):
 - Confirm `checkpoints/phoenix-flat/policy.onnx` is stand-v2 (`md5sum` matches the value in `docs/sessions/retrain_stand_v2_2026-04-19.md`).
 - Confirm `checkpoints/phoenix-flat/v3b/policy.onnx` exists (export done 2026-04-19).
 - `rsync -avL` both dirs to T7 under `go2-phoenix/checkpoints/`.
@@ -14,7 +14,7 @@ On CaresLab PC:
 - `scp -r` of the two dirs into the Jetson's Phoenix checkout (`~/go2-phoenix/checkpoints/phoenix-flat/` and `~/go2-phoenix/checkpoints/phoenix-flat/v3b/`).
 
 On Jetson:
-- `md5sum checkpoints/phoenix-flat/policy.onnx` and `checkpoints/phoenix-flat/v3b/policy.onnx`; both must match the mewtwo-side hashes.
+- `md5sum checkpoints/phoenix-flat/policy.onnx` and `checkpoints/phoenix-flat/v3b/policy.onnx`; both must match the dev-workstation-side hashes.
 
 ## 2. Offline gates on Jetson
 

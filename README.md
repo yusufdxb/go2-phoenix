@@ -75,7 +75,7 @@ entry points.
 # Install Isaac Lab 3.0+ (https://isaac-sim.github.io/IsaacLab/).
 export ISAACLAB_PATH=/path/to/IsaacLab
 
-# Train a baseline policy (~4h on RTX 5070 at 4096 envs)
+# Train a baseline policy (~4h on an NVIDIA (Blackwell) consumer GPU at 4096 envs)
 ./scripts/train.sh configs/train/ppo.yaml
 
 # Export to ONNX, bench it, and print the Jetson bringup steps
