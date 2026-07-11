@@ -222,7 +222,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     policy = runner.get_inference_policy(device=args.device)
 
     # ---- Renderer warmup + camera framing --------------------------------
-    # Two diagnosed issues on RTX 5070 + Isaac Sim 5.0 headless+rendering
+    # Two diagnosed issues on an NVIDIA (Blackwell) consumer GPU + Isaac Sim 5.0 headless+rendering
     # (verified 2026-04-30 against Phoenix and IsaacLab test_record_video.py):
     #
     #   1. The /OmniverseKit_Persp annotator returns all-zero (black) frames

@@ -2,7 +2,7 @@
 #
 # Stand-v1 (bit-identical to phoenix-flat) saturated the ±0.175 rad/step
 # slew clip on 30.23% of motor-steps on hardware 2026-04-18 (need <5%).
-# Stand-v2 retrained on mewtwo 2026-04-19 with action_rate=-0.5 (10x) and
+# Stand-v2 retrained on the dev workstation 2026-04-19 with action_rate=-0.5 (10x) and
 # joint_acc=-1.0e-6 (4x). The ONNX was re-exported on the Jetson
 # 2026-04-20 from latest.pt after the original export was discovered to
 # be a byte-copy of flat's export.
