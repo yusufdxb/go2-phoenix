@@ -1,0 +1,1944 @@
+{
+  "summary": {
+    "config": {
+      "dt": 0.02,
+      "warmup": 15,
+      "target_fpr": 0.05
+    },
+    "conditions": {
+      "friction_moderate": {
+        "latent_maha": {
+          "auroc": {
+            "mean": 0.9574606722050077,
+            "lo": 0.9499493139443846,
+            "hi": 0.9649720304656308,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.977560142050023,
+            "lo": 0.9745133213239846,
+            "hi": 0.9806069627760613,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.3033333333333335,
+            "lo": 1.0891236748728015,
+            "hi": 1.5175429917938654,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_maha": {
+          "auroc": {
+            "mean": 0.8756089063520317,
+            "lo": 0.8688649220931106,
+            "hi": 0.8823528906109528,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.9213512544750855,
+            "lo": 0.9173102710935269,
+            "hi": 0.925392237856644,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.3033333333333335,
+            "lo": 1.0891236748728015,
+            "hi": 1.5175429917938654,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_magnitude": {
+          "auroc": {
+            "mean": 0.5347734796710327,
+            "lo": 0.5243866046449045,
+            "hi": 0.545160354697161,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6669524256618877,
+            "lo": 0.6567887773865098,
+            "hi": 0.6771160739372657,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.2833333333333332,
+            "lo": 1.069123674872801,
+            "hi": 1.4975429917938654,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "value_signal": {
+          "auroc": {
+            "mean": 0.2869330076610513,
+            "lo": 0.25499985417615756,
+            "hi": 0.318866161145945,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.5323718917440033,
+            "lo": 0.52176663921283,
+            "hi": 0.5429771442751767,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 0.012578616352201257,
+            "lo": -0.012075471698113209,
+            "hi": 0.03723270440251572,
+            "n": 3
+          }
+        },
+        "action_sat": {
+          "auroc": {
+            "mean": 0.5110952158441512,
+            "lo": 0.4870223609327571,
+            "hi": 0.5351680707555453,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6066105957581186,
+            "lo": 0.5833045318994388,
+            "hi": 0.6299166596167984,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.7933333333333337,
+            "lo": 0.8573549480178511,
+            "hi": 2.729311718648816,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 0.03785793562708102,
+            "lo": -0.003508371526981198,
+            "hi": 0.07922424278114323,
+            "n": 3
+          }
+        },
+        "random": {
+          "auroc": {
+            "mean": 0.4995466656448526,
+            "lo": 0.49761755603365465,
+            "hi": 0.5014757752560506,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6637013659987795,
+            "lo": 0.6623976661290542,
+            "hi": 0.6650050658685048,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 0.9900000000000001,
+            "lo": 0.8675980392313914,
+            "hi": 1.1124019607686089,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 0.9590048094709581,
+            "lo": 0.9355318363443503,
+            "hi": 0.9824777825975659,
+            "n": 3
+          }
+        },
+        "shield_intervention_rate": {
+          "mean": 0.9981167608286253,
+          "lo": 0.9944256120527308,
+          "hi": 1.0018079096045198,
+          "n": 3
+        },
+        "n_fail_latent": {
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "n": 0
+        }
+      },
+      "friction_severe": {
+        "latent_maha": {
+          "auroc": {
+            "mean": 0.9797762783953727,
+            "lo": 0.9738026882581315,
+            "hi": 0.9857498685326139,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.9887349254555658,
+            "lo": 0.9857861509783075,
+            "hi": 0.9916836999328242,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 0.7466666666666667,
+            "lo": 0.6944,
+            "hi": 0.7989333333333334,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_maha": {
+          "auroc": {
+            "mean": 0.9290532431341197,
+            "lo": 0.924574443286966,
+            "hi": 0.9335320429812735,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.9535868196166191,
+            "lo": 0.9504936770478248,
+            "hi": 0.9566799621854133,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 0.7333333333333334,
+            "lo": 0.6862207966672706,
+            "hi": 0.7804458699993961,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_magnitude": {
+          "auroc": {
+            "mean": 0.5917808788843167,
+            "lo": 0.5687402325133385,
+            "hi": 0.614821525255295,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.7062891641708813,
+            "lo": 0.6853818981604632,
+            "hi": 0.7271964301812993,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 0.7266666666666667,
+            "lo": 0.6744,
+            "hi": 0.7789333333333334,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "value_signal": {
+          "auroc": {
+            "mean": 0.2779776017205815,
+            "lo": 0.22476955478031427,
+            "hi": 0.3311856486608487,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.53399681475068,
+            "lo": 0.4966135569067292,
+            "hi": 0.5713800725946308,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.06,
+            "lo": 1.06,
+            "hi": 1.06,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 0.0021929824561403508,
+            "lo": -0.002105263157894737,
+            "hi": 0.006491228070175438,
+            "n": 3
+          }
+        },
+        "action_sat": {
+          "auroc": {
+            "mean": 0.5052739678461055,
+            "lo": 0.4721200432814941,
+            "hi": 0.5384278924107169,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6052250823911408,
+            "lo": 0.581340891304178,
+            "hi": 0.6291092734781036,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.1066666666666667,
+            "lo": 0.7927945624939992,
+            "hi": 1.4205387708393342,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 0.05791653045657622,
+            "lo": 0.04457050476826344,
+            "hi": 0.071262556144889,
+            "n": 3
+          }
+        },
+        "random": {
+          "auroc": {
+            "mean": 0.4992842310162393,
+            "lo": 0.497502006186607,
+            "hi": 0.5010664558458716,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6565022354113957,
+            "lo": 0.655500865770958,
+            "hi": 0.6575036050518335,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 0.5733333333333334,
+            "lo": 0.5472000000000001,
+            "hi": 0.5994666666666666,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 0.8114625331444554,
+            "lo": 0.78779109076091,
+            "hi": 0.8351339755280007,
+            "n": 3
+          }
+        },
+        "shield_intervention_rate": {
+          "mean": 0.9953506267338964,
+          "lo": 0.9907889336156298,
+          "hi": 0.999912319852163,
+          "n": 3
+        },
+        "n_fail_latent": {
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "n": 0
+        }
+      },
+      "mass_moderate": {
+        "latent_maha": {
+          "auroc": {
+            "mean": 0.7972015127913146,
+            "lo": 0.7721422744936952,
+            "hi": 0.8222607510889339,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.8612491058598394,
+            "lo": 0.8439442921910595,
+            "hi": 0.8785539195286193,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 2.2533333333333334,
+            "lo": 1.4627190124129212,
+            "hi": 3.0439476542537456,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_maha": {
+          "auroc": {
+            "mean": 0.5670307422180377,
+            "lo": 0.5438201305414253,
+            "hi": 0.5902413538946502,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6986758253173896,
+            "lo": 0.6861145499731551,
+            "hi": 0.711237100661624,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 2.2533333333333334,
+            "lo": 1.4627190124129212,
+            "hi": 3.0439476542537456,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_magnitude": {
+          "auroc": {
+            "mean": 0.4857618065010172,
+            "lo": 0.480135522687141,
+            "hi": 0.4913880903148934,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6369638615148847,
+            "lo": 0.6362555332431633,
+            "hi": 0.6376721897866061,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 2.2333333333333334,
+            "lo": 1.4427190124129212,
+            "hi": 3.0239476542537456,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "value_signal": {
+          "auroc": {
+            "mean": 0.44815610369985337,
+            "lo": 0.41109250413952264,
+            "hi": 0.4852197032601841,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.627423257962933,
+            "lo": 0.6149539428145273,
+            "hi": 0.6398925731113386,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.63,
+            "lo": 0.9832000000000001,
+            "hi": 2.2767999999999997,
+            "n": 2
+          },
+          "warn_rate": {
+            "mean": 0.19444444444444442,
+            "lo": -0.0018577916641505376,
+            "hi": 0.3907466805530394,
+            "n": 3
+          }
+        },
+        "action_sat": {
+          "auroc": {
+            "mean": 0.5496696793125008,
+            "lo": 0.51691057840033,
+            "hi": 0.5824287802246716,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6208591188138682,
+            "lo": 0.6012390311688908,
+            "hi": 0.6404792064588457,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 3.2800000000000002,
+            "lo": 3.2800000000000002,
+            "hi": 3.2800000000000002,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 0.08333333333333333,
+            "lo": -0.08000000000000003,
+            "hi": 0.2466666666666667,
+            "n": 3
+          }
+        },
+        "random": {
+          "auroc": {
+            "mean": 0.4996852180445695,
+            "lo": 0.49764177428217277,
+            "hi": 0.5017286618069663,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6672461112094892,
+            "lo": 0.6654769623246329,
+            "hi": 0.6690152600943454,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.866666666666667,
+            "lo": 1.1132059104815082,
+            "hi": 2.6201274228518256,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "shield_intervention_rate": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 3
+        },
+        "n_fail_latent": {
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "n": 0
+        }
+      },
+      "mass_severe": {
+        "latent_maha": {
+          "auroc": {
+            "mean": 0.8933642525990756,
+            "lo": 0.8840819841941903,
+            "hi": 0.9026465210039609,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.9255028135120743,
+            "lo": 0.920124656263191,
+            "hi": 0.9308809707609577,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 2.126666666666667,
+            "lo": 1.2380612774315023,
+            "hi": 3.0152720559018316,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_maha": {
+          "auroc": {
+            "mean": 0.6981294896760767,
+            "lo": 0.6871976201267584,
+            "hi": 0.7090613592253949,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.7783325823279785,
+            "lo": 0.7695316728194141,
+            "hi": 0.7871334918365429,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 2.126666666666667,
+            "lo": 1.2380612774315023,
+            "hi": 3.0152720559018316,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_magnitude": {
+          "auroc": {
+            "mean": 0.5153499080747936,
+            "lo": 0.49842579522725045,
+            "hi": 0.5322740209223369,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6465963415028562,
+            "lo": 0.6360994038271106,
+            "hi": 0.6570932791786017,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 2.1066666666666665,
+            "lo": 1.2180612774315023,
+            "hi": 2.9952720559018307,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "value_signal": {
+          "auroc": {
+            "mean": 0.4829083166184986,
+            "lo": 0.45682360566480296,
+            "hi": 0.5089930275721942,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6461386180566359,
+            "lo": 0.6266233642782532,
+            "hi": 0.6656538718350186,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.56,
+            "lo": 1.56,
+            "hi": 1.56,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 0.05555555555555555,
+            "lo": -0.053333333333333344,
+            "hi": 0.16444444444444445,
+            "n": 3
+          }
+        },
+        "action_sat": {
+          "auroc": {
+            "mean": 0.5607831969660763,
+            "lo": 0.5421209832065552,
+            "hi": 0.5794454107255973,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6281716819119102,
+            "lo": 0.6147534613102236,
+            "hi": 0.6415899025135968,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.62,
+            "lo": 0.18920000000000003,
+            "hi": 3.0508,
+            "n": 2
+          },
+          "warn_rate": {
+            "mean": 0.4444444444444444,
+            "lo": -0.13174139663184425,
+            "hi": 1.020630285520733,
+            "n": 3
+          }
+        },
+        "random": {
+          "auroc": {
+            "mean": 0.49967892699590943,
+            "lo": 0.49754747960607865,
+            "hi": 0.5018103743857402,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6674177388532323,
+            "lo": 0.6655292709089448,
+            "hi": 0.6693062067975198,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.84,
+            "lo": 1.0317920729581196,
+            "hi": 2.648207927041881,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "shield_intervention_rate": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 3
+        },
+        "n_fail_latent": {
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "n": 0
+        }
+      },
+      "motor_moderate": {
+        "latent_maha": {
+          "auroc": {
+            "mean": 0.9124640153025422,
+            "lo": 0.9086053292651398,
+            "hi": 0.9163227013399445,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.942226535925612,
+            "lo": 0.9406806753297653,
+            "hi": 0.9437723965214587,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.78,
+            "lo": 1.78,
+            "hi": 1.78,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 1
+          }
+        },
+        "obs_maha": {
+          "auroc": {
+            "mean": 0.771271574380861,
+            "lo": 0.7597299948611533,
+            "hi": 0.7828131539005687,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.8305704465412943,
+            "lo": 0.8237587942274435,
+            "hi": 0.8373820988551451,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.78,
+            "lo": 1.78,
+            "hi": 1.78,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 1
+          }
+        },
+        "obs_magnitude": {
+          "auroc": {
+            "mean": 0.526135527813115,
+            "lo": 0.5119054591689252,
+            "hi": 0.5403655964573049,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6465350712952396,
+            "lo": 0.6372653750158741,
+            "hi": 0.655804767574605,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.76,
+            "lo": 1.76,
+            "hi": 1.76,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 1
+          }
+        },
+        "value_signal": {
+          "auroc": {
+            "mean": 0.5877459359326641,
+            "lo": 0.546745164860649,
+            "hi": 0.6287467070046793,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6924703697573613,
+            "lo": 0.6600075210500282,
+            "hi": 0.7249332184646944,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": null,
+            "lo": null,
+            "hi": null,
+            "n": 0
+          },
+          "warn_rate": {
+            "mean": 0.0,
+            "lo": 0.0,
+            "hi": 0.0,
+            "n": 1
+          }
+        },
+        "action_sat": {
+          "auroc": {
+            "mean": 0.5694833617121922,
+            "lo": 0.5461005865321992,
+            "hi": 0.5928661368921851,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6462689172559818,
+            "lo": 0.6274921612585026,
+            "hi": 0.665045673253461,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 0.88,
+            "lo": 0.88,
+            "hi": 0.88,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 1
+          }
+        },
+        "random": {
+          "auroc": {
+            "mean": 0.49967826643161,
+            "lo": 0.4976155532398762,
+            "hi": 0.5017409796233437,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6676241265327464,
+            "lo": 0.6657875297702109,
+            "hi": 0.6694607232952818,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 0.78,
+            "lo": 0.78,
+            "hi": 0.78,
+            "n": 1
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 1
+          }
+        },
+        "shield_intervention_rate": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 1
+        },
+        "n_fail_latent": {
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "n": 0
+        }
+      },
+      "motor_severe": {
+        "latent_maha": {
+          "auroc": {
+            "mean": 0.9631115857581157,
+            "lo": 0.953801315912137,
+            "hi": 0.9724218556040944,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.9729566207388703,
+            "lo": 0.9681255021370254,
+            "hi": 0.9777877393407153,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.3933333333333333,
+            "lo": 1.3251233308084511,
+            "hi": 1.4615433358582155,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_maha": {
+          "auroc": {
+            "mean": 0.8858673331712366,
+            "lo": 0.8557655647975206,
+            "hi": 0.9159691015449525,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.9103250738469554,
+            "lo": 0.8924310890266886,
+            "hi": 0.9282190586672222,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.3933333333333333,
+            "lo": 1.3251233308084511,
+            "hi": 1.4615433358582155,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "obs_magnitude": {
+          "auroc": {
+            "mean": 0.6092002914706178,
+            "lo": 0.5825728732198954,
+            "hi": 0.6358277097213403,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6899949412712564,
+            "lo": 0.6721196236613564,
+            "hi": 0.7078702588811564,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.3733333333333333,
+            "lo": 1.305123330808451,
+            "hi": 1.4415433358582155,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 1.0,
+            "lo": 1.0,
+            "hi": 1.0,
+            "n": 3
+          }
+        },
+        "value_signal": {
+          "auroc": {
+            "mean": 0.6188003888876383,
+            "lo": 0.5649842158345948,
+            "hi": 0.6726165619406819,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6837974023799737,
+            "lo": 0.645575583803939,
+            "hi": 0.7220192209560083,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": null,
+            "lo": null,
+            "hi": null,
+            "n": 0
+          },
+          "warn_rate": {
+            "mean": 0.0,
+            "lo": 0.0,
+            "hi": 0.0,
+            "n": 3
+          }
+        },
+        "action_sat": {
+          "auroc": {
+            "mean": 0.5556516634694565,
+            "lo": 0.5497691047678394,
+            "hi": 0.5615342221710736,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6358377758373907,
+            "lo": 0.6158944518256102,
+            "hi": 0.6557810998491711,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.3,
+            "lo": 0.7493364971842301,
+            "hi": 1.8506635028157699,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 0.3907407407407408,
+            "lo": 0.2459644647283293,
+            "hi": 0.5355170167531522,
+            "n": 3
+          }
+        },
+        "random": {
+          "auroc": {
+            "mean": 0.4996877234523005,
+            "lo": 0.49771718501217727,
+            "hi": 0.5016582618924238,
+            "n": 3
+          },
+          "auprc": {
+            "mean": 0.6653183450287272,
+            "lo": 0.6628934213927213,
+            "hi": 0.6677432686647331,
+            "n": 3
+          },
+          "lead_median_s": {
+            "mean": 1.2133333333333334,
+            "lo": 1.0826666666666667,
+            "hi": 1.344,
+            "n": 3
+          },
+          "warn_rate": {
+            "mean": 0.928042328042328,
+            "lo": 0.8966045370086779,
+            "hi": 0.9594801190759781,
+            "n": 3
+          }
+        },
+        "shield_intervention_rate": {
+          "mean": 0.9978494623655915,
+          "lo": 0.9936344086021506,
+          "hi": 1.0020645161290322,
+          "n": 3
+        },
+        "n_fail_latent": {
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "n": 0
+        }
+      }
+    },
+    "fall_rates": {
+      "nominal": {
+        "mean": 0.15364583333333334,
+        "lo": 0.12259839958493618,
+        "hi": 0.1846932670817305,
+        "n": 3
+      },
+      "friction_moderate": {
+        "mean": 0.3072916666666667,
+        "lo": 0.2636816475499418,
+        "hi": 0.3509016857833916,
+        "n": 3
+      },
+      "friction_severe": {
+        "mean": 0.5208333333333334,
+        "lo": 0.5073289776831078,
+        "hi": 0.5343376889835589,
+        "n": 3
+      },
+      "mass_moderate": {
+        "mean": 0.046875,
+        "lo": 0.023484769890329566,
+        "hi": 0.07026523010967044,
+        "n": 3
+      },
+      "mass_severe": {
+        "mean": 0.026041666666666668,
+        "lo": 0.005624999999999998,
+        "hi": 0.04645833333333334,
+        "n": 3
+      },
+      "motor_moderate": {
+        "mean": 0.0026041666666666665,
+        "lo": -0.002500000000000001,
+        "hi": 0.007708333333333334,
+        "n": 3
+      },
+      "motor_severe": {
+        "mean": 0.23177083333333334,
+        "lo": 0.1597677017704554,
+        "hi": 0.3037739648962113,
+        "n": 3
+      }
+    },
+    "unnecessary_fallback_latent_nominal": {
+      "mean": 1.0,
+      "lo": 1.0,
+      "hi": 1.0,
+      "n": 3
+    }
+  },
+  "per_seed": {
+    "0": {
+      "nominal": {
+        "unnec_fallback_latent": 1.0
+      },
+      "friction_moderate": {
+        "auroc_latent_maha": 0.9500832833886778,
+        "auprc_latent_maha": 0.9749597069231178,
+        "fpr_at_op_latent_maha": 0.0500204164965292,
+        "n_fail_latent_maha": 53,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.52,
+        "lead_p25_latent_maha": 0.92,
+        "auroc_obs_maha": 0.8748517398531149,
+        "auprc_obs_maha": 0.9228270516785569,
+        "fpr_at_op_obs_maha": 0.0500204164965292,
+        "n_fail_obs_maha": 53,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.52,
+        "lead_p25_obs_maha": 0.92,
+        "auroc_obs_magnitude": 0.5427350567857364,
+        "auprc_obs_magnitude": 0.6738961898570777,
+        "fpr_at_op_obs_magnitude": 0.0500204164965292,
+        "n_fail_obs_magnitude": 53,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.5,
+        "lead_p25_obs_magnitude": 0.9,
+        "auroc_value_signal": 0.2954855860629335,
+        "auprc_value_signal": 0.5392198212832688,
+        "fpr_at_op_value_signal": 0.0500204164965292,
+        "n_fail_value_signal": 53,
+        "warn_rate_value_signal": 0.03773584905660377,
+        "lead_median_value_signal": 1.0,
+        "lead_p25_value_signal": 0.9500000000000001,
+        "auroc_action_sat": 0.4868981676020666,
+        "auprc_action_sat": 0.5861924644388226,
+        "fpr_at_op_action_sat": 0.009269089424254797,
+        "n_fail_action_sat": 53,
+        "warn_rate_action_sat": 0.018867924528301886,
+        "lead_median_action_sat": 2.7,
+        "lead_p25_action_sat": 2.7,
+        "auroc_random": 0.4976422607876982,
+        "auprc_random": 0.6623721825015674,
+        "fpr_at_op_random": 0.0500204164965292,
+        "n_fail_random": 53,
+        "warn_rate_random": 0.9811320754716981,
+        "lead_median_random": 1.11,
+        "lead_p25_random": 0.735,
+        "intervention_saved": 180,
+        "intervention_nfail": 180,
+        "intervention_rate": 1.0
+      },
+      "friction_severe": {
+        "auroc_latent_maha": 0.9742648189411582,
+        "auprc_latent_maha": 0.9860849931504087,
+        "fpr_at_op_latent_maha": 0.0500204164965292,
+        "n_fail_latent_maha": 152,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 0.8,
+        "lead_p25_latent_maha": 0.595,
+        "auroc_obs_maha": 0.9275546483294302,
+        "auprc_obs_maha": 0.951401579652509,
+        "fpr_at_op_obs_maha": 0.0500204164965292,
+        "n_fail_obs_maha": 152,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 0.78,
+        "lead_p25_obs_maha": 0.575,
+        "auroc_obs_magnitude": 0.6144263941652858,
+        "auprc_obs_magnitude": 0.7274661128571429,
+        "fpr_at_op_obs_magnitude": 0.0500204164965292,
+        "n_fail_obs_magnitude": 152,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 0.78,
+        "lead_p25_obs_magnitude": 0.575,
+        "auroc_value_signal": 0.3225635193644889,
+        "auprc_value_signal": 0.570406847665149,
+        "fpr_at_op_value_signal": 0.0500204164965292,
+        "n_fail_value_signal": 152,
+        "warn_rate_value_signal": 0.006578947368421052,
+        "lead_median_value_signal": 1.06,
+        "lead_p25_value_signal": 1.06,
+        "auroc_action_sat": 0.47377587359891193,
+        "auprc_action_sat": 0.5809216404822144,
+        "fpr_at_op_action_sat": 0.009269089424254797,
+        "n_fail_action_sat": 152,
+        "warn_rate_action_sat": 0.05263157894736842,
+        "lead_median_action_sat": 1.34,
+        "lead_p25_action_sat": 0.79,
+        "auroc_random": 0.497470362638845,
+        "auprc_random": 0.6554871636784071,
+        "fpr_at_op_random": 0.0500204164965292,
+        "n_fail_random": 152,
+        "warn_rate_random": 0.8355263157894737,
+        "lead_median_random": 0.6,
+        "lead_p25_random": 0.36,
+        "intervention_saved": 277,
+        "intervention_nfail": 279,
+        "intervention_rate": 0.992831541218638
+      },
+      "mass_moderate": {
+        "auroc_latent_maha": 0.7967005240925444,
+        "auprc_latent_maha": 0.8656943918696344,
+        "fpr_at_op_latent_maha": 0.0500204164965292,
+        "n_fail_latent_maha": 4,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 3.06,
+        "lead_p25_latent_maha": 1.965,
+        "auroc_obs_maha": 0.5904984362838558,
+        "auprc_obs_maha": 0.7113135390647086,
+        "fpr_at_op_obs_maha": 0.0500204164965292,
+        "n_fail_obs_maha": 4,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 3.06,
+        "lead_p25_obs_maha": 1.965,
+        "auroc_obs_magnitude": 0.4870893355703818,
+        "auprc_obs_magnitude": 0.6371427782394059,
+        "fpr_at_op_obs_magnitude": 0.0500204164965292,
+        "n_fail_obs_magnitude": 4,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 3.04,
+        "lead_p25_obs_magnitude": 1.945,
+        "auroc_value_signal": 0.44808706553139555,
+        "auprc_value_signal": 0.6367301321452898,
+        "fpr_at_op_value_signal": 0.0500204164965292,
+        "n_fail_value_signal": 4,
+        "warn_rate_value_signal": 0.25,
+        "lead_median_value_signal": 1.96,
+        "lead_p25_value_signal": 1.96,
+        "auroc_action_sat": 0.5180253925301672,
+        "auprc_action_sat": 0.6017891646069571,
+        "fpr_at_op_action_sat": 0.009269089424254797,
+        "n_fail_action_sat": 4,
+        "warn_rate_action_sat": 0.25,
+        "lead_median_action_sat": 3.2800000000000002,
+        "lead_p25_action_sat": 3.2800000000000002,
+        "auroc_random": 0.49765392968196887,
+        "auprc_random": 0.6656787538638335,
+        "fpr_at_op_random": 0.0500204164965292,
+        "n_fail_random": 4,
+        "warn_rate_random": 1.0,
+        "lead_median_random": 2.6,
+        "lead_p25_random": 1.46,
+        "intervention_saved": 131,
+        "intervention_nfail": 131,
+        "intervention_rate": 1.0
+      },
+      "mass_severe": {
+        "auroc_latent_maha": 0.892109084200948,
+        "auprc_latent_maha": 0.9245422643564113,
+        "fpr_at_op_latent_maha": 0.0500204164965292,
+        "n_fail_latent_maha": 2,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.33,
+        "lead_p25_latent_maha": 1.295,
+        "auroc_obs_maha": 0.708410591705306,
+        "auprc_obs_maha": 0.7870571021651305,
+        "fpr_at_op_obs_maha": 0.0500204164965292,
+        "n_fail_obs_maha": 2,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.33,
+        "lead_p25_obs_maha": 1.295,
+        "auroc_obs_magnitude": 0.5323968117101562,
+        "auprc_obs_magnitude": 0.6571387906580844,
+        "fpr_at_op_obs_magnitude": 0.0500204164965292,
+        "n_fail_obs_magnitude": 2,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.31,
+        "lead_p25_obs_magnitude": 1.275,
+        "auroc_value_signal": 0.49638877196327935,
+        "auprc_value_signal": 0.659380412159964,
+        "fpr_at_op_value_signal": 0.0500204164965292,
+        "n_fail_value_signal": 2,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5488009634099072,
+        "auprc_action_sat": 0.6202048949878232,
+        "fpr_at_op_action_sat": 0.009269089424254797,
+        "n_fail_action_sat": 2,
+        "warn_rate_action_sat": 1.0,
+        "lead_median_action_sat": 0.89,
+        "lead_p25_action_sat": 0.865,
+        "auroc_random": 0.4975683952633728,
+        "auprc_random": 0.6657494822541803,
+        "fpr_at_op_random": 0.0500204164965292,
+        "n_fail_random": 2,
+        "warn_rate_random": 1.0,
+        "lead_median_random": 1.05,
+        "lead_p25_random": 0.935,
+        "intervention_saved": 129,
+        "intervention_nfail": 129,
+        "intervention_rate": 1.0
+      },
+      "motor_moderate": {
+        "auroc_latent_maha": 0.9113744511409375,
+        "auprc_latent_maha": 0.9411290527528945,
+        "fpr_at_op_latent_maha": 0.0500204164965292,
+        "n_fail_latent_maha": 0,
+        "warn_rate_latent_maha": NaN,
+        "lead_median_latent_maha": NaN,
+        "lead_p25_latent_maha": NaN,
+        "auroc_obs_maha": 0.7729651025398652,
+        "auprc_obs_maha": 0.8275343028222155,
+        "fpr_at_op_obs_maha": 0.0500204164965292,
+        "n_fail_obs_maha": 0,
+        "warn_rate_obs_maha": NaN,
+        "lead_median_obs_maha": NaN,
+        "lead_p25_obs_maha": NaN,
+        "auroc_obs_magnitude": 0.5398741891402798,
+        "auprc_obs_magnitude": 0.6559847287057827,
+        "fpr_at_op_obs_magnitude": 0.0500204164965292,
+        "n_fail_obs_magnitude": 0,
+        "warn_rate_obs_magnitude": NaN,
+        "lead_median_obs_magnitude": NaN,
+        "lead_p25_obs_magnitude": NaN,
+        "auroc_value_signal": 0.620698112849533,
+        "auprc_value_signal": 0.725467806499112,
+        "fpr_at_op_value_signal": 0.0500204164965292,
+        "n_fail_value_signal": 0,
+        "warn_rate_value_signal": NaN,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5544080164743892,
+        "auprc_action_sat": 0.6300792892269361,
+        "fpr_at_op_action_sat": 0.009269089424254797,
+        "n_fail_action_sat": 0,
+        "warn_rate_action_sat": NaN,
+        "lead_median_action_sat": NaN,
+        "lead_p25_action_sat": NaN,
+        "auroc_random": 0.49763351759000496,
+        "auprc_random": 0.6659355488243649,
+        "fpr_at_op_random": 0.0500204164965292,
+        "n_fail_random": 0,
+        "warn_rate_random": NaN,
+        "lead_median_random": NaN,
+        "lead_p25_random": NaN,
+        "intervention_saved": 0,
+        "intervention_nfail": 0,
+        "intervention_rate": NaN
+      },
+      "motor_severe": {
+        "auroc_latent_maha": 0.963831340290386,
+        "auprc_latent_maha": 0.9738024999999991,
+        "fpr_at_op_latent_maha": 0.0500204164965292,
+        "n_fail_latent_maha": 45,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.4000000000000001,
+        "lead_p25_latent_maha": 1.0,
+        "auroc_obs_maha": 0.8968334179802694,
+        "auprc_obs_maha": 0.9172097014044964,
+        "fpr_at_op_obs_maha": 0.0500204164965292,
+        "n_fail_obs_maha": 45,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.4000000000000001,
+        "lead_p25_obs_maha": 0.98,
+        "auroc_obs_magnitude": 0.6338600922453479,
+        "auprc_obs_magnitude": 0.7074190145930196,
+        "fpr_at_op_obs_magnitude": 0.0500204164965292,
+        "n_fail_obs_magnitude": 45,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.3800000000000001,
+        "lead_p25_obs_magnitude": 0.98,
+        "auroc_value_signal": 0.6554942709685149,
+        "auprc_value_signal": 0.7153439720329101,
+        "fpr_at_op_value_signal": 0.0500204164965292,
+        "n_fail_value_signal": 45,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5515958458635791,
+        "auprc_action_sat": 0.6199000027561585,
+        "fpr_at_op_action_sat": 0.009269089424254797,
+        "n_fail_action_sat": 45,
+        "warn_rate_action_sat": 0.4222222222222222,
+        "lead_median_action_sat": 1.86,
+        "lead_p25_action_sat": 0.6,
+        "auroc_random": 0.4977651894134637,
+        "auprc_random": 0.6629713267418935,
+        "fpr_at_op_random": 0.0500204164965292,
+        "n_fail_random": 45,
+        "warn_rate_random": 0.9555555555555556,
+        "lead_median_random": 1.28,
+        "lead_p25_random": 0.74,
+        "intervention_saved": 172,
+        "intervention_nfail": 172,
+        "intervention_rate": 1.0
+      }
+    },
+    "1": {
+      "nominal": {
+        "unnec_fallback_latent": 1.0
+      },
+      "friction_moderate": {
+        "auroc_latent_maha": 0.9593491554601333,
+        "auprc_latent_maha": 0.9773846506082691,
+        "fpr_at_op_latent_maha": 0.05001431317220791,
+        "n_fail_latent_maha": 68,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.17,
+        "lead_p25_latent_maha": 0.86,
+        "auroc_obs_maha": 0.8700640185459257,
+        "auprc_obs_maha": 0.9172788901112636,
+        "fpr_at_op_obs_maha": 0.05001431317220791,
+        "n_fail_obs_maha": 68,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.17,
+        "lead_p25_obs_maha": 0.84,
+        "auroc_obs_magnitude": 0.5247336717007579,
+        "auprc_obs_magnitude": 0.656809155503567,
+        "fpr_at_op_obs_magnitude": 0.05001431317220791,
+        "n_fail_obs_magnitude": 68,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.15,
+        "lead_p25_obs_magnitude": 0.84,
+        "auroc_value_signal": 0.309886654437552,
+        "auprc_value_signal": 0.5362047214348248,
+        "fpr_at_op_value_signal": 0.05001431317220791,
+        "n_fail_value_signal": 68,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5195297548826678,
+        "auprc_action_sat": 0.6062602202254859,
+        "fpr_at_op_action_sat": 0.003803214329530119,
+        "n_fail_action_sat": 68,
+        "warn_rate_action_sat": 0.014705882352941176,
+        "lead_median_action_sat": 1.08,
+        "lead_p25_action_sat": 1.08,
+        "auroc_random": 0.5009302778104444,
+        "auprc_random": 0.6644132752109692,
+        "fpr_at_op_random": 0.05001431317220791,
+        "n_fail_random": 68,
+        "warn_rate_random": 0.9558823529411765,
+        "lead_median_random": 0.9,
+        "lead_p25_random": 0.6,
+        "intervention_saved": 195,
+        "intervention_nfail": 195,
+        "intervention_rate": 1.0
+      },
+      "friction_severe": {
+        "auroc_latent_maha": 0.980277190506496,
+        "auprc_latent_maha": 0.9888254908729348,
+        "fpr_at_op_latent_maha": 0.05001431317220791,
+        "n_fail_latent_maha": 168,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 0.72,
+        "lead_p25_latent_maha": 0.52,
+        "auroc_obs_maha": 0.926063458677217,
+        "auprc_obs_maha": 0.9527071147911655,
+        "fpr_at_op_obs_maha": 0.05001431317220791,
+        "n_fail_obs_maha": 168,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 0.72,
+        "lead_p25_obs_maha": 0.52,
+        "auroc_obs_magnitude": 0.5859313296451737,
+        "auprc_obs_magnitude": 0.6979379956353324,
+        "fpr_at_op_obs_magnitude": 0.05001431317220791,
+        "n_fail_obs_magnitude": 168,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 0.7000000000000001,
+        "lead_p25_obs_magnitude": 0.5,
+        "auroc_value_signal": 0.282516428459875,
+        "auprc_value_signal": 0.5256447419209981,
+        "fpr_at_op_value_signal": 0.05001431317220791,
+        "n_fail_value_signal": 168,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5317132620008895,
+        "auprc_action_sat": 0.6157991279421049,
+        "fpr_at_op_action_sat": 0.003803214329530119,
+        "n_fail_action_sat": 168,
+        "warn_rate_action_sat": 0.07142857142857142,
+        "lead_median_action_sat": 1.1800000000000002,
+        "lead_p25_action_sat": 0.8400000000000001,
+        "auroc_random": 0.5003046631220085,
+        "auprc_random": 0.6571111975280427,
+        "fpr_at_op_random": 0.05001431317220791,
+        "n_fail_random": 168,
+        "warn_rate_random": 0.7976190476190477,
+        "lead_median_random": 0.56,
+        "lead_p25_random": 0.34,
+        "intervention_saved": 293,
+        "intervention_nfail": 295,
+        "intervention_rate": 0.9932203389830508
+      },
+      "mass_moderate": {
+        "auroc_latent_maha": 0.7753114241628994,
+        "auprc_latent_maha": 0.8442267133452208,
+        "fpr_at_op_latent_maha": 0.05001431317220791,
+        "n_fail_latent_maha": 5,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.84,
+        "lead_p25_latent_maha": 1.3800000000000001,
+        "auroc_obs_maha": 0.5525292306342585,
+        "auprc_obs_maha": 0.6905036384106276,
+        "fpr_at_op_obs_maha": 0.05001431317220791,
+        "n_fail_obs_maha": 5,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.84,
+        "lead_p25_obs_maha": 1.3800000000000001,
+        "auroc_obs_magnitude": 0.48993523877066947,
+        "auprc_obs_magnitude": 0.6374808716875426,
+        "fpr_at_op_obs_magnitude": 0.05001431317220791,
+        "n_fail_obs_magnitude": 5,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.82,
+        "lead_p25_obs_magnitude": 1.36,
+        "auroc_value_signal": 0.48094364859616573,
+        "auprc_value_signal": 0.6302836555890469,
+        "fpr_at_op_value_signal": 0.05001431317220791,
+        "n_fail_value_signal": 5,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5748210978140542,
+        "auprc_action_sat": 0.6356730994152218,
+        "fpr_at_op_action_sat": 0.003803214329530119,
+        "n_fail_action_sat": 5,
+        "warn_rate_action_sat": 0.0,
+        "lead_median_action_sat": NaN,
+        "lead_p25_action_sat": NaN,
+        "auroc_random": 0.5011086345273607,
+        "auprc_random": 0.6688055151039929,
+        "fpr_at_op_random": 0.05001431317220791,
+        "n_fail_random": 5,
+        "warn_rate_random": 1.0,
+        "lead_median_random": 1.3,
+        "lead_p25_random": 0.86,
+        "intervention_saved": 132,
+        "intervention_nfail": 132,
+        "intervention_rate": 1.0
+      },
+      "mass_severe": {
+        "auroc_latent_maha": 0.8858614447564488,
+        "auprc_latent_maha": 0.9213037802473253,
+        "fpr_at_op_latent_maha": 0.05001431317220791,
+        "n_fail_latent_maha": 2,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 2.9000000000000004,
+        "lead_p25_latent_maha": 2.52,
+        "auroc_obs_maha": 0.6967371655269063,
+        "auprc_obs_maha": 0.7758140600681576,
+        "fpr_at_op_obs_maha": 0.05001431317220791,
+        "n_fail_obs_maha": 2,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 2.9000000000000004,
+        "lead_p25_obs_maha": 2.52,
+        "auroc_obs_magnitude": 0.5092200112055842,
+        "auprc_obs_magnitude": 0.6396852083534624,
+        "fpr_at_op_obs_magnitude": 0.05001431317220791,
+        "n_fail_obs_magnitude": 2,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 2.88,
+        "lead_p25_obs_magnitude": 2.5,
+        "auroc_value_signal": 0.4960441696813591,
+        "auprc_value_signal": 0.6523980355641433,
+        "fpr_at_op_value_signal": 0.05001431317220791,
+        "n_fail_value_signal": 2,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5795922151289503,
+        "auprc_action_sat": 0.6417988374832511,
+        "fpr_at_op_action_sat": 0.003803214329530119,
+        "n_fail_action_sat": 2,
+        "warn_rate_action_sat": 0.0,
+        "lead_median_action_sat": NaN,
+        "lead_p25_action_sat": NaN,
+        "auroc_random": 0.501189204359923,
+        "auprc_random": 0.6690871575941222,
+        "fpr_at_op_random": 0.05001431317220791,
+        "n_fail_random": 2,
+        "warn_rate_random": 1.0,
+        "lead_median_random": 2.4400000000000004,
+        "lead_p25_random": 2.0300000000000002,
+        "intervention_saved": 129,
+        "intervention_nfail": 129,
+        "intervention_rate": 1.0
+      },
+      "motor_moderate": {
+        "auroc_latent_maha": 0.9097320334835287,
+        "auprc_latent_maha": 0.94179404775398,
+        "fpr_at_op_latent_maha": 0.05001431317220791,
+        "n_fail_latent_maha": 0,
+        "warn_rate_latent_maha": NaN,
+        "lead_median_latent_maha": NaN,
+        "lead_p25_latent_maha": NaN,
+        "auroc_obs_maha": 0.7805180963374744,
+        "auprc_obs_maha": 0.8375033303066263,
+        "fpr_at_op_obs_maha": 0.05001431317220791,
+        "n_fail_obs_maha": 0,
+        "warn_rate_obs_maha": NaN,
+        "lead_median_obs_maha": NaN,
+        "lead_p25_obs_maha": NaN,
+        "auroc_obs_magnitude": 0.5233368364423986,
+        "auprc_obs_magnitude": 0.6421717680310592,
+        "fpr_at_op_obs_magnitude": 0.05001431317220791,
+        "n_fail_obs_magnitude": 0,
+        "warn_rate_obs_magnitude": NaN,
+        "lead_median_obs_magnitude": NaN,
+        "lead_p25_obs_magnitude": NaN,
+        "auroc_value_signal": 0.5935947031603431,
+        "auprc_value_signal": 0.6784903365982786,
+        "fpr_at_op_value_signal": 0.05001431317220791,
+        "n_fail_value_signal": 0,
+        "warn_rate_value_signal": NaN,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5930374093277802,
+        "auprc_action_sat": 0.663237843494896,
+        "fpr_at_op_action_sat": 0.003803214329530119,
+        "n_fail_action_sat": 0,
+        "warn_rate_action_sat": NaN,
+        "lead_median_action_sat": NaN,
+        "lead_p25_action_sat": NaN,
+        "auroc_random": 0.5011329816017316,
+        "auprc_random": 0.6691724439231626,
+        "fpr_at_op_random": 0.05001431317220791,
+        "n_fail_random": 0,
+        "warn_rate_random": NaN,
+        "lead_median_random": NaN,
+        "lead_p25_random": NaN,
+        "intervention_saved": 0,
+        "intervention_nfail": 0,
+        "intervention_rate": NaN
+      },
+      "motor_severe": {
+        "auroc_latent_maha": 0.9709555422846432,
+        "auprc_latent_maha": 0.9767396195126367,
+        "fpr_at_op_latent_maha": 0.05001431317220791,
+        "n_fail_latent_maha": 30,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.45,
+        "lead_p25_latent_maha": 1.065,
+        "auroc_obs_maha": 0.9052321756828262,
+        "auprc_obs_maha": 0.9215285562098315,
+        "fpr_at_op_obs_maha": 0.05001431317220791,
+        "n_fail_obs_maha": 30,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.45,
+        "lead_p25_obs_maha": 1.065,
+        "auroc_obs_magnitude": 0.6067502379045111,
+        "auprc_obs_magnitude": 0.6859549207860276,
+        "fpr_at_op_obs_magnitude": 0.05001431317220791,
+        "n_fail_obs_magnitude": 30,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.43,
+        "lead_p25_obs_magnitude": 1.045,
+        "auroc_value_signal": 0.6358351930072291,
+        "auprc_value_signal": 0.687885361668292,
+        "fpr_at_op_value_signal": 0.05001431317220791,
+        "n_fail_value_signal": 30,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5615118380582882,
+        "auprc_action_sat": 0.6547653351669926,
+        "fpr_at_op_action_sat": 0.003803214329530119,
+        "n_fail_action_sat": 30,
+        "warn_rate_action_sat": 0.5,
+        "lead_median_action_sat": 0.98,
+        "lead_p25_action_sat": 0.54,
+        "auroc_random": 0.5011591320320855,
+        "auprc_random": 0.6671705768405796,
+        "fpr_at_op_random": 0.05001431317220791,
+        "n_fail_random": 30,
+        "warn_rate_random": 0.9,
+        "lead_median_random": 1.28,
+        "lead_p25_random": 0.64,
+        "intervention_saved": 157,
+        "intervention_nfail": 157,
+        "intervention_rate": 1.0
+      }
+    },
+    "2": {
+      "nominal": {
+        "unnec_fallback_latent": 1.0
+      },
+      "friction_moderate": {
+        "auroc_latent_maha": 0.9629495777662122,
+        "auprc_latent_maha": 0.9803360686186823,
+        "fpr_at_op_latent_maha": 0.05,
+        "n_fail_latent_maha": 50,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.22,
+        "lead_p25_latent_maha": 0.925,
+        "auroc_obs_maha": 0.8819109606570541,
+        "auprc_obs_maha": 0.9239478216354359,
+        "fpr_at_op_obs_maha": 0.05,
+        "n_fail_obs_maha": 50,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.22,
+        "lead_p25_obs_maha": 0.92,
+        "auroc_obs_magnitude": 0.536851710526604,
+        "auprc_obs_magnitude": 0.6701519316250187,
+        "fpr_at_op_obs_magnitude": 0.05,
+        "n_fail_obs_magnitude": 50,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.2,
+        "lead_p25_obs_magnitude": 0.905,
+        "auroc_value_signal": 0.2554267824826683,
+        "auprc_value_signal": 0.5216911325139166,
+        "fpr_at_op_value_signal": 0.05,
+        "n_fail_value_signal": 50,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5268577250477194,
+        "auprc_action_sat": 0.6273791026100474,
+        "fpr_at_op_action_sat": 0.00437448896156991,
+        "n_fail_action_sat": 50,
+        "warn_rate_action_sat": 0.08,
+        "lead_median_action_sat": 1.6,
+        "lead_p25_action_sat": 1.225,
+        "auroc_random": 0.5000674583364152,
+        "auprc_random": 0.664318640283802,
+        "fpr_at_op_random": 0.05,
+        "n_fail_random": 50,
+        "warn_rate_random": 0.94,
+        "lead_median_random": 0.96,
+        "lead_p25_random": 0.5700000000000001,
+        "intervention_saved": 176,
+        "intervention_nfail": 177,
+        "intervention_rate": 0.9943502824858758
+      },
+      "friction_severe": {
+        "auroc_latent_maha": 0.984786825738464,
+        "auprc_latent_maha": 0.9912942923433539,
+        "fpr_at_op_latent_maha": 0.05,
+        "n_fail_latent_maha": 161,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 0.72,
+        "lead_p25_latent_maha": 0.54,
+        "auroc_obs_maha": 0.9335416223957123,
+        "auprc_obs_maha": 0.9566517644061827,
+        "fpr_at_op_obs_maha": 0.05,
+        "n_fail_obs_maha": 161,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 0.7000000000000001,
+        "lead_p25_obs_maha": 0.54,
+        "auroc_obs_magnitude": 0.5749849128424906,
+        "auprc_obs_magnitude": 0.6934633840201684,
+        "fpr_at_op_obs_magnitude": 0.05,
+        "n_fail_obs_magnitude": 161,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 0.7000000000000001,
+        "lead_p25_obs_magnitude": 0.52,
+        "auroc_value_signal": 0.22885285733738062,
+        "auprc_value_signal": 0.5059388546658928,
+        "fpr_at_op_value_signal": 0.05,
+        "n_fail_value_signal": 161,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5103327679385151,
+        "auprc_action_sat": 0.6189544787491033,
+        "fpr_at_op_action_sat": 0.00437448896156991,
+        "n_fail_action_sat": 161,
+        "warn_rate_action_sat": 0.049689440993788817,
+        "lead_median_action_sat": 0.8,
+        "lead_p25_action_sat": 0.6950000000000001,
+        "auroc_random": 0.5000776672878643,
+        "auprc_random": 0.6569083450277373,
+        "fpr_at_op_random": 0.05,
+        "n_fail_random": 161,
+        "warn_rate_random": 0.8012422360248447,
+        "lead_median_random": 0.56,
+        "lead_p25_random": 0.3,
+        "intervention_saved": 288,
+        "intervention_nfail": 288,
+        "intervention_rate": 1.0
+      },
+      "mass_moderate": {
+        "auroc_latent_maha": 0.8195925901184997,
+        "auprc_latent_maha": 0.8738262123646628,
+        "fpr_at_op_latent_maha": 0.05,
+        "n_fail_latent_maha": 9,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.86,
+        "lead_p25_latent_maha": 1.74,
+        "auroc_obs_maha": 0.5580645597359991,
+        "auprc_obs_maha": 0.6942102984768326,
+        "fpr_at_op_obs_maha": 0.05,
+        "n_fail_obs_maha": 9,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.86,
+        "lead_p25_obs_maha": 1.74,
+        "auroc_obs_magnitude": 0.4802608451620004,
+        "auprc_obs_magnitude": 0.6362679346177056,
+        "fpr_at_op_obs_magnitude": 0.05,
+        "n_fail_obs_magnitude": 9,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.84,
+        "lead_p25_obs_magnitude": 1.72,
+        "auroc_value_signal": 0.4154375969719988,
+        "auprc_value_signal": 0.6152559861544621,
+        "fpr_at_op_value_signal": 0.05,
+        "n_fail_value_signal": 9,
+        "warn_rate_value_signal": 0.3333333333333333,
+        "lead_median_value_signal": 1.3,
+        "lead_p25_value_signal": 1.17,
+        "auroc_action_sat": 0.5561625475932809,
+        "auprc_action_sat": 0.6251150924194258,
+        "fpr_at_op_action_sat": 0.00437448896156991,
+        "n_fail_action_sat": 9,
+        "warn_rate_action_sat": 0.0,
+        "lead_median_action_sat": NaN,
+        "lead_p25_action_sat": NaN,
+        "auroc_random": 0.500293089924379,
+        "auprc_random": 0.6672540646606413,
+        "fpr_at_op_random": 0.05,
+        "n_fail_random": 9,
+        "warn_rate_random": 1.0,
+        "lead_median_random": 1.7,
+        "lead_p25_random": 1.46,
+        "intervention_saved": 136,
+        "intervention_nfail": 136,
+        "intervention_rate": 1.0
+      },
+      "mass_severe": {
+        "auroc_latent_maha": 0.90212222883983,
+        "auprc_latent_maha": 0.9306623959324861,
+        "fpr_at_op_latent_maha": 0.05,
+        "n_fail_latent_maha": 6,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 2.1500000000000004,
+        "lead_p25_latent_maha": 1.925,
+        "auroc_obs_maha": 0.6892407117960178,
+        "auprc_obs_maha": 0.7721265847506477,
+        "fpr_at_op_obs_maha": 0.05,
+        "n_fail_obs_maha": 6,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 2.1500000000000004,
+        "lead_p25_obs_maha": 1.925,
+        "auroc_obs_magnitude": 0.5044329013086407,
+        "auprc_obs_magnitude": 0.6429650254970216,
+        "fpr_at_op_obs_magnitude": 0.05,
+        "n_fail_obs_magnitude": 6,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 2.13,
+        "lead_p25_obs_magnitude": 1.905,
+        "auroc_value_signal": 0.45629200821085725,
+        "auprc_value_signal": 0.6266374064458003,
+        "fpr_at_op_value_signal": 0.05,
+        "n_fail_value_signal": 6,
+        "warn_rate_value_signal": 0.16666666666666666,
+        "lead_median_value_signal": 1.56,
+        "lead_p25_value_signal": 1.56,
+        "auroc_action_sat": 0.5539564123593714,
+        "auprc_action_sat": 0.6225113132646566,
+        "fpr_at_op_action_sat": 0.00437448896156991,
+        "n_fail_action_sat": 6,
+        "warn_rate_action_sat": 0.3333333333333333,
+        "lead_median_action_sat": 2.35,
+        "lead_p25_action_sat": 1.685,
+        "auroc_random": 0.5002791813644325,
+        "auprc_random": 0.6674165767113942,
+        "fpr_at_op_random": 0.05,
+        "n_fail_random": 6,
+        "warn_rate_random": 1.0,
+        "lead_median_random": 2.0300000000000002,
+        "lead_p25_random": 1.4300000000000002,
+        "intervention_saved": 133,
+        "intervention_nfail": 133,
+        "intervention_rate": 1.0
+      },
+      "motor_moderate": {
+        "auroc_latent_maha": 0.9162855612831601,
+        "auprc_latent_maha": 0.9437565072699613,
+        "fpr_at_op_latent_maha": 0.05,
+        "n_fail_latent_maha": 1,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.78,
+        "lead_p25_latent_maha": 1.78,
+        "auroc_obs_maha": 0.7603315242652436,
+        "auprc_obs_maha": 0.8266737064950412,
+        "fpr_at_op_obs_maha": 0.05,
+        "n_fail_obs_maha": 1,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.78,
+        "lead_p25_obs_maha": 1.78,
+        "auroc_obs_magnitude": 0.5151955578566664,
+        "auprc_obs_magnitude": 0.6414487171488766,
+        "fpr_at_op_obs_magnitude": 0.05,
+        "n_fail_obs_magnitude": 1,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.76,
+        "lead_p25_obs_magnitude": 1.76,
+        "auroc_value_signal": 0.5489449917881161,
+        "auprc_value_signal": 0.6734529661746933,
+        "fpr_at_op_value_signal": 0.05,
+        "n_fail_value_signal": 1,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5610046593344071,
+        "auprc_action_sat": 0.645489619046113,
+        "fpr_at_op_action_sat": 0.00437448896156991,
+        "n_fail_action_sat": 1,
+        "warn_rate_action_sat": 1.0,
+        "lead_median_action_sat": 0.88,
+        "lead_p25_action_sat": 0.88,
+        "auroc_random": 0.5002683001030935,
+        "auprc_random": 0.6677643868507115,
+        "fpr_at_op_random": 0.05,
+        "n_fail_random": 1,
+        "warn_rate_random": 1.0,
+        "lead_median_random": 0.78,
+        "lead_p25_random": 0.78,
+        "intervention_saved": 128,
+        "intervention_nfail": 128,
+        "intervention_rate": 1.0
+      },
+      "motor_severe": {
+        "auroc_latent_maha": 0.9545478746993178,
+        "auprc_latent_maha": 0.9683277427039751,
+        "fpr_at_op_latent_maha": 0.05,
+        "n_fail_latent_maha": 28,
+        "warn_rate_latent_maha": 1.0,
+        "lead_median_latent_maha": 1.33,
+        "lead_p25_latent_maha": 0.915,
+        "auroc_obs_maha": 0.855536405850614,
+        "auprc_obs_maha": 0.8922369639265383,
+        "fpr_at_op_obs_maha": 0.05,
+        "n_fail_obs_maha": 28,
+        "warn_rate_obs_maha": 1.0,
+        "lead_median_obs_maha": 1.33,
+        "lead_p25_obs_maha": 0.915,
+        "auroc_obs_magnitude": 0.5869905442619944,
+        "auprc_obs_magnitude": 0.6766108884347221,
+        "fpr_at_op_obs_magnitude": 0.05,
+        "n_fail_obs_magnitude": 28,
+        "warn_rate_obs_magnitude": 1.0,
+        "lead_median_obs_magnitude": 1.31,
+        "lead_p25_obs_magnitude": 0.895,
+        "auroc_value_signal": 0.565071702687171,
+        "auprc_value_signal": 0.6481628734387189,
+        "fpr_at_op_value_signal": 0.05,
+        "n_fail_value_signal": 28,
+        "warn_rate_value_signal": 0.0,
+        "lead_median_value_signal": NaN,
+        "lead_p25_value_signal": NaN,
+        "auroc_action_sat": 0.5538473064865023,
+        "auprc_action_sat": 0.6328479895890208,
+        "fpr_at_op_action_sat": 0.00437448896156991,
+        "n_fail_action_sat": 28,
+        "warn_rate_action_sat": 0.25,
+        "lead_median_action_sat": 1.06,
+        "lead_p25_action_sat": 0.6000000000000001,
+        "auroc_random": 0.5001388489113522,
+        "auprc_random": 0.6658131315037086,
+        "fpr_at_op_random": 0.05,
+        "n_fail_random": 28,
+        "warn_rate_random": 0.9285714285714286,
+        "lead_median_random": 1.08,
+        "lead_p25_random": 0.58,
+        "intervention_saved": 154,
+        "intervention_nfail": 155,
+        "intervention_rate": 0.9935483870967742
+      }
+    }
+  }
+}
