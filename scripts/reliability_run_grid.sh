@@ -12,10 +12,10 @@ set -u
 cd "$(dirname "$0")/.."
 export OMNI_KIT_ACCEPT_EULA=YES ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Sim/IsaacLab}"
 
-CKPT=checkpoints/phoenix-flat/latest.pt
-ENVCFG=configs/env/flat.yaml
-OUT=reliability_eval/raw
-LOGS=reliability_eval/logs
+CKPT="${CKPT:-checkpoints/phoenix-flat/latest.pt}"
+ENVCFG="${ENVCFG:-configs/env/flat.yaml}"
+OUT="${OUT:-reliability_eval/raw}"
+LOGS="${LOGS:-reliability_eval/logs}"
 ENVS="${ENVS:-256}"
 STEPS="${STEPS:-300}"
 SEEDS="${SEEDS:-0 1 2}"
