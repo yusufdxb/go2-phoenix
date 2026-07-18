@@ -85,6 +85,8 @@ docs/adapt_load_debug.md
 checkpoints/
 FIXLIST.md
 
-# reliability Phase-3 rollouts + logs (large / transient); results/ IS tracked
+# reliability Phase-3 rollouts + logs (large / transient); results*/ IS tracked
 reliability_eval/raw/
 reliability_eval/logs/
+reliability_eval/raw_stand/
+reliability_eval/logs_stand/

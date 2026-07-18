@@ -61,11 +61,31 @@ def first_krun_before(exceed, K, limit):
 
 
 def main():
-    g = load()
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--raw-dir", default="reliability_eval/raw")
+    ap.add_argument("--out-dir", default="reliability_eval/results")
+    ap.add_argument("--faller", default=None, help="OOD condition to measure lead on; default = highest fall rate")
+    args = ap.parse_args()
+
+    g = load(args.raw_dir)
     seeds = sorted(g["nominal"].keys())
     grid_p = [99.0, 99.5, 99.9, 99.95, 99.99]
     grid_K = [3, 5, 10, 20]
-    faller = "friction_severe"
+    # Pick the failure-inducing shift automatically (a standing policy faults
+    # under different shifts than a walker).
+    if args.faller:
+        faller = args.faller
+    else:
+        rates = {}
+        for c in g:
+            if c == "nominal":
+                continue
+            fr = [float((d["done"] & (~d["time_out"])).any(0).mean()) for d in g[c].values()]
+            rates[c] = float(np.mean(fr))
+        faller = max(rates, key=rates.get)
+        print(f"[sweep] auto-selected faller={faller} (fall rates: { {k: round(v,3) for k,v in rates.items()} })")
 
     rows = {}
     for seed in seeds:
@@ -139,8 +159,10 @@ def main():
             best = {"p": p, "K": K, "nom_ep_fpr": ne, "warn": wr, "lead_med_s": ld}
     print("\nBEST actionable point (nominal episode FPR <= 0.10 and warn >= 0.5):")
     print(json.dumps(best, indent=2) if best else "  NONE FOUND -- no quiet operating point warns in time.")
-    Path("reliability_eval/results").mkdir(parents=True, exist_ok=True)
-    Path("reliability_eval/results/sweep.json").write_text(json.dumps({"grid": out, "best": best}, indent=2))
+    Path(args.out_dir).mkdir(parents=True, exist_ok=True)
+    Path(f"{args.out_dir}/sweep.json").write_text(
+        json.dumps({"faller": faller, "grid": out, "best": best}, indent=2)
+    )
 
 
 if __name__ == "__main__":
