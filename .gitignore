@@ -84,3 +84,7 @@ docs/adapt_load_debug.md
 # training artifacts / scratch
 checkpoints/
 FIXLIST.md
+
+# reliability Phase-3 rollouts + logs (large / transient); results/ IS tracked
+reliability_eval/raw/
+reliability_eval/logs/
