@@ -116,7 +116,7 @@ class MahalanobisScorer:
     shrinkage: float
 
     @classmethod
-    def fit(cls, features: np.ndarray, *, jitter: float = 1e-6) -> "MahalanobisScorer":
+    def fit(cls, features: np.ndarray, *, jitter: float = 1e-6) -> MahalanobisScorer:
         arr = _as_2d(features)
         cov, shrinkage = ledoit_wolf_shrinkage(arr)
         mean = arr[_finite_rows(arr)].mean(axis=0)
@@ -168,7 +168,7 @@ class KNNScorer:
         k: int = 5,
         max_reference: int = 4000,
         seed: int = 0,
-    ) -> "KNNScorer":
+    ) -> KNNScorer:
         arr = _as_2d(features)
         arr = arr[_finite_rows(arr)]
         n, d = arr.shape

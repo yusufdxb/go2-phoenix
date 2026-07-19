@@ -219,6 +219,63 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 self.mode_cfg.transition_ticks,
             )
 
+        # Reliability shield (Phase 4). Opt-in via deploy.yaml. When enabled,
+        # the policy ONNX must emit a `latent` output (export with
+        # ``--emit-latent``); the shield scores it every tick and returns a
+        # blend weight toward the verified fallback. Disabled by default, so
+        # every pre-shield bringup behaves exactly as before.
+        rel_cfg = cfg.get("reliability", {}) or {}
+        self.shield_enabled = bool(rel_cfg.get("enabled", False))
+        self.shield = None
+        self.shield_op = None
+        self._shield_outputs = ["action"]
+        self._shield_blend = 0.0
+        self._shield_engagements = 0
+        if self.shield_enabled:
+            from phoenix.reliability.deploy import build_shield
+
+            out_names = [o.name for o in self.session.get_outputs()]
+            if "latent" not in out_names:
+                # Fail closed at construction rather than at 50 Hz: a policy
+                # with no latent cannot be monitored, and silently running it
+                # unshielded is the failure mode this whole layer exists to
+                # prevent.
+                raise ValueError(
+                    f"reliability.enabled but {onnx_path} emits {out_names} with no 'latent'. "
+                    "Re-export with `python -m phoenix.sim2real.export --emit-latent`."
+                )
+            latent_dim = self.session.get_outputs()[out_names.index("latent")].shape[-1]
+            self.shield, self.shield_op, shield_meta = build_shield(
+                Path(rel_cfg["artifact"]),
+                expected_dim=latent_dim if isinstance(latent_dim, int) else None,
+                handoff_ticks=int(rel_cfg.get("handoff_ticks", 10)),
+                recover_ticks=int(rel_cfg.get("recover_ticks", 25)),
+                min_fallback_ticks=int(rel_cfg.get("min_fallback_ticks", 20)),
+                latch=bool(rel_cfg.get("latch", False)),
+            )
+            self._shield_outputs = ["action", "latent"]
+            logger.info(
+                "reliability shield ENABLED: artifact=%s dim=%d trip=%.1f K=%d "
+                "(calibrated: nominal episode FPR %.3f, %.0f%% of falls warned, %.2fs lead)",
+                rel_cfg["artifact"],
+                self.shield.dim,
+                self.shield_op.trip_threshold,
+                self.shield_op.trip_persistence,
+                self.shield_op.nominal_episode_fpr,
+                100.0 * self.shield_op.falls_warned,
+                self.shield_op.median_lead_s,
+            )
+            ckpt = (shield_meta.get("provenance") or {}).get("checkpoint_sha256")
+            logger.info("shield fit on checkpoint sha256=%s", ckpt)
+            if self.mode_switch_enabled:
+                # The shield scores self.session's latent, but mode-switch mode
+                # commands from stand_session / walk_session instead. Refuse
+                # rather than monitor a policy that is not driving the robot.
+                raise ValueError(
+                    "reliability.enabled is not supported together with policy.mode_switch; "
+                    "the shield would score a policy that is not in control."
+                )
+
         # Failure thresholds reused from the offline detector so the
         # on-robot abort and the sim replay flag the same regimes.
         self.thresholds = FailureThresholds()
@@ -254,6 +311,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             Bool, cfg["safety"]["emergency_stop_topic"], self._on_estop, qos
         )
         self.cmd_pub = self.node.create_publisher(Float64MultiArray, topics["joint_command"], qos)
+        self.shield_pub = None
+        if self.shield_enabled:
+            self.shield_pub = self.node.create_publisher(
+                Float64MultiArray, topics.get("shield_status", "/phoenix/shield"), qos
+            )
 
         self.node.create_timer(1.0 / self.rate_hz, self._control_step)
 
@@ -410,10 +472,14 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             else:
                 obs = proprio.reshape(1, -1)
 
-            action = self.session.run(["action"], {"obs": obs})[0][0]
+            outputs = self.session.run(self._shield_outputs, {"obs": obs})
+            action = outputs[0][0]
             self._last_action = action.astype(np.float32, copy=False)
 
             target = self.default_q + self.action_scale * action
+
+            if self.shield is not None:
+                target = self._apply_shield(outputs[1][0], target)
 
         target = self._clip_to_limits(target, q)
 
@@ -547,6 +613,56 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # the action is what the caller logs to parquet.
         active_action = stand_action if active == "stand" else walk_action
         return target.astype(np.float32, copy=False), active_action.astype(np.float32, copy=False)
+
+    def _apply_shield(self, latent: np.ndarray, learned_target: np.ndarray) -> np.ndarray:
+        """Score the policy latent and blend toward the verified fallback.
+
+        The fallback is the default stand pose — the same posture every abort
+        path in this node commands, and the only controller here that is
+        verified in the Simplex sense. ``blend`` ramps rather than snaps
+        (see :mod:`phoenix.reliability.arbiter`) so the handoff cannot yank a
+        moving robot into a stand in one tick.
+
+        Note on ``last_action``: the policy keeps consuming *its own* action as
+        ``last_action`` even while the fallback is partly in control, matching
+        how the Isaac study scored the shield. Once the blend is non-zero the
+        policy's observations are off-distribution regardless — which is the
+        point, and why the arbiter's release path requires a sustained return
+        to nominal scores rather than a single quiet tick.
+        """
+        decision = self.shield.step(latent)
+        self._shield_blend = decision.blend
+        if decision.blend <= 0.0:
+            self._publish_shield_telemetry(decision)
+            return learned_target
+
+        if decision.blend >= 1.0 and self._shield_engagements == 0:
+            self._shield_engagements += 1
+            logger.warning(
+                "SHIELD ENGAGED (score=%.1f > trip=%.1f): fallback in control.",
+                decision.raw_score,
+                self.shield_op.trip_threshold,
+            )
+        blended = (1.0 - decision.blend) * learned_target + decision.blend * self.default_q
+        self._publish_shield_telemetry(decision)
+        return blended.astype(np.float32, copy=False)
+
+    def _publish_shield_telemetry(self, decision) -> None:
+        """Publish ``[blend, raw_score, trip_threshold, state_code]`` for the lab log."""
+        if self.shield_pub is None:
+            return
+        states = ("nominal", "handoff", "fallback", "recovering")
+        msg = self._float_msg()
+        # A non-finite score is a real signal (bad latent), so clamp only for
+        # transport — the arbiter already saw the true value.
+        score = decision.raw_score if np.isfinite(decision.raw_score) else -1.0
+        msg.data = [
+            float(decision.blend),
+            float(score),
+            float(self.shield_op.trip_threshold),
+            float(states.index(decision.state.value)),
+        ]
+        self.shield_pub.publish(msg)
 
     def _clip_to_limits(self, target: np.ndarray, q: np.ndarray) -> np.ndarray:
         # Single source of truth lives in phoenix.sim2real.safety so the

@@ -78,9 +78,8 @@ def _run(args, app) -> int:  # noqa: ANN001
     import gymnasium as gym
     import numpy as np
     import torch
-    from omegaconf import OmegaConf
-
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from omegaconf import OmegaConf
     from rsl_rl.runners import OnPolicyRunner
 
     from phoenix.sim_env import build_env_cfg, load_layered_config
