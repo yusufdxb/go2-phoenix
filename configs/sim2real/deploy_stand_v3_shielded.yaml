@@ -1,0 +1,89 @@
+# Deployment config for stand-v3 WITH the runtime reliability shield.
+#
+# Identical to deploy_stand_v3.yaml except that the policy ONNX is the
+# latent-emitting export and the `reliability` block is enabled. Use this
+# config for the August CaresLab shield runs; use deploy_stand_v3.yaml for
+# an unshielded baseline run of the same policy.
+#
+# The policy ONNX MUST be exported with --emit-latent:
+#
+#   python -m phoenix.sim2real.export \
+#     --checkpoint checkpoints/phoenix-stand-v3-h25-final/latest.pt \
+#     --output deploy/stand_v3_latent.onnx --emit-latent --verify
+#
+# and the artifact/policy pair MUST pass the end-to-end gate before it goes
+# near the robot:
+#
+#   python scripts/reliability_verify_deploy.py \
+#     --onnx deploy/stand_v3_latent.onnx --artifact deploy/shield_stand_v3.npz
+#
+# The node fails closed at construction if the ONNX has no `latent` output or
+# if its width disagrees with the artifact.
+
+policy:
+  onnx_path: "deploy/stand_v3_latent.onnx"
+  torchscript_path: "deploy/stand_v3_latent.pt"
+  device: "cpu"
+  obs_pad_zeros: 0
+
+reliability:
+  enabled: true
+  artifact: "deploy/shield_stand_v3.npz"
+  # Trip threshold and trip persistence are NOT settable here: they come from
+  # the artifact, where they were calibrated together against held-out nominal
+  # episodes. Only the ramp/release ergonomics are deploy-side choices.
+  handoff_ticks: 10      # 0.2 s ramp learned -> fallback
+  recover_ticks: 25      # 0.5 s ramp back
+  min_fallback_ticks: 20 # dwell 0.4 s in fallback before release is considered
+  # First hardware session runs latched: once the shield engages we want to
+  # inspect why, not watch it hand control back to a policy that just went
+  # out of distribution on a real robot. Set false once the behaviour is
+  # understood on hardware.
+  latch: true
+
+control:
+  rate_hz: 50
+  action_scale: 0.25
+  default_joint_pos:
+    FL_hip_joint: 0.0
+    FR_hip_joint: 0.0
+    RL_hip_joint: 0.0
+    RR_hip_joint: 0.0
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+  # [blend, raw_score, trip_threshold, state_code] per control tick.
+  shield_status: "/phoenix/shield"
+
+safety:
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120
+  estop_timeout_s: 0.5
+  sensor_timeout_s: 0.2
+  first_message_timeout_s: 15.0

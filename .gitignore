@@ -90,3 +90,9 @@ reliability_eval/raw/
 reliability_eval/logs/
 reliability_eval/raw_stand/
 reliability_eval/logs_stand/
+
+# Exported policy binaries (regenerable from the checkpoint via export.py).
+# The shield artifact itself IS tracked: it is small and it is the deliverable.
+deploy/*.onnx
+deploy/*.onnx.data
+deploy/*.pt

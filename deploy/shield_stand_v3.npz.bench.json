@@ -1,0 +1,17 @@
+{
+  "latent_dim": 384,
+  "ticks": 20000,
+  "p50_ms": 0.0077,
+  "p99_ms": 0.00979,
+  "p999_ms": 0.01156,
+  "max_ms": 0.021569,
+  "budget_ms": 2.0,
+  "control_period_ms": 20.0,
+  "worst_case_duty_pct": 0.10784500000000001,
+  "peak_traced_kb_growth": 1.439453125,
+  "platform": "Linux-6.8.0-134-generic-x86_64-with-glibc2.35",
+  "machine": "x86_64",
+  "python": "3.10.12",
+  "numpy": "1.26.4",
+  "pinned_cpu": 2
+}

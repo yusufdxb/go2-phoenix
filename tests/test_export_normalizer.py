@@ -93,3 +93,39 @@ def test_normalizer_std_formula_documents_eps_placement(var: float, expected_std
     # std is sqrt(var) + eps, eps added OUTSIDE the sqrt, matching rsl_rl.
     std = float(np.sqrt(var)) + _RSL_RL_NORM_EPS
     assert std == pytest.approx(expected_std)
+
+
+# --- shield latent taps ------------------------------------------------------
+
+
+def test_default_tap_indices_matches_phase3_study():
+    """The 3-hidden-layer actor used in the Isaac study taps Linear 2 and 3.
+
+    Those inputs are the post-ELU outputs of hidden layers 2 and 3, giving the
+    384-dim latent (256 + 128) the deployed monitor is fit on. If this drifts,
+    every fitted artifact silently becomes invalid.
+    """
+    from phoenix.sim2real.export import default_tap_indices
+
+    assert default_tap_indices(3) == [2, 3]
+
+
+def test_default_tap_indices_shapes():
+    from phoenix.sim2real.export import default_tap_indices
+
+    assert default_tap_indices(1) == [1]
+    assert default_tap_indices(2) == [1, 2]
+    assert default_tap_indices(4) == [2, 4]
+    for n in range(1, 8):
+        taps = default_tap_indices(n)
+        assert taps == sorted(set(taps))
+        assert all(1 <= t <= n for t in taps)
+
+
+def test_default_tap_indices_rejects_no_hidden_layers():
+    import pytest
+
+    from phoenix.sim2real.export import default_tap_indices
+
+    with pytest.raises(ValueError, match="no hidden layers"):
+        default_tap_indices(0)

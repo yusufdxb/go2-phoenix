@@ -62,6 +62,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Override inferred action dimension",
     )
+    p.add_argument(
+        "--emit-latent",
+        action="store_true",
+        help=(
+            "Also export a 'latent' output: the concatenated hidden activations the "
+            "reliability shield scores. Required for on-robot OOD monitoring."
+        ),
+    )
     p.add_argument("--verify", action="store_true", help="Verify torch vs onnxruntime parity")
     p.add_argument("--opset", type=int, default=17)
     p.add_argument("--device", type=str, default="cpu")
@@ -94,7 +102,19 @@ def main(argv: list[str] | None = None) -> int:
     _load_actor_weights(actor, actor_sd, layer_keys)
     actor.to(args.device).eval()
 
-    policy = _ExportablePolicy(actor, ckpt, actor_sd).to(args.device).eval()
+    tap_indices = default_tap_indices(len(hidden_dims)) if args.emit_latent else None
+    policy = _ExportablePolicy(actor, ckpt, actor_sd, tap_indices=tap_indices).to(args.device)
+    policy = policy.eval()
+
+    output_names = ["action"]
+    dynamic_axes = {"obs": {0: "batch"}, "action": {0: "batch"}}
+    if args.emit_latent:
+        latent_dim = sum(hidden_dims[i - 1] for i in tap_indices)
+        output_names.append("latent")
+        dynamic_axes["latent"] = {0: "batch"}
+        logger.info(
+            "Emitting shield latent: taps=%s -> latent_dim=%d", tap_indices, latent_dim
+        )
 
     dummy = torch.zeros(1, obs_dim, dtype=torch.float32, device=args.device)
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -103,9 +123,9 @@ def main(argv: list[str] | None = None) -> int:
         dummy,
         str(args.output),
         input_names=["obs"],
-        output_names=["action"],
+        output_names=output_names,
         opset_version=args.opset,
-        dynamic_axes={"obs": {0: "batch"}, "action": {0: "batch"}},
+        dynamic_axes=dynamic_axes,
     )
     logger.info("Exported ONNX -> %s", args.output)
 
@@ -120,20 +140,51 @@ def main(argv: list[str] | None = None) -> int:
 
         session = ort.InferenceSession(str(args.output), providers=["CPUExecutionProvider"])
         rng = np.random.default_rng(0)
-        max_diff = 0.0
+        diffs = dict.fromkeys(output_names, 0.0)
         with torch.inference_mode():
             for _ in range(16):
                 x = rng.standard_normal((4, obs_dim)).astype(np.float32)
-                y_torch = policy(torch.from_numpy(x).to(args.device)).cpu().numpy()
-                y_onnx = session.run(["action"], {"obs": x})[0]
-                max_diff = max(max_diff, float(np.max(np.abs(y_torch - y_onnx))))
-        logger.info("Max torch<->onnx abs diff: %.3e", max_diff)
-        if max_diff > 1e-4:
+                out_torch = policy(torch.from_numpy(x).to(args.device))
+                if not isinstance(out_torch, tuple):
+                    out_torch = (out_torch,)
+                out_onnx = session.run(output_names, {"obs": x})
+                for name, t, o in zip(output_names, out_torch, out_onnx, strict=True):
+                    diffs[name] = max(diffs[name], float(np.max(np.abs(t.cpu().numpy() - o))))
+        for name, diff in diffs.items():
+            logger.info("Max torch<->onnx abs diff [%s]: %.3e", name, diff)
+        # The latent is gated as strictly as the action: it feeds the OOD score,
+        # and a drifting latent would move the shield's operating point off the
+        # one that was calibrated, without changing the robot's behaviour in any
+        # way an action-only parity check could see.
+        if max(diffs.values()) > 1e-4:
             logger.error("Parity check FAILED (>1e-4). ONNX export is not trustworthy.")
             return 2
         logger.info("Parity check passed.")
 
     return 0
+
+
+def default_tap_indices(n_hidden: int) -> list[int]:
+    """Which Linear layers' *inputs* form the shield's latent vector.
+
+    Indices are positions in the actor's ordered list of ``Linear`` modules.
+    The input to Linear ``j`` (for ``j >= 1``) is the post-activation output of
+    hidden layer ``j``, so tapping Linear inputs rather than activation outputs
+    is robust to an actor that reuses one shared ``ELU`` module — which the
+    rsl_rl actors do, and which silently collapses a naive
+    "hook every activation module" scheme down to a single tap.
+
+    The default takes a middle hidden layer and the last one: the penultimate
+    layer carries the most task-specific summary, while a mid-network tap keeps
+    some of the less-collapsed representation. This MUST match the taps used
+    when the monitor was fit — the artifact records them and
+    :func:`phoenix.reliability.deploy.load_artifact` refuses a dimension
+    mismatch.
+    """
+    if n_hidden < 1:
+        raise ValueError("actor has no hidden layers to tap")
+    hidden_linear = list(range(1, n_hidden + 1))
+    return sorted({hidden_linear[(n_hidden - 1) // 2], hidden_linear[-1]})
 
 
 def _extract_actor_state_dict(ckpt: dict) -> dict:
@@ -250,9 +301,17 @@ try:  # pragma: no cover - only meaningful with torch available
     class _ExportablePolicy(nn.Module):
         """Wraps the actor Sequential + optional input normalizer."""
 
-        def __init__(self, actor: nn.Module, ckpt: dict, actor_sd: dict) -> None:
+        def __init__(
+            self,
+            actor: nn.Module,
+            ckpt: dict,
+            actor_sd: dict,
+            *,
+            tap_indices: list[int] | None = None,
+        ) -> None:
             super().__init__()
             self.actor = actor
+            self.tap_indices = tuple(tap_indices) if tap_indices else ()
             self.normalizer = _load_normalizer(ckpt, actor_sd)
             if self.normalizer is None:
                 logger.info("No obs normalizer found in checkpoint; exporting raw-obs policy.")
@@ -265,7 +324,19 @@ try:  # pragma: no cover - only meaningful with torch available
         def forward(self, obs):  # noqa: D401
             if self.normalizer is not None:
                 obs = self.normalizer(obs)
-            return self.actor(obs)
+            if not self.tap_indices:
+                return self.actor(obs)
+
+            taps = []
+            linear_seen = 0
+            x = obs
+            for module in self.actor:
+                if isinstance(module, nn.Linear):
+                    if linear_seen in self.tap_indices:
+                        taps.append(x)
+                    linear_seen += 1
+                x = module(x)
+            return x, torch.cat(taps, dim=-1)
 
     class _Normalizer(nn.Module):
         """Applies saved empirical normalization to the observation tensor.

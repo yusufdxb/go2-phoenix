@@ -27,11 +27,6 @@ from phoenix.reliability.features import (
     forward_hidden,
     policy_features,
 )
-from phoenix.reliability.runtime import (
-    ShieldDecision,
-    ShieldRuntime,
-    calibrate_arbiter_thresholds,
-)
 from phoenix.reliability.metrics import (
     average_precision,
     bootstrap_ci,
@@ -45,6 +40,11 @@ from phoenix.reliability.ood_monitor import (
     MahalanobisScorer,
     TemporalFilter,
     ledoit_wolf_shrinkage,
+)
+from phoenix.reliability.runtime import (
+    ShieldDecision,
+    ShieldRuntime,
+    calibrate_arbiter_thresholds,
 )
 
 __all__ = [

@@ -27,7 +27,7 @@ Pure numpy: no sklearn/scipy, so this stays in the CI lane. Convention:
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 

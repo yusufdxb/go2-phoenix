@@ -29,7 +29,8 @@ rest of ``phoenix.reliability``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -146,10 +147,10 @@ class TorchActivationExtractor:
 
     def __init__(
         self,
-        actor: "torch.nn.Module",
+        actor: torch.nn.Module,
         *,
         taps: Sequence[str] = ("mid", "penultimate"),
-        normalizer: "torch.nn.Module | None" = None,
+        normalizer: torch.nn.Module | None = None,
     ) -> None:
         import torch  # noqa: F401  (lazy)
 
@@ -172,7 +173,7 @@ class TorchActivationExtractor:
 
         return hook
 
-    def __call__(self, obs: "torch.Tensor") -> dict[str, np.ndarray]:
+    def __call__(self, obs: torch.Tensor) -> dict[str, np.ndarray]:
         import torch
 
         with torch.inference_mode():
