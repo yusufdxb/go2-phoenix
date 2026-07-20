@@ -41,10 +41,10 @@ from pathlib import Path
 
 import numpy as np
 
-from phoenix.reliability.arbiter import SimplexArbiter, SimplexArbiterCfg
+from phoenix.reliability.arbiter import ShieldState, SimplexArbiter, SimplexArbiterCfg
 from phoenix.reliability.runtime import ShieldDecision
 
-ARTIFACT_VERSION = 1
+ARTIFACT_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -54,26 +54,53 @@ class OperatingPoint:
     ``trip_threshold`` / ``clear_threshold`` are on the squared-Mahalanobis
     scale. ``trip_persistence`` is the ``K`` consecutive over-threshold ticks
     required to engage — jointly calibrated with the threshold, never chosen
-    independently. The remaining fields are the *measured* consequences of that
-    pair, carried along so a deployment can be audited without re-reading the
-    study.
+    independently.
+
+    ``arming_ticks`` is the number of ticks after a start or reset during which
+    the shield scores but cannot engage. It exists because the calibration
+    discards exactly that many post-reset ticks, and a runtime that armed
+    immediately would be operating in a regime nobody measured. Concretely, on
+    the stand-v3 rollouts the median nominal score at tick 0 is ~1.1e6 against a
+    trip threshold of ~9.2e3: without arming, every single nominal episode
+    engages the fallback at startup. Carrying the value in the artifact is what
+    keeps calibration and runtime from drifting apart again.
+
+    ``lead`` fields are the *measured* consequences of the operating point,
+    carried along so a deployment can be audited without re-reading the study.
+    ``median_lead_s`` is the margin to the **decision** tick (the end of the
+    K-run, which is when the arbiter actually trips), not to the start of the
+    run; ``median_full_fallback_lead_s`` further subtracts the handoff ramp and
+    is the margin that physically matters.
     """
 
     trip_threshold: float
     clear_threshold: float
     trip_persistence: int
+    arming_ticks: int
     nominal_episode_fpr: float
     falls_warned: float
     median_lead_s: float
+    median_full_fallback_lead_s: float = float("nan")
+
+    def __post_init__(self) -> None:
+        if self.arming_ticks < 0:
+            raise ValueError("arming_ticks must be >= 0")
+        if not self.clear_threshold < self.trip_threshold:
+            raise ValueError("clear_threshold must be < trip_threshold")
+        for name in ("trip_threshold", "clear_threshold"):
+            if not np.isfinite(getattr(self, name)):
+                raise ValueError(f"{name} must be finite")
 
     def to_dict(self) -> dict:
         return {
             "trip_threshold": float(self.trip_threshold),
             "clear_threshold": float(self.clear_threshold),
             "trip_persistence": int(self.trip_persistence),
+            "arming_ticks": int(self.arming_ticks),
             "nominal_episode_fpr": float(self.nominal_episode_fpr),
             "falls_warned": float(self.falls_warned),
             "median_lead_s": float(self.median_lead_s),
+            "median_full_fallback_lead_s": float(self.median_full_fallback_lead_s),
         }
 
     @classmethod
@@ -82,9 +109,51 @@ class OperatingPoint:
             trip_threshold=float(d["trip_threshold"]),
             clear_threshold=float(d["clear_threshold"]),
             trip_persistence=int(d["trip_persistence"]),
+            arming_ticks=int(d["arming_ticks"]),
             nominal_episode_fpr=float(d.get("nominal_episode_fpr", float("nan"))),
             falls_warned=float(d.get("falls_warned", float("nan"))),
             median_lead_s=float(d.get("median_lead_s", float("nan"))),
+            median_full_fallback_lead_s=float(
+                d.get("median_full_fallback_lead_s", float("nan"))
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class ArbiterTimings:
+    """Ramp and release timings — part of the frozen bundle, not launch config.
+
+    These affect outcomes as much as the threshold does: the handoff ramp sets
+    how long it takes to actually reach the fallback (and therefore the real
+    safety margin), and the release policy decides whether the robot hands
+    control back to a policy that just went out of distribution. Freezing them
+    in the artifact alongside the threshold means the configuration that was
+    measured is the configuration that runs.
+    """
+
+    handoff_ticks: int = 10
+    recover_ticks: int = 25
+    clear_persistence: int = 10
+    min_fallback_ticks: int = 20
+    latch: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "handoff_ticks": int(self.handoff_ticks),
+            "recover_ticks": int(self.recover_ticks),
+            "clear_persistence": int(self.clear_persistence),
+            "min_fallback_ticks": int(self.min_fallback_ticks),
+            "latch": bool(self.latch),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> ArbiterTimings:
+        return cls(
+            handoff_ticks=int(d["handoff_ticks"]),
+            recover_ticks=int(d["recover_ticks"]),
+            clear_persistence=int(d["clear_persistence"]),
+            min_fallback_ticks=int(d["min_fallback_ticks"]),
+            latch=bool(d["latch"]),
         )
 
 
@@ -158,21 +227,47 @@ class DeployShield:
     One call per control tick. ``step`` returns the same
     :class:`~phoenix.reliability.runtime.ShieldDecision` the offline runtime
     produces, so the sim study and the robot share a decision type.
+
+    For the first ``arming_ticks`` ticks after construction or :meth:`reset`,
+    the shield is *disarmed*: it scores every tick (so the telemetry and any
+    downstream logging see the true value) but does not advance the arbiter, so
+    it cannot engage. This mirrors, exactly, the post-reset warmup the
+    calibration discards. Without it the shield engages on startup on a
+    perfectly healthy robot, because the immediate post-reset latent is
+    enormously far from the steady-state nominal cloud it was fit on.
     """
 
-    def __init__(self, monitor: DeployMonitor, arbiter: SimplexArbiter) -> None:
+    def __init__(
+        self, monitor: DeployMonitor, arbiter: SimplexArbiter, *, arming_ticks: int = 0
+    ) -> None:
+        if arming_ticks < 0:
+            raise ValueError("arming_ticks must be >= 0")
         self.monitor = monitor
         self.arbiter = arbiter
+        self.arming_ticks = int(arming_ticks)
+        self._ticks = 0
 
     @property
     def dim(self) -> int:
         return self.monitor.dim
 
+    @property
+    def armed(self) -> bool:
+        return self._ticks >= self.arming_ticks
+
     def reset(self) -> None:
         self.arbiter.reset()
+        self._ticks = 0
 
     def step(self, latent: np.ndarray) -> ShieldDecision:
         raw = self.monitor.score_one(latent)
+        if not self.armed:
+            self._ticks += 1
+            # Disarmed: report the true score, but hold the arbiter at NOMINAL.
+            return ShieldDecision(
+                blend=0.0, state=ShieldState.NOMINAL, raw_score=raw, filtered_score=raw
+            )
+        self._ticks += 1
         out = self.arbiter.update(raw)
         return ShieldDecision(
             blend=out.blend, state=out.state, raw_score=raw, filtered_score=raw
@@ -186,6 +281,7 @@ def save_artifact(
     whitener: np.ndarray,
     operating_point: OperatingPoint,
     provenance: dict,
+    timings: ArbiterTimings | None = None,
 ) -> Path:
     """Write the deploy artifact (constants + provenance) to ``path``."""
     path = Path(path)
@@ -194,6 +290,7 @@ def save_artifact(
         "artifact_version": ARTIFACT_VERSION,
         "latent_dim": int(np.asarray(mean).size),
         "operating_point": operating_point.to_dict(),
+        "timings": (timings or ArbiterTimings()).to_dict(),
         "provenance": provenance,
     }
     np.savez(
@@ -219,13 +316,22 @@ def load_artifact(path: str | Path, *, expected_dim: int | None = None):
     version = int(meta.get("artifact_version", -1))
     if version != ARTIFACT_VERSION:
         raise ValueError(f"unsupported artifact version {version} (expected {ARTIFACT_VERSION})")
+    # The metadata's declared width is what every downstream compatibility check
+    # is made against, so it has to agree with the constants actually stored
+    # here — otherwise a truthful-looking dimension check passes while the
+    # monitor scores something else entirely.
+    if int(meta["latent_dim"]) != int(np.asarray(mean).size):
+        raise ValueError(
+            f"artifact is internally inconsistent: meta latent_dim={meta['latent_dim']} "
+            f"but stored mean has {np.asarray(mean).size} elements"
+        )
     if expected_dim is not None and int(meta["latent_dim"]) != int(expected_dim):
         raise ValueError(
             f"artifact latent_dim={meta['latent_dim']} but policy emits {expected_dim}; "
             "the monitor was fit on a different tap or a different policy"
         )
     monitor = DeployMonitor(mean, whitener)
-    op = OperatingPoint.from_dict(meta["operating_point"])
+    op = OperatingPoint.from_dict(meta["operating_point"])  # validates in __post_init__
     return monitor, op, meta
 
 
@@ -233,32 +339,33 @@ def build_shield(
     path: str | Path,
     *,
     expected_dim: int | None = None,
-    handoff_ticks: int = 10,
-    recover_ticks: int = 25,
-    clear_persistence: int = 10,
-    min_fallback_ticks: int = 20,
-    latch: bool = False,
 ) -> tuple[DeployShield, OperatingPoint, dict]:
-    """Load an artifact and construct the shield at its calibrated operating point.
+    """Load an artifact and construct the shield exactly as it was calibrated.
 
-    The trip threshold and ``trip_persistence`` come from the artifact and are
-    not overridable here: they were measured together, and letting a launch file
-    tune one of them independently is exactly how a validated operating point
-    stops being validated. Ramp and release timings are deploy-side ergonomics
-    and stay configurable.
+    Nothing about the shield's behaviour is settable here. The threshold, the
+    persistence ``K``, the arming window, the ramps and the release policy all
+    come from the artifact, because they were measured together and they all
+    change the outcome: the handoff ramp sets the real safety margin, and the
+    release policy decides whether the robot hands control back to a policy that
+    just went out of distribution. A launch file that can retune any one of them
+    is a launch file that can quietly invalidate the whole study.
+
+    To change the configuration, refit the artifact.
     """
     monitor, op, meta = load_artifact(path, expected_dim=expected_dim)
+    timings = ArbiterTimings.from_dict(meta["timings"])
     cfg = SimplexArbiterCfg(
         trip_threshold=op.trip_threshold,
         clear_threshold=op.clear_threshold,
         trip_persistence=op.trip_persistence,
-        clear_persistence=clear_persistence,
-        handoff_ticks=handoff_ticks,
-        recover_ticks=recover_ticks,
-        min_fallback_ticks=min_fallback_ticks,
-        latch=latch,
+        clear_persistence=timings.clear_persistence,
+        handoff_ticks=timings.handoff_ticks,
+        recover_ticks=timings.recover_ticks,
+        min_fallback_ticks=timings.min_fallback_ticks,
+        latch=timings.latch,
     )
-    return DeployShield(monitor, SimplexArbiter(cfg)), op, meta
+    shield = DeployShield(monitor, SimplexArbiter(cfg), arming_ticks=op.arming_ticks)
+    return shield, op, meta
 
 
 def parity_report(

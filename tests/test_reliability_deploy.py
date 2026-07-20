@@ -10,6 +10,7 @@ import pytest
 from phoenix.reliability.arbiter import ShieldState
 from phoenix.reliability.deploy import (
     ARTIFACT_VERSION,
+    ArbiterTimings,
     DeployMonitor,
     OperatingPoint,
     build_shield,
@@ -42,9 +43,11 @@ def op() -> OperatingPoint:
         trip_threshold=40.0,
         clear_threshold=10.0,
         trip_persistence=3,
+        arming_ticks=0,
         nominal_episode_fpr=0.02,
         falls_warned=1.0,
         median_lead_s=0.68,
+        median_full_fallback_lead_s=0.48,
     )
 
 
@@ -195,7 +198,7 @@ def test_shield_stays_nominal_then_engages(
         operating_point=op,
         provenance={},
     )
-    shield, _, _ = build_shield(path, handoff_ticks=4)
+    shield, _, _ = build_shield(path)
 
     for row in nominal[:100]:
         decision = shield.step(row)
@@ -203,7 +206,7 @@ def test_shield_stays_nominal_then_engages(
         assert decision.state is ShieldState.NOMINAL
 
     ood = nominal[0] + 50.0
-    for _ in range(op.trip_persistence + 4):
+    for _ in range(op.trip_persistence + 20):
         decision = shield.step(ood)
     assert decision.blend == 1.0
     assert decision.state is ShieldState.FALLBACK
@@ -220,9 +223,9 @@ def test_shield_engages_on_non_finite_latent(
         operating_point=op,
         provenance={},
     )
-    shield, _, _ = build_shield(path, handoff_ticks=2)
+    shield, _, _ = build_shield(path)
     bad = np.full(scorer.mean.size, np.nan)
-    for _ in range(op.trip_persistence + 2):
+    for _ in range(op.trip_persistence + 20):
         decision = shield.step(bad)
     assert decision.blend == 1.0
 
@@ -236,3 +239,126 @@ def test_parity_report_agrees_on_decisions(
     assert report["decision_disagreement"] == 0
     assert report["max_rel_err"] < 1e-4
     assert report["n_samples"] == 600
+
+
+# --- arming window -----------------------------------------------------------
+#
+# Regression tests for the defect that made the shipped v1 artifact unusable:
+# calibration discarded the first 15 post-reset ticks while the runtime armed
+# immediately. On the real stand-v3 rollouts the median nominal score at tick 0
+# was ~1.1e6 against a trip threshold of ~9.2e3, so all 320 nominal
+# environments engaged the fallback at startup on a perfectly healthy robot.
+
+
+def _write(tmp_path, scorer, op, timings=None):
+    path = tmp_path / "shield.npz"
+    save_artifact(
+        path,
+        mean=scorer.mean,
+        whitener=whitener_from_cholesky(scorer._chol),
+        operating_point=op,
+        provenance={},
+        timings=timings,
+    )
+    return path
+
+
+def _armed_op(**kw) -> OperatingPoint:
+    base = dict(
+        trip_threshold=40.0,
+        clear_threshold=10.0,
+        trip_persistence=3,
+        arming_ticks=15,
+        nominal_episode_fpr=0.02,
+        falls_warned=1.0,
+        median_lead_s=0.64,
+        median_full_fallback_lead_s=0.44,
+    )
+    base.update(kw)
+    return OperatingPoint(**base)
+
+
+def test_shield_cannot_engage_during_arming(tmp_path, scorer, nominal) -> None:
+    """A wildly OOD latent during the arming window must not engage the shield."""
+    path = _write(tmp_path, scorer, _armed_op())
+    shield, op, _ = build_shield(path)
+    ood = nominal[0] + 500.0
+
+    for tick in range(op.arming_ticks):
+        assert not shield.armed
+        decision = shield.step(ood)
+        assert decision.blend == 0.0, f"engaged at tick {tick} during arming"
+        assert decision.state is ShieldState.NOMINAL
+        # The score is still reported truthfully — only the arbiter is held.
+        assert decision.raw_score > op.trip_threshold
+
+    assert shield.armed
+    for _ in range(op.trip_persistence + 20):
+        decision = shield.step(ood)
+    assert decision.blend == 1.0
+
+
+def test_reset_re_arms_the_shield(tmp_path, scorer, nominal) -> None:
+    path = _write(tmp_path, scorer, _armed_op())
+    shield, op, _ = build_shield(path)
+    for _ in range(op.arming_ticks):
+        shield.step(nominal[0])
+    assert shield.armed
+    shield.reset()
+    assert not shield.armed
+    assert shield.step(nominal[0] + 500.0).blend == 0.0
+
+
+def test_arming_ticks_zero_arms_immediately(tmp_path, scorer, op, nominal) -> None:
+    path = _write(tmp_path, scorer, op)
+    shield, _, _ = build_shield(path)
+    assert shield.armed
+    for _ in range(op.trip_persistence + 20):
+        decision = shield.step(nominal[0] + 500.0)
+    assert decision.blend == 1.0
+
+
+def test_operating_point_rejects_negative_arming() -> None:
+    with pytest.raises(ValueError, match="arming_ticks"):
+        _armed_op(arming_ticks=-1)
+
+
+def test_operating_point_rejects_inverted_hysteresis() -> None:
+    with pytest.raises(ValueError, match="clear_threshold"):
+        _armed_op(clear_threshold=100.0)
+
+
+# --- frozen bundle -----------------------------------------------------------
+
+
+def test_build_shield_uses_artifact_timings_not_defaults(tmp_path, scorer) -> None:
+    """Ramp and release timings ship with the artifact, not the launch file."""
+    timings = ArbiterTimings(
+        handoff_ticks=7,
+        recover_ticks=33,
+        clear_persistence=4,
+        min_fallback_ticks=9,
+        latch=True,
+    )
+    path = _write(tmp_path, scorer, _armed_op(), timings=timings)
+    shield, _, meta = build_shield(path)
+    cfg = shield.arbiter.cfg
+    assert cfg.handoff_ticks == 7
+    assert cfg.recover_ticks == 33
+    assert cfg.clear_persistence == 4
+    assert cfg.min_fallback_ticks == 9
+    assert cfg.latch is True
+    assert meta["timings"]["handoff_ticks"] == 7
+
+
+def test_load_artifact_rejects_internally_inconsistent_dim(tmp_path, scorer) -> None:
+    """A truthful-looking meta width must not mask constants of another size."""
+    path = _write(tmp_path, scorer, _armed_op())
+    with np.load(path, allow_pickle=False) as data:
+        payload = {k: data[k] for k in data.files}
+    meta = json.loads(str(payload["meta"]))
+    meta["latent_dim"] = int(scorer.mean.size) + 3
+    payload["meta"] = np.array(json.dumps(meta))
+    np.savez(path, **payload)
+    with pytest.raises(ValueError, match="internally inconsistent"):
+        load_artifact(path)

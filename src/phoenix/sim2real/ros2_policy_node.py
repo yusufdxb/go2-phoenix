@@ -245,25 +245,34 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                     "Re-export with `python -m phoenix.sim2real.export --emit-latent`."
                 )
             latent_dim = self.session.get_outputs()[out_names.index("latent")].shape[-1]
+            # Only the artifact path is configurable. Every parameter that
+            # changes the shield's behaviour — threshold, K, arming window,
+            # ramps, release policy — is frozen inside the artifact, because
+            # they were all calibrated together. Refit to change them.
+            stale = {"handoff_ticks", "recover_ticks", "min_fallback_ticks", "latch", "trip_threshold"}
+            if stale & set(rel_cfg):
+                raise ValueError(
+                    f"reliability config sets {sorted(stale & set(rel_cfg))}, which now live in "
+                    "the artifact. Remove them and refit with scripts/reliability_fit_deploy.py."
+                )
             self.shield, self.shield_op, shield_meta = build_shield(
                 Path(rel_cfg["artifact"]),
                 expected_dim=latent_dim if isinstance(latent_dim, int) else None,
-                handoff_ticks=int(rel_cfg.get("handoff_ticks", 10)),
-                recover_ticks=int(rel_cfg.get("recover_ticks", 25)),
-                min_fallback_ticks=int(rel_cfg.get("min_fallback_ticks", 20)),
-                latch=bool(rel_cfg.get("latch", False)),
             )
             self._shield_outputs = ["action", "latent"]
             logger.info(
-                "reliability shield ENABLED: artifact=%s dim=%d trip=%.1f K=%d "
-                "(calibrated: nominal episode FPR %.3f, %.0f%% of falls warned, %.2fs lead)",
+                "reliability shield ENABLED: artifact=%s dim=%d trip=%.1f K=%d arming=%d ticks "
+                "(calibrated: nominal episode FPR %.3f, %.0f%% of falls warned, "
+                "%.2fs to decision / %.2fs to full fallback)",
                 rel_cfg["artifact"],
                 self.shield.dim,
                 self.shield_op.trip_threshold,
                 self.shield_op.trip_persistence,
+                self.shield_op.arming_ticks,
                 self.shield_op.nominal_episode_fpr,
                 100.0 * self.shield_op.falls_warned,
                 self.shield_op.median_lead_s,
+                self.shield_op.median_full_fallback_lead_s,
             )
             ckpt = (shield_meta.get("provenance") or {}).get("checkpoint_sha256")
             logger.info("shield fit on checkpoint sha256=%s", ckpt)
