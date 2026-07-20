@@ -39,6 +39,7 @@ from pathlib import Path
 import numpy as np
 
 from phoenix.reliability.deploy import (
+    ArbiterTimings,
     DeployMonitor,
     OperatingPoint,
     parity_report,
@@ -124,6 +125,15 @@ def main() -> int:
     ap.add_argument("--clear-percentile", type=float, default=90.0)
     ap.add_argument("--fit-samples", type=int, default=60000)
     ap.add_argument("--seed", type=int, default=0)
+    # Ramp / release timings are frozen INTO the artifact (they change the
+    # outcome as much as the threshold does), so they are set here, once, at
+    # fit time — not in the launch config.
+    ap.add_argument("--handoff-ticks", type=int, default=10)
+    ap.add_argument("--recover-ticks", type=int, default=25)
+    ap.add_argument("--clear-persistence", type=int, default=10)
+    ap.add_argument("--min-fallback-ticks", type=int, default=20)
+    ap.add_argument("--latch", action="store_true", default=True)
+    ap.add_argument("--no-latch", dest="latch", action="store_false")
     args = ap.parse_args()
 
     groups = load_raw(args.raw_dir)
@@ -231,7 +241,11 @@ def main() -> int:
                     start = first_krun(flat[s : e + 1, n] > thr, k, onset)
                     if start is not None:
                         warned += 1
-                        leads.append((onset - start) * DT)
+                        # Lead is measured to the DECISION tick, which is the
+                        # end of the K-run, not its start: the arbiter has not
+                        # tripped until the run completes. Reporting from the
+                        # run start overstates the margin by K-1 ticks.
+                        leads.append((onset - (start + k - 1)) * DT)
         per_condition[cond] = {
             "falls": falls,
             "warned": warned,
@@ -276,15 +290,30 @@ def main() -> int:
     meta_path = Path(args.raw_dir) / "nominal_seed0.meta.json"
     src_meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
     head = per_condition.get(headline, {}) if headline else {}
+    timings = ArbiterTimings(
+        handoff_ticks=args.handoff_ticks,
+        recover_ticks=args.recover_ticks,
+        clear_persistence=args.clear_persistence,
+        min_fallback_ticks=args.min_fallback_ticks,
+        latch=args.latch,
+    )
+    lead = head.get("median_lead_s")
     op = OperatingPoint(
         trip_threshold=thr,
         clear_threshold=clear_thr,
         trip_persistence=k,
+        # The runtime must not be able to engage during the same post-reset
+        # window this calibration discards, or it operates in a regime nobody
+        # measured. Carrying WARMUP into the artifact keeps the two bound.
+        arming_ticks=WARMUP,
         nominal_episode_fpr=chosen["episode_fpr"],
         falls_warned=head.get("warn_rate") if head.get("warn_rate") is not None else float("nan"),
-        median_lead_s=head.get("median_lead_s")
-        if head.get("median_lead_s") is not None
-        else float("nan"),
+        median_lead_s=lead if lead is not None else float("nan"),
+        # The margin that physically matters: the fallback is not actually in
+        # control until the handoff ramp completes.
+        median_full_fallback_lead_s=(
+            lead - timings.handoff_ticks * DT if lead is not None else float("nan")
+        ),
     )
     provenance = {
         "raw_dir": args.raw_dir,
@@ -314,6 +343,7 @@ def main() -> int:
         whitener=whitener_from_cholesky(scorer._chol),
         operating_point=op,
         provenance=provenance,
+        timings=timings,
     )
     size_kb = out.stat().st_size / 1024
     print(f"[fit] wrote {out} ({size_kb:.0f} KB)")
@@ -323,6 +353,7 @@ def main() -> int:
         json.dumps(
             {
                 "operating_point": op.to_dict(),
+                "timings": timings.to_dict(),
                 "candidates": candidates,
                 "per_condition": per_condition,
                 "parity": parity,

@@ -42,7 +42,21 @@ CONDS="${CONDS:-nominal mass_moderate mass_severe friction_moderate friction_sev
 run_one() {
   local cond=$1 seed=$2 dr=$3
   local out="$OUT/${cond}_seed${seed}.npz"
-  if [ -f "$out" ]; then echo "[grid] skip existing $out"; return 0; fi
+  # Skip only if the existing rollout was produced with the SHAPE WE ASKED FOR.
+  # A bare -f test silently preserved a stale 64-env/300-step smoke rollout
+  # across a grid re-run at 128/400, which then misrepresented the protocol in
+  # every downstream number fit from it.
+  if [ -f "$out" ]; then
+    if [ -f "${out%.npz}.meta.json" ] && "$PY" -c "
+import json,sys
+m=json.load(open('${out%.npz}.meta.json'))
+sys.exit(0 if m.get('num_envs')==$ENVS and m.get('max_steps')==$STEPS else 1)
+" 2>/dev/null; then
+      echo "[grid] skip existing $out"; return 0
+    fi
+    echo "[grid] STALE $out (shape != ${ENVS}x${STEPS}) - re-running"
+    rm -f "$out" "${out%.npz}.meta.json"
+  fi
   for attempt in 1 2 3; do
     echo "[grid] RUN $cond seed$seed attempt$attempt $(date +%H:%M:%S)"
     PYTHONPATH=src PYTHONUNBUFFERED=1 timeout 600 "$PY" scripts/reliability_rollout.py \

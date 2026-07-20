@@ -29,17 +29,12 @@ policy:
 reliability:
   enabled: true
   artifact: "deploy/shield_stand_v3.npz"
-  # Trip threshold and trip persistence are NOT settable here: they come from
-  # the artifact, where they were calibrated together against held-out nominal
-  # episodes. Only the ramp/release ergonomics are deploy-side choices.
-  handoff_ticks: 10      # 0.2 s ramp learned -> fallback
-  recover_ticks: 25      # 0.5 s ramp back
-  min_fallback_ticks: 20 # dwell 0.4 s in fallback before release is considered
-  # First hardware session runs latched: once the shield engages we want to
-  # inspect why, not watch it hand control back to a policy that just went
-  # out of distribution on a real robot. Set false once the behaviour is
-  # understood on hardware.
-  latch: true
+  # NOTHING else is settable here. Threshold, persistence K, arming window,
+  # ramps and release policy are all frozen inside the artifact, because they
+  # were calibrated together and each of them changes the outcome. The node
+  # REFUSES to start if any of them appear in this block. To change one, refit:
+  #   scripts/reliability_fit_deploy.py --handoff-ticks ... --latch/--no-latch
+  # Current artifact: trip 6385.4, K=3, arming 15 ticks, handoff 10, latch true.
 
 control:
   rate_hz: 50
