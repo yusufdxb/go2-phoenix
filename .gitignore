@@ -96,3 +96,7 @@ reliability_eval/logs_stand/
 deploy/*.onnx
 deploy/*.onnx.data
 deploy/*.pt
+
+# Closed-loop study raw arm outputs (regenerable); protocol/bundle/results tracked
+reliability_eval/closed_loop/arm_*.npz
+reliability_eval/closed_loop/*_pilot*
