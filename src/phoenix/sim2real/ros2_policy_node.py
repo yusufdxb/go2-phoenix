@@ -249,11 +249,16 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             # changes the shield's behaviour — threshold, K, arming window,
             # ramps, release policy — is frozen inside the artifact, because
             # they were all calibrated together. Refit to change them.
-            stale = {"handoff_ticks", "recover_ticks", "min_fallback_ticks", "latch", "trip_threshold"}
-            if stale & set(rel_cfg):
+            # Whitelist, not a denylist: a denylist silently accepts whatever
+            # key someone invents next (it already missed `clear_persistence`),
+            # and every one of these keys changes the calibrated behaviour.
+            allowed = {"enabled", "artifact"}
+            extra = set(rel_cfg) - allowed
+            if extra:
                 raise ValueError(
-                    f"reliability config sets {sorted(stale & set(rel_cfg))}, which now live in "
-                    "the artifact. Remove them and refit with scripts/reliability_fit_deploy.py."
+                    f"reliability config sets {sorted(extra)}; only {sorted(allowed)} are "
+                    "settable here. Everything else is frozen in the artifact — change it by "
+                    "refitting with scripts/reliability_fit_deploy.py."
                 )
             self.shield, self.shield_op, shield_meta = build_shield(
                 Path(rel_cfg["artifact"]),
