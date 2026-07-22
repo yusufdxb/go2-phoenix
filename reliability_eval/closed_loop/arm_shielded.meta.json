@@ -1,0 +1,8 @@
+{
+  "arm": "shielded",
+  "bundle_id": "7aedf38c7a7c9008",
+  "protocol_hash": "93743d4ab6203736ee6d0212fa609194c5c6c9825aeed185aef45d7171399278",
+  "blocks": 48,
+  "envs_per_block": 16,
+  "pilot": false
+}

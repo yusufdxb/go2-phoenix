@@ -1,0 +1,55 @@
+{
+  "bundle_id": "7aedf38c7a7c9008",
+  "protocol_hash": "93743d4ab6203736ee6d0212fa609194c5c6c9825aeed185aef45d7171399278",
+  "n_disturbed_blocks": 32,
+  "n_nominal_blocks": 16,
+  "envs_per_block": 16,
+  "disturbed_fall_rate": {
+    "unshielded": 0.25390625,
+    "shielded": 0.43359375,
+    "sham": 0.44140625
+  },
+  "nominal_fall_rate": {
+    "unshielded": 0.00390625,
+    "shielded": 0.0078125,
+    "sham": 0.00390625
+  },
+  "engagement_rate": {
+    "unshielded": 0.0,
+    "shielded": 0.98828125,
+    "sham": 0.998046875
+  },
+  "primary_unshielded_minus_shielded": {
+    "n_blocks": 32,
+    "mean_difference": -0.1796875,
+    "ci_low": -0.2265625,
+    "ci_high": -0.130859375,
+    "alpha": 0.05,
+    "blocks_a_worse": 1,
+    "blocks_b_worse": 27,
+    "blocks_tied": 4,
+    "excludes_zero": true
+  },
+  "secondary_sham_minus_shielded": {
+    "n_blocks": 32,
+    "mean_difference": 0.0078125,
+    "ci_low": -0.033203125,
+    "ci_high": 0.048828125,
+    "alpha": 0.05,
+    "blocks_a_worse": 10,
+    "blocks_b_worse": 11,
+    "blocks_tied": 11,
+    "excludes_zero": false
+  },
+  "nominal_cost_shielded_minus_unshielded": {
+    "n_blocks": 16,
+    "mean_difference": 0.00390625,
+    "ci_low": -0.01171875,
+    "ci_high": 0.0234375,
+    "alpha": 0.05,
+    "blocks_a_worse": 1,
+    "blocks_b_worse": 1,
+    "blocks_tied": 14,
+    "excludes_zero": false
+  }
+}

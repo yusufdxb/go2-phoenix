@@ -390,7 +390,7 @@
       "seed": 1757031268
     }
   ],
-  "bundle_id": "d117e51655a4c98f",
+  "bundle_id": "7aedf38c7a7c9008",
   "params": {
     "analysis_unit": "scenario block",
     "artifact_K": 3,
@@ -401,5 +401,5 @@
     "primary_estimand": "paired block-level fall-rate difference, unshielded minus shielded",
     "secondary_estimand": "paired block-level fall-rate difference, sham minus shielded"
   },
-  "protocol_hash": "6c8cc8db06e93371c065fac9760c807c43b747dd526bae3c980762cb6378b5b6"
+  "protocol_hash": "93743d4ab6203736ee6d0212fa609194c5c6c9825aeed185aef45d7171399278"
 }
