@@ -17,16 +17,22 @@ calibration error that would have shipped to the robot.
 | unshielded | **0.254** | 0.004 | 0.000 |
 | shielded | **0.434** | 0.008 | 0.988 |
 | sham | 0.441 | 0.004 | 0.998 |
+| oracle (perfect onset timing, 0 false positives) | **0.424** | 0.008 | 1.000 disturbed / 0.000 nominal |
 
 | comparison (block-paired, block-bootstrap 95% CI) | difference | verdict |
 |---|---|---|
 | **primary**: unshielded − shielded | **−0.180** [−0.227, −0.131] | shield **HARMS** (27 of 32 blocks worse) |
 | **secondary**: sham − shielded | +0.008 [−0.033, +0.049] | **no effect** — monitor timing is irrelevant |
+| **oracle**: unshielded − oracle | **−0.170** [−0.215, −0.123] | perfect timing **STILL HARMS** (25 of 32 blocks worse) |
+| oracle − shielded | +0.010 [−0.037, +0.057] | oracle is no better than the deployed shield |
 | nominal cost: shielded − unshielded | +0.004 [−0.012, +0.023] | no measurable cost on undisturbed blocks |
 
 The primary CI excludes zero on the wrong side of it. The secondary CI straddles
 zero: the real shield and a fallback switched on an information-free schedule are
-statistically indistinguishable.
+statistically indistinguishable. The oracle CI also excludes zero on the wrong
+side: a detector that fires **exactly at the true disturbance onset and never
+false-alarms** — the best case the monitor could ever aspire to — increases falls
+by 17 points and is statistically tied with the miscalibrated deployed shield.
 
 ## What actually happened, in order
 
@@ -86,25 +92,62 @@ transferable things:
   It shows this instance fails for two locatable reasons. A version with (a) a
   reset-matched calibration and (b) a fallback that is actually stabilising under
   degradation is a different experiment.
-- It does not measure a correctly-firing shield. Because of the over-firing, no
-  arm switched *in response to the disturbance*; both shielded and sham switch on
-  the reset transient. The clean causal question ("does a shield that fires only
-  on the disturbance help?") is still open — though the sham result predicts the
-  static fallback would harm whenever it engages, regardless of timing.
+- ~~It does not measure a correctly-firing shield.~~ **The oracle arm now
+  measures exactly this** (see below): a shield firing only at the true onset,
+  with zero false alarms, still increases falls by 17 points. The clean causal
+  question is no longer open — a perfectly-timed static fallback harms.
 
-## The honest next step
+## The oracle arm: a perfect detector does not rescue this fallback
 
-Not a tweak to this artifact. Two changes, then a fresh pre-registered study:
+The shielded and sham arms both engage on the reset transient (median tick ~18),
+long before any disturbance, so a fair objection was: *maybe the whole result is
+an artefact of the calibration error, and a correctly-firing shield would help.*
+The oracle arm settles it. On disturbed blocks it switches to the static fallback
+**exactly at the registered disturbance onset** and holds; on nominal blocks it
+never switches at all. This is a detector with perfect recall, perfect timing,
+and zero false positives — an upper bound no real monitor can beat.
 
-1. **Recalibrate on hard-reset nominal rollouts** and re-derive the arming window
-   and threshold against that distribution, so the shield fires on the
-   disturbance rather than on every reset.
-2. **Replace the static stand fallback with a controller that is stabilising
-   under the disturbance** (the stand-v3 policy itself, frozen, is a candidate —
-   it at least acts), and re-run all three arms.
+It still loses. Oracle disturbed fall rate is **0.424 vs 0.254 unshielded**
+(−0.170 [−0.215, −0.123], 25 of 32 blocks worse, 2 better), and it is
+statistically tied with the deployed shield (oracle − shielded = +0.010,
+CI includes zero). The two independent failure modes we diagnosed — calibration
+mismatch and a powerless fallback — are therefore *not* additive competitors for
+the blame. Removing the calibration error entirely (the oracle has none) leaves
+the harm essentially unchanged. **The fallback is the whole story: under motor
+degradation, handing a walking/standing policy to a frozen joint target removes
+the active compliance the robot needs to stay up, whenever and however cleanly
+you do it.** Recalibrating the monitor could not have saved this design; only a
+fallback with real control authority under the disturbance could, and none exists
+without training a new policy on degradation the current policies never saw.
 
-If, after both fixes, the shield still does not beat the sham, the latent-OOD
-Simplex approach does not work for this platform and should be reported as such.
+## The honest next step (revised after the oracle arm)
+
+The original plan was two fixes then a re-run: (1) recalibrate on hard-reset
+nominal data so the shield fires on the disturbance, not the reset transient, and
+(2) swap in an actively-stabilising fallback. **The oracle arm retires fix (1).**
+A detector with perfect timing and zero false alarms already exists in this study,
+and it does not beat unshielded — so recalibration, which at best turns the real
+monitor into that oracle, cannot rescue the design. The calibration mismatch is a
+real and shippable-to-the-robot bug worth reporting, but it is not what makes the
+shield harmful.
+
+That leaves only fix (2): a fallback with genuine control authority under motor
+degradation. No such controller exists in this project. Every trained policy,
+including the domain-randomised variants, saw motor scaling no lower than 0.85;
+the disturbance here runs 0.30–0.55. Producing a fallback that survives it means
+**training a new policy on out-of-envelope degradation**, which is a separate
+research effort, not a tweak — and a *learned* fallback would in any case forfeit
+the Simplex premise (no verified invariant set, no formal safety floor), turning
+the contribution into risk-conditioned switching between learned controllers
+rather than a runtime assurance shield.
+
+**Decision: this instance is reported as a decisive negative result, not
+re-run.** Two external reviews (one GO-with-conditions gated on exactly the oracle
+experiment above, one NO-GO) converge here once the oracle arm fails the gate.
+The transferable lessons stand on their own: calibrate on the deployment reset
+distribution, and — the sharper one — *predicting a fall is not enough; a runtime
+shield is only as good as the recovery authority of its fallback, and a static
+"safe" pose has none under actuator degradation.*
 
 ## Reproduce
 
@@ -113,6 +156,7 @@ python scripts/reliability_closed_loop.py --freeze --out-dir reliability_eval/cl
 python scripts/reliability_closed_loop.py --arm unshielded --out-dir reliability_eval/closed_loop
 python scripts/reliability_closed_loop.py --arm shielded   --out-dir reliability_eval/closed_loop
 python scripts/reliability_closed_loop.py --arm sham       --out-dir reliability_eval/closed_loop
+python scripts/reliability_closed_loop.py --arm oracle     --out-dir reliability_eval/closed_loop  # perfect-timing diagnostic
 python scripts/reliability_closed_loop_analyze.py --out-dir reliability_eval/closed_loop
 python scripts/reliability_reset_transient.py   # the calibration-mismatch diagnostic
 ```
