@@ -53,7 +53,16 @@ import numpy as np  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--arm", choices=["unshielded", "shielded", "sham"], default=None)
+    p.add_argument("--arm", choices=["unshielded", "shielded", "sham", "oracle"], default=None)
+    p.add_argument(
+        "--oracle-delay-ticks",
+        type=int,
+        default=0,
+        help="oracle arm only: switch this many ticks AFTER the true disturbance onset "
+        "(0 = a perfect detector). Nominal blocks never switch (a perfect detector has no "
+        "false positive). This arm is a NON-confirmatory diagnostic: it upper-bounds what the "
+        "static fallback can do with ideal timing, decoupled from all calibration error.",
+    )
     p.add_argument("--freeze", action="store_true", help="Write the bundle manifest + protocol, then exit")
     p.add_argument("--out-dir", default="reliability_eval/closed_loop")
     p.add_argument("--artifact", default="deploy/shield_stand_v3.npz")
@@ -342,6 +351,16 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
                     applied_blend = np.zeros(args.envs)  # passive monitor only
                 elif args.arm == "shielded":
                     applied_blend = blend_np
+                elif args.arm == "oracle":
+                    # Perfect detector: on disturbed blocks, ramp in exactly at the
+                    # true onset (+ optional delay) and hold; nominal blocks never
+                    # switch. Upper-bounds the static fallback's control authority.
+                    if block.disturbed:
+                        since = tick - (block.onset_tick + args.oracle_delay_ticks)
+                        b = min(1.0, since / handoff) if since >= 0 else 0.0
+                    else:
+                        b = 0.0
+                    applied_blend = np.full(args.envs, b)
                 else:  # sham: ramp on the permuted schedule, same handoff length
                     since = tick - sham_switch
                     applied_blend = np.where(
@@ -384,6 +403,8 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             )
 
     suffix = "_pilot" if args.pilot else ""
+    if args.arm == "oracle" and args.oracle_delay_ticks:
+        suffix += f"_d{args.oracle_delay_ticks}"
     out = out_dir / f"arm_{args.arm}{suffix}.npz"
     np.savez(
         out,
@@ -402,6 +423,8 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
                 "blocks": len(blocks),
                 "envs_per_block": args.envs,
                 "pilot": bool(args.pilot),
+                "diagnostic": args.arm == "oracle",
+                "oracle_delay_ticks": args.oracle_delay_ticks if args.arm == "oracle" else None,
             },
             indent=2,
         )
