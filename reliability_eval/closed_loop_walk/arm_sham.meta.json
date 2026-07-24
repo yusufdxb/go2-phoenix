@@ -1,0 +1,10 @@
+{
+  "arm": "sham",
+  "bundle_id": "be15e3249994cdeb",
+  "protocol_hash": "8ae4f679d4012dadc10580cf0e88589d5bc43f8c2fe79a0deb9c162548a39bbe",
+  "blocks": 48,
+  "envs_per_block": 16,
+  "pilot": false,
+  "diagnostic": false,
+  "oracle_delay_ticks": null
+}

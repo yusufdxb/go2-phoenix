@@ -57,13 +57,32 @@ reachable and safer than continuing, in the specific failure mode detected.**
 The characterization makes a falsifiable prediction: a shield helps when the
 primary policy's risky behaviour is one the fallback meaningfully retreats from.
 That points squarely at a **locomotion** policy, where "stop and stand" is a
-distinct, safer action than continuing to walk into a failure. The positive-regime
-demo (planned next) refits this same monitor + arbiter on a walking policy and
-applies a disturbance that breaks walking while standing stays safe (perceptual
-OOD mid-gait or an over-envelope command), then re-runs the identical 4-arm study.
-If the shield beats both unshielded and sham there, the characterization is
-complete: the method works exactly where the mechanism says it should, and not
-elsewhere.
+distinct, safer action than continuing to walk into a failure.
+
+**CONFIRMED.** The identical 4-arm study, rerun on the walking policy
+`phoenix-flat-v4` (monitor refit on its nominal walking latents) under a
+perceptual observation-corruption disturbance, produces a clean positive
+(`reliability_eval/closed_loop_walk/FINDINGS.md`): the shield cuts the disturbed
+fall rate 0.236 -> 0.121 (primary +0.115 [+0.078, +0.152], 23/32 blocks), beats
+the information-free sham (+0.066 [+0.023, +0.109]) so the monitor's *timing*
+carries real signal, reaches the perfect-timing oracle ceiling (gap +0.023,
+CI includes zero), and costs nothing on undisturbed walking (-0.004 [-0.043,
++0.031]). The method works exactly where the mechanism says it should and fails
+where it says it shouldn't -- a stronger claim than either the positive or the
+negative alone.
+
+## The full picture
+
+| regime | policy | fallback behaviourally distinct? | policy actually fails? | shield verdict |
+|---|---|---|---|---|
+| actuator degradation | stand | yes, but fallback also disabled | yes | **harms** |
+| perceptual / command | stand | no (policy already stands) | no | **no headroom** |
+| perceptual (obs OOD) | **walking** | **yes** | **yes** | **prevents falls, beats sham** |
+
+The single governing variable is the top-right pair: the shield helps iff the
+fallback is both **behaviourally distinct** from the primary policy and **safe**
+in the detected failure mode. Both must hold; the walking + perceptual cell is
+the only one of the three where they do.
 
 ## Reproduce
 
