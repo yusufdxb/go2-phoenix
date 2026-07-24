@@ -72,6 +72,20 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--envs", type=int, default=16, help="Environments per block")
     p.add_argument("--n-disturbed", type=int, default=32)
     p.add_argument("--n-nominal", type=int, default=16)
+    p.add_argument(
+        "--disturbance",
+        choices=["motor", "obs", "command"],
+        default="motor",
+        help="motor = actuator degradation (static fallback cannot survive it); "
+        "obs = perceptual corruption of the policy's observations; "
+        "command = an out-of-distribution velocity command (policy trained at cmd=0 "
+        "tries to move and may fall, fallback ignores it and stands -- the canonical "
+        "regime a stand-fallback Simplex shield exists for).",
+    )
+    p.add_argument("--obs-noise-lo", type=float, default=1.0)
+    p.add_argument("--obs-noise-hi", type=float, default=3.0)
+    p.add_argument("--command-speed-lo", type=float, default=0.6)
+    p.add_argument("--command-speed-hi", type=float, default=1.4)
     p.add_argument("--horizon", type=int, default=500)
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--pilot", type=int, default=0, help="Run only the first N blocks (pilot; excluded from results)")
@@ -118,11 +132,17 @@ def do_freeze(args) -> int:
     manifest.write(out / "bundle.json")
 
     blocks = generate_blocks(
-        n_disturbed=args.n_disturbed, n_nominal=args.n_nominal, horizon_ticks=args.horizon
+        n_disturbed=args.n_disturbed,
+        n_nominal=args.n_nominal,
+        disturbance=args.disturbance,
+        obs_noise_range=(args.obs_noise_lo, args.obs_noise_hi),
+        command_speed_range=(args.command_speed_lo, args.command_speed_hi),
+        horizon_ticks=args.horizon,
     )
     params = {
         "envs_per_block": args.envs,
         "horizon_ticks": args.horizon,
+        "disturbance_kind": args.disturbance,
         "artifact_trip": op.trip_threshold,
         "artifact_K": op.trip_persistence,
         "artifact_arming_ticks": op.arming_ticks,
@@ -184,6 +204,8 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     blocks, protocol = read_protocol(out_dir / "protocol.json")
     manifest = BundleManifest.read(out_dir / "bundle.json")
     _, op, meta = load_artifact(args.artifact)
+    disturbance_kind = protocol["params"].get("disturbance_kind", "motor")
+    print(f"[cl] disturbance = {disturbance_kind}", flush=True)
 
     # Gate 1: the controller must be the one the protocol was frozen against.
     controller = controller_snapshot(args.env_config, meta)
@@ -313,6 +335,48 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             print(f"[cl] MOTOR INJECTION FAILED: {type(exc).__name__}: {exc}", flush=True)
             return False
 
+    def corrupt_obs(obs, std: float, generator):
+        """Additive Gaussian corruption of the policy's observation input.
+
+        Applied identically in every arm (it is the disturbance, not the
+        treatment). Only the policy's *input* is corrupted; the environment's
+        physical state is untouched, so the static fallback stays a safe
+        attractor. A per-block generator makes the noise sequence byte-identical
+        across arms regardless of how their trajectories diverge after switching.
+
+        ``obs`` is the container the policy expects (a ``TensorDict`` keyed by
+        observation group, or a bare tensor). The container type must be
+        preserved -- the model indexes ``obs["policy"]`` -- so only the policy
+        group's tensor is replaced.
+        """
+        if isinstance(obs, torch.Tensor):
+            noise = torch.randn(obs.shape, generator=generator, device=obs.device, dtype=obs.dtype)
+            return obs + noise * std
+        pol = obs["policy"]
+        noise = torch.randn(pol.shape, generator=generator, device=pol.device, dtype=pol.dtype)
+        try:
+            new = obs.clone()
+        except AttributeError:
+            new = dict(obs)
+        new["policy"] = pol + noise * std
+        return new
+
+    def set_command(speed: float) -> bool:
+        """Write a forward velocity command into the env's command buffer.
+
+        The policy was trained only at zero command, so a nonzero command is out
+        of distribution. Re-written every disturbed tick because the command
+        manager resamples (to zero, for this stand env) on its own schedule.
+        """
+        try:
+            cmd = env.unwrapped.command_manager.get_command("base_velocity")
+            cmd[:] = 0.0
+            cmd[:, 0] = speed
+            return True
+        except Exception as exc:  # noqa: BLE001 - reported, never silently ignored
+            print(f"[cl] COMMAND INJECTION FAILED: {type(exc).__name__}: {exc}", flush=True)
+            return False
+
     shield = VectorShield(args.artifact, args.envs)
     handoff = int(meta["timings"]["handoff_ticks"])
 
@@ -322,6 +386,9 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         for bi, block in enumerate(blocks):
             torch.manual_seed(block.seed)
             np.random.seed(block.seed)
+            corrupt_gen = torch.Generator(device=env.unwrapped.device).manual_seed(
+                int(block.seed) ^ 0x0B5EED
+            )
             set_motor_scale(1.0)  # restore healthy gains before every block
             env.reset()
             shield.reset()
@@ -339,11 +406,23 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             injected = False
 
             for tick in range(block.horizon_ticks):
-                if block.disturbed and not injected and tick == block.onset_tick:
-                    injected = set_motor_scale(block.motor_scale)
+                # Apply the block's disturbance to the policy's input / actuators.
+                pol_in = obs
+                if disturbance_kind == "motor":
+                    if block.disturbed and not injected and tick == block.onset_tick:
+                        injected = set_motor_scale(block.motor_scale)
+                elif disturbance_kind == "obs":
+                    if block.disturbed and tick >= block.onset_tick:
+                        # Perceptual OOD: corrupt the policy input from onset onward.
+                        pol_in = corrupt_obs(obs, block.obs_noise, corrupt_gen)
+                elif disturbance_kind == "command":
+                    # OOD command: inject from onset onward (persistent). The
+                    # command reaches the policy via the next step's observation.
+                    if block.disturbed and tick >= block.onset_tick:
+                        set_command(block.command_speed)
 
                 captured.clear()
-                actions = policy(obs)
+                actions = policy(pol_in)
                 latent = torch.cat([captured[i] for i in tap_idx], dim=1)
                 blend_np, _score, _armed = shield.step(latent.detach().cpu().numpy())
 
