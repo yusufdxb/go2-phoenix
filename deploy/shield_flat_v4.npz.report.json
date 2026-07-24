@@ -1,0 +1,363 @@
+{
+  "operating_point": {
+    "trip_threshold": 7471.825297631745,
+    "clear_threshold": 669.0791968063976,
+    "trip_persistence": 10,
+    "arming_ticks": 15,
+    "nominal_episode_fpr": 0.043478260869565216,
+    "falls_warned": NaN,
+    "median_lead_s": NaN,
+    "median_full_fallback_lead_s": NaN
+  },
+  "timings": {
+    "handoff_ticks": 10,
+    "recover_ticks": 25,
+    "clear_persistence": 10,
+    "min_fallback_ticks": 20,
+    "latch": true
+  },
+  "candidates": [
+    {
+      "p": 99.0,
+      "K": 3,
+      "threshold": 1774.5604969440324,
+      "episode_fpr": 0.34782608695652173,
+      "n_ep": 138
+    },
+    {
+      "p": 99.0,
+      "K": 5,
+      "threshold": 1774.5604969440324,
+      "episode_fpr": 0.2826086956521739,
+      "n_ep": 138
+    },
+    {
+      "p": 99.0,
+      "K": 10,
+      "threshold": 1774.5604969440324,
+      "episode_fpr": 0.2391304347826087,
+      "n_ep": 138
+    },
+    {
+      "p": 99.0,
+      "K": 20,
+      "threshold": 1774.5604969440324,
+      "episode_fpr": 0.18840579710144928,
+      "n_ep": 138
+    },
+    {
+      "p": 99.0,
+      "K": 30,
+      "threshold": 1774.5604969440324,
+      "episode_fpr": 0.15441176470588236,
+      "n_ep": 136
+    },
+    {
+      "p": 99.0,
+      "K": 50,
+      "threshold": 1774.5604969440324,
+      "episode_fpr": 0.13432835820895522,
+      "n_ep": 134
+    },
+    {
+      "p": 99.5,
+      "K": 3,
+      "threshold": 2235.1948044314454,
+      "episode_fpr": 0.2463768115942029,
+      "n_ep": 138
+    },
+    {
+      "p": 99.5,
+      "K": 5,
+      "threshold": 2235.1948044314454,
+      "episode_fpr": 0.2028985507246377,
+      "n_ep": 138
+    },
+    {
+      "p": 99.5,
+      "K": 10,
+      "threshold": 2235.1948044314454,
+      "episode_fpr": 0.18115942028985507,
+      "n_ep": 138
+    },
+    {
+      "p": 99.5,
+      "K": 20,
+      "threshold": 2235.1948044314454,
+      "episode_fpr": 0.15217391304347827,
+      "n_ep": 138
+    },
+    {
+      "p": 99.5,
+      "K": 30,
+      "threshold": 2235.1948044314454,
+      "episode_fpr": 0.125,
+      "n_ep": 136
+    },
+    {
+      "p": 99.5,
+      "K": 50,
+      "threshold": 2235.1948044314454,
+      "episode_fpr": 0.11940298507462686,
+      "n_ep": 134
+    },
+    {
+      "p": 99.9,
+      "K": 3,
+      "threshold": 3745.0114961204777,
+      "episode_fpr": 0.16666666666666666,
+      "n_ep": 138
+    },
+    {
+      "p": 99.9,
+      "K": 5,
+      "threshold": 3745.0114961204777,
+      "episode_fpr": 0.14492753623188406,
+      "n_ep": 138
+    },
+    {
+      "p": 99.9,
+      "K": 10,
+      "threshold": 3745.0114961204777,
+      "episode_fpr": 0.13043478260869565,
+      "n_ep": 138
+    },
+    {
+      "p": 99.9,
+      "K": 20,
+      "threshold": 3745.0114961204777,
+      "episode_fpr": 0.10869565217391304,
+      "n_ep": 138
+    },
+    {
+      "p": 99.9,
+      "K": 30,
+      "threshold": 3745.0114961204777,
+      "episode_fpr": 0.10294117647058823,
+      "n_ep": 136
+    },
+    {
+      "p": 99.9,
+      "K": 50,
+      "threshold": 3745.0114961204777,
+      "episode_fpr": 0.08955223880597014,
+      "n_ep": 134
+    },
+    {
+      "p": 99.95,
+      "K": 3,
+      "threshold": 4749.323855324698,
+      "episode_fpr": 0.12318840579710146,
+      "n_ep": 138
+    },
+    {
+      "p": 99.95,
+      "K": 5,
+      "threshold": 4749.323855324698,
+      "episode_fpr": 0.11594202898550725,
+      "n_ep": 138
+    },
+    {
+      "p": 99.95,
+      "K": 10,
+      "threshold": 4749.323855324698,
+      "episode_fpr": 0.09420289855072464,
+      "n_ep": 138
+    },
+    {
+      "p": 99.95,
+      "K": 20,
+      "threshold": 4749.323855324698,
+      "episode_fpr": 0.07971014492753623,
+      "n_ep": 138
+    },
+    {
+      "p": 99.95,
+      "K": 30,
+      "threshold": 4749.323855324698,
+      "episode_fpr": 0.07352941176470588,
+      "n_ep": 136
+    },
+    {
+      "p": 99.95,
+      "K": 50,
+      "threshold": 4749.323855324698,
+      "episode_fpr": 0.06716417910447761,
+      "n_ep": 134
+    },
+    {
+      "p": 99.99,
+      "K": 3,
+      "threshold": 6235.166998079045,
+      "episode_fpr": 0.10869565217391304,
+      "n_ep": 138
+    },
+    {
+      "p": 99.99,
+      "K": 5,
+      "threshold": 6235.166998079045,
+      "episode_fpr": 0.08695652173913043,
+      "n_ep": 138
+    },
+    {
+      "p": 99.99,
+      "K": 10,
+      "threshold": 6235.166998079045,
+      "episode_fpr": 0.06521739130434782,
+      "n_ep": 138
+    },
+    {
+      "p": 99.99,
+      "K": 20,
+      "threshold": 6235.166998079045,
+      "episode_fpr": 0.050724637681159424,
+      "n_ep": 138
+    },
+    {
+      "p": 99.99,
+      "K": 30,
+      "threshold": 6235.166998079045,
+      "episode_fpr": 0.03676470588235294,
+      "n_ep": 136
+    },
+    {
+      "p": 99.99,
+      "K": 50,
+      "threshold": 6235.166998079045,
+      "episode_fpr": 0.03731343283582089,
+      "n_ep": 134
+    },
+    {
+      "p": 99.995,
+      "K": 3,
+      "threshold": 6515.9445410127,
+      "episode_fpr": 0.10869565217391304,
+      "n_ep": 138
+    },
+    {
+      "p": 99.995,
+      "K": 5,
+      "threshold": 6515.9445410127,
+      "episode_fpr": 0.07971014492753623,
+      "n_ep": 138
+    },
+    {
+      "p": 99.995,
+      "K": 10,
+      "threshold": 6515.9445410127,
+      "episode_fpr": 0.050724637681159424,
+      "n_ep": 138
+    },
+    {
+      "p": 99.995,
+      "K": 20,
+      "threshold": 6515.9445410127,
+      "episode_fpr": 0.043478260869565216,
+      "n_ep": 138
+    },
+    {
+      "p": 99.995,
+      "K": 30,
+      "threshold": 6515.9445410127,
+      "episode_fpr": 0.03676470588235294,
+      "n_ep": 136
+    },
+    {
+      "p": 99.995,
+      "K": 50,
+      "threshold": 6515.9445410127,
+      "episode_fpr": 0.03731343283582089,
+      "n_ep": 134
+    },
+    {
+      "p": 99.999,
+      "K": 3,
+      "threshold": 7471.825297631745,
+      "episode_fpr": 0.07246376811594203,
+      "n_ep": 138
+    },
+    {
+      "p": 99.999,
+      "K": 5,
+      "threshold": 7471.825297631745,
+      "episode_fpr": 0.050724637681159424,
+      "n_ep": 138
+    },
+    {
+      "p": 99.999,
+      "K": 10,
+      "threshold": 7471.825297631745,
+      "episode_fpr": 0.043478260869565216,
+      "n_ep": 138
+    },
+    {
+      "p": 99.999,
+      "K": 20,
+      "threshold": 7471.825297631745,
+      "episode_fpr": 0.028985507246376812,
+      "n_ep": 138
+    },
+    {
+      "p": 99.999,
+      "K": 30,
+      "threshold": 7471.825297631745,
+      "episode_fpr": 0.029411764705882353,
+      "n_ep": 136
+    },
+    {
+      "p": 99.999,
+      "K": 50,
+      "threshold": 7471.825297631745,
+      "episode_fpr": 0.029850746268656716,
+      "n_ep": 134
+    }
+  ],
+  "per_condition": {},
+  "parity": {
+    "n_samples": 4000,
+    "max_rel_err": 5.285542456141056e-07,
+    "median_rel_err": 6.561462895421244e-08,
+    "max_abs_err": 0.0005796573100269597,
+    "decision_disagreement": 0,
+    "decision_disagreement_rate": 0.0,
+    "trip_threshold": 7471.825297631745
+  },
+  "provenance": {
+    "raw_dir": "reliability_eval/raw_flat",
+    "checkpoint": "checkpoints/phoenix-flat-v4/latest.pt",
+    "checkpoint_sha256": "08add590c2963dba42e72ff388cc3a34dec9adb029075dfdcc296a871f03bfdd",
+    "env_config": "configs/env/flat_v4.yaml",
+    "tap_indices": [
+      2,
+      3
+    ],
+    "latent_dim": 384,
+    "obs_dim": 48,
+    "versions": {
+      "isaaclab": "4.5.22",
+      "rsl_rl_lib": "5.0.1",
+      "torch": "2.10.0+cu128",
+      "numpy": "1.26.4"
+    },
+    "control_dt_s": 0.02,
+    "selection": {
+      "rule": "most sensitive point within held-out nominal episode-FPR budget",
+      "max_episode_fpr": 0.05,
+      "percentile": 99.999,
+      "shrinkage": 0.00019176038584790988,
+      "fit_frames": 49220,
+      "calib_episodes": 138
+    },
+    "headline_condition": null,
+    "evaluation": {},
+    "parity": {
+      "n_samples": 4000,
+      "max_rel_err": 5.285542456141056e-07,
+      "median_rel_err": 6.561462895421244e-08,
+      "max_abs_err": 0.0005796573100269597,
+      "decision_disagreement": 0,
+      "decision_disagreement_rate": 0.0,
+      "trip_threshold": 7471.825297631745
+    }
+  }
+}
