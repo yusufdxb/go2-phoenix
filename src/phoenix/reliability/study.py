@@ -121,6 +121,24 @@ class ScenarioBlock:
     motor_scale: float | None
     onset_tick: int
     horizon_ticks: int
+    # Perceptual-OOD disturbance: from ``onset_tick`` on, the observations *fed
+    # to the policy* are corrupted with additive Gaussian noise of this standard
+    # deviation (in the policy's observation units). The robot's physical state
+    # is untouched, so the static stand fallback remains a safe attractor -- this
+    # is the regime a latent-OOD Simplex shield is actually designed for (the
+    # policy is fed something it cannot handle; freezing is safe). ``None`` for
+    # motor-degradation blocks and nominal blocks. Defaulted so protocols frozen
+    # before this field existed still load.
+    obs_noise: float | None = None
+    # Command-injection disturbance: from ``onset_tick`` on, the policy is fed a
+    # velocity command of this magnitude (m/s forward). The policy was trained
+    # only at zero command, so a nonzero command is out of distribution and it
+    # may emit destabilising actions; the static fallback ignores the command and
+    # keeps standing, so it is a safe attractor. This is the canonical scenario a
+    # stand-fallback Simplex shield exists for (a bad planner/teleop command).
+    # ``None`` for the other disturbance kinds and nominal blocks. Defaulted so
+    # protocols frozen before this field existed still load.
+    command_speed: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -129,39 +147,66 @@ class ScenarioBlock:
 MIN_ONSET_TICK = 100  # 2.0 s at 50 Hz: long after arming (15) and stabilisation
 
 
+DISTURBANCES = ("motor", "obs", "command")
+
+
 def generate_blocks(
     *,
     n_disturbed: int = 32,
     n_nominal: int = 16,
+    disturbance: str = "motor",
     motor_scale_range: tuple[float, float] = (0.30, 0.55),
+    obs_noise_range: tuple[float, float] = (1.0, 3.0),
+    command_speed_range: tuple[float, float] = (0.6, 1.4),
     onset_range: tuple[int, int] = (100, 200),
     horizon_ticks: int = 500,
     seed: int = 20260720,
 ) -> list[ScenarioBlock]:
     """Pre-generate the scenario blocks from the registered distribution.
 
-    The motor scale is drawn from a continuous range rather than the two pinned
-    values used in Phase 3 (0.45 and 0.6, which produced 19.5% and 0% falls).
-    Discrete, always-on shift levels made the detection task partly an
-    environment-classification problem; a continuous distribution applied
-    mid-episode does not.
+    ``disturbance`` selects the shift applied at ``onset_tick``:
+
+    - ``"motor"``: actuator stiffness+damping scaled by a factor drawn from
+      ``motor_scale_range``. A physical fault the static fallback cannot survive
+      (it weakens the very actuators the fallback relies on).
+    - ``"obs"``: additive Gaussian corruption of the policy's observations with a
+      standard deviation drawn from ``obs_noise_range``. A perceptual fault the
+      robot's body survives, so the static fallback is a legitimate safe
+      attractor -- the regime the latent-OOD shield is designed for.
+
+    The severity is drawn from a continuous range rather than pinned values so
+    the detection task is not partly environment-classification.
     """
+    if disturbance not in DISTURBANCES:
+        raise ValueError(f"disturbance must be one of {DISTURBANCES}, got {disturbance!r}")
     if onset_range[0] < MIN_ONSET_TICK:
         raise ValueError(
             f"onset must be >= {MIN_ONSET_TICK} ticks so the disturbance lands after "
             "arming and stabilisation, not during them"
         )
     rng = np.random.default_rng(seed)
+
+    def _severity() -> tuple[float | None, float | None, float | None]:
+        """Returns (motor_scale, obs_noise, command_speed) for a disturbed block."""
+        if disturbance == "motor":
+            return float(rng.uniform(*motor_scale_range)), None, None
+        if disturbance == "obs":
+            return None, float(rng.uniform(*obs_noise_range)), None
+        return None, None, float(rng.uniform(*command_speed_range))
+
     blocks: list[ScenarioBlock] = []
     for i in range(n_disturbed):
+        motor, obs, command = _severity()
         blocks.append(
             ScenarioBlock(
                 block_id=i,
                 seed=int(rng.integers(0, 2**31 - 1)),
                 disturbed=True,
-                motor_scale=float(rng.uniform(*motor_scale_range)),
+                motor_scale=motor,
                 onset_tick=int(rng.integers(onset_range[0], onset_range[1] + 1)),
                 horizon_ticks=horizon_ticks,
+                obs_noise=obs,
+                command_speed=command,
             )
         )
     for j in range(n_nominal):
@@ -173,6 +218,8 @@ def generate_blocks(
                 motor_scale=None,
                 onset_tick=int(rng.integers(onset_range[0], onset_range[1] + 1)),
                 horizon_ticks=horizon_ticks,
+                obs_noise=None,
+                command_speed=None,
             )
         )
     return blocks
