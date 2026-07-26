@@ -53,7 +53,11 @@ import numpy as np  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--arm", choices=["unshielded", "shielded", "sham", "oracle"], default=None)
+    p.add_argument(
+        "--arm",
+        choices=["unshielded", "shielded", "sham", "sham_stratified", "oracle"],
+        default=None,
+    )
     p.add_argument(
         "--oracle-delay-ticks",
         type=int,
@@ -232,7 +236,7 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
 
     # Gate 2: the sham arm needs the shielded arm's realised switching behaviour.
     sham_sched = None
-    if args.arm == "sham":
+    if args.arm in ("sham", "sham_stratified"):
         shielded_path = out_dir / "arm_shielded.npz"
         if not shielded_path.is_file():
             raise SystemExit("FAIL CLOSED: run the shielded arm before the sham arm")
@@ -241,8 +245,21 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             int(b): [None if t < 0 else int(t) for t in prev["switch_tick"][i]]
             for i, b in enumerate(prev["block_id"])
         }
-        sham_sched = sham_schedule(realised, seed=int(protocol["params"].get("envs_per_block", 16)))
-        print(f"[cl] sham schedule permuted from {len(realised)} shielded blocks", flush=True)
+        strata = (
+            {block.block_id: block.disturbed for block in blocks}
+            if args.arm == "sham_stratified"
+            else None
+        )
+        sham_sched = sham_schedule(
+            realised,
+            seed=int(protocol["params"].get("envs_per_block", 16)),
+            strata=strata,
+        )
+        qualifier = " within disturbance strata" if strata is not None else ""
+        print(
+            f"[cl] sham schedule permuted{qualifier} from {len(realised)} shielded blocks",
+            flush=True,
+        )
 
     # ---- env + policy (mirrors reliability_rollout.py exactly) --------------
     cfg = load_layered_config(args.env_config)

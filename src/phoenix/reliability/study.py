@@ -271,28 +271,51 @@ def sham_schedule(
     shielded_switch_ticks: dict[int, list[int | None]],
     *,
     seed: int,
+    strata: dict[int, object] | None = None,
 ) -> dict[int, list[int | None]]:
     """Build the sham arm's switch schedule from the shielded arm's realised one.
 
     Takes ``{block_id: [switch tick or None per env]}`` as the shield actually
-    behaved, and permutes those schedules **across blocks**. The result has the
-    same marginal switching frequency and the same timing distribution, but
-    within any given episode the switch time carries no information about that
-    episode. Any fall reduction the sham arm achieves is therefore attributable
-    to the act of standing, not to the monitor.
+    behaved, and permutes those schedules **across blocks**. When ``strata`` is
+    supplied, permutation is restricted to blocks with the same stratum. This
+    preserves switching frequency and timing within experimental conditions,
+    avoiding a treatment-dose mismatch when the monitor engages at different
+    rates in disturbed and nominal blocks.
+
+    Within a receiving block, the switch time carries no information about that
+    block's episode. Any fall reduction the sham arm achieves is therefore
+    attributable to the act of standing, not to the monitor.
     """
     rng = np.random.default_rng(seed)
     block_ids = sorted(shielded_switch_ticks)
-    donors = rng.permutation(len(block_ids))
-    # A block must not donate to itself, or the "sham" would be the real thing.
-    for i, d in enumerate(donors):
-        if d == i:
-            j = (i + 1) % len(block_ids)
-            donors[i], donors[j] = donors[j], donors[i]
-    return {
-        block_ids[i]: list(shielded_switch_ticks[block_ids[int(d)]])
-        for i, d in enumerate(donors)
-    }
+    if strata is None:
+        groups = {None: block_ids}
+    else:
+        if set(strata) != set(block_ids):
+            raise ValueError("strata must contain exactly the realised block ids")
+        groups: dict[object, list[int]] = {}
+        for block_id in block_ids:
+            groups.setdefault(strata[block_id], []).append(block_id)
+
+    schedule = {}
+    for stratum, recipients in groups.items():
+        if len(recipients) < 2:
+            raise ValueError(f"sham stratum {stratum!r} needs at least two blocks")
+        donors = rng.permutation(len(recipients))
+        # A block must not donate to itself, or the sham would silently receive
+        # the real monitor decision. Swapping adjacent fixed points preserves a
+        # one-to-one permutation and therefore the exact treatment dose.
+        for index, donor in enumerate(donors):
+            if donor == index:
+                other = (index + 1) % len(recipients)
+                donors[index], donors[other] = donors[other], donors[index]
+        schedule.update(
+            {
+                recipients[index]: list(shielded_switch_ticks[recipients[int(donor)]])
+                for index, donor in enumerate(donors)
+            }
+        )
+    return schedule
 
 
 def paired_difference(
