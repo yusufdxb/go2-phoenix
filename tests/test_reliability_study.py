@@ -213,6 +213,33 @@ def test_sham_never_gives_a_block_its_own_schedule():
         assert all(sham[i] != realised[i] for i in realised)
 
 
+def test_sham_preserves_switching_marginals_within_strata():
+    realised = {
+        0: [10, None],
+        1: [20, None],
+        2: [30, 31],
+        3: [40, 41],
+        4: [None, None],
+        5: [None, 50],
+    }
+    strata = {0: "disturbed", 1: "disturbed", 2: "disturbed", 3: "nominal", 4: "nominal", 5: "nominal"}
+    sham = sham_schedule(realised, seed=4, strata=strata)
+    for stratum in set(strata.values()):
+        members = [block_id for block_id, value in strata.items() if value == stratum]
+        original = sum((realised[block_id] for block_id in members), [])
+        permuted = sum((sham[block_id] for block_id in members), [])
+        assert sorted(map(str, permuted)) == sorted(map(str, original))
+        assert all(sham[block_id] != realised[block_id] for block_id in members)
+
+
+def test_sham_rejects_incomplete_or_singleton_strata():
+    realised = {0: [10], 1: [20], 2: [30]}
+    with pytest.raises(ValueError, match="exactly"):
+        sham_schedule(realised, seed=0, strata={0: "a", 1: "a"})
+    with pytest.raises(ValueError, match="at least two"):
+        sham_schedule(realised, seed=0, strata={0: "a", 1: "a", 2: "b"})
+
+
 # --- paired analysis ---------------------------------------------------------
 
 

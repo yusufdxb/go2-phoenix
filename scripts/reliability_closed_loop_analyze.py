@@ -39,11 +39,19 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out-dir", default="reliability_eval/closed_loop")
     ap.add_argument("--n-disturbed", type=int, default=32)
+    ap.add_argument(
+        "--output-json",
+        default=None,
+        help="Result path (default: <out-dir>/results.json).",
+    )
     args = ap.parse_args()
     out_dir = Path(args.out_dir)
 
     _, protocol = read_protocol(out_dir / "protocol.json")
-    arms = {a: load_arm(out_dir, a) for a in ("unshielded", "shielded", "sham")}
+    arm_names = ["unshielded", "shielded", "sham"]
+    if (out_dir / "arm_sham_stratified.npz").is_file():
+        arm_names.append("sham_stratified")
+    arms = {a: load_arm(out_dir, a) for a in arm_names}
 
     # Every arm must be the same protocol and bundle, or the pairing is a lie.
     proto_hash = protocol.get("protocol_hash")
@@ -75,13 +83,18 @@ def main() -> int:
           f"{args.n_disturbed} disturbed + {int(nominal.sum())} nominal blocks x {envs} envs")
     print("=" * 72)
     print(f"{'arm':<12}{'disturbed fall':>16}{'nominal fall':>14}{'engaged':>10}")
-    for a in ("unshielded", "shielded", "sham"):
+    for a in arm_names:
         print(f"{a:<12}{rates[a].mean():>16.3f}{nom_rates[a].mean():>14.3f}{engaged[a].mean():>10.3f}")
 
     # Primary: unshielded - shielded (positive => shield helps).
     primary = paired_difference(rates["unshielded"], rates["shielded"], seed=0)
     # Secondary: sham - shielded (positive => the monitor's timing helps beyond the act of switching).
     secondary = paired_difference(rates["sham"], rates["shielded"], seed=1)
+    dose_matched = (
+        paired_difference(rates["sham_stratified"], rates["shielded"], seed=3)
+        if "sham_stratified" in arms
+        else None
+    )
     # Cost on nominal: shielded - unshielded (positive => the shield causes falls where none occurred).
     nominal_cost = paired_difference(nom_rates["shielded"], nom_rates["unshielded"], seed=2)
 
@@ -98,6 +111,13 @@ def main() -> int:
     print("\n" + "-" * 72)
     show("PRIMARY  unshielded - shielded  (positive = shield prevents falls)", primary, True)
     show("SECONDARY  sham - shielded  (positive = monitor timing beats blind switching)", secondary, True)
+    if dose_matched is not None:
+        show(
+            "DOSE-MATCHED  stratified sham - shielded  "
+            "(positive = monitor timing beats condition-matched switching)",
+            dose_matched,
+            True,
+        )
     show("NOMINAL COST  shielded - unshielded on undisturbed blocks", nominal_cost, False)
 
     summary = {
@@ -111,10 +131,12 @@ def main() -> int:
         "engagement_rate": {a: float(engaged[a].mean()) for a in arms},
         "primary_unshielded_minus_shielded": primary,
         "secondary_sham_minus_shielded": secondary,
+        "dose_matched_sham_minus_shielded": dose_matched,
         "nominal_cost_shielded_minus_unshielded": nominal_cost,
     }
-    (out_dir / "results.json").write_text(json.dumps(summary, indent=2))
-    print(f"\nwrote {out_dir}/results.json")
+    output_json = Path(args.output_json) if args.output_json else out_dir / "results.json"
+    output_json.write_text(json.dumps(summary, indent=2))
+    print(f"\nwrote {output_json}")
     return 0
 
 
