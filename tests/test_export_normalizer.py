@@ -129,3 +129,64 @@ def test_default_tap_indices_rejects_no_hidden_layers():
 
     with pytest.raises(ValueError, match="no hidden layers"):
         default_tap_indices(0)
+
+
+# --- checkpoint_has_obs_normalizer ------------------------------------------
+#
+# These pin the defect that made deploy/flat_v4_latent.onnx fail the deploy
+# parity gate. scripts/reliability_rollout.py hardcoded
+# ``empirical_normalization: True``. flat-v4's checkpoint carries no normalizer
+# buffers, so rsl_rl built a fresh EmpiricalNormalization (mean=0, std=1) whose
+# forward is still ``(x - 0) / (1 + 1e-2)``: a silent 1% shrink of every
+# observation. The exporter correctly found no statistics and exported a
+# raw-observation policy, so the two paths differed by ~1% on every frame
+# (worst recorded latent gap 6.44 against a latent of scale 673, 100% of
+# frames). The stand-v3 checkpoint DOES carry the buffers, which is exactly
+# why it passed the same gate. Both sides must now derive the answer here.
+
+
+def test_checkpoint_without_normalizer_reports_false() -> None:
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
+
+    ckpt = {
+        "actor_state_dict": {
+            "mlp.0.weight": np.zeros((512, 48)),
+            "mlp.0.bias": np.zeros(512),
+            "distribution.std_param": np.zeros(12),
+        }
+    }
+    assert checkpoint_has_obs_normalizer(ckpt) is False
+
+
+def test_checkpoint_with_normalizer_reports_true() -> None:
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
+
+    ckpt = {
+        "actor_state_dict": {
+            "mlp.0.weight": np.zeros((512, 48)),
+            "obs_normalizer._mean": np.zeros((1, 48)),
+            "obs_normalizer._var": np.ones((1, 48)),
+        }
+    }
+    assert checkpoint_has_obs_normalizer(ckpt) is True
+
+
+def test_checkpoint_normalizer_agrees_with_exporter() -> None:
+    # The whole point of the helper is that it cannot disagree with the
+    # exporter's own decision. Same inputs, same answer, always.
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
+
+    for actor_sd in (
+        {"mlp.0.weight": np.zeros((4, 4))},
+        {"mlp.0.weight": np.zeros((4, 4)), "obs_normalizer._mean": np.zeros(4),
+         "obs_normalizer._var": np.ones(4)},
+    ):
+        ckpt = {"actor_state_dict": actor_sd}
+        exporter_found = _extract_normalizer_stats(ckpt, actor_sd) is not None
+        assert checkpoint_has_obs_normalizer(ckpt) is exporter_found
+
+
+def test_unreadable_checkpoint_path_does_not_raise() -> None:
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
+
+    assert checkpoint_has_obs_normalizer("/nonexistent/does-not-exist.pt") is False
