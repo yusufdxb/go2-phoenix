@@ -82,6 +82,7 @@ def _run(args, app) -> int:  # noqa: ANN001
     from omegaconf import OmegaConf
     from rsl_rl.runners import OnPolicyRunner
 
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
     from phoenix.sim_env import build_env_cfg, load_layered_config
     from phoenix.training.agent_cfg import build_runner_cfg
     from phoenix.training.checkpoint import load_runner_checkpoint
@@ -102,6 +103,19 @@ def _run(args, app) -> int:  # noqa: ANN001
 
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)  # evaluate.py clips actions to [-1,1]
+
+    # Whether to normalize observations is a PROPERTY OF THE CHECKPOINT, never a
+    # constant. rsl_rl only serializes ``obs_normalizer.*`` buffers when the run
+    # was trained with empirical normalization; if we ask for normalization on a
+    # checkpoint that has none, rsl_rl builds a fresh EmpiricalNormalization whose
+    # buffers are still mean=0/std=1, and its forward is
+    # ``(x - 0) / (1 + eps)`` with eps=1e-2 -- a silent 1% shrink of every
+    # observation. That is invisible in behaviour but shifts every recorded latent
+    # by ~1% relative, which is exactly the gap that made deploy/flat_v4_latent.onnx
+    # fail the deploy parity gate (worst latent diff 6.44 on a latent of scale 673)
+    # while stand-v3, whose checkpoint DOES carry the buffers, passed.
+    normalize_obs = checkpoint_has_obs_normalizer(args.checkpoint)
+    print(f"[roll] checkpoint obs normalization: {normalize_obs}", flush=True)
 
     # ---- Runner + checkpoint (mirrors training/evaluate.py exactly) --------
     # Use the proven rsl_rl inference path so behavior matches evaluate.py;
@@ -139,7 +153,7 @@ def _run(args, app) -> int:  # noqa: ANN001
             "critic_hidden_dims": [512, 256, 128],
             "activation": "elu",
         },
-        "runner": {"num_steps_per_env": 24, "empirical_normalization": True},
+        "runner": {"num_steps_per_env": 24, "empirical_normalization": normalize_obs},
     }
     runner_cfg = build_runner_cfg(eval_yaml, task_name)
     runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, md.version("rsl-rl-lib"))
@@ -152,7 +166,6 @@ def _run(args, app) -> int:  # noqa: ANN001
     policy = runner.get_inference_policy(device=args.device)
     actor = runner.alg.actor
     critic = getattr(runner.alg, "critic", None)
-    normalizer = getattr(runner, "obs_normalizer", None)
     print(f"[roll] runner loaded; actor_match={info.get('actor_match')}", flush=True)
 
     # ---- Hook the actor's Linear layers; capture their INPUTS --------------
@@ -304,6 +317,9 @@ def _run(args, app) -> int:  # noqa: ANN001
         "n_elu_layers": n_hidden,
         "latent_dim": int(arrays["latent"].shape[-1]),
         "obs_dim": int(arrays["obs"].shape[-1]),
+        # Provenance for the deploy parity gate: a recording made under a
+        # different normalization decision than the export is not comparable.
+        "empirical_normalization": bool(normalize_obs),
         "versions": {
             "isaaclab": md.version("isaaclab") if _has(md, "isaaclab") else "?",
             "rsl_rl_lib": md.version("rsl-rl-lib"),

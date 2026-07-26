@@ -292,6 +292,44 @@ def _extract_normalizer_stats(ckpt: dict, actor_sd: dict) -> tuple[Any, Any] | N
     return None
 
 
+def checkpoint_has_obs_normalizer(checkpoint: Any) -> bool:
+    """Does this checkpoint carry trained observation-normalizer statistics?
+
+    The single source of truth for "should this policy's observations be
+    normalized", shared by the exporter and by any evaluation harness that
+    rebuilds an rsl_rl runner. Both sides MUST answer this question the same
+    way or they silently compute different functions of the same observation.
+
+    That is not hypothetical. ``scripts/reliability_rollout.py`` used to
+    hardcode ``empirical_normalization: True``. On a checkpoint trained
+    without normalization, rsl_rl then builds a fresh
+    ``EmpiricalNormalization`` whose buffers are still mean=0 / std=1, and
+    whose forward is ``(x - 0) / (1 + eps)`` with ``eps=1e-2``: every
+    observation quietly shrinks by 1%. The exporter, correctly finding no
+    statistics, exported a raw-observation policy. The two paths then differed
+    by ~1% on every frame -- enough to fail the deploy parity gate, and
+    invisible to any behavioural check.
+
+    Accepts either a loaded checkpoint dict or a path to one. Falls back to
+    ``False`` (no normalization) only when the file cannot be read, since the
+    caller's next step is a parity gate that will catch a wrong guess.
+    """
+    ckpt = checkpoint
+    if not isinstance(ckpt, dict):
+        try:
+            import torch
+
+            ckpt = torch.load(str(checkpoint), map_location="cpu", weights_only=False)
+        except Exception:  # noqa: BLE001 - unreadable checkpoint is the caller's problem
+            return False
+    if not isinstance(ckpt, dict):
+        return False
+    actor_sd = ckpt.get("actor_state_dict", {})
+    if not isinstance(actor_sd, dict):
+        actor_sd = {}
+    return _extract_normalizer_stats(ckpt, actor_sd) is not None
+
+
 # --- nn.Module wrappers -----------------------------------------------------
 
 try:  # pragma: no cover - only meaningful with torch available

@@ -90,6 +90,8 @@ reliability_eval/raw/
 reliability_eval/logs/
 reliability_eval/raw_stand/
 reliability_eval/logs_stand/
+reliability_eval/raw_flat/
+reliability_eval/logs_flat/
 
 # Exported policy binaries (regenerable from the checkpoint via export.py).
 # The shield artifact itself IS tracked: it is small and it is the deliverable.
@@ -97,6 +99,9 @@ deploy/*.onnx
 deploy/*.onnx.data
 deploy/*.pt
 
-# Closed-loop study raw arm outputs (regenerable); protocol/bundle/results tracked
-reliability_eval/closed_loop/arm_*.npz
-reliability_eval/closed_loop/*_pilot*
+# Closed-loop study pilots are exploratory and not cited by any result.
+# The per-arm .npz ARE tracked: at ~9 KB each they are what makes the headline
+# numbers recomputable from a fresh clone (reliability_closed_loop_analyze.py
+# reads nothing else), and a result nobody can recompute is not a result.
+reliability_eval/*_pilot*
+reliability_eval/closed_loop*/*_pilot*
