@@ -59,17 +59,21 @@ primary policy's risky behaviour is one the fallback meaningfully retreats from.
 That points squarely at a **locomotion** policy, where "stop and stand" is a
 distinct, safer action than continuing to walk into a failure.
 
-**CONFIRMED.** The identical 4-arm study, rerun on the walking policy
-`phoenix-flat-v4` (monitor refit on its nominal walking latents) under a
-perceptual observation-corruption disturbance, produces a clean positive
-(`reliability_eval/closed_loop_walk/FINDINGS.md`): the shield cuts the disturbed
-fall rate 0.236 -> 0.121 (primary +0.115 [+0.078, +0.152], 23/32 blocks), beats
-the information-free sham (+0.066 [+0.023, +0.109]) so the monitor's *timing*
-carries real signal, reaches the perfect-timing oracle ceiling (gap +0.023,
-CI includes zero), and costs nothing on undisturbed walking (-0.004 [-0.043,
-+0.031]). The method works exactly where the mechanism says it should and fails
-where it says it shouldn't -- a stronger claim than either the positive or the
-negative alone.
+**CONFIRMED, for the fallback and not for the detector.** The identical 4-arm
+study, rerun on the walking policy `phoenix-flat-v4` (monitor refit on its
+nominal walking latents) under a perceptual observation-corruption disturbance,
+produces a clean positive (`reliability_eval/closed_loop_walk/FINDINGS.md`): the
+shield cuts the disturbed fall rate 0.238 -> 0.133 (primary +0.105
+[+0.064, +0.146], 26/32 blocks), reaches the perfect-timing oracle ceiling (gap
+-0.002 [-0.029, +0.023]), and costs nothing on undisturbed walking. What it does
+**not** show is that the monitor's timing produces the benefit: the first sham
+arm permuted switch schedules globally and so engaged in only 0.709 of disturbed
+episodes against the shield's 0.982, a treatment-dose mismatch rather than a
+timing contrast. Against a condition-stratified sham at matched dose the shield's
+advantage is +0.004 [-0.023, +0.033] -- a blind switcher of equal frequency
+captures all of it. The method works exactly where the mechanism says it should
+and fails where it says it shouldn't, and in both regimes the operative variable
+is the fallback's safety, not the detector's quality.
 
 ## The full picture
 
@@ -77,7 +81,7 @@ negative alone.
 |---|---|---|---|---|
 | actuator degradation | stand | yes, but fallback also disabled | yes | **harms** |
 | perceptual / command | stand | no (policy already stands) | no | **no headroom** |
-| perceptual (obs OOD) | **walking** | **yes** | **yes** | **prevents falls, beats sham** |
+| perceptual (obs OOD) | **walking** | **yes** | **yes** | **prevents falls; a dose-matched sham does too** |
 
 The single governing variable is the top-right pair: the shield helps iff the
 fallback is both **behaviourally distinct** from the primary policy and **safe**

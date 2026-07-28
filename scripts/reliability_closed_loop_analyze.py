@@ -51,6 +51,10 @@ def main() -> int:
     arm_names = ["unshielded", "shielded", "sham"]
     if (out_dir / "arm_sham_stratified.npz").is_file():
         arm_names.append("sham_stratified")
+    # The oracle is a NON-confirmatory diagnostic (a perfect, false-alarm-free
+    # detector), so it is reported but never treated as a registered estimand.
+    if (out_dir / "arm_oracle.npz").is_file():
+        arm_names.append("oracle")
     arms = {a: load_arm(out_dir, a) for a in arm_names}
 
     # Every arm must be the same protocol and bundle, or the pairing is a lie.
@@ -97,11 +101,31 @@ def main() -> int:
     )
     # Cost on nominal: shielded - unshielded (positive => the shield causes falls where none occurred).
     nominal_cost = paired_difference(nom_rates["shielded"], nom_rates["unshielded"], seed=2)
+    # Diagnostic ceiling: what a perfect, false-alarm-free detector buys, and how
+    # far the real monitor sits from it. Reported, never registered.
+    ceiling = gap = negative_control = None
+    if "oracle" in arms:
+        ceiling = paired_difference(rates["unshielded"], rates["oracle"], seed=0)
+        gap = paired_difference(rates["oracle"], rates["shielded"], seed=0)
+        # Negative control, free of charge. The oracle never engages on nominal
+        # blocks (a perfect detector has no false positive), so on those blocks
+        # it receives EXACTLY the unshielded treatment and the true difference is
+        # zero by construction. Whatever this contrast reports is the study's
+        # run-to-run noise floor: GPU physics is not bit-deterministic across
+        # processes, and the block bootstrap models between-block variance only.
+        # Read the nominal-cost row against this, not against zero.
+        negative_control = paired_difference(nom_rates["oracle"], nom_rates["unshielded"], seed=0)
 
     def show(label, res, helps_if_positive):
         d = res["mean_difference"]
-        verdict = "HELPS" if (d > 0 and res["excludes_zero"]) else (
-            "HARMS" if (d < 0 and res["excludes_zero"]) else "NO EFFECT")
+        # ``helps_if_positive`` is False for the nominal-cost row, where the
+        # difference is signed the other way (shielded minus unshielded, so a
+        # NEGATIVE value means the shield removed falls). Reading the sign
+        # without it prints "HARMS" for the shield doing well.
+        if not res["excludes_zero"]:
+            verdict = "NO EFFECT"
+        else:
+            verdict = "HELPS" if ((d > 0) == helps_if_positive) else "HARMS"
         print(f"\n{label}")
         print(f"  mean difference {d:+.3f}  95% CI [{res['ci_low']:+.3f}, {res['ci_high']:+.3f}]  "
               f"(n={res['n_blocks']} blocks)")
@@ -119,6 +143,19 @@ def main() -> int:
             True,
         )
     show("NOMINAL COST  shielded - unshielded on undisturbed blocks", nominal_cost, False)
+    if ceiling is not None:
+        show("CEILING (diagnostic)  unshielded - oracle  (what perfect timing buys)", ceiling, True)
+        show("GAP (diagnostic)  oracle - shielded  (how far the real monitor is from perfect)", gap, True)
+        nc = negative_control
+        print(
+            "\nNEGATIVE CONTROL  oracle - unshielded on undisturbed blocks "
+            "(identical treatment; true difference is 0)"
+        )
+        print(
+            f"  mean difference {nc['mean_difference']:+.3f}  "
+            f"95% CI [{nc['ci_low']:+.3f}, {nc['ci_high']:+.3f}]  ->  "
+            "this is the run-to-run noise floor; the nominal-cost row must be read against it"
+        )
 
     summary = {
         "bundle_id": bundle_id,
@@ -133,6 +170,9 @@ def main() -> int:
         "secondary_sham_minus_shielded": secondary,
         "dose_matched_sham_minus_shielded": dose_matched,
         "nominal_cost_shielded_minus_unshielded": nominal_cost,
+        "diagnostic_ceiling_unshielded_minus_oracle": ceiling,
+        "diagnostic_gap_oracle_minus_shielded": gap,
+        "negative_control_oracle_minus_unshielded_nominal": negative_control,
     }
     output_json = Path(args.output_json) if args.output_json else out_dir / "results.json"
     output_json.write_text(json.dumps(summary, indent=2))
