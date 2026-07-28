@@ -1,0 +1,11 @@
+{
+  "arm": "oracle",
+  "bundle_id": "d17589571893a0d6",
+  "protocol_hash": "1fb0c491034e86be13ea2af6c758399d6276749103851fcce9e54729f5f2281c",
+  "blocks": 48,
+  "envs_per_block": 16,
+  "empirical_normalization": false,
+  "pilot": false,
+  "diagnostic": true,
+  "oracle_delay_ticks": 0
+}
