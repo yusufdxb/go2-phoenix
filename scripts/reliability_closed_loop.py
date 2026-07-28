@@ -200,6 +200,7 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     from phoenix.reliability.bundle import BundleManifest, verify_bundle
     from phoenix.reliability.deploy import load_artifact
     from phoenix.reliability.study import VectorShield, read_protocol, sham_schedule
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
     from phoenix.sim_env import build_env_cfg, load_layered_config
     from phoenix.training.agent_cfg import build_runner_cfg
     from phoenix.training.checkpoint import load_runner_checkpoint
@@ -269,6 +270,17 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)
 
+    # Same rule as scripts/reliability_rollout.py: whether observations are
+    # normalized is a property of the CHECKPOINT, never a constant. Asking for
+    # normalization on a checkpoint that carries no ``obs_normalizer`` buffers
+    # makes rsl_rl build an untrained EmpiricalNormalization whose forward is
+    # still ``(x - 0) / (1 + 1e-2)`` -- a silent 1% shrink of every observation.
+    # The shield artifact is fit on latents recorded through the rollout script,
+    # so if the two harnesses answer this question differently the closed-loop
+    # study scores its latents against a monitor fit in a different space.
+    normalize_obs = checkpoint_has_obs_normalizer(Path(args.checkpoint))
+    print(f"[cl] checkpoint obs normalization: {normalize_obs}", flush=True)
+
     eval_yaml = {
         "run": {
             "name": "closed_loop", "output_dir": "/tmp", "log_interval": 1, "save_interval": 1,
@@ -285,7 +297,7 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             "actor_hidden_dims": [512, 256, 128], "critic_hidden_dims": [512, 256, 128],
             "activation": "elu",
         },
-        "runner": {"num_steps_per_env": 24, "empirical_normalization": True},
+        "runner": {"num_steps_per_env": 24, "empirical_normalization": normalize_obs},
     }
     runner_cfg = handle_deprecated_rsl_rl_cfg(build_runner_cfg(eval_yaml, task_name), md.version("rsl-rl-lib"))
     runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=None, device=args.device)
@@ -518,6 +530,7 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
                 "protocol_hash": protocol.get("protocol_hash"),
                 "blocks": len(blocks),
                 "envs_per_block": args.envs,
+                "empirical_normalization": bool(normalize_obs),
                 "pilot": bool(args.pilot),
                 "diagnostic": args.arm == "oracle",
                 "oracle_delay_ticks": args.oracle_delay_ticks if args.arm == "oracle" else None,
