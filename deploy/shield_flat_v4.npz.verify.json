@@ -3,17 +3,17 @@
   "artifact": "deploy/shield_flat_v4.npz",
   "raw_dir": "reliability_eval/raw_flat",
   "total_frames": 6400,
-  "max_latent_abs_diff": 6.44378662109375,
-  "max_score_rel_diff": 0.04429253349144299,
-  "trip_decision_mismatch": 1,
+  "max_latent_abs_diff": 0.0002288818359375,
+  "max_score_rel_diff": 1.5121325062146422e-06,
+  "trip_decision_mismatch": 0,
   "arbiter_blend_mismatch": 0,
-  "trip_threshold": 7471.825297631745,
+  "trip_threshold": 7389.710061655233,
   "per_condition": {
     "nominal_seed0": {
       "frames": 6400,
-      "max_latent_abs_diff": 6.44378662109375,
-      "max_score_rel_diff": 0.04429253349144299,
-      "trip_decision_mismatch": 1,
+      "max_latent_abs_diff": 0.0002288818359375,
+      "max_score_rel_diff": 1.5121325062146422e-06,
+      "trip_decision_mismatch": 0,
       "arbiter_blend_mismatch": 0
     }
   }
