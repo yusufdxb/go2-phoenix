@@ -44,15 +44,11 @@ import yaml
 from phoenix.real_world.failure_detector import FailureThresholds
 from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
 
+from .gate import GateConfig, Outcome, SensorSnapshot, evaluate_gates
 from .mode_switch import ModeSwitchCfg, State, initial_state
 from .mode_switch import step as mode_step
 from .observation import JointOrder, ObservationBuilder
-from .safety import (
-    MAX_DELTA_PER_STEP_RAD,
-    is_ready_to_command_motion,
-    per_step_clip_array,
-    startup_state,
-)
+from .safety import MAX_DELTA_PER_STEP_RAD, per_step_clip_array
 
 logger = logging.getLogger("phoenix.sim2real.ros2_policy_node")
 
@@ -294,6 +290,18 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # on-robot abort and the sim replay flag the same regimes.
         self.thresholds = FailureThresholds()
 
+        # Every threshold the gate ladder consults, bound once. Collecting
+        # them here is what lets the ladder be a pure function; note that
+        # pitch and roll are deliberately asymmetric (0.8 vs 0.6 rad).
+        self._gate_config = GateConfig(
+            max_runtime_s=self.max_runtime,
+            estop_timeout_s=self.estop_timeout_s,
+            sensor_timeout_s=self.sensor_timeout_s,
+            first_message_timeout_s=self.first_message_timeout_s,
+            pitch_rad=self.thresholds.pitch_rad,
+            roll_rad=self.thresholds.roll_rad,
+        )
+
         self._latest_imu = None
         self._latest_joint_state = None
         self._velocity_command = np.zeros(3, dtype=np.float32)
@@ -369,96 +377,83 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             finally:
                 self._logger = None
 
-    def _ready_to_command_motion(self, now_ns: int) -> tuple[bool, str | None]:
-        """Bind the shared ``is_ready_to_command_motion`` predicate to this
-        node's freshness state. The predicate itself is in
-        :mod:`phoenix.sim2real.safety` so it can be exhaustively tested
-        in CI without rclpy.
+    def _build_snapshot(self, now_ns: int, elapsed_s: float) -> SensorSnapshot:
+        """Sample every input the gate ladder is allowed to look at.
+
+        The joint remap happens here because it is resolved by joint *name*;
+        a positional copy would be a silent leg swap.
+
+        During startup a sensor may not have arrived at all. Those payload
+        fields are filled with neutral placeholders, which is safe because the
+        startup gate (rank 3) fires strictly before the joint-state and IMU
+        validity gates (rank 4) that would inspect them.
         """
-        return is_ready_to_command_motion(
+        if self._latest_joint_state is not None:
+            idx = self.joint_order.remap(list(self._latest_joint_state.name))
+            joint_pos = np.asarray(self._latest_joint_state.position, dtype=np.float32)[idx]
+            joint_vel = np.asarray(self._latest_joint_state.velocity, dtype=np.float32)[idx]
+        else:
+            joint_pos = np.zeros(len(self.joint_order.names), dtype=np.float32)
+            joint_vel = np.zeros(len(self.joint_order.names), dtype=np.float32)
+
+        if self._latest_imu is not None:
+            ori = self._latest_imu.orientation
+            ang = self._latest_imu.angular_velocity
+            quat_xyzw = (ori.x, ori.y, ori.z, ori.w)
+            ang_vel = (ang.x, ang.y, ang.z)
+            roll, pitch, _yaw = _rpy_from_quat_xyzw(*quat_xyzw)
+        else:
+            quat_xyzw = (0.0, 0.0, 0.0, 1.0)
+            ang_vel = (0.0, 0.0, 0.0)
+            roll = pitch = 0.0
+
+        return SensorSnapshot(
             now_ns=now_ns,
+            elapsed_s=elapsed_s,
+            node_started_ns=self._started_ns,
+            seen_estop=self._seen_estop,
+            seen_imu=self._seen_imu,
+            seen_joint_state=self._seen_joint_state,
             estop_last_ns=self._latest_estop_ns,
             estop_value=self._latest_estop_value,
-            estop_timeout_s=self.estop_timeout_s,
             imu_last_ns=self._latest_imu_ns,
             joint_state_last_ns=self._latest_joint_state_ns,
-            sensor_timeout_s=self.sensor_timeout_s,
+            joint_pos=joint_pos,
+            joint_vel=joint_vel,
+            quat_xyzw=quat_xyzw,
+            ang_vel=ang_vel,
+            roll=roll,
+            pitch=pitch,
         )
 
     def _control_step(self):
         now_ns = time.monotonic_ns()
         elapsed_s = time.monotonic() - self._started_at
 
-        if elapsed_s > self.max_runtime and not self._estopped:
-            self._latch_abort("max_runtime")
-
-        if self._estopped:
-            # Single default-pose publish already happened at abort time.
-            # Do NOT re-broadcast every tick: the bridge's 0.2s command-stale
-            # watchdog takes over and holds at last-measured q (safe).
-            # Per-tick rebroadcast walked default_q
-            # against real posture → motor fight → Jetson brownout.
-            return
-
-        startup, startup_reason = startup_state(
-            seen_estop=self._seen_estop,
-            seen_imu=self._seen_imu,
-            seen_joint_state=self._seen_joint_state,
-            node_started_ns=self._started_ns,
-            now_ns=now_ns,
-            first_message_timeout_s=self.first_message_timeout_s,
+        # The ladder is a pure function so its composition — which gate wins,
+        # and what each one publishes — is exhaustively testable without
+        # rclpy. See tests/test_gate_ladder.py and docs/NATIVE_RUNTIME_PLAN.md.
+        # It is also the parity oracle for the native C++ runtime.
+        snap = self._build_snapshot(now_ns, elapsed_s)
+        decision = evaluate_gates(
+            snap, self._gate_config, already_latched=self._estopped
         )
 
-        if startup == "waiting":
-            # Publish the safe default stand pose on every tick. The bridge
-            # holds the robot upright; we will not run policy inference
-            # until every required topic has been heard from at least once.
+        if decision.latches:
+            self._latch_abort(decision.reason or "unknown_safety_gate")
+        if decision.publishes_default:
             self._publish_default_pose()
+        if decision.outcome is not Outcome.RUN_POLICY:
+            # Post-abort silence is load-bearing: per-tick rebroadcast of
+            # default_q walked the commanded pose against real posture →
+            # motor fight → Jetson brownout. The bridge's 0.2 s command-stale
+            # watchdog holds at last-measured q instead.
             return
 
-        if startup == "abort":
-            # A required topic never arrived within first_message_timeout_s.
-            # Latch abort with the specific missing-topic reason.
-            self._latch_abort(startup_reason or "first_message_timeout_unknown")
-            self._publish_default_pose()
-            return
-
-        # startup == "ready": fall through to the steady-state freshness check.
-        ok, reason = self._ready_to_command_motion(now_ns)
-        if not ok:
-            # Steady-state failure (stale heartbeat, dropped sensor) — publish
-            # the safe default stand pose and latch abort.
-            self._latch_abort(reason or "unknown_safety_gate")
-            self._publish_default_pose()
-            return
-
-        idx = self.joint_order.remap(list(self._latest_joint_state.name))
-        q = np.asarray(self._latest_joint_state.position, dtype=np.float32)[idx]
-        qd = np.asarray(self._latest_joint_state.velocity, dtype=np.float32)[idx]
-
-        # Fail closed on bad sensor data.
-        if not np.all(np.isfinite(q)) or not np.all(np.isfinite(qd)):
-            self._latch_abort("nan_in_joint_state")
-            self._publish_default_pose()
-            return
-
-        ori = self._latest_imu.orientation
-        pg = _projected_gravity_from_quat(ori.x, ori.y, ori.z, ori.w)
-        roll, pitch, _yaw = _rpy_from_quat_xyzw(ori.x, ori.y, ori.z, ori.w)
-
-        if abs(pitch) > self.thresholds.pitch_rad or abs(roll) > self.thresholds.roll_rad:
-            self._latch_abort(f"attitude pitch={pitch:.2f} roll={roll:.2f}")
-            self._publish_default_pose()
-            return
-
-        base_ang_vel = np.asarray(
-            [
-                self._latest_imu.angular_velocity.x,
-                self._latest_imu.angular_velocity.y,
-                self._latest_imu.angular_velocity.z,
-            ],
-            dtype=np.float32,
-        )
+        q = snap.joint_pos
+        qd = snap.joint_vel
+        pg = _projected_gravity_from_quat(*snap.quat_xyzw)
+        base_ang_vel = np.asarray(snap.ang_vel, dtype=np.float32)
         base_lin_vel = np.zeros(3, dtype=np.float32)
 
         if self.mode_switch_enabled:
@@ -506,7 +501,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 q=q,
                 qd=qd,
                 action=action,
-                quat_xyzw=(ori.x, ori.y, ori.z, ori.w),
+                quat_xyzw=snap.quat_xyzw,
                 ang_vel=base_ang_vel,
             )
         self._step_idx += 1
