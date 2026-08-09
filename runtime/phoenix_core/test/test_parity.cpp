@@ -56,6 +56,7 @@
 #include "phoenix_core/attitude.hpp"
 #include "phoenix_core/filters.hpp"
 #include "phoenix_core/gate.hpp"
+#include "phoenix_core/inference.hpp"
 
 using namespace phoenix_core;  // NOLINT(build/namespaces) - test-local
 
@@ -63,6 +64,10 @@ namespace
 {
 
 // Path is injected by CMake so the test does not depend on the working dir.
+#ifndef PHOENIX_DEPLOY_DIR
+#define PHOENIX_DEPLOY_DIR "../../deploy"
+#endif
+
 #ifndef PHOENIX_PARITY_FIXTURE
 #define PHOENIX_PARITY_FIXTURE "fixtures/parity_v1.txt"
 #endif
@@ -94,6 +99,7 @@ struct Fixtures
   std::vector<std::vector<std::string>> gravity;
   std::vector<std::vector<std::string>> slew;
   std::vector<std::vector<std::string>> gate;
+  std::vector<std::vector<std::string>> onnx;
 };
 
 Fixtures load()
@@ -126,6 +132,8 @@ Fixtures load()
       f.slew.push_back(tok);
     } else if (tok[0] == "L") {
       f.gate.push_back(tok);
+    } else if (tok[0] == "O") {
+      f.onnx.push_back(tok);
     }
   }
   return f;
@@ -343,4 +351,81 @@ TEST(Parity, GateDecisionsMatchExactly)
     if (i == 11) {continue;}
     EXPECT_GT(reason_hits[i], 0) << "fixture never produced abort reason " << i;
   }
+}
+
+// --------------------------------------------------------------------------
+// ONNX inference parity
+// --------------------------------------------------------------------------
+//
+// Declared tolerance: BIT-EXACT on both action and latent.
+//
+// Justified by construction rather than by hope: the fixture header records
+// the onnxruntime version, and both sides are pinned to the same version, the
+// same CPUExecutionProvider, one intra-op and one inter-op thread, and
+// sequential execution. Under those conditions the same kernels execute the
+// same operations in the same order over the same weights, so the results are
+// bit-identical or one of those five conditions is not actually held. A
+// tolerance here would hide exactly the configuration drift worth catching.
+TEST(Parity, OnnxInferenceIsBitExact)
+{
+  if (!has_ort_backend()) {
+    GTEST_SKIP() << "built without ONNX Runtime";
+  }
+  const auto & recs = fixtures().onnx;
+  if (recs.empty()) {
+    GTEST_SKIP() << "fixture contains no inference records (generated without onnxruntime)";
+  }
+
+  constexpr std::size_t kObs = 48, kAct = 12, kLat = 384;
+
+  ModelConfig cfg;
+  cfg.model_path = std::string(PHOENIX_DEPLOY_DIR) + "/stand_v3_latent.onnx";
+  cfg.obs_dim = kObs;
+  cfg.action_dim = kAct;
+  cfg.latent_dim = kLat;
+  cfg.require_latent = true;
+
+  auto engine = make_ort_engine();
+  ASSERT_NE(engine, nullptr);
+  ASSERT_EQ(engine->initialize(cfg), Status::kOk) << engine->last_error();
+
+  std::vector<float> obs(kObs), action(kAct), latent(kLat);
+  std::size_t action_mismatch = 0, latent_mismatch = 0;
+  std::int64_t worst_action_ulp = 0, worst_latent_ulp = 0;
+
+  for (const auto & r : recs) {
+    ASSERT_EQ(r.size(), 1u + kObs + kAct + kLat);
+    std::size_t k = 1;
+    for (std::size_t i = 0; i < kObs; ++i) {obs[i] = parse_float(r[k++]);}
+
+    const auto res = engine->infer(
+      obs.data(), obs.size(), action.data(), action.size(), latent.data(), latent.size());
+    ASSERT_EQ(res.status, Status::kOk);
+
+    for (std::size_t i = 0; i < kAct; ++i) {
+      const float want = parse_float(r[k++]);
+      if (!same_bits(action[i], want)) {
+        ++action_mismatch;
+        worst_action_ulp = std::max(
+          worst_action_ulp, ulp_diff(static_cast<double>(action[i]), static_cast<double>(want)));
+      }
+    }
+    for (std::size_t i = 0; i < kLat; ++i) {
+      const float want = parse_float(r[k++]);
+      if (!same_bits(latent[i], want)) {
+        ++latent_mismatch;
+        worst_latent_ulp = std::max(
+          worst_latent_ulp, ulp_diff(static_cast<double>(latent[i]), static_cast<double>(want)));
+      }
+    }
+  }
+
+  std::cout << "[ parity  ] onnx: " << recs.size() << " frames, "
+            << action_mismatch << " action / " << latent_mismatch
+            << " latent non-bit-exact elements" << std::endl;
+
+  EXPECT_EQ(action_mismatch, 0u)
+    << "worst " << worst_action_ulp << " ULP; check that both sides run the same "
+    << "onnxruntime version, provider, thread count and execution mode";
+  EXPECT_EQ(latent_mismatch, 0u) << "worst " << worst_latent_ulp << " ULP";
 }

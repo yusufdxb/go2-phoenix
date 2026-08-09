@@ -15,12 +15,40 @@ endif()
 
 option(PHOENIX_CORE_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
+# ONNX Runtime is optional so the deterministic core stays buildable anywhere,
+# including a CI runner with no model runtime installed. Point ONNXRUNTIME_ROOT
+# at a prebuilt release directory (the one containing include/ and lib/).
+# On the Jetson this must be an aarch64 build, not the x86_64 one.
+set(ONNXRUNTIME_ROOT "$ENV{ONNXRUNTIME_ROOT}" CACHE PATH "ONNX Runtime install prefix")
+if(NOT ONNXRUNTIME_ROOT AND EXISTS "$ENV{HOME}/.local/opt/onnxruntime/include/onnxruntime_cxx_api.h")
+  set(ONNXRUNTIME_ROOT "$ENV{HOME}/.local/opt/onnxruntime")
+endif()
+
+set(PHOENIX_ORT_FOUND OFF)
+if(ONNXRUNTIME_ROOT AND EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
+  set(PHOENIX_ORT_FOUND ON)
+  message(STATUS "phoenix_core: ONNX Runtime at ${ONNXRUNTIME_ROOT}")
+else()
+  message(STATUS "phoenix_core: no ONNX Runtime; inference backend disabled")
+endif()
+
 add_library(phoenix_core STATIC
   src/types.cpp
   src/attitude.cpp
   src/gate.cpp
   src/filters.cpp
+  src/ort_engine.cpp
 )
+
+if(PHOENIX_ORT_FOUND)
+  target_compile_definitions(phoenix_core PUBLIC PHOENIX_WITH_ORT)
+  target_include_directories(phoenix_core SYSTEM PUBLIC "${ONNXRUNTIME_ROOT}/include")
+  target_link_libraries(phoenix_core PUBLIC "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so")
+  # rpath so the test and any consumer find the .so without LD_LIBRARY_PATH.
+  set_target_properties(phoenix_core PROPERTIES
+    BUILD_RPATH "${ONNXRUNTIME_ROOT}/lib"
+    INSTALL_RPATH "${ONNXRUNTIME_ROOT}/lib")
+endif()
 
 target_include_directories(phoenix_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -56,11 +84,17 @@ if(PHOENIX_CORE_BUILD_TESTS)
       test/test_gate.cpp
       test/test_filters.cpp
       test/test_parity.cpp
+      test/test_inference.cpp
     )
     target_link_libraries(test_phoenix_core PRIVATE phoenix_core GTest::gtest GTest::gtest_main)
     # Absolute path so the parity fixture resolves regardless of working dir.
     target_compile_definitions(test_phoenix_core PRIVATE
-      PHOENIX_PARITY_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/parity_v1.txt")
+      PHOENIX_PARITY_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/parity_v1.txt"
+      PHOENIX_DEPLOY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../deploy")
+    if(PHOENIX_ORT_FOUND)
+      set_target_properties(test_phoenix_core PROPERTIES
+        BUILD_RPATH "${ONNXRUNTIME_ROOT}/lib")
+    endif()
     target_compile_options(test_phoenix_core PRIVATE -Wall -Wextra)
     add_test(NAME phoenix_core_unit COMMAND test_phoenix_core)
   else()

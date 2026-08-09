@@ -10,8 +10,10 @@ benchmark methodology).
 **Thesis.** Python owns training and experimentation. C++ owns on-robot execution. A deterministic
 native layer holds final authority over actuation.
 
-**Status of this document.** Plan only. Nothing below has been implemented, executed, or
-hardware-verified. Every number quoted from a prior artifact carries its provenance.
+**Status of this document.** Partly implemented. `runtime/phoenix_core` now exists and its parity
+gates have been run; see `runtime/README.md` for measured results. Everything else below is plan
+only. Nothing here is hardware-verified, and no performance measurement has been taken. Every
+number quoted from a prior artifact carries its provenance.
 
 ---
 
@@ -178,7 +180,7 @@ no default.
 | Observation vector | **bit-exact** | permuted copies + one float32 subtract; no accumulation |
 | Projected gravity | **bit-exact** | 9 flops in double, single narrowing. Achieved: 0 mismatches over 507 fixtures. |
 | Roll / pitch | **≤ 2 ULP** + zero-width ambiguous band vs. the attitude threshold | Revised after measurement, see below |
-| ONNX action/latent | **bit-exact** with pinned ORT config; 1e-4 fallback | same build/graph/threads ⇒ same kernels |
+| ONNX action/latent | **bit-exact** with pinned ORT config | same build/graph/threads means same kernels. Achieved: 0 / 118,800 elements over 300 frames, ORT 1.23.2 pinned on both sides. |
 | Mahalanobis score | 1e-4 relative + **zero decision mismatches** + ambiguous-band report | `944·u ≈ 5.6e-5` worst case |
 | Arbiter state/blend | **bit-exact, zero mismatches** | integers and doubles only; pins R17 |
 | Final joint command | 1e-6 rad | float32 transport, 5 orders below the 0.175 slew limit |
