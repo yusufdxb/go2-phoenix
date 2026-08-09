@@ -176,13 +176,41 @@ no default.
 | Stage | Declared tolerance | Basis |
 |---|---|---|
 | Observation vector | **bit-exact** | permuted copies + one float32 subtract; no accumulation |
-| Projected gravity | bit-exact target, ≤ 8 ULP (1e-6) band | 9 flops in double, single narrowing |
+| Projected gravity | **bit-exact** | 9 flops in double, single narrowing. Achieved: 0 mismatches over 507 fixtures. |
+| Roll / pitch | **≤ 2 ULP** + zero-width ambiguous band vs. the attitude threshold | Revised after measurement, see below |
 | ONNX action/latent | **bit-exact** with pinned ORT config; 1e-4 fallback | same build/graph/threads ⇒ same kernels |
 | Mahalanobis score | 1e-4 relative + **zero decision mismatches** + ambiguous-band report | `944·u ≈ 5.6e-5` worst case |
 | Arbiter state/blend | **bit-exact, zero mismatches** | integers and doubles only; pins R17 |
 | Final joint command | 1e-6 rad | float32 transport, 5 orders below the 0.175 slew limit |
 | CRC word | **exact** | it is an integer |
 | Self-determinism | **bit-exact against itself**, run first; abort the comparison if it fails | non-determinism invalidates cross-language comparison |
+
+### What the parity harness actually found
+
+The fixtures caught four divergences that inspection had not. Recorded because three of them are
+exactly the "looks right, is wrong" class the port exists to prevent.
+
+1. **Quaternion width.** `QuatXYZW` initially stored `float`. `sensor_msgs/Imu` carries **float64**
+   and the Python evaluates in that width, narrowing once at observation assembly. Narrowing at the
+   *input* instead cost ~1 ULP in projected gravity. Fixed by making the sensor-width types double
+   (audit risk R12).
+2. **`np.clip` does not treat non-finite values uniformly.** It is
+   `minimum(maximum(a, lo), hi)`, so it propagates NaN but **clamps ±Inf to the bound**. The obvious
+   C++ reading, "non-finite passes through", diverges on infinities.
+3. **A NaN `current` yields NaN**, because both bounds become NaN. The port passed the target
+   through instead.
+4. **Bit-exact roll/pitch is not achievable, and the cause is not the port.** numpy's `arctan2` and
+   glibc's `atan2` disagree by 1 ULP on identical double input
+   (`0x1.08ab61898531ep+0` vs `0x1.08ab61898531fp+0`, verified directly). Transcendental functions
+   are not required to be correctly rounded and these two implementations differ.
+
+Item 4 is the one worth being careful about, because widening a tolerance after a failed comparison
+is exactly the move this methodology forbids. The resolution is to widen to the smallest value the
+mechanism justifies (2 ULP) **and then measure the consequence rather than assume it away**:
+roll/pitch feed exactly one decision, the attitude gate, so the harness asserts that no fixture lies
+within a few ULP of the threshold, i.e. the drift provably cannot change the verdict. Measured:
+worst 2 ULP on both, 234/507 bit-exact, **zero** ambiguous frames. If that assertion ever fails, the
+fix is a shared implementation of the transcendental, not a wider band.
 
 **Known problem to confront up front:** `deploy/flat_v4_latent.onnx.verify.json` records a max
 latent abs diff of **2.29e-04**, which already exceeds the 1e-4 gate. This must be resolved before
