@@ -57,6 +57,7 @@
 #include "phoenix_core/filters.hpp"
 #include "phoenix_core/gate.hpp"
 #include "phoenix_core/inference.hpp"
+#include "phoenix_core/shield.hpp"
 
 using namespace phoenix_core;  // NOLINT(build/namespaces) - test-local
 
@@ -100,6 +101,8 @@ struct Fixtures
   std::vector<std::vector<std::string>> slew;
   std::vector<std::vector<std::string>> gate;
   std::vector<std::vector<std::string>> onnx;
+  std::vector<std::string> shield_header;
+  std::vector<std::vector<std::string>> shield;
 };
 
 Fixtures load()
@@ -134,6 +137,10 @@ Fixtures load()
       f.gate.push_back(tok);
     } else if (tok[0] == "O") {
       f.onnx.push_back(tok);
+    } else if (tok[0] == "H") {
+      f.shield_header = tok;
+    } else if (tok[0] == "P") {
+      f.shield.push_back(tok);
     }
   }
   return f;
@@ -428,4 +435,112 @@ TEST(Parity, OnnxInferenceIsBitExact)
     << "worst " << worst_action_ulp << " ULP; check that both sides run the same "
     << "onnxruntime version, provider, thread count and execution mode";
   EXPECT_EQ(latent_mismatch, 0u) << "worst " << worst_latent_ulp << " ULP";
+}
+
+// --------------------------------------------------------------------------
+// Shield parity
+// --------------------------------------------------------------------------
+//
+// Declared tolerances, before the run:
+//
+//   Mahalanobis score   1e-4 RELATIVE. Derived from the operation chain, not
+//                       observed: a dim*dim float32 matvec followed by a
+//                       dim-term sum of squares accumulates at worst
+//                       (dim + dim) * u relative error, and numpy dispatches
+//                       the matvec to BLAS whose reduction order differs from
+//                       a straight loop. Bit-exactness is therefore not
+//                       claimable here and is not claimed.
+//   Arbiter state       EXACT. Mismatch budget 0.
+//   Blend weight        EXACT. Integer counters and double ramps only.
+//
+// The score tolerance is only acceptable because the DECISION is checked
+// exactly, and because the ambiguous band below is asserted empty: if no frame
+// sits within the score tolerance of the trip or clear threshold, then the
+// permitted numeric drift provably cannot change what the shield did.
+TEST(Parity, ShieldMatchesPythonExactlyOnDecisions)
+{
+  const auto & header = fixtures().shield_header;
+  const auto & recs = fixtures().shield;
+  ASSERT_FALSE(header.empty()) << "fixture has no shield header";
+  ASSERT_FALSE(recs.empty());
+
+  constexpr double kScoreRelTol = 1e-4;
+
+  std::size_t k = 1;
+  const std::size_t dim = static_cast<std::size_t>(std::stoul(header[k++]));
+  ArbiterConfig cfg;
+  cfg.trip_threshold = parse_double(header[k++]);
+  cfg.clear_threshold = parse_double(header[k++]);
+  cfg.trip_persistence = std::stoi(header[k++]);
+  cfg.clear_persistence = std::stoi(header[k++]);
+  cfg.handoff_ticks = std::stoi(header[k++]);
+  cfg.recover_ticks = std::stoi(header[k++]);
+  cfg.min_fallback_ticks = std::stoi(header[k++]);
+  cfg.latch = std::stoi(header[k++]) != 0;
+  const int arming = std::stoi(header[k++]);
+
+  std::vector<float> mean(dim), whit(dim * dim);
+  for (std::size_t i = 0; i < dim; ++i) {mean[i] = parse_float(header[k++]);}
+  for (std::size_t i = 0; i < dim * dim; ++i) {whit[i] = parse_float(header[k++]);}
+
+  DeployShield shield;
+  ASSERT_EQ(
+    shield.initialize(mean.data(), whit.data(), dim, cfg, arming), Status::kOk);
+
+  std::size_t state_mismatch = 0, blend_mismatch = 0, ambiguous = 0;
+  double worst_score_rel = 0.0;
+  std::vector<int> state_hits(4, 0);
+  std::size_t inf_frames = 0;
+
+  std::vector<float> latent(dim);
+  for (const auto & r : recs) {
+    ASSERT_EQ(r.size(), 1u + dim + 3u);
+    std::size_t j = 1;
+    for (std::size_t i = 0; i < dim; ++i) {latent[i] = parse_float(r[j++]);}
+    const double want_score = parse_double(r[j++]);
+    const int want_state = std::stoi(r[j++]);
+    const double want_blend = parse_double(r[j++]);
+
+    const auto d = shield.step(latent.data(), latent.size());
+
+    // Infinities must match exactly; only finite scores get a tolerance.
+    if (std::isinf(want_score) || std::isinf(d.raw_score)) {
+      EXPECT_TRUE(std::isinf(want_score) && std::isinf(d.raw_score))
+        << "the +inf convention for a non-finite latent must agree exactly";
+      ++inf_frames;
+    } else {
+      const double denom = std::fabs(want_score) > 1.0 ? std::fabs(want_score) : 1.0;
+      const double rel = std::fabs(d.raw_score - want_score) / denom;
+      worst_score_rel = std::max(worst_score_rel, rel);
+      EXPECT_LE(rel, kScoreRelTol) << "score drift beyond declared tolerance";
+
+      // Ambiguous band: would the permitted drift reach a threshold?
+      for (double thr : {cfg.trip_threshold, cfg.clear_threshold}) {
+        if (std::fabs(want_score - thr) <= kScoreRelTol * denom) {
+          ++ambiguous;
+        }
+      }
+    }
+
+    if (static_cast<int>(d.state) != want_state) {++state_mismatch;}
+    if (d.blend != want_blend) {++blend_mismatch;}
+    state_hits[static_cast<std::size_t>(want_state)]++;
+  }
+
+  std::cout << "[ parity  ] shield: " << recs.size() << " frames, worst score rel "
+            << worst_score_rel << ", " << inf_frames << " inf frames, states n/h/f/r = "
+            << state_hits[0] << "/" << state_hits[1] << "/" << state_hits[2] << "/"
+            << state_hits[3] << std::endl;
+
+  EXPECT_EQ(state_mismatch, 0u) << "arbiter state diverged from Python";
+  EXPECT_EQ(blend_mismatch, 0u) << "blend weight diverged from Python";
+  EXPECT_EQ(ambiguous, 0u)
+    << "a frame sits within the score tolerance of a threshold, so the numeric "
+    << "drift is decision-relevant and the tolerance is no longer safe";
+
+  // The trajectory must actually exercise the machine, or agreement is vacuous.
+  for (std::size_t i = 0; i < state_hits.size(); ++i) {
+    EXPECT_GT(state_hits[i], 0) << "fixture never reached shield state " << i;
+  }
+  EXPECT_GT(inf_frames, 0u) << "fixture contains no non-finite scores; R17 untested here";
 }

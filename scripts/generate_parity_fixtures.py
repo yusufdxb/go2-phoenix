@@ -34,8 +34,9 @@ Covered here:
   written into the fixture header so a later mismatch is visible rather than
   silent.
 
-Not covered here: the reliability shield. Its arithmetic is next after
-inference, and a fixture pretending to cover it would be worse than none.
+* the reliability shield (DeployMonitor score, SimplexArbiter state and blend),
+  driven by a score sequence built to walk the arbiter through every state
+  transition including the non-finite case that audit risk R17 turns on.
 
 Usage::
 
@@ -85,6 +86,15 @@ OUTCOME_CODE = {
 # Abort reasons are free-form strings in Python and an enum in C++. Map the
 # stable prefix, since the attitude reason embeds formatted angles and the
 # first-message reason embeds a CSV of missing topics.
+# Shield state wire encoding. Pinned to the tuple order the Python telemetry
+# uses, independent of either language's enum declaration order (risk R22).
+STATE_CODE = {
+    "nominal": 0,
+    "handoff": 1,
+    "fallback": 2,
+    "recovering": 3,
+}
+
 REASON_CODE = [
     (None, 0),
     ("max_runtime", 1),
@@ -329,6 +339,95 @@ def onnx_records(rng: np.random.Generator, n: int, model: Path) -> tuple[list[st
     return out, ort.__version__
 
 
+def shield_records(rng: np.random.Generator, n: int) -> list[str]:
+    """Drive the real DeployShield through a scripted score trajectory.
+
+    The sequence is designed, not random: a uniform sample would sit in NOMINAL
+    forever and prove nothing about handoff, dwell, recovery, re-trip, or the
+    non-finite convention. Constants are small and synthetic so the fixture
+    stays readable and does not depend on a shipped artifact.
+    """
+    from phoenix.reliability.arbiter import SimplexArbiter, SimplexArbiterCfg
+    from phoenix.reliability.deploy import DeployMonitor, DeployShield
+
+    dim = 8
+    mean = rng.normal(size=dim).astype(np.float32)
+    # A well-conditioned whitener: identity plus a small perturbation.
+    w = (np.eye(dim) + 0.15 * rng.normal(size=(dim, dim))).astype(np.float32)
+
+    cfg = SimplexArbiterCfg(
+        trip_threshold=12.0,
+        clear_threshold=3.0,
+        trip_persistence=3,
+        clear_persistence=4,
+        handoff_ticks=5,
+        recover_ticks=6,
+        min_fallback_ticks=4,
+        latch=False,
+    )
+    arming = 5
+    shield = DeployShield(
+        DeployMonitor(mean, w), SimplexArbiter(cfg), arming_ticks=arming
+    )
+
+    out = [
+        "H "
+        + str(dim)
+        + " "
+        + hx(cfg.trip_threshold)
+        + " "
+        + hx(cfg.clear_threshold)
+        + " "
+        + " ".join(
+            str(v)
+            for v in (
+                cfg.trip_persistence,
+                cfg.clear_persistence,
+                cfg.handoff_ticks,
+                cfg.recover_ticks,
+                cfg.min_fallback_ticks,
+                int(cfg.latch),
+                arming,
+            )
+        )
+        + " "
+        + " ".join(hx(v) for v in mean)
+        + " "
+        + " ".join(hx(v) for v in w.reshape(-1))
+    ]
+
+    for i in range(n):
+        phase = i % 90
+        if phase < 12:
+            scale = 0.05          # deep in-distribution: NOMINAL
+        elif phase < 40:
+            scale = 3.0           # far out: trip, handoff, fallback
+        elif phase < 70:
+            scale = 0.05          # back in: dwell, clear, recover
+        else:
+            scale = 1.0           # ambiguous band
+        latent = (mean + scale * rng.normal(size=dim)).astype(np.float32)
+
+        # Salt with non-finite latents: R17 says these must count as ABOVE
+        # trip and never toward clear. Placed inside the recovery window on
+        # purpose, where a wrong sign flips the decision.
+        if phase in (60, 61, 62):
+            latent[i % dim] = [np.nan, np.inf, -np.inf][i % 3]
+
+        d = shield.step(latent)
+        out.append(
+            "P "
+            + " ".join(hx(v) for v in latent)
+            + " "
+            + hx(d.raw_score)
+            + " "
+            + str(STATE_CODE[d.state])
+            + " "
+            + hx(d.blend)
+        )
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("output", type=Path)
@@ -337,6 +436,7 @@ def main() -> int:
     ap.add_argument("--slew", type=int, default=500)
     ap.add_argument("--gate", type=int, default=4000)
     ap.add_argument("--onnx", type=int, default=300)
+    ap.add_argument("--shield", type=int, default=900)
     ap.add_argument(
         "--model", type=Path, default=REPO_ROOT / "deploy" / "stand_v3_latent.onnx"
     )
@@ -361,6 +461,7 @@ def main() -> int:
     lines += gravity_records(rng, args.gravity)
     lines += slew_records(rng, args.slew)
     lines += gate_records(rng, args.gate)
+    lines += shield_records(rng, args.shield)
     lines += onnx_lines
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
