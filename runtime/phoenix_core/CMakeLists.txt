@@ -38,6 +38,9 @@ add_library(phoenix_core STATIC
   src/gate.cpp
   src/filters.cpp
   src/shield.cpp
+  src/joint_map.cpp
+  src/observation.cpp
+  src/motor_crc.cpp
   src/ort_engine.cpp
 )
 
@@ -87,6 +90,7 @@ if(PHOENIX_CORE_BUILD_TESTS)
       test/test_parity.cpp
       test/test_inference.cpp
       test/test_shield.cpp
+      test/test_deploy_layer.cpp
     )
     target_link_libraries(test_phoenix_core PRIVATE phoenix_core GTest::gtest GTest::gtest_main)
     # Absolute path so the parity fixture resolves regardless of working dir.
