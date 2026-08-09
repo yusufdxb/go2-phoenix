@@ -27,9 +27,15 @@ Covered here:
   the code.)
 * the gate ladder decision (precedence and the abort cause)
 
-Not covered here, and deliberately so: ONNX inference and the shield. Those
-need the ONNX Runtime C++ API, which is not installed on this machine, and a
-fixture that pretended to cover them would be worse than an absent one.
+* ONNX policy inference (``action`` and ``latent``), when onnxruntime is
+  importable. Both sides must run the SAME onnxruntime version with a single
+  intra-op thread and sequential execution, or the comparison measures the
+  runtime configuration rather than the port. The version actually used is
+  written into the fixture header so a later mismatch is visible rather than
+  silent.
+
+Not covered here: the reliability shield. Its arithmetic is next after
+inference, and a fixture pretending to cover it would be worse than none.
 
 Usage::
 
@@ -275,6 +281,54 @@ def gate_records(rng: np.random.Generator, n: int) -> list[str]:
     return out
 
 
+def onnx_records(rng: np.random.Generator, n: int, model: Path) -> tuple[list[str], str]:
+    """Replay observations through the exported graph via onnxruntime.
+
+    Determinism is enforced, not assumed: one intra-op thread, one inter-op
+    thread, sequential execution. Thread count changes reduction order, which
+    changes results at the bit level, so an unpinned comparison would be
+    measuring thread scheduling.
+
+    No normalization is applied here, and none must be applied in C++ either.
+    For some checkpoints it is baked into the graph and for others it is
+    absent, so a runtime that normalizes by config flag double-normalizes one
+    of them (audit risk R1).
+    """
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        return [], ""
+
+    if not model.exists():
+        return [], ""
+
+    so = ort.SessionOptions()
+    so.intra_op_num_threads = 1
+    so.inter_op_num_threads = 1
+    so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    sess = ort.InferenceSession(str(model), so, providers=["CPUExecutionProvider"])
+
+    out = []
+    for i in range(n):
+        if i == 0:
+            obs = np.zeros(48, dtype=np.float32)
+        elif i == 1:
+            obs = np.ones(48, dtype=np.float32)
+        else:
+            obs = rng.normal(scale=0.8, size=48).astype(np.float32)
+
+        action, latent = sess.run(["action", "latent"], {"obs": obs.reshape(1, -1)})
+        out.append(
+            "O "
+            + " ".join(hx(v) for v in obs)
+            + " "
+            + " ".join(hx(v) for v in action[0])
+            + " "
+            + " ".join(hx(v) for v in latent[0])
+        )
+    return out, ort.__version__
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("output", type=Path)
@@ -282,6 +336,10 @@ def main() -> int:
     ap.add_argument("--gravity", type=int, default=500)
     ap.add_argument("--slew", type=int, default=500)
     ap.add_argument("--gate", type=int, default=4000)
+    ap.add_argument("--onnx", type=int, default=300)
+    ap.add_argument(
+        "--model", type=Path, default=REPO_ROOT / "deploy" / "stand_v3_latent.onnx"
+    )
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -293,9 +351,17 @@ def main() -> int:
         "# floats are hex-encoded (float.hex) so they round-trip bit-exactly",
         f"# slew max_delta {hx(MAX_DELTA_PER_STEP_RAD)}",
     ]
+    onnx_lines, ort_version = onnx_records(rng, args.onnx, args.model)
+    if onnx_lines:
+        lines.append(f"# onnxruntime {ort_version} model {args.model.name}")
+        lines.append("# onnx session: intra_op=1 inter_op=1 SEQUENTIAL CPUExecutionProvider")
+    else:
+        lines.append("# onnxruntime unavailable: no inference fixtures in this file")
+
     lines += gravity_records(rng, args.gravity)
     lines += slew_records(rng, args.slew)
     lines += gate_records(rng, args.gate)
+    lines += onnx_lines
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("\n".join(lines) + "\n")
