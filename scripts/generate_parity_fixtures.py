@@ -428,6 +428,74 @@ def shield_records(rng: np.random.Generator, n: int) -> list[str]:
     return out
 
 
+def deploy_layer_records(rng: np.random.Generator, n: int) -> list[str]:
+    """Observation assembly and the Unitree CRC.
+
+    The CRC records feed random byte buffers of exactly sizeof(LowCmd) through
+    the real Python implementation. Random bytes are the right stimulus here:
+    the checksum has no structure to respect, and a literal port either matches
+    on every buffer or is wrong (audit risks R18/R19).
+    """
+    from phoenix.sim2real.motor_crc import crc32_core
+    from phoenix.sim2real.observation import JointOrder, ObservationBuilder
+
+    names = [
+        "FL_hip_joint", "FR_hip_joint", "RL_hip_joint", "RR_hip_joint",
+        "FL_thigh_joint", "FR_thigh_joint", "RL_thigh_joint", "RR_thigh_joint",
+        "FL_calf_joint", "FR_calf_joint", "RL_calf_joint", "RR_calf_joint",
+    ]
+    order = JointOrder(tuple(names))
+    # The training asset's default pose: hips L=+0.1 / R=-0.1 (audit risk R5).
+    default = {}
+    for nm in names:
+        if "hip" in nm:
+            default[nm] = 0.1 if nm.startswith(("FL", "RL")) else -0.1
+        elif "thigh" in nm:
+            default[nm] = 0.8
+        else:
+            default[nm] = -1.5
+    builder = ObservationBuilder(order, default)
+
+    out = ["D " + " ".join(hx(default[nm]) for nm in names)]
+
+    for _ in range(n):
+        ang = rng.normal(scale=0.5, size=3).astype(np.float32)
+        grav = rng.normal(scale=0.5, size=3).astype(np.float32)
+        cmd = rng.normal(scale=0.5, size=3).astype(np.float32)
+        q = rng.normal(scale=0.6, size=12).astype(np.float32)
+        qd = rng.normal(scale=1.0, size=12).astype(np.float32)
+        act = rng.normal(scale=0.5, size=12).astype(np.float32)
+
+        obs = builder.build(
+            base_lin_vel=np.zeros(3, dtype=np.float32),
+            base_ang_vel=ang,
+            projected_gravity=grav,
+            velocity_command=cmd,
+            joint_pos=q,
+            joint_vel=qd,
+            last_action=act,
+        )
+        out.append(
+            "B "
+            + " ".join(hx(v) for v in ang)
+            + " " + " ".join(hx(v) for v in grav)
+            + " " + " ".join(hx(v) for v in cmd)
+            + " " + " ".join(hx(v) for v in q)
+            + " " + " ".join(hx(v) for v in qd)
+            + " " + " ".join(hx(v) for v in act)
+            + " " + " ".join(hx(v) for v in obs)
+        )
+
+    # CRC over random LowCmd-sized buffers.
+    import struct
+    for _ in range(64):
+        raw = rng.integers(0, 256, size=812, dtype=np.uint8).tobytes()
+        words = struct.unpack("<202I", raw[:808])
+        crc = crc32_core(words)
+        out.append("C " + raw.hex() + " " + str(crc))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("output", type=Path)
@@ -437,6 +505,7 @@ def main() -> int:
     ap.add_argument("--gate", type=int, default=4000)
     ap.add_argument("--onnx", type=int, default=300)
     ap.add_argument("--shield", type=int, default=900)
+    ap.add_argument("--deploy", type=int, default=400)
     ap.add_argument(
         "--model", type=Path, default=REPO_ROOT / "deploy" / "stand_v3_latent.onnx"
     )
@@ -462,6 +531,7 @@ def main() -> int:
     lines += slew_records(rng, args.slew)
     lines += gate_records(rng, args.gate)
     lines += shield_records(rng, args.shield)
+    lines += deploy_layer_records(rng, args.deploy)
     lines += onnx_lines
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

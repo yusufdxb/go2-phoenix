@@ -17,6 +17,9 @@ evidenced.
 | `filters` | Terminal actuation filters: slew-rate cap, opt-in position clamp |
 | `inference` | `InferenceEngine` interface and its ONNX Runtime backend |
 | `shield` | Mahalanobis monitor plus Simplex arbiter (advisory blend, cannot latch) |
+| `joint_map` | Policy/ROS/Unitree orderings and the two non-inverse permutations |
+| `observation` | The 48-dim observation contract |
+| `motor_crc` | Unitree LowCmd CRC, ported literally (it is not a standard CRC32) |
 
 There is deliberately **no normalizer**. Normalization is baked into the exported graph for some
 checkpoints and absent from others, so a native normalizer driven by a config flag would
@@ -91,6 +94,8 @@ from dtype and operation chain. Measured on this machine:
 | ONNX action + latent | bit-exact | 0 / 118,800 elements |
 | Shield state + blend | exact | 0 / 900 frames |
 | Shield score | 1e-4 relative + zero ambiguous band | worst 2.97e-07, 0 ambiguous |
+| Observation assembly | bit-exact | 0 / 400 frames x 48 |
+| Unitree CRC | exact | 0 / 64 buffers |
 
 Roll/pitch is the one stage that is not bit-exact, and the cause is not the port: numpy's `arctan2`
 and glibc's `atan2` disagree by 1 ULP on identical double input. Since roll/pitch feed exactly one
@@ -108,8 +113,7 @@ did.
 
 ## Not yet built
 
-The ROS 2 adapter node, the observation builder, `motor_crc`, artifact (`.npz`) loading for the
-shield, and the benchmark programs. No performance measurement has been taken and no performance
+The ROS 2 adapter node, artifact (`.npz`) loading for the shield, and the benchmark programs. No performance measurement has been taken and no performance
 claim is made anywhere in this tree.
 
 The shield currently takes its constants as spans; it does not yet read `deploy/shield_*.npz`, so it

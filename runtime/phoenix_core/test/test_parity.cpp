@@ -57,6 +57,8 @@
 #include "phoenix_core/filters.hpp"
 #include "phoenix_core/gate.hpp"
 #include "phoenix_core/inference.hpp"
+#include "phoenix_core/motor_crc.hpp"
+#include "phoenix_core/observation.hpp"
 #include "phoenix_core/shield.hpp"
 
 using namespace phoenix_core;  // NOLINT(build/namespaces) - test-local
@@ -103,6 +105,9 @@ struct Fixtures
   std::vector<std::vector<std::string>> onnx;
   std::vector<std::string> shield_header;
   std::vector<std::vector<std::string>> shield;
+  std::vector<std::string> obs_default;
+  std::vector<std::vector<std::string>> obs;
+  std::vector<std::vector<std::string>> crc;
 };
 
 Fixtures load()
@@ -141,6 +146,12 @@ Fixtures load()
       f.shield_header = tok;
     } else if (tok[0] == "P") {
       f.shield.push_back(tok);
+    } else if (tok[0] == "D") {
+      f.obs_default = tok;
+    } else if (tok[0] == "B") {
+      f.obs.push_back(tok);
+    } else if (tok[0] == "C") {
+      f.crc.push_back(tok);
     }
   }
   return f;
@@ -543,4 +554,73 @@ TEST(Parity, ShieldMatchesPythonExactlyOnDecisions)
     EXPECT_GT(state_hits[i], 0) << "fixture never reached shield state " << i;
   }
   EXPECT_GT(inf_frames, 0u) << "fixture contains no non-finite scores; R17 untested here";
+}
+
+// --------------------------------------------------------------------------
+// Deploy-layer parity: observation assembly and the Unitree CRC
+// --------------------------------------------------------------------------
+//
+// Declared tolerances: BIT-EXACT for the observation (permuted copies plus one
+// float32 subtraction, no accumulation, no reassociation opportunity), and
+// EXACT for the CRC (it is a 32-bit integer; a tolerance would be nonsense).
+TEST(Parity, ObservationAssemblyIsBitExact)
+{
+  const auto & recs = fixtures().obs;
+  const auto & def_rec = fixtures().obs_default;
+  ASSERT_FALSE(def_rec.empty()) << "fixture has no default_q record";
+  ASSERT_FALSE(recs.empty());
+
+  JointArray default_q{};
+  for (std::size_t i = 0; i < kNumJoints; ++i) {
+    default_q[i] = parse_float(def_rec[1 + i]);
+  }
+  ObservationBuilder builder;
+  ASSERT_EQ(builder.initialize(default_q), Status::kOk);
+
+  std::size_t mismatches = 0;
+  for (const auto & r : recs) {
+    ASSERT_EQ(r.size(), 1u + 9u + 36u + kObsDim);
+    std::size_t k = 1;
+    ObservationInputs in;
+    for (std::size_t i = 0; i < 3; ++i) {in.base_ang_vel[i] = parse_float(r[k++]);}
+    for (std::size_t i = 0; i < 3; ++i) {in.projected_gravity[i] = parse_float(r[k++]);}
+    for (std::size_t i = 0; i < 3; ++i) {in.velocity_command[i] = parse_float(r[k++]);}
+    for (std::size_t i = 0; i < kNumJoints; ++i) {in.joint_pos[i] = parse_float(r[k++]);}
+    for (std::size_t i = 0; i < kNumJoints; ++i) {in.joint_vel[i] = parse_float(r[k++]);}
+    for (std::size_t i = 0; i < kNumJoints; ++i) {in.last_action[i] = parse_float(r[k++]);}
+
+    ObsArray obs{};
+    ASSERT_EQ(builder.build(in, obs), Status::kOk);
+
+    for (std::size_t i = 0; i < kObsDim; ++i) {
+      if (!same_bits(obs[i], parse_float(r[k + i]))) {
+        ++mismatches;
+      }
+    }
+  }
+  EXPECT_EQ(mismatches, 0u) << "observation layout or the joint_pos_rel subtraction diverged";
+}
+
+TEST(Parity, UnitreeCrcMatchesExactly)
+{
+  const auto & recs = fixtures().crc;
+  ASSERT_FALSE(recs.empty());
+
+  std::size_t mismatches = 0;
+  for (const auto & r : recs) {
+    ASSERT_EQ(r.size(), 3u);
+    const std::string & hex = r[1];
+    ASSERT_EQ(hex.size(), kLowCmdSize * 2u);
+
+    std::vector<std::uint8_t> buf(kLowCmdSize);
+    for (std::size_t i = 0; i < kLowCmdSize; ++i) {
+      buf[i] = static_cast<std::uint8_t>(std::stoul(hex.substr(i * 2, 2), nullptr, 16));
+    }
+    const std::uint32_t want = static_cast<std::uint32_t>(std::stoul(r[2]));
+    if (compute_lowcmd_crc(buf.data(), buf.size()) != want) {
+      ++mismatches;
+    }
+  }
+  EXPECT_EQ(mismatches, 0u)
+    << "the CRC is non-standard (no reflection, no final XOR); it must be ported literally";
 }
