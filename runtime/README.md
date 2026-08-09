@@ -16,6 +16,7 @@ evidenced.
 | `gate` | The safety precedence ladder as a pure function of `(snapshot, config, latched)` |
 | `filters` | Terminal actuation filters: slew-rate cap, opt-in position clamp |
 | `inference` | `InferenceEngine` interface and its ONNX Runtime backend |
+| `shield` | Mahalanobis monitor plus Simplex arbiter (advisory blend, cannot latch) |
 
 There is deliberately **no normalizer**. Normalization is baked into the exported graph for some
 checkpoints and absent from others, so a native normalizer driven by a config flag would
@@ -88,6 +89,8 @@ from dtype and operation chain. Measured on this machine:
 | Slew clip | bit-exact | 0 mismatches / 500 |
 | Gate decision | exact | 0 mismatches / 4,000 |
 | ONNX action + latent | bit-exact | 0 / 118,800 elements |
+| Shield state + blend | exact | 0 / 900 frames |
+| Shield score | 1e-4 relative + zero ambiguous band | worst 2.97e-07, 0 ambiguous |
 
 Roll/pitch is the one stage that is not bit-exact, and the cause is not the port: numpy's `arctan2`
 and glibc's `atan2` disagree by 1 ULP on identical double input. Since roll/pitch feed exactly one
@@ -97,8 +100,19 @@ threshold for that drift to change the verdict.
 The gate parity test carries coverage assertions requiring every outcome and every reachable abort
 cause to appear, so a fixture that only exercised the nominal path cannot pass silently.
 
+The shield score is the one numeric stage with a real tolerance rather than bit-exactness, because
+numpy dispatches the whitener matvec to BLAS whose reduction order differs from a straight loop.
+That is acceptable only because the *decision* is checked exactly and the ambiguous band is asserted
+empty: no frame sits close enough to a threshold for the permitted drift to change what the shield
+did.
+
 ## Not yet built
 
-The ROS 2 adapter node, the observation builder, the shield port, `motor_crc`, and the benchmark
-programs. No performance measurement has been taken and no performance claim is made anywhere in
-this tree.
+The ROS 2 adapter node, the observation builder, `motor_crc`, artifact (`.npz`) loading for the
+shield, and the benchmark programs. No performance measurement has been taken and no performance
+claim is made anywhere in this tree.
+
+The shield currently takes its constants as spans; it does not yet read `deploy/shield_*.npz`, so it
+is not wired to a shipped artifact. The arithmetic and the decision logic are ported and pinned to
+Python, which is where the dangerous bugs were; the loader is plumbing and is deliberately deferred
+rather than half-done.
