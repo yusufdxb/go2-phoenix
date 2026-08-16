@@ -42,20 +42,29 @@ The locomotion policy is trained and verified in simulation. The sim-to-real
 deploy stack (ONNX export, the ROS 2 policy node, the fail-closed safety
 layer) has run end-to-end on the real GO2; that live run surfaced a per-step
 slew-rate saturation (about 33% at `cmd_vel = 0`) that no on-robot stand has
-yet cleared. On-robot locomotion validation (Gate 7) is the current front
-line. [`EVIDENCE.md`](EVIDENCE.md) is the verified / inferred / not-validated
+yet cleared.
+
+**Status as of 2026-08: on-robot locomotion validation (Gate 7) is open and
+awaiting a lab session.** Two things must be re-proven in that one session:
+that the corrected, normalization-carrying ONNX export behaves as the sim eval
+predicts, and that per-step slew saturation drops under the 5% gate for a 10 s
+stand. Note also that the adaptation loop, despite the title, **has not yet
+closed once on real failure data**: the replay and fine-tune path is wired and
+unit-tested, but no hardware failure Parquets exist to feed it.
+
+[`EVIDENCE.md`](EVIDENCE.md) is the verified / inferred / not-validated
 ledger for every claim below.
 
 | Stage | State | Detail |
 |---|:---:|---|
 | Simulation training (PPO, layered-YAML env) | Done | rsl_rl, ~10 shell entry points |
-| Locomotion policy trained and sim-verified | Done | stand-v3 sim eval: 32/32 success, 0.33% slew saturation (sim only) |
-| ONNX export and torch / onnxruntime parity gate | Done | `verify_deploy`, max drift 9.5e-7 |
+| Locomotion policy trained and sim-verified | Done | stand-v3-h25 sim eval: 32/32 success, 3.30% slew nominal / 2.91% under full DR, against a &lt;5% gate (sim only) |
+| ONNX export and torch / onnxruntime parity gate | Re-verification owed | `verify_deploy`, max drift 3.8e-06 against a 1e-4 tolerance. A 2026-05-21 audit found every pre-audit export silently dropped observation normalization, so all checkpoints must be re-exported and re-parity-checked before the Gate 7 retry ([EVIDENCE.md](EVIDENCE.md)) |
 | ROS 2 deploy stack and fail-closed safety layer | Done | 3 bridges, policy node, shared slew cap |
 | Deploy stack ran end-to-end on the GO2 | Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
 | Failure detector and Parquet trajectory logging | Done | rule-based attitude / collapse / slip |
 | Replay and failure-curriculum fine-tune | Done | wired and unit-tested; awaiting real parquets |
-| Live on-robot stand (Gate 7) | In progress | last live run 33% slew saturation on hardware; stand-v3 staged for retry |
+| Live on-robot stand (Gate 7) | In progress | last live run (2026-04-21) saturated at 33%; the stand-v3-h25 recipe clears the gate in sim and is staged for the retry |
 | Live velocity tracking (Gate 8) | ⬜ Planned | two-policy mode-switch runtime is ready |
 | Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
 
@@ -108,8 +117,9 @@ pip install -e ".[dev]"
 pytest tests -m "not sim and not ros"
 ```
 
-235 unit tests, torch-free and ROS-free by construction. They cover the
-config loader, observation builder, failure detector, trajectory logger,
+236 unit tests pass torch-free and ROS-free by construction (5 more exercise
+the torch path when torch is installed; 4 are marked `sim`/`ros` and deselected
+here). They cover the config loader, observation builder, failure detector, trajectory logger,
 Parquet round-trip, Halton variation sampler, curriculum scheduler, per-env
 variation translation, the fail-closed estop / sensor-freshness predicates,
 the projected-gravity helper, the `verify_deploy` parity gate, the ONNX-export
