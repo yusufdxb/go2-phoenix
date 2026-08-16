@@ -15,7 +15,10 @@ Claims with a reproducible artifact in this repo or a captured log.
   (commit `f235171`).
 - **ONNX↔torch parity gate**: `verify_deploy` reports max abs-diff
   **3.8e-06** on the stand-v2 candidate, against a 1e-4 tolerance. Serialized
-  at [`docs/pre_lab_gates_2026-04-17.md`](docs/pre_lab_gates_2026-04-17.md).
+  by the 2026-04-17 pre-lab gate run: `steps=200 max_diff=3.815e-06
+  mean_diff=5.449e-07 tol=1.0e-04 -> PASS`, i.e. 26x under tolerance. (The
+  gate transcript was removed from this repo when hardware identity was
+  scrubbed; the numbers are inlined here so the claim stays checkable.)
   Caveat (audit 2026-05-21): this gate compares ONNX vs TorchScript exports
   of the *same* `_ExportablePolicy` wrapper, so it verifies runtime numeric
   parity but **cannot** catch a wrong wrapper. The audit found that
@@ -27,8 +30,9 @@ Claims with a reproducible artifact in this repo or a captured log.
   all checkpoints must be re-exported and re-parity-checked, and the
   corrected export must be re-verified on hardware before any Gate-7 retry.
 - **Stand-v2 sim rollout**: 16 / 16 success @ 20.0 s mean length, 4096-env
-  PPO. Raw metrics at
-  [`docs/pre_lab_stand_rollout_2026-04-17.json`](docs/pre_lab_stand_rollout_2026-04-17.json).
+  PPO. Raw metrics were recorded in the 2026-04-17 pre-lab rollout json,
+  removed from this repo in the hardware-identity scrub; the headline
+  figures are the 16/16 success and 20.0 s mean episode length quoted here.
 - **Stand-v3-h25 slew-saturation fix (2026-06-16/20)**: the month-long Gate-7
   saturation was root-caused to Isaac's `randomize_actuator_gains` zeroing
   explicit (DCMotor) actuator gains; replaced with a custom
@@ -52,7 +56,9 @@ Claims with a reproducible artifact in this repo or a captured log.
 - **Slew-saturation root-cause analysis**: four training runs (v3b
   fine-tune, slewhinge w=-50, slewhinge w=-5, scratch w=-50) all converge
   to the same 0.57-0.66 m/s lin_err band. Full table in README; full
-  analysis at [`docs/retrain_flat_scratch_2026-04-19.md`](docs/retrain_flat_scratch_2026-04-19.md).
+  analysis was recorded in the 2026-04-19 retrain note, removed from this
+  repo in the hardware-identity scrub; the four-run convergence band quoted
+  here is the result it reported.
 - **Hardware deploy chain ran live, 2026-04-18**: `ros2_policy_node`,
   `lowcmd_bridge_node`, estop, parity gates all ran on the GO2 end-to-end.
   Outcome: 30.23% per-step slew saturation specifically at `cmd_vel = 0`,
@@ -112,10 +118,9 @@ true**.
 
 ## Artifacts
 
-- Sim eval metrics: `docs/pre_lab_gates_2026-04-17.md`,
-  `docs/pre_lab_stand_rollout_2026-04-17.json`
-- Negative results: `checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md`,
-  `docs/retrain_flat_scratch_2026-04-19.md`
+- Sim eval metrics: inlined above (the 2026-04-17 gate transcript and
+  rollout json were removed in the hardware-identity scrub)
+- Negative results: `checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md`
 - Deploy runbook: `docs/deploy_mode_switch_runbook.md`
 - Demo videos: regenerated locally via `scripts/demo.sh` (media/ is not tracked)
 - Hardware logs (parquet) live on T7 portable storage, not in this repo.
