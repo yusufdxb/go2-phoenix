@@ -41,14 +41,71 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import time
+import uuid
 from pathlib import Path
 
 for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
 import numpy as np  # noqa: E402
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+EXPERIMENT_SOURCE_PATHS = (
+    "scripts/reliability_closed_loop.py",
+    "scripts/reliability_oracle_screen.py",
+    "scripts/reliability_replication.py",
+    "src/phoenix/reliability/bundle.py",
+    "src/phoenix/reliability/deploy.py",
+    "src/phoenix/reliability/oracle_screen.py",
+    "src/phoenix/reliability/replication.py",
+    "src/phoenix/reliability/study.py",
+    "src/phoenix/sim_env/config_loader.py",
+    "src/phoenix/sim_env/go2_env_cfg.py",
+    "src/phoenix/training/checkpoint.py",
+)
+
+
+def file_sha256(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def source_snapshot() -> dict:
+    files = {}
+    for relative in EXPERIMENT_SOURCE_PATHS:
+        path = REPO_ROOT / relative
+        if not path.is_file():
+            raise FileNotFoundError(f"experimental source file is missing: {path}")
+        files[relative] = file_sha256(path)
+    digest = hashlib.sha256(
+        json.dumps(files, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {"sha256": digest, "files": files}
+
+
+def resolved_env_config_hash(path: str | Path) -> str:
+    from phoenix.reliability.bundle import value_sha256
+    from phoenix.sim_env import load_layered_config
+
+    return value_sha256(load_layered_config(path).to_container())
+
+
+def _arm_output_paths(args: argparse.Namespace) -> tuple[Path, Path]:
+    suffix = "_preflight" if args.preflight_subset else ("_pilot" if args.pilot else "")
+    if args.arm == "oracle" and args.oracle_delay_ticks:
+        suffix += f"_d{args.oracle_delay_ticks}"
+    out_dir = Path(args.out_dir)
+    return (
+        out_dir / f"arm_{args.arm}{suffix}.npz",
+        out_dir / f"arm_{args.arm}{suffix}.meta.json",
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,8 +121,8 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="oracle arm only: switch this many ticks AFTER the true disturbance onset "
         "(0 = a perfect detector). Nominal blocks never switch (a perfect detector has no "
-        "false positive). This arm is a NON-confirmatory diagnostic: it upper-bounds what the "
-        "static fallback can do with ideal timing, decoupled from all calibration error.",
+        "false positive). This is a privileged onset-timing diagnostic, not an "
+        "optimal-timing upper bound.",
     )
     p.add_argument("--freeze", action="store_true", help="Write the bundle manifest + protocol, then exit")
     p.add_argument("--out-dir", default="reliability_eval/closed_loop")
@@ -91,12 +148,39 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--command-speed-lo", type=float, default=0.6)
     p.add_argument("--command-speed-hi", type=float, default=1.4)
     p.add_argument("--horizon", type=int, default=500)
+    p.add_argument("--protocol-seed", type=int, default=None)
+    p.add_argument("--process-seed", type=int, default=None)
+    p.add_argument("--replicate-id", default=None)
+    p.add_argument("--cell-id", default=None)
+    p.add_argument("--policy-name", choices=["stand", "walk"], default=None)
+    p.add_argument("--motor-scale-lo", type=float, default=0.30)
+    p.add_argument("--motor-scale-hi", type=float, default=0.55)
+    p.add_argument("--onset-lo", type=int, default=100)
+    p.add_argument("--onset-hi", type=int, default=200)
     p.add_argument("--device", default="cuda:0")
     p.add_argument("--pilot", type=int, default=0, help="Run only the first N blocks (pilot; excluded from results)")
+    p.add_argument(
+        "--preflight-subset",
+        action="store_true",
+        help="Run two disturbed and two nominal blocks as a contract-only preflight",
+    )
     return p.parse_args()
 
 
 # --- controller snapshot -----------------------------------------------------
+
+
+def bundle_files(args: argparse.Namespace) -> dict[str, str]:
+    files = {
+        "shield_artifact": args.artifact,
+        "policy_onnx": args.onnx,
+        "policy_checkpoint": args.checkpoint,
+        "env_config": args.env_config,
+    }
+    external_onnx_data = Path(f"{args.onnx}.data")
+    if external_onnx_data.is_file():
+        files["policy_onnx_data"] = str(external_onnx_data)
+    return files
 
 
 def controller_snapshot(env_config: str, artifact_meta: dict) -> dict:
@@ -118,43 +202,98 @@ def controller_snapshot(env_config: str, artifact_meta: dict) -> dict:
 def do_freeze(args) -> int:
     from phoenix.reliability.bundle import build_manifest
     from phoenix.reliability.deploy import load_artifact
-    from phoenix.reliability.study import generate_blocks, write_protocol
+    from phoenix.reliability.study import REPLICATION_ARMS, generate_blocks, write_protocol
+
+    required = {
+        "--protocol-seed": args.protocol_seed,
+        "--process-seed": args.process_seed,
+        "--replicate-id": args.replicate_id,
+        "--cell-id": args.cell_id,
+        "--policy-name": args.policy_name,
+    }
+    missing = [flag for flag, value in required.items() if value is None]
+    if missing:
+        raise SystemExit(f"FAIL CLOSED: freeze requires {', '.join(missing)}")
+    if args.pilot or args.preflight_subset:
+        raise SystemExit("FAIL CLOSED: do not combine --freeze with a pilot option")
+    if args.horizon != 500:
+        raise SystemExit("FAIL CLOSED: replication horizon must be exactly 500 ticks")
+    if args.envs != 16 or args.n_disturbed != 32 or args.n_nominal != 16:
+        raise SystemExit(
+            "FAIL CLOSED: replication requires 16 envs, 32 disturbed blocks, "
+            "and 16 nominal blocks"
+        )
 
     _, op, meta = load_artifact(args.artifact)
     controller = controller_snapshot(args.env_config, meta)
     manifest = build_manifest(
-        files={
-            "shield_artifact": args.artifact,
-            "policy_onnx": args.onnx,
-            "policy_checkpoint": args.checkpoint,
-        },
+        files=bundle_files(args),
         controller=controller,
         versions=(meta.get("provenance") or {}).get("versions", {}),
         note="paired closed-loop intervention study",
     )
     out = Path(args.out_dir)
+    for path in (out / "bundle.json", out / "protocol.json"):
+        if path.exists():
+            raise SystemExit(f"FAIL CLOSED: refusing to overwrite frozen artifact {path}")
     manifest.write(out / "bundle.json")
 
     blocks = generate_blocks(
         n_disturbed=args.n_disturbed,
         n_nominal=args.n_nominal,
         disturbance=args.disturbance,
+        motor_scale_range=(args.motor_scale_lo, args.motor_scale_hi),
         obs_noise_range=(args.obs_noise_lo, args.obs_noise_hi),
         command_speed_range=(args.command_speed_lo, args.command_speed_hi),
+        onset_range=(args.onset_lo, args.onset_hi),
         horizon_ticks=args.horizon,
+        seed=args.protocol_seed,
     )
+    snapshot = source_snapshot()
     params = {
+        "study_id": "phoenix_causal_viability_replication_v1",
+        "replicate_id": args.replicate_id,
+        "cell_id": args.cell_id,
+        "policy_name": args.policy_name,
+        "protocol_seed": args.protocol_seed,
+        "process_seed": args.process_seed,
         "envs_per_block": args.envs,
+        "n_disturbed": args.n_disturbed,
+        "n_nominal": args.n_nominal,
         "horizon_ticks": args.horizon,
         "disturbance_kind": args.disturbance,
+        "motor_scale_range": [args.motor_scale_lo, args.motor_scale_hi],
+        "obs_noise_range": [args.obs_noise_lo, args.obs_noise_hi],
+        "command_speed_range": [args.command_speed_lo, args.command_speed_hi],
+        "onset_range": [args.onset_lo, args.onset_hi],
         "artifact_trip": op.trip_threshold,
         "artifact_K": op.trip_persistence,
         "artifact_arming_ticks": op.arming_ticks,
-        "primary_estimand": "paired block-level fall-rate difference, unshielded minus shielded",
-        "secondary_estimand": "paired block-level fall-rate difference, sham minus shielded",
+        "oracle_handoff_ticks": int(meta["timings"]["handoff_ticks"]),
+        "reset_settle_ticks": 0,
+        "primary_estimand": (
+            "paired block-level post-onset fall-rate difference among jointly "
+            "onset-eligible environment pairs, unshielded minus oracle"
+        ),
+        "pre_onset_negative_control": (
+            "paired block-level pre-onset fall-rate difference, unshielded minus oracle"
+        ),
+        "eligibility_rule": (
+            "exclude an environment pair from the post-onset estimand if either arm "
+            "falls before the registered onset"
+        ),
         "analysis_unit": "scenario block",
+        "source_snapshot_sha256": snapshot["sha256"],
+        "source_files": snapshot["files"],
+        "resolved_env_config_sha256": resolved_env_config_hash(args.env_config),
     }
-    digest = write_protocol(out / "protocol.json", blocks, bundle_id=manifest.bundle_id, params=params)
+    digest = write_protocol(
+        out / "protocol.json",
+        blocks,
+        bundle_id=manifest.bundle_id,
+        params=params,
+        arms=REPLICATION_ARMS,
+    )
     print(f"[freeze] bundle_id={manifest.bundle_id} dirty={manifest.code_dirty}")
     print(f"[freeze] protocol_hash={digest[:16]} blocks={len(blocks)}")
     print(f"[freeze] wrote {out}/bundle.json and {out}/protocol.json")
@@ -172,6 +311,12 @@ def main() -> int:
         return do_freeze(args)
     if args.arm is None:
         raise SystemExit("give --arm or --freeze")
+    if args.process_seed is None:
+        raise SystemExit("FAIL CLOSED: arm runs require --process-seed")
+    out_path, meta_path = _arm_output_paths(args)
+    for path in (out_path, meta_path):
+        if path.exists():
+            raise SystemExit(f"FAIL CLOSED: refusing to overwrite arm artifact {path}")
 
     from isaaclab.app import AppLauncher
 
@@ -197,7 +342,7 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
     from rsl_rl.runners import OnPolicyRunner
 
-    from phoenix.reliability.bundle import BundleManifest, verify_bundle
+    from phoenix.reliability.bundle import BundleManifest, git_state, value_sha256, verify_bundle
     from phoenix.reliability.deploy import load_artifact
     from phoenix.reliability.study import VectorShield, read_protocol, sham_schedule
     from phoenix.sim2real.export import checkpoint_has_obs_normalizer
@@ -212,15 +357,53 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     disturbance_kind = protocol["params"].get("disturbance_kind", "motor")
     print(f"[cl] disturbance = {disturbance_kind}", flush=True)
 
+    params = protocol["params"]
+    expected_cli = {
+        "--protocol-seed": (args.protocol_seed, params.get("protocol_seed")),
+        "--process-seed": (args.process_seed, params.get("process_seed")),
+        "--replicate-id": (args.replicate_id, params.get("replicate_id")),
+        "--cell-id": (args.cell_id, params.get("cell_id")),
+        "--policy-name": (args.policy_name, params.get("policy_name")),
+    }
+    mismatched = [
+        f"{flag}={actual!r}, protocol={expected!r}"
+        for flag, (actual, expected) in expected_cli.items()
+        if actual != expected
+    ]
+    if mismatched:
+        raise SystemExit("FAIL CLOSED: CLI/protocol mismatch: " + "; ".join(mismatched))
+    if args.arm not in protocol.get("arms", []):
+        raise SystemExit(f"FAIL CLOSED: arm {args.arm!r} was not frozen in the protocol")
+    if args.disturbance != disturbance_kind:
+        raise SystemExit(
+            f"FAIL CLOSED: --disturbance {args.disturbance!r} != protocol {disturbance_kind!r}"
+        )
+    if args.envs != int(params["envs_per_block"]):
+        raise SystemExit("FAIL CLOSED: --envs does not match the frozen protocol")
+    if args.horizon != int(params["horizon_ticks"]):
+        raise SystemExit("FAIL CLOSED: --horizon does not match the frozen protocol")
+    if any(block.horizon_ticks != args.horizon for block in blocks):
+        raise SystemExit("FAIL CLOSED: one or more block horizons do not match the protocol")
+
+    snapshot = source_snapshot()
+    if snapshot["sha256"] != params.get("source_snapshot_sha256"):
+        raise SystemExit(
+            "FAIL CLOSED: experimental source snapshot changed after protocol freeze"
+        )
+    env_contract_hash = resolved_env_config_hash(args.env_config)
+    if env_contract_hash != params.get("resolved_env_config_sha256"):
+        raise SystemExit("FAIL CLOSED: resolved environment config changed after freeze")
+    current_commit, current_dirty = git_state(REPO_ROOT)
+    if current_commit != manifest.code_commit:
+        raise SystemExit(
+            f"FAIL CLOSED: current commit {current_commit} != bundle commit {manifest.code_commit}"
+        )
+
     # Gate 1: the controller must be the one the protocol was frozen against.
     controller = controller_snapshot(args.env_config, meta)
     verify_bundle(
         manifest,
-        files={
-            "shield_artifact": args.artifact,
-            "policy_onnx": args.onnx,
-            "policy_checkpoint": args.checkpoint,
-        },
+        files=bundle_files(args),
         controller=controller,
         artifact_control_dt_s=controller["control_dt_s"],
     )
@@ -231,7 +414,17 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         )
     print(f"[cl] bundle verified: {manifest.bundle_id}", flush=True)
 
-    if args.pilot:
+    if args.pilot and args.preflight_subset:
+        raise SystemExit("FAIL CLOSED: choose --pilot or --preflight-subset, not both")
+    if args.preflight_subset:
+        # A-B-N-N-A: the repeated first scenario after intervening blocks is a
+        # direct reset/carryover check and is never accepted as study evidence.
+        blocks = blocks[:2] + blocks[-2:] + blocks[:1]
+        print(
+            f"[cl] PREFLIGHT: {len(blocks)} blocks, results are NOT part of the study",
+            flush=True,
+        )
+    elif args.pilot:
         blocks = blocks[: args.pilot]
         print(f"[cl] PILOT: {len(blocks)} blocks — results are NOT part of the study", flush=True)
 
@@ -266,7 +459,10 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     cfg = load_layered_config(args.env_config)
     env_cfg = build_env_cfg(cfg)
     env_cfg.scene.num_envs = args.envs
+    env_cfg.seed = int(args.process_seed)
     task_name = cfg.to_container()["env"]["task_name"]
+    torch.manual_seed(int(args.process_seed))
+    np.random.seed(int(args.process_seed))
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
     env = RslRlVecEnvWrapper(env, clip_actions=1.0)
 
@@ -284,7 +480,7 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     eval_yaml = {
         "run": {
             "name": "closed_loop", "output_dir": "/tmp", "log_interval": 1, "save_interval": 1,
-            "max_iterations": 1, "seed": 0, "device": args.device,
+            "max_iterations": 1, "seed": int(args.process_seed), "device": args.device,
         },
         "algorithm": {
             "class_name": "PPO", "value_loss_coef": 1.0, "use_clipped_value_loss": True,
@@ -336,6 +532,19 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             return x
         return torch.as_tensor(x.numpy(), device=env.unwrapped.device)
 
+    fallback_contract = {
+        "implementation": "policy action multiplied by one minus applied blend",
+        "joint_names": list(robot.joint_names),
+        "default_joint_pos": _tensor(robot.data.default_joint_pos[0])
+        .detach()
+        .cpu()
+        .tolist(),
+        "handoff_ticks": int(meta["timings"]["handoff_ticks"]),
+        "action_scale": float(controller["action_scale"]),
+        "control_dt_s": float(controller["control_dt_s"]),
+    }
+    fallback_contract_hash = value_sha256(fallback_contract)
+
     # Baseline actuator gains, captured once. The `scale_motor_strength` term is
     # a STARTUP event, so these are constant across resets and can be restored
     # exactly at the start of every block.
@@ -359,6 +568,18 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
                 stiffness, damping = base_gains[name]
                 actuator.stiffness = stiffness * scale
                 actuator.damping = damping * scale
+                if not torch.allclose(
+                    _tensor(actuator.stiffness),
+                    stiffness * scale,
+                    rtol=0.0,
+                    atol=1e-7,
+                ) or not torch.allclose(
+                    _tensor(actuator.damping),
+                    damping * scale,
+                    rtol=0.0,
+                    atol=1e-7,
+                ):
+                    raise RuntimeError(f"actuator gain readback mismatch for {name}")
             return True
         except Exception as exc:  # noqa: BLE001 - reported, never silently ignored
             print(f"[cl] MOTOR INJECTION FAILED: {type(exc).__name__}: {exc}", flush=True)
@@ -410,7 +631,29 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     handoff = int(meta["timings"]["handoff_ticks"])
 
     # ---- per-block loop -----------------------------------------------------
-    rows = {k: [] for k in ("block_id", "fell", "switch_tick", "engaged", "fall_tick")}
+    run_started_unix_s = time.time()
+    process_uuid = str(uuid.uuid4())
+    rows = {
+        key: []
+        for key in (
+            "block_id",
+            "fell",
+            "pre_onset_fall",
+            "post_onset_fall",
+            "switch_tick",
+            "full_fallback_tick",
+            "engaged",
+            "fall_tick",
+            "return_until_first_fall",
+            "active_ticks",
+            "blend_sum",
+            "reset_count",
+            "fault_injected",
+            "reset_state",
+            "initial_obs",
+            "onset_obs",
+        )
+    }
     with torch.inference_mode():
         for bi, block in enumerate(blocks):
             torch.manual_seed(block.seed)
@@ -418,15 +661,46 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             corrupt_gen = torch.Generator(device=env.unwrapped.device).manual_seed(
                 int(block.seed) ^ 0x0B5EED
             )
-            set_motor_scale(1.0)  # restore healthy gains before every block
-            env.reset()
+            if not set_motor_scale(1.0):
+                raise RuntimeError("FAIL CLOSED: could not restore baseline motor gains")
+            env.seed(int(block.seed))
+            reset_obs, _reset_extras = env.reset()
             shield.reset()
-            obs = _unwrap(env.get_observations())
+            reset_state = np.concatenate(
+                [
+                    _tensor(robot.data.root_state_w).detach().cpu().numpy(),
+                    _tensor(robot.data.joint_pos).detach().cpu().numpy(),
+                    _tensor(robot.data.joint_vel).detach().cpu().numpy(),
+                ],
+                axis=1,
+            )
+            obs = _unwrap(reset_obs)
+            zero_actions = torch.zeros(
+                (args.envs, env.num_actions),
+                device=env.unwrapped.device,
+                dtype=torch.float32,
+            )
+            for _ in range(int(params["reset_settle_ticks"])):
+                settle_obs, _settle_reward, settle_dones, _settle_extras = env.step(
+                    zero_actions
+                )
+                if bool(settle_dones.any()):
+                    raise RuntimeError("FAIL CLOSED: environment terminated during reset settling")
+                obs = _unwrap(settle_obs)
+            initial_obs = _policy_group(obs).detach().cpu().numpy().copy()
+            onset_obs = np.full_like(initial_obs, np.nan)
 
             fell = np.zeros(args.envs, bool)
+            pre_onset_fall = np.zeros(args.envs, bool)
+            post_onset_fall = np.zeros(args.envs, bool)
             fall_tick = np.full(args.envs, -1, np.int32)
             switch_tick = np.full(args.envs, -1, np.int32)
+            full_fallback_tick = np.full(args.envs, -1, np.int32)
             engaged = np.zeros(args.envs, bool)
+            return_until_first_fall = np.zeros(args.envs, np.float64)
+            active_ticks = np.zeros(args.envs, np.int32)
+            blend_sum = np.zeros(args.envs, np.float64)
+            reset_count = np.zeros(args.envs, np.int32)
             sham_switch = (
                 np.array([-1 if t is None else t for t in sham_sched[block.block_id]], np.int32)
                 if sham_sched is not None
@@ -437,35 +711,47 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             for tick in range(block.horizon_ticks):
                 # Apply the block's disturbance to the policy's input / actuators.
                 pol_in = obs
+                if tick == block.onset_tick:
+                    onset_obs = _policy_group(obs).detach().cpu().numpy().copy()
                 if disturbance_kind == "motor":
                     if block.disturbed and not injected and tick == block.onset_tick:
                         injected = set_motor_scale(block.motor_scale)
+                        if not injected:
+                            raise RuntimeError(
+                                f"FAIL CLOSED: motor fault injection failed for block {block.block_id}"
+                            )
                 elif disturbance_kind == "obs":
                     if block.disturbed and tick >= block.onset_tick:
+                        injected = True
                         # Perceptual OOD: corrupt the policy input from onset onward.
                         pol_in = corrupt_obs(obs, block.obs_noise, corrupt_gen)
                 elif disturbance_kind == "command":
                     # OOD command: inject from onset onward (persistent). The
                     # command reaches the policy via the next step's observation.
                     if block.disturbed and tick >= block.onset_tick:
-                        set_command(block.command_speed)
+                        injected = set_command(block.command_speed)
+                        if not injected:
+                            raise RuntimeError(
+                                f"FAIL CLOSED: command fault injection failed for block {block.block_id}"
+                            )
 
                 captured.clear()
                 actions = policy(pol_in)
                 latent = torch.cat([captured[i] for i in tap_idx], dim=1)
                 blend_np, _score, _armed = shield.step(latent.detach().cpu().numpy())
+                alive = ~fell
 
                 if args.arm == "unshielded":
                     applied_blend = np.zeros(args.envs)  # passive monitor only
                 elif args.arm == "shielded":
                     applied_blend = blend_np
                 elif args.arm == "oracle":
-                    # Perfect detector: on disturbed blocks, ramp in exactly at the
-                    # true onset (+ optional delay) and hold; nominal blocks never
-                    # switch. Upper-bounds the static fallback's control authority.
+                    # Perfect-onset schedule: on disturbed blocks, the first
+                    # positive ramp command is applied at the registered onset
+                    # (+ optional diagnostic delay). Nominal blocks never switch.
                     if block.disturbed:
                         since = tick - (block.onset_tick + args.oracle_delay_ticks)
-                        b = min(1.0, since / handoff) if since >= 0 else 0.0
+                        b = min(1.0, (since + 1) / handoff) if since >= 0 else 0.0
                     else:
                         b = 0.0
                     applied_blend = np.full(args.envs, b)
@@ -475,67 +761,141 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
                         (sham_switch >= 0) & (since >= 0), np.minimum(1.0, since / handoff), 0.0
                     )
 
+                # A terminal environment is no longer part of this registered
+                # trial. Isaac may auto-reset it internally, but replacement
+                # episodes receive no treatment and contribute no outcome,
+                # return, or dose.
+                applied_blend = np.where(alive, applied_blend, 0.0)
                 newly = (applied_blend > 0) & (switch_tick < 0)
                 switch_tick[newly] = tick
+                newly_full = (applied_blend >= 1.0) & (full_fallback_tick < 0)
+                full_fallback_tick[newly_full] = tick
                 engaged |= applied_blend > 0
+                blend_sum += applied_blend * alive
+                active_ticks += alive.astype(np.int32)
 
                 # Blending the action toward zero == blending the joint target
                 # toward the default stand pose, which is what the ROS node does.
                 blended = actions * torch.as_tensor(
                     1.0 - applied_blend, device=actions.device, dtype=actions.dtype
                 ).unsqueeze(1)
+                blended[torch.as_tensor(~alive, device=actions.device)] = 0.0
 
-                obs2, _r, dones, extras = env.step(blended)
+                obs2, reward, dones, extras = env.step(blended)
                 time_out = extras.get("time_outs") if isinstance(extras, dict) else None
                 d = np.asarray(dones.detach().cpu()).astype(bool).reshape(-1)
+                reward_np = np.asarray(reward.detach().cpu(), dtype=np.float64).reshape(-1)
+                return_until_first_fall += reward_np * alive
                 t_out = (
                     np.asarray(time_out.detach().cpu()).astype(bool).reshape(-1)
                     if time_out is not None
                     else np.zeros(args.envs, bool)
                 )
-                new_falls = d & (~t_out) & (~fell)
+                new_falls = d & (~t_out) & alive
                 fall_tick[new_falls] = tick
+                pre_onset_fall |= new_falls & (tick < block.onset_tick)
+                post_onset_fall |= new_falls & (tick >= block.onset_tick)
                 fell |= new_falls
+                reset_count += d.astype(np.int32)
+                if d.any():
+                    shield.reset(np.flatnonzero(d))
                 obs = _unwrap(obs2)
 
+            if block.disturbed and not injected:
+                raise RuntimeError(
+                    f"FAIL CLOSED: block {block.block_id} never received its registered fault"
+                )
             rows["block_id"].append(block.block_id)
             rows["fell"].append(fell.copy())
+            rows["pre_onset_fall"].append(pre_onset_fall.copy())
+            rows["post_onset_fall"].append(post_onset_fall.copy())
             rows["switch_tick"].append(switch_tick.copy())
+            rows["full_fallback_tick"].append(full_fallback_tick.copy())
             rows["engaged"].append(engaged.copy())
             rows["fall_tick"].append(fall_tick.copy())
+            rows["return_until_first_fall"].append(return_until_first_fall.copy())
+            rows["active_ticks"].append(active_ticks.copy())
+            rows["blend_sum"].append(blend_sum.copy())
+            rows["reset_count"].append(reset_count.copy())
+            rows["fault_injected"].append(bool(injected) if block.disturbed else True)
+            rows["reset_state"].append(reset_state)
+            rows["initial_obs"].append(initial_obs)
+            rows["onset_obs"].append(onset_obs)
             print(
                 f"[cl] block {bi + 1}/{len(blocks)} id={block.block_id} "
                 f"{'disturbed' if block.disturbed else 'nominal  '} "
-                f"fell={fell.sum()}/{args.envs} engaged={engaged.sum()}/{args.envs}",
+                f"fell={fell.sum()}/{args.envs} pre={pre_onset_fall.sum()} "
+                f"post={post_onset_fall.sum()} engaged={engaged.sum()}/{args.envs}",
                 flush=True,
             )
 
-    suffix = "_pilot" if args.pilot else ""
-    if args.arm == "oracle" and args.oracle_delay_ticks:
-        suffix += f"_d{args.oracle_delay_ticks}"
-    out = out_dir / f"arm_{args.arm}{suffix}.npz"
+    out, meta_out = _arm_output_paths(args)
     np.savez(
         out,
-        block_id=np.asarray(rows["block_id"]),
-        fell=np.asarray(rows["fell"]),
-        switch_tick=np.asarray(rows["switch_tick"]),
-        engaged=np.asarray(rows["engaged"]),
-        fall_tick=np.asarray(rows["fall_tick"]),
+        **{key: np.asarray(value) for key, value in rows.items()},
+        task_complete=~np.asarray(rows["fell"]),
     )
-    (out_dir / f"arm_{args.arm}{suffix}.meta.json").write_text(
+    trajectory_digest = hashlib.sha256()
+    trajectory_digest.update(np.asarray(rows["initial_obs"]).tobytes())
+    trajectory_digest.update(np.asarray(rows["onset_obs"]).tobytes())
+    trajectory_digest.update(np.asarray(rows["fall_tick"]).tobytes())
+    runtime_versions = {
+        package: md.version(distribution)
+        for package, distribution in {
+            "isaaclab": "isaaclab",
+            "numpy": "numpy",
+            "rsl_rl_lib": "rsl-rl-lib",
+            "torch": "torch",
+        }.items()
+    }
+    run_finished_unix_s = time.time()
+    meta_out.write_text(
         json.dumps(
             {
                 "arm": args.arm,
+                "study_id": params["study_id"],
+                "cell_id": params["cell_id"],
+                "replicate_id": params["replicate_id"],
+                "policy_name": params["policy_name"],
                 "bundle_id": manifest.bundle_id,
                 "protocol_hash": protocol.get("protocol_hash"),
+                "protocol_seed": params["protocol_seed"],
+                "process_seed": params["process_seed"],
+                "process_uuid": process_uuid,
+                "process_pid": os.getpid(),
                 "blocks": len(blocks),
                 "envs_per_block": args.envs,
                 "empirical_normalization": bool(normalize_obs),
-                "pilot": bool(args.pilot),
+                "pilot": bool(args.pilot or args.preflight_subset),
+                "preflight_subset": bool(args.preflight_subset),
                 "diagnostic": args.arm == "oracle",
                 "oracle_delay_ticks": args.oracle_delay_ticks if args.arm == "oracle" else None,
+                "code_commit": current_commit,
+                "code_dirty": current_dirty,
+                "source_snapshot_sha256": snapshot["sha256"],
+                "source_files": snapshot["files"],
+                "resolved_env_config_sha256": env_contract_hash,
+                "runtime_versions": runtime_versions,
+                "bundle_file_hashes": manifest.files,
+                "fallback_contract": fallback_contract,
+                "fallback_contract_sha256": fallback_contract_hash,
+                "fault_configuration": {
+                    key: params[key]
+                    for key in (
+                        "disturbance_kind",
+                        "motor_scale_range",
+                        "obs_noise_range",
+                        "onset_range",
+                        "horizon_ticks",
+                    )
+                },
+                "trajectory_sha256": trajectory_digest.hexdigest(),
+                "raw_output_sha256": file_sha256(out),
+                "run_started_unix_s": run_started_unix_s,
+                "run_finished_unix_s": run_finished_unix_s,
             },
             indent=2,
+            sort_keys=True,
         )
     )
     print(f"[cl] wrote {out}", flush=True)
