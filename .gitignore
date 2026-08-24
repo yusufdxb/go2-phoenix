@@ -105,3 +105,11 @@ deploy/*.pt
 # reads nothing else), and a result nobody can recompute is not a result.
 reliability_eval/*_pilot*
 reliability_eval/closed_loop*/*_pilot*
+
+# Causal-viability replication preflights. Six design iterations were run before
+# the protocol was frozen; only their protocol.json / bundle.json are tracked,
+# because the frozen registry cites their block seeds as excluded exploratory
+# seeds and the seed-disjointness check is not rebuildable without them. The
+# per-arm preflight rollouts are not cited by any result.
+reliability_eval/causal_viability_replication_preflight*/**/*_preflight.npz
+reliability_eval/causal_viability_replication_preflight*/**/*_preflight.meta.json

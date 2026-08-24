@@ -1,0 +1,54 @@
+{
+  "paired_contract": {
+    "nominal_non_engagement_passed": true,
+    "oracle_onset_passed": true,
+    "paired_reset_state_passed": true,
+    "pre_treatment_nondeterminism": {
+      "initial_observation_max_abs_difference": 3.2688019275665283,
+      "onset_observation_max_abs_difference": 2.0,
+      "pre_onset_fall_count": {
+        "oracle": 0,
+        "unshielded": 0
+      }
+    },
+    "process_seed": 2026073601,
+    "protocol_hash": "9bed71186797ec90b9c9fd534ae5af7e35aed12af4728e49ad8735f1b99a0e8c",
+    "protocol_seed": 2026073000,
+    "reset_replay_passed": true,
+    "scenario_set_sha256": "1bd9d120c163e5b93ab6b6a78766508d349bc7f5240767e1f17709b8f76869a0",
+    "trajectory_sha256": {
+      "oracle": "db43331e913baf76b0685b8aea573c19bc2251e94c83f9f31a5ebb0c8a5dd8c5",
+      "unshielded": "f4f23aba9c7175b2d126c1aeae88570999261eb0861d91471ede4eef1d6602ba"
+    }
+  },
+  "process_independence": {
+    "distinct_process_trajectories_passed": true,
+    "identical_protocol_specification_passed": true,
+    "processes": [
+      {
+        "initial_obs_sha256": "79e502348988812e2c6feebd3be5987103606fc9bc956751571fa4c78bda7ae2",
+        "process_seed": 2026073601,
+        "process_uuid": "b1f37d2b-e8fe-4795-a08a-cb09bafc6ac8",
+        "protocol_seed": 2026073000,
+        "scenario_set_sha256": "1bd9d120c163e5b93ab6b6a78766508d349bc7f5240767e1f17709b8f76869a0",
+        "trajectory_sha256": "f4f23aba9c7175b2d126c1aeae88570999261eb0861d91471ede4eef1d6602ba"
+      },
+      {
+        "initial_obs_sha256": "dc3a6c7a2278575076fdde44b86bde6e7632c57eee6c943cdf9c3389190f8c0c",
+        "process_seed": 2026073602,
+        "process_uuid": "7cb23859-2f4a-440d-82b3-4b0313af53b7",
+        "protocol_seed": 2026073000,
+        "scenario_set_sha256": "1bd9d120c163e5b93ab6b6a78766508d349bc7f5240767e1f17709b8f76869a0",
+        "trajectory_sha256": "39ed9fc277986ba13c51c124632831edb8a9d76185ac5506e88486ec45f74441"
+      },
+      {
+        "initial_obs_sha256": "7e855c9d911197b60372c1999d5d8b5ebd1fc69fbce4a485fc862ac5dd0ab90a",
+        "process_seed": 2026073603,
+        "process_uuid": "0fc91448-5bc4-4ec7-9ee8-e8df75e42698",
+        "protocol_seed": 2026073000,
+        "scenario_set_sha256": "1bd9d120c163e5b93ab6b6a78766508d349bc7f5240767e1f17709b8f76869a0",
+        "trajectory_sha256": "c4fe30283aaa196f5700f4555afdb663ff99a8d685f9bb8583499586190cc434"
+      }
+    ]
+  }
+}

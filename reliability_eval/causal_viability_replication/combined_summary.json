@@ -1,0 +1,1956 @@
+{
+  "fault_by_treatment_interaction_obs_minus_motor": {
+    "ci_high": 0.21588457386797227,
+    "ci_low": 0.16936427938381063,
+    "mean_difference": 0.19244950651200649
+  },
+  "gate_checks": {
+    "direction_reproduces_in_all_process_cells": true,
+    "leave_one_process_out_preserves_direction": true,
+    "pooled_fault_intervals_exclude_zero": true,
+    "pre_onset_negative_controls_include_zero": false
+  },
+  "gate_passed": false,
+  "independent_block_accounting": {
+    "disturbed_per_fault_family": 192,
+    "disturbed_per_pooled_cell": 96,
+    "disturbed_per_process_cell": 32,
+    "disturbed_total": 384,
+    "nominal_total": 192
+  },
+  "pooled_cells": {
+    "stand_motor": {
+      "ci_high": -0.11984049479166671,
+      "ci_low": -0.16997163318452377,
+      "independent_disturbed_blocks": 96,
+      "jointly_eligible_environment_pairs": 1509,
+      "leave_one_process_out": {
+        "process_01": {
+          "ci_high": -0.13213332403273811,
+          "ci_low": -0.1981863839285714,
+          "mean_difference": -0.1646856398809524
+        },
+        "process_02": {
+          "ci_high": -0.11502929687500003,
+          "ci_low": -0.1786293247767857,
+          "mean_difference": -0.14651227678571427
+        },
+        "process_03": {
+          "ci_high": -0.09661458333333334,
+          "ci_low": -0.1498139880952381,
+          "mean_difference": -0.12299107142857142
+        }
+      },
+      "mean_difference": -0.1447296626984127,
+      "oracle_fall_count": 389,
+      "oracle_fall_rate": 0.2577866136514248,
+      "process_effect_range": [
+        -0.18820684523809522,
+        -0.10481770833333333
+      ],
+      "process_effect_sd": 0.04180873326690272,
+      "process_effects": [
+        -0.10481770833333333,
+        -0.1411644345238095,
+        -0.18820684523809522
+      ],
+      "unshielded_fall_count": 172,
+      "unshielded_fall_rate": 0.11398277004638833
+    },
+    "stand_obs": {
+      "ci_high": 0.07562003968253968,
+      "ci_low": 0.04909474206349206,
+      "independent_disturbed_blocks": 96,
+      "jointly_eligible_environment_pairs": 1505,
+      "leave_one_process_out": {
+        "process_01": {
+          "ci_high": 0.0837983630952381,
+          "ci_low": 0.049823288690476183,
+          "mean_difference": 0.06655505952380952
+        },
+        "process_02": {
+          "ci_high": 0.07945545014880948,
+          "ci_low": 0.04955333891369047,
+          "mean_difference": 0.06440662202380952
+        },
+        "process_03": {
+          "ci_high": 0.07278808593749986,
+          "ci_low": 0.03860677083333333,
+          "mean_difference": 0.055273437499999994
+        }
+      },
+      "mean_difference": 0.06207837301587301,
+      "oracle_fall_count": 6,
+      "oracle_fall_rate": 0.003986710963455149,
+      "process_effect_range": [
+        0.053125,
+        0.07568824404761904
+      ],
+      "process_effect_sd": 0.01198070222553653,
+      "process_effects": [
+        0.053125,
+        0.057421875,
+        0.07568824404761904
+      ],
+      "unshielded_fall_count": 100,
+      "unshielded_fall_rate": 0.0664451827242525
+    },
+    "walk_motor": {
+      "ci_high": -0.032825202502936905,
+      "ci_low": -0.09264185069849133,
+      "independent_disturbed_blocks": 96,
+      "jointly_eligible_environment_pairs": 1337,
+      "leave_one_process_out": {
+        "process_01": {
+          "ci_high": -0.051180579403235685,
+          "ci_low": -0.11798112531999251,
+          "mean_difference": -0.08470457493894995
+        },
+        "process_02": {
+          "ci_high": -0.009951409809808276,
+          "ci_low": -0.08723750262324481,
+          "mean_difference": -0.04861007048507049
+        },
+        "process_03": {
+          "ci_high": -0.018084592816038133,
+          "ci_low": -0.09000056096247502,
+          "mean_difference": -0.05389870546120546
+        }
+      },
+      "mean_difference": -0.0624044502950753,
+      "oracle_fall_count": 751,
+      "oracle_fall_rate": 0.5617053103964099,
+      "process_effect_range": [
+        -0.08999320991508492,
+        -0.017804201007326003
+      ],
+      "process_effect_sd": 0.03898533490054733,
+      "process_effects": [
+        -0.017804201007326003,
+        -0.08999320991508492,
+        -0.07941593996281496
+      ],
+      "unshielded_fall_count": 666,
+      "unshielded_fall_rate": 0.4981301421091997
+    },
+    "walk_obs": {
+      "ci_high": 0.13757355816926128,
+      "ci_low": 0.09396753853785104,
+      "independent_disturbed_blocks": 96,
+      "jointly_eligible_environment_pairs": 1388,
+      "leave_one_process_out": {
+        "process_01": {
+          "ci_high": 0.1226505623282967,
+          "ci_low": 0.07989120092147435,
+          "mean_difference": 0.10166766826923077
+        },
+        "process_02": {
+          "ci_high": 0.1518865363152472,
+          "ci_low": 0.09569436097756412,
+          "mean_difference": 0.12304973672161171
+        },
+        "process_03": {
+          "ci_high": 0.1526070820455586,
+          "ci_low": 0.09372249170100733,
+          "mean_difference": 0.12234217605311357
+        }
+      },
+      "mean_difference": 0.11568652701465203,
+      "oracle_fall_count": 58,
+      "oracle_fall_rate": 0.04178674351585014,
+      "process_effect_range": [
+        0.10096010760073261,
+        0.1437242445054945
+      ],
+      "process_effect_sd": 0.024291682602731058,
+      "process_effects": [
+        0.1437242445054945,
+        0.10096010760073261,
+        0.10237522893772893
+      ],
+      "unshielded_fall_count": 219,
+      "unshielded_fall_rate": 0.15778097982708933
+    }
+  },
+  "pooled_fault_families": {
+    "motor": {
+      "ci_high": -0.08437451943311322,
+      "ci_low": -0.12327058647371146,
+      "independent_disturbed_blocks": 192,
+      "mean_difference": -0.10356705649674398
+    },
+    "obs": {
+      "ci_high": 0.10163126478556166,
+      "ci_low": 0.07622848939255189,
+      "independent_disturbed_blocks": 192,
+      "mean_difference": 0.08888245001526252
+    }
+  },
+  "pooled_pre_onset_negative_control_cells": {
+    "stand_motor": {
+      "ci_high": -0.0006510416666666666,
+      "ci_low": -0.013020833333333334,
+      "mean_difference": -0.006510416666666667
+    },
+    "stand_obs": {
+      "ci_high": 0.0234375,
+      "ci_low": 0.011067708333333334,
+      "mean_difference": 0.016927083333333332
+    },
+    "walk_motor": {
+      "ci_high": 0.021484375,
+      "ci_low": -0.013671875,
+      "mean_difference": 0.00390625
+    },
+    "walk_obs": {
+      "ci_high": -0.0032552083333333335,
+      "ci_low": -0.031901041666666664,
+      "mean_difference": -0.017578125
+    }
+  },
+  "pooled_pre_onset_negative_control_fault_families": {
+    "motor": {
+      "ci_high": 0.008138020833333334,
+      "ci_low": -0.0107421875,
+      "mean_difference": -0.0013020833333333333
+    },
+    "obs": {
+      "ci_high": 0.007486979166666667,
+      "ci_low": -0.0078125,
+      "mean_difference": -0.0003255208333333333
+    }
+  },
+  "process_results": [
+    {
+      "block_differences": [
+        -0.125,
+        -0.0625,
+        0.0,
+        -0.1875,
+        -0.125,
+        -0.0625,
+        -0.0625,
+        0.0,
+        -0.3125,
+        -0.0625,
+        0.0,
+        -0.0625,
+        -0.25,
+        0.0625,
+        0.0,
+        0.0,
+        -0.25,
+        -0.2,
+        -0.19999999999999998,
+        -0.1875,
+        -0.1875,
+        0.0,
+        -0.0625,
+        -0.1875,
+        0.0,
+        -0.25,
+        -0.1875,
+        -0.125,
+        0.0,
+        0.0,
+        -0.26666666666666666,
+        0.0
+      ],
+      "cell_id": "stand_motor",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 1,
+        "blocks_b_worse": 21,
+        "blocks_tied": 10,
+        "ci_high": -0.06979166666666667,
+        "ci_low": -0.14036458333333332,
+        "excludes_zero": true,
+        "mean_difference": -0.10481770833333333,
+        "n_blocks": 32
+      },
+      "fault_family": "motor",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 5.829730987548828,
+      "jointly_eligible_environment_pairs": 506,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 5.023760795593262,
+      "oracle_fallback_dose_mean": 0.578823206893669,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 120,
+      "out_dir": "reliability_eval/causal_viability_replication/process_01/stand_motor",
+      "policy_name": "stand",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 120,
+        "unshielded": 67
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.23715415019762845,
+        "unshielded": 0.1324110671936759
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0625,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 4,
+        "unshielded": 2
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 1,
+        "blocks_b_worse": 3,
+        "blocks_tied": 28,
+        "ci_high": 0.00390625,
+        "ci_low": -0.01171875,
+        "excludes_zero": false,
+        "mean_difference": -0.00390625,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074101,
+      "process_uuid": {
+        "oracle": "e4fe349e-7c4e-45d6-abc2-61473057cb84",
+        "unshielded": "f044087c-1a5b-4fa6-830b-db839978587c"
+      },
+      "protocol_hash": "2508599a8b6c9280f8b33c563d75814d9fc4fb6a3926e03f214712a2a9132ef4",
+      "protocol_seed": 2026074001,
+      "replicate_id": "process_01",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 3.9806088565734683,
+        "unshielded": 2.7495098992583253
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.7628458498023716,
+        "unshielded": 0.8675889328063241
+      },
+      "trajectory_sha256": {
+        "oracle": "ced68754824ffd1880bdcec7df556bbe7af02bdddac169f4acedbd98bf3be4b1",
+        "unshielded": "ae747ada266c08ec65eac0f393569f9d79d9b258a8cf752d5b494f906871e054"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.06666666666666667,
+        0.0625,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.06666666666666667,
+        0.06666666666666667,
+        0.1875,
+        0.0625,
+        0.0,
+        0.125,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.1875,
+        0.0625,
+        0.125,
+        0.0,
+        0.1875,
+        0.0,
+        0.0,
+        0.0625,
+        0.0
+      ],
+      "cell_id": "stand_obs",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 17,
+        "blocks_b_worse": 0,
+        "blocks_tied": 15,
+        "ci_high": 0.074609375,
+        "ci_low": 0.03333333333333333,
+        "excludes_zero": true,
+        "mean_difference": 0.053125,
+        "n_blocks": 32
+      },
+      "fault_family": "obs",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 3.5614051818847656,
+      "jointly_eligible_environment_pairs": 503,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 6.447701930999756,
+      "oracle_fallback_dose_mean": 0.6874792647731824,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 2,
+      "out_dir": "reliability_eval/causal_viability_replication/process_01/stand_obs",
+      "policy_name": "stand",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 2,
+        "unshielded": 29
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.003976143141153081,
+        "unshielded": 0.05765407554671968
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0625,
+        0.0,
+        0.0625,
+        0.0625,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0625
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 1,
+        "unshielded": 9
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 8,
+        "blocks_b_worse": 0,
+        "blocks_tied": 24,
+        "ci_high": 0.025390625,
+        "ci_low": 0.005859375,
+        "excludes_zero": true,
+        "mean_difference": 0.015625,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074101,
+      "process_uuid": {
+        "oracle": "0be0e357-f6bb-4e9a-aa75-2106459eeb1f",
+        "unshielded": "cb87656f-ecd0-4502-805d-184074e07bf0"
+      },
+      "protocol_hash": "c076c97de41b6c69933b10cfa0617dccf12dfe2475c6a7faa0bd4daf6681ebbb",
+      "protocol_seed": 2026074002,
+      "replicate_id": "process_01",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": -34.833905895069655,
+        "unshielded": -1708.338320386475
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.9960238568588469,
+        "unshielded": 0.9423459244532804
+      },
+      "trajectory_sha256": {
+        "oracle": "c781b3064665ec4e3bde3152c12b562c4610e0424342875b81e9df58875bd3c5",
+        "unshielded": "66e9a801a38c18e3c19b63bc95c22dbfef9113adbedebe678c6d2620d41c5b2e"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.0,
+        0.0,
+        -0.1428571428571428,
+        0.0,
+        0.2857142857142857,
+        0.0,
+        0.3076923076923077,
+        0.1428571428571429,
+        0.0714285714285714,
+        0.0625,
+        -0.23076923076923073,
+        -0.3125,
+        0.21428571428571427,
+        0.2666666666666666,
+        -0.07692307692307693,
+        0.0,
+        -0.19999999999999996,
+        0.23076923076923078,
+        0.0625,
+        -0.16666666666666669,
+        -0.15384615384615385,
+        -0.07142857142857145,
+        -0.3076923076923077,
+        -0.23076923076923073,
+        0.0,
+        -0.06666666666666665,
+        0.13333333333333336,
+        0.0,
+        -0.25,
+        -0.1428571428571429,
+        -0.0714285714285714,
+        0.07692307692307687
+      ],
+      "cell_id": "walk_motor",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 11,
+        "blocks_b_worse": 14,
+        "blocks_tied": 7,
+        "ci_high": 0.04127235720009152,
+        "ci_low": -0.07499760330815018,
+        "excludes_zero": false,
+        "mean_difference": -0.017804201007326003,
+        "n_blocks": 32
+      },
+      "fault_family": "motor",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 6.280952453613281,
+      "jointly_eligible_environment_pairs": 445,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 11.519136428833008,
+      "oracle_fallback_dose_mean": 0.41525795823318845,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 237,
+      "out_dir": "reliability_eval/causal_viability_replication/process_01/walk_motor",
+      "policy_name": "walk",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 237,
+        "unshielded": 230
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.5325842696629214,
+        "unshielded": 0.5168539325842697
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        -0.125,
+        -0.0625,
+        0.0,
+        0.125,
+        0.0,
+        -0.0625,
+        -0.125,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        -0.0625,
+        -0.0625,
+        0.0,
+        0.0,
+        -0.0625,
+        0.125,
+        0.0,
+        0.125,
+        0.0625,
+        -0.0625,
+        0.0625,
+        0.1875,
+        0.0,
+        0.0625,
+        -0.0625,
+        0.0625,
+        0.0,
+        0.0,
+        -0.125,
+        0.0
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 38,
+        "unshielded": 42
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 10,
+        "blocks_b_worse": 10,
+        "blocks_tied": 12,
+        "ci_high": 0.03515625,
+        "ci_low": -0.01953125,
+        "excludes_zero": false,
+        "mean_difference": 0.0078125,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074101,
+      "process_uuid": {
+        "oracle": "0bbaaf54-697b-4a8a-a9ca-f005ff712294",
+        "unshielded": "f509ca73-971e-414f-a3d7-74445152500a"
+      },
+      "protocol_hash": "9bfef86918de2a11766a27f5492c9c49a43773b172559664237a7e8575f5c73d",
+      "protocol_seed": 2026074003,
+      "replicate_id": "process_01",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 1.4511608179105393,
+        "unshielded": 1.299067001722891
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.4674157303370786,
+        "unshielded": 0.4831460674157303
+      },
+      "trajectory_sha256": {
+        "oracle": "caa0c6c19b47fb8cdacdaabaed1e07a9303b0b14e1da48d11cc06eb5be8d224b",
+        "unshielded": "7556f2b304766f159630d1d1eff4ba9b060216fc6486ea54b67dd852edd3e946"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.125,
+        0.4166666666666667,
+        0.125,
+        0.14285714285714285,
+        0.5714285714285714,
+        0.26666666666666666,
+        0.15384615384615385,
+        0.06666666666666667,
+        0.25,
+        0.0625,
+        0.08333333333333333,
+        0.26666666666666666,
+        0.25,
+        -0.0625,
+        -0.07142857142857142,
+        0.26666666666666666,
+        0.06666666666666667,
+        0.4285714285714286,
+        0.0,
+        0.125,
+        -0.07142857142857142,
+        0.07142857142857142,
+        0.07692307692307693,
+        0.06666666666666667,
+        0.07142857142857142,
+        0.0,
+        0.06666666666666667,
+        0.14285714285714285,
+        0.15384615384615385,
+        0.2,
+        0.13333333333333333,
+        0.15384615384615385
+      ],
+      "cell_id": "walk_obs",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 27,
+        "blocks_b_worse": 3,
+        "blocks_tied": 2,
+        "ci_high": 0.19415064102564103,
+        "ci_low": 0.09699934180402932,
+        "excludes_zero": true,
+        "mean_difference": 0.1437242445054945,
+        "n_blocks": 32
+      },
+      "fault_family": "obs",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 2.8804190158843994,
+      "jointly_eligible_environment_pairs": 465,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 12.384047508239746,
+      "oracle_fallback_dose_mean": 0.6553234241683957,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 23,
+      "out_dir": "reliability_eval/causal_viability_replication/process_01/walk_obs",
+      "policy_name": "walk",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 23,
+        "unshielded": 89
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.04946236559139785,
+        "unshielded": 0.1913978494623656
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        -0.125,
+        0.0,
+        -0.125,
+        0.0,
+        0.0625,
+        -0.0625,
+        -0.0625,
+        0.0,
+        0.0,
+        0.125,
+        0.0,
+        0.0,
+        0.0,
+        -0.0625,
+        -0.0625,
+        0.0625,
+        -0.125,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0,
+        0.0625,
+        -0.0625,
+        0.0,
+        -0.0625,
+        -0.0625,
+        -0.0625,
+        0.1875,
+        -0.0625,
+        -0.0625,
+        -0.125
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 35,
+        "unshielded": 24
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 5,
+        "blocks_b_worse": 15,
+        "blocks_tied": 12,
+        "ci_high": 0.00390625,
+        "ci_low": -0.044921875,
+        "excludes_zero": false,
+        "mean_difference": -0.021484375,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074101,
+      "process_uuid": {
+        "oracle": "6b8595a9-22e5-4e43-b439-ffc6e695ab2e",
+        "unshielded": "f160688a-6c8d-4f71-8de5-bc70d8eb76bf"
+      },
+      "protocol_hash": "626916bf2d8fef4607d59db300f5b522818d94bfb1aa63e5276bb6ea23d0f08c",
+      "protocol_seed": 2026074004,
+      "replicate_id": "process_01",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 1.5050121026638985,
+        "unshielded": -4.105970394316174
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.9505376344086022,
+        "unshielded": 0.8086021505376344
+      },
+      "trajectory_sha256": {
+        "oracle": "c258dd789d150f2fecab3783b4ce1240f43ca3593632c977da43e79cbb1da015",
+        "unshielded": "93bbeef61b820b21daee816b42eee2863564af70109766c0d6f0f97f990565e6"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        -0.1875,
+        -0.1875,
+        -0.0625,
+        0.0,
+        -0.1875,
+        -0.125,
+        -0.25,
+        -0.125,
+        -0.25,
+        -0.25,
+        0.0,
+        -0.13333333333333336,
+        -0.1875,
+        -0.06666666666666667,
+        -0.0625,
+        -0.3333333333333333,
+        -0.2666666666666667,
+        0.0625,
+        -0.06666666666666668,
+        -0.06666666666666667,
+        0.0,
+        -0.4375,
+        -0.125,
+        -0.3125,
+        -0.07142857142857142,
+        0.0,
+        -0.0625,
+        -0.1875,
+        0.0,
+        -0.3125,
+        -0.0625,
+        -0.19999999999999996
+      ],
+      "cell_id": "stand_motor",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 1,
+        "blocks_b_worse": 26,
+        "blocks_tied": 5,
+        "ci_high": -0.1015625,
+        "ci_low": -0.18203171502976193,
+        "excludes_zero": true,
+        "mean_difference": -0.1411644345238095,
+        "n_blocks": 32
+      },
+      "fault_family": "motor",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 5.0886101722717285,
+      "jointly_eligible_environment_pairs": 503,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 4.348607063293457,
+      "oracle_fallback_dose_mean": 0.5669720859412418,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 126,
+      "out_dir": "reliability_eval/causal_viability_replication/process_02/stand_motor",
+      "policy_name": "stand",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 126,
+        "unshielded": 55
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.2504970178926441,
+        "unshielded": 0.10934393638170974
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0,
+        -0.0625,
+        0.0,
+        0.0625,
+        -0.0625,
+        0.0,
+        0.0625,
+        -0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 5,
+        "unshielded": 4
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 3,
+        "blocks_b_worse": 4,
+        "blocks_tied": 25,
+        "ci_high": 0.0078125,
+        "ci_low": -0.01171875,
+        "excludes_zero": false,
+        "mean_difference": -0.001953125,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074102,
+      "process_uuid": {
+        "oracle": "e91df4bc-a2eb-453d-b229-a318ed09a9ea",
+        "unshielded": "4f2d1695-39e6-453b-9c4f-907b5b4cd0c9"
+      },
+      "protocol_hash": "338894e1034f9fb471acd6f0092e9032b6a09d167849e4a1a301a2aa1b9dd511",
+      "protocol_seed": 2026074005,
+      "replicate_id": "process_02",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 4.0694439910988995,
+        "unshielded": 3.696621952461453
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.7495029821073559,
+        "unshielded": 0.8906560636182903
+      },
+      "trajectory_sha256": {
+        "oracle": "403f411d6995173362205b61e36339e515d4fc1589d636f4b4d9197b19704351",
+        "unshielded": "7c0aabfaf6e6e02c8e09854dfa043a80d35dfabd07ef5e16d36c2754870c379e"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.0,
+        0.25,
+        0.0,
+        -0.0625,
+        0.2,
+        0.06666666666666667,
+        0.125,
+        0.0,
+        0.0,
+        0.0625,
+        0.25,
+        0.0,
+        0.0,
+        0.125,
+        0.06666666666666667,
+        0.06666666666666667,
+        0.0,
+        0.0,
+        0.125,
+        0.125,
+        0.0625,
+        0.125,
+        0.0,
+        0.0625,
+        0.0,
+        0.0625,
+        -0.0625,
+        0.0,
+        0.0625,
+        0.0625,
+        0.0,
+        0.0625
+      ],
+      "cell_id": "stand_obs",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 18,
+        "blocks_b_worse": 2,
+        "blocks_tied": 12,
+        "ci_high": 0.08489583333333334,
+        "ci_low": 0.03177083333333333,
+        "excludes_zero": true,
+        "mean_difference": 0.057421875,
+        "n_blocks": 32
+      },
+      "fault_family": "obs",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 3.4441030025482178,
+      "jointly_eligible_environment_pairs": 501,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 8.69347858428955,
+      "oracle_fallback_dose_mean": 0.6892273527116544,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 3,
+      "out_dir": "reliability_eval/causal_viability_replication/process_02/stand_obs",
+      "policy_name": "stand",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 3,
+        "unshielded": 32
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.005988023952095809,
+        "unshielded": 0.06387225548902195
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0625,
+        0.0
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 3,
+        "unshielded": 10
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 7,
+        "blocks_b_worse": 0,
+        "blocks_tied": 25,
+        "ci_high": 0.0234375,
+        "ci_low": 0.005859375,
+        "excludes_zero": true,
+        "mean_difference": 0.013671875,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074102,
+      "process_uuid": {
+        "oracle": "7c0cf70c-be33-4898-a477-c3f02124bb47",
+        "unshielded": "205af325-35e6-4483-b293-8d7ad5728954"
+      },
+      "protocol_hash": "e6b16c2f37e5edec9e59f58dac2df11951e0b792cc6a567fe50b9e496b7d9368",
+      "protocol_seed": 2026074006,
+      "replicate_id": "process_02",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": -34.92914379661082,
+        "unshielded": -1717.4821461567499
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.9940119760479041,
+        "unshielded": 0.936127744510978
+      },
+      "trajectory_sha256": {
+        "oracle": "571a0fe23488d7a53268e7f98d75500d78b17e942e4d686acd661a9272eda640",
+        "unshielded": "9758bd5c33d8b436f49cc0e17da86e235e648738b5e264627564f01e5610a92a"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        -0.3125,
+        -0.07692307692307698,
+        -0.08333333333333333,
+        -0.19999999999999996,
+        -0.06666666666666665,
+        -0.0714285714285714,
+        -0.30769230769230765,
+        -0.0714285714285714,
+        -0.25,
+        0.1875,
+        -0.1875,
+        -0.3076923076923077,
+        0.0714285714285714,
+        0.0,
+        0.0,
+        -0.1875,
+        0.0,
+        0.08333333333333337,
+        0.0,
+        0.0,
+        -0.16666666666666669,
+        -0.2666666666666667,
+        -0.0714285714285714,
+        0.06666666666666665,
+        -0.08333333333333337,
+        -0.09090909090909094,
+        -0.15384615384615385,
+        -0.2142857142857142,
+        0.0,
+        -0.13333333333333341,
+        0.07692307692307698,
+        -0.0625
+      ],
+      "cell_id": "walk_motor",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 5,
+        "blocks_b_worse": 21,
+        "blocks_tied": 6,
+        "ci_high": -0.04728575460997352,
+        "ci_low": -0.13381145221965535,
+        "excludes_zero": true,
+        "mean_difference": -0.08999320991508492,
+        "n_blocks": 32
+      },
+      "fault_family": "motor",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 5.6171979904174805,
+      "jointly_eligible_environment_pairs": 443,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 10.207077026367188,
+      "oracle_fallback_dose_mean": 0.3380721965429508,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 292,
+      "out_dir": "reliability_eval/causal_viability_replication/process_02/walk_motor",
+      "policy_name": "walk",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 292,
+        "unshielded": 251
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.6591422121896162,
+        "unshielded": 0.5665914221218962
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0625,
+        0.1875,
+        -0.0625,
+        -0.0625,
+        -0.125,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.1875,
+        0.125,
+        0.125,
+        0.0,
+        0.0,
+        -0.25,
+        -0.125,
+        -0.1875,
+        0.0625,
+        -0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.125,
+        -0.125,
+        -0.0625,
+        0.0,
+        -0.125,
+        0.0625,
+        0.1875,
+        0.0
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 44,
+        "unshielded": 37
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 8,
+        "blocks_b_worse": 11,
+        "blocks_tied": 13,
+        "ci_high": 0.021484375,
+        "ci_low": -0.048828125,
+        "excludes_zero": false,
+        "mean_difference": -0.013671875,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074102,
+      "process_uuid": {
+        "oracle": "3f61e9b1-f427-4420-887d-3e60265da731",
+        "unshielded": "2c4aebbe-9978-4ffc-a9c8-d218fc212ade"
+      },
+      "protocol_hash": "5d6a3a82cfcd302d131e3f24c58c101e95f5ca059dca15dbca3d0c71aa4d6365",
+      "protocol_seed": 2026074007,
+      "replicate_id": "process_02",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 1.1637782204267153,
+        "unshielded": 0.9616497406353265
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.3408577878103838,
+        "unshielded": 0.43340857787810383
+      },
+      "trajectory_sha256": {
+        "oracle": "bc1fc8dc9ac967e205e6f4f74205b3a0d41b6fd275d40a8869ba03629a247d75",
+        "unshielded": "88a13de636edb648ece84d66c9d0472c5f35ef777a2208f5fcf79247eaaa0087"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.125,
+        0.07142857142857142,
+        0.14285714285714285,
+        0.0,
+        0.0,
+        0.06666666666666667,
+        0.16666666666666666,
+        0.0,
+        0.3333333333333333,
+        0.0,
+        0.14285714285714285,
+        0.125,
+        0.13333333333333333,
+        0.06666666666666667,
+        0.2,
+        0.23076923076923078,
+        0.0,
+        0.14285714285714285,
+        0.125,
+        0.0625,
+        0.125,
+        -0.0625,
+        0.15384615384615385,
+        -0.14285714285714285,
+        0.06666666666666668,
+        0.06666666666666667,
+        0.13333333333333333,
+        0.0,
+        0.2,
+        0.21428571428571427,
+        0.1875,
+        0.15384615384615385
+      ],
+      "cell_id": "walk_obs",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 24,
+        "blocks_b_worse": 2,
+        "blocks_tied": 6,
+        "ci_high": 0.13264687786172155,
+        "ci_low": 0.0681014623397436,
+        "excludes_zero": true,
+        "mean_difference": 0.10096010760073261,
+        "n_blocks": 32
+      },
+      "fault_family": "obs",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 5.301785469055176,
+      "jointly_eligible_environment_pairs": 462,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 11.648573875427246,
+      "oracle_fallback_dose_mean": 0.6729925303138966,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 18,
+      "out_dir": "reliability_eval/causal_viability_replication/process_02/walk_obs",
+      "policy_name": "walk",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 18,
+        "unshielded": 65
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.03896103896103896,
+        "unshielded": 0.1406926406926407
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0625,
+        0.1875,
+        -0.0625,
+        0.0,
+        0.0625,
+        0.0625,
+        0.0625,
+        0.125,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0625,
+        0.0625,
+        -0.0625,
+        -0.0625,
+        -0.125,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.125,
+        -0.0625,
+        -0.0625,
+        -0.0625,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0,
+        0.0,
+        -0.125
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 31,
+        "unshielded": 28
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 8,
+        "blocks_b_worse": 11,
+        "blocks_tied": 13,
+        "ci_high": 0.017578125,
+        "ci_low": -0.029296875,
+        "excludes_zero": false,
+        "mean_difference": -0.005859375,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074102,
+      "process_uuid": {
+        "oracle": "595d7502-e89b-4a62-97fe-a6e287fe15e2",
+        "unshielded": "0782c769-db88-4c92-9cba-058de8730d45"
+      },
+      "protocol_hash": "8df8c035f159d23e4886c761b696e132eb2876b1ad258ae45fc71fec5dfedfb8",
+      "protocol_seed": 2026074008,
+      "replicate_id": "process_02",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 1.5574886097169858,
+        "unshielded": -4.0901925078713335
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.961038961038961,
+        "unshielded": 0.8593073593073592
+      },
+      "trajectory_sha256": {
+        "oracle": "5fba481d594bac8ad60c7ca88233588cca70b2b79d47b25dc43caeed984d752e",
+        "unshielded": "09944c20cf0187c5bfd99b643ed9bf6f38a3777704265982ca787ce0d7f2c1f5"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.0625,
+        -0.4375,
+        -0.2857142857142857,
+        0.0,
+        0.0,
+        -0.14285714285714285,
+        -0.0625,
+        0.0,
+        -0.375,
+        0.0,
+        -0.3125,
+        -0.125,
+        -0.39999999999999997,
+        -0.1875,
+        -0.5,
+        -0.375,
+        -0.125,
+        -0.25,
+        -0.06666666666666667,
+        -0.25,
+        -0.125,
+        0.0,
+        -0.3125,
+        -0.33333333333333337,
+        -0.13333333333333336,
+        -0.3125,
+        -0.2857142857142857,
+        0.0625,
+        -0.125,
+        -0.0625,
+        -0.3125,
+        -0.25
+      ],
+      "cell_id": "stand_motor",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 2,
+        "blocks_b_worse": 25,
+        "blocks_tied": 5,
+        "ci_high": -0.13547247023809522,
+        "ci_low": -0.24094122023809522,
+        "excludes_zero": true,
+        "mean_difference": -0.18820684523809522,
+        "n_blocks": 32
+      },
+      "fault_family": "motor",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 4.287198066711426,
+      "jointly_eligible_environment_pairs": 500,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 6.894331932067871,
+      "oracle_fallback_dose_mean": 0.5437231489302381,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 143,
+      "out_dir": "reliability_eval/causal_viability_replication/process_03/stand_motor",
+      "policy_name": "stand",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 143,
+        "unshielded": 50
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.286,
+        "unshielded": 0.1
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.125,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        -0.125,
+        0.0,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0,
+        -0.125,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 10,
+        "unshielded": 3
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 1,
+        "blocks_b_worse": 5,
+        "blocks_tied": 26,
+        "ci_high": 0.0,
+        "ci_low": -0.029296875,
+        "excludes_zero": false,
+        "mean_difference": -0.013671875,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074103,
+      "process_uuid": {
+        "oracle": "c71f829e-4446-45c3-b71a-8d30c9924cfe",
+        "unshielded": "fd58e4ab-b72b-47e3-9b4a-022c169ee88d"
+      },
+      "protocol_hash": "064db38b5e2b9d7c83027b021bd70e9b3da4400f248e49833cb5cf2905b91858",
+      "protocol_seed": 2026074009,
+      "replicate_id": "process_03",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 4.0587727748543765,
+        "unshielded": 3.398026495966376
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.714,
+        "unshielded": 0.9
+      },
+      "trajectory_sha256": {
+        "oracle": "2431b1247f3243ac209c948e18f1e0c9c2d7ece84733cb1df33f2ce522d9b0f0",
+        "unshielded": "ff75a42ad1bce0f8b63fc3ca4aa9c8e8d96e9356edca59fa7c70a0522c637be3"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.0625,
+        0.125,
+        0.0,
+        0.0,
+        0.125,
+        0.0,
+        0.06666666666666667,
+        0.0625,
+        0.0,
+        0.0625,
+        0.0,
+        0.06666666666666667,
+        0.0625,
+        0.13333333333333333,
+        0.0625,
+        0.13333333333333333,
+        0.07142857142857142,
+        0.1875,
+        0.06666666666666667,
+        0.1875,
+        0.125,
+        0.125,
+        0.125,
+        0.0,
+        0.0,
+        0.0625,
+        0.1875,
+        0.0,
+        0.07142857142857142,
+        0.1875,
+        0.0,
+        0.0625
+      ],
+      "cell_id": "stand_obs",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 23,
+        "blocks_b_worse": 0,
+        "blocks_tied": 9,
+        "ci_high": 0.09745163690476191,
+        "ci_low": 0.054761904761904755,
+        "excludes_zero": true,
+        "mean_difference": 0.07568824404761904,
+        "n_blocks": 32
+      },
+      "fault_family": "obs",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 3.688330888748169,
+      "jointly_eligible_environment_pairs": 501,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 9.71657657623291,
+      "oracle_fallback_dose_mean": 0.6817086233624122,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 1,
+      "out_dir": "reliability_eval/causal_viability_replication/process_03/stand_obs",
+      "policy_name": "stand",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 1,
+        "unshielded": 39
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.001996007984031936,
+        "unshielded": 0.07784431137724551
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        0.0625,
+        0.0,
+        0.0625,
+        0.125,
+        0.0,
+        0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.125,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 0,
+        "unshielded": 11
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 9,
+        "blocks_b_worse": 0,
+        "blocks_tied": 23,
+        "ci_high": 0.03515625,
+        "ci_low": 0.009765625,
+        "excludes_zero": true,
+        "mean_difference": 0.021484375,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074103,
+      "process_uuid": {
+        "oracle": "d3673e4b-b627-4b2d-bd85-27636488fdba",
+        "unshielded": "4ae06388-c694-4c6f-b74c-12efbac22867"
+      },
+      "protocol_hash": "0999fd0635a361c717ee9f497a172cf2572f8ff6062fac678e66db651aff4aba",
+      "protocol_seed": 2026074010,
+      "replicate_id": "process_03",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": -33.84355579599494,
+        "unshielded": -1669.942665210885
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.998003992015968,
+        "unshielded": 0.9221556886227544
+      },
+      "trajectory_sha256": {
+        "oracle": "e859f6ce008f97591ef2a35e83fa0183ca77851d2fa0fcfd21cea31e39590623",
+        "unshielded": "d5fb1c1cc0f729104e3180fb25f9bfd642a55ba3bd4aec8a6c43e2e79a8aee0a"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        -0.25,
+        -0.0625,
+        0.0,
+        0.0,
+        -0.16666666666666666,
+        -0.06666666666666665,
+        0.07692307692307693,
+        -0.2857142857142857,
+        0.0,
+        0.0,
+        -0.23076923076923078,
+        0.07142857142857145,
+        -0.20000000000000007,
+        -0.14285714285714285,
+        0.13333333333333341,
+        -0.07692307692307693,
+        -0.33333333333333337,
+        0.2,
+        -0.2666666666666666,
+        0.0,
+        0.07142857142857142,
+        0.06666666666666665,
+        -0.2857142857142857,
+        -0.06666666666666665,
+        -0.2666666666666667,
+        0.08333333333333326,
+        0.09090909090909083,
+        -0.1111111111111111,
+        -0.13333333333333336,
+        -0.2,
+        -0.2666666666666666,
+        0.07692307692307693
+      ],
+      "cell_id": "walk_motor",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 9,
+        "blocks_b_worse": 18,
+        "blocks_tied": 5,
+        "ci_high": -0.029131558545621074,
+        "ci_low": -0.13028299825174824,
+        "excludes_zero": true,
+        "mean_difference": -0.07941593996281496,
+        "n_blocks": 32
+      },
+      "fault_family": "motor",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 6.095621109008789,
+      "jointly_eligible_environment_pairs": 449,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 9.784432411193848,
+      "oracle_fallback_dose_mean": 0.41557749459704074,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 222,
+      "out_dir": "reliability_eval/causal_viability_replication/process_03/walk_motor",
+      "policy_name": "walk",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 222,
+        "unshielded": 185
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.49443207126948774,
+        "unshielded": 0.41202672605790647
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0625,
+        0.0,
+        0.125,
+        -0.1875,
+        -0.0625,
+        -0.0625,
+        0.0625,
+        -0.0625,
+        -0.0625,
+        0.0625,
+        0.0625,
+        0.0625,
+        -0.0625,
+        0.0625,
+        0.1875,
+        0.125,
+        -0.0625,
+        0.0625,
+        -0.0625,
+        0.0625,
+        -0.0625,
+        0.0625,
+        0.1875,
+        -0.0625,
+        -0.0625,
+        0.0625,
+        0.0625
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 32,
+        "unshielded": 41
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 16,
+        "blocks_b_worse": 11,
+        "blocks_tied": 5,
+        "ci_high": 0.044921875,
+        "ci_low": -0.009765625,
+        "excludes_zero": false,
+        "mean_difference": 0.017578125,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074103,
+      "process_uuid": {
+        "oracle": "de360e64-7566-42bb-ab15-ee7972766607",
+        "unshielded": "19c47074-a30f-4594-8324-2cfa791c237a"
+      },
+      "protocol_hash": "85e360b11c18b25b14f3fa478940bd1426be323610c4daf8da6667fad114e1e2",
+      "protocol_seed": 2026074011,
+      "replicate_id": "process_03",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 1.3967009547812466,
+        "unshielded": 1.7284423364958468
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.5055679287305123,
+        "unshielded": 0.5879732739420935
+      },
+      "trajectory_sha256": {
+        "oracle": "75b51e64e54887edd49fc70ed75f3f45fc652cbb64568f389582eb51bcaeaed5",
+        "unshielded": "05aecf68a17559cfd2a2a2aa998c8db27c92050f14a3ba1153b77eaa7a098ddb"
+      },
+      "within_block_environments": 16
+    },
+    {
+      "block_differences": [
+        0.1875,
+        0.13333333333333336,
+        0.07142857142857142,
+        0.13333333333333336,
+        0.0625,
+        0.0,
+        0.0,
+        0.0625,
+        0.1875,
+        0.15384615384615385,
+        0.16666666666666669,
+        0.07692307692307693,
+        0.08333333333333333,
+        -0.07692307692307693,
+        0.0,
+        0.0,
+        0.07142857142857142,
+        0.2,
+        0.0625,
+        0.2,
+        0.1875,
+        0.16666666666666666,
+        0.07142857142857142,
+        0.2,
+        0.13333333333333333,
+        0.2,
+        0.0,
+        0.14285714285714285,
+        0.0,
+        0.07142857142857142,
+        0.07692307692307693,
+        0.25
+      ],
+      "cell_id": "walk_obs",
+      "effect_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 25,
+        "blocks_b_worse": 1,
+        "blocks_tied": 6,
+        "ci_high": 0.12960225646749077,
+        "ci_low": 0.07454924307463369,
+        "excludes_zero": true,
+        "mean_difference": 0.10237522893772893,
+        "n_blocks": 32
+      },
+      "fault_family": "obs",
+      "independent_disturbed_blocks": 32,
+      "independent_nominal_blocks": 16,
+      "initial_observation_max_abs_difference": 3.6403133869171143,
+      "jointly_eligible_environment_pairs": 461,
+      "nominal_false_handoff_count": 0,
+      "onset_observation_max_abs_difference": 9.502172470092773,
+      "oracle_fallback_dose_mean": 0.6811760175888395,
+      "oracle_intervention_latency_ticks": {
+        "max": 0,
+        "median": 0.0,
+        "min": 0
+      },
+      "oracle_treated_falls": 17,
+      "out_dir": "reliability_eval/causal_viability_replication/process_03/walk_obs",
+      "policy_name": "walk",
+      "post_onset_fall_count_jointly_eligible": {
+        "oracle": 17,
+        "unshielded": 65
+      },
+      "post_onset_fall_rate_jointly_eligible": {
+        "oracle": 0.0368763557483731,
+        "unshielded": 0.14099783080260303
+      },
+      "pre_onset_block_differences": [
+        0.0,
+        -0.0625,
+        -0.125,
+        -0.0625,
+        0.0,
+        0.0,
+        -0.1875,
+        0.0,
+        0.0,
+        -0.0625,
+        0.0625,
+        -0.0625,
+        -0.1875,
+        -0.0625,
+        0.0,
+        0.0,
+        0.0,
+        0.0625,
+        0.0,
+        -0.0625,
+        0.0,
+        -0.0625,
+        0.0625,
+        0.0625,
+        -0.0625,
+        -0.0625,
+        0.0625,
+        0.0625,
+        -0.0625,
+        0.125,
+        -0.1875,
+        0.0
+      ],
+      "pre_onset_fall_count": {
+        "oracle": 38,
+        "unshielded": 25
+      },
+      "pre_onset_negative_control_unshielded_minus_oracle": {
+        "alpha": 0.05,
+        "blocks_a_worse": 7,
+        "blocks_b_worse": 14,
+        "blocks_tied": 11,
+        "ci_high": 0.0,
+        "ci_low": -0.05078125,
+        "excludes_zero": false,
+        "mean_difference": -0.025390625,
+        "n_blocks": 32
+      },
+      "process_seed": 2026074103,
+      "process_uuid": {
+        "oracle": "186b7b68-8188-4b40-b119-f584de6616bb",
+        "unshielded": "4531c3a0-73ff-4909-8629-f14c0442bcef"
+      },
+      "protocol_hash": "c6e58883fd6998496afb4742656c98e84e3c4c63ce1e0a79347b24babc1c2c7e",
+      "protocol_seed": 2026074012,
+      "replicate_id": "process_03",
+      "reset_state_max_abs_difference": 0.0,
+      "return_until_first_fall_mean_jointly_eligible": {
+        "oracle": 1.756101743350827,
+        "unshielded": -4.503806764637355
+      },
+      "schema_version": 1,
+      "task_completion_rate_jointly_eligible": {
+        "oracle": 0.9631236442516269,
+        "unshielded": 0.859002169197397
+      },
+      "trajectory_sha256": {
+        "oracle": "d57153c3afbad3439f150265516cec9be70051ec80eb98107ab65b49b5cca102",
+        "unshielded": "29eae212180c7e400e9453f1edd995b75818736a486b04678fa2d7c2ebe05c30"
+      },
+      "within_block_environments": 16
+    }
+  ],
+  "registry_hash": "970fdd42a13fcfd167e59afee5eeae3b1813e88127150cdaea72d46069f58285",
+  "schema_version": 1,
+  "sign_convention": "positive unshielded-minus-oracle means fallback reduces post-onset falls; negative means fallback increases post-onset falls"
+}
