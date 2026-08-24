@@ -155,6 +155,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--policy-name", choices=["stand", "walk"], default=None)
     p.add_argument("--motor-scale-lo", type=float, default=0.30)
     p.add_argument("--motor-scale-hi", type=float, default=0.55)
+    p.add_argument(
+        "--reset-settle-ticks",
+        type=int,
+        default=0,
+        help="Step the environment this many ticks with zero actions after reset before "
+        "capturing initial_obs. Guards against stale root-state buffers leaking the previous "
+        "block terminal state across arms.",
+    )
     p.add_argument("--onset-lo", type=int, default=100)
     p.add_argument("--onset-hi", type=int, default=200)
     p.add_argument("--device", default="cuda:0")
@@ -270,7 +278,7 @@ def do_freeze(args) -> int:
         "artifact_K": op.trip_persistence,
         "artifact_arming_ticks": op.arming_ticks,
         "oracle_handoff_ticks": int(meta["timings"]["handoff_ticks"]),
-        "reset_settle_ticks": 0,
+        "reset_settle_ticks": int(args.reset_settle_ticks),
         "primary_estimand": (
             "paired block-level post-onset fall-rate difference among jointly "
             "onset-eligible environment pairs, unshielded minus oracle"
