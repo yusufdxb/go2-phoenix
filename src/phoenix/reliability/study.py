@@ -44,7 +44,9 @@ from phoenix.reliability.deploy import DeployShield, build_shield
 ARM_UNSHIELDED = "unshielded"
 ARM_SHIELDED = "shielded"
 ARM_SHAM = "sham"
+ARM_ORACLE = "oracle"
 ARMS = (ARM_UNSHIELDED, ARM_SHIELDED, ARM_SHAM)
+REPLICATION_ARMS = (ARM_UNSHIELDED, ARM_ORACLE)
 
 
 class VectorShield:
@@ -231,6 +233,7 @@ def write_protocol(
     *,
     bundle_id: str,
     params: dict,
+    arms: tuple[str, ...] = ARMS,
 ) -> str:
     """Freeze the protocol to disk and return its hash.
 
@@ -238,10 +241,19 @@ def write_protocol(
     so a protocol edited after seeing an outcome cannot masquerade as the one
     that was registered.
     """
+    block_ids = [block.block_id for block in blocks]
+    if len(block_ids) != len(set(block_ids)):
+        raise ValueError("protocol block IDs must be unique")
+    block_seeds = [block.seed for block in blocks]
+    if len(block_seeds) != len(set(block_seeds)):
+        raise ValueError("protocol block seeds must be unique")
+    if not arms or len(arms) != len(set(arms)):
+        raise ValueError("protocol arms must be non-empty and unique")
+
     payload = {
         "bundle_id": bundle_id,
         "params": params,
-        "arms": list(ARMS),
+        "arms": list(arms),
         "blocks": [b.to_dict() for b in blocks],
     }
     protocol_hash = value_sha256(payload)
