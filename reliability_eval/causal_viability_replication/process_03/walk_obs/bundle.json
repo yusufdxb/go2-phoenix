@@ -1,0 +1,27 @@
+{
+  "code_commit": "3f8af817a20da3924b70bb2e473698de00a67309",
+  "code_dirty": true,
+  "controller": {
+    "action_scale": 0.25,
+    "control_dt_s": 0.02,
+    "default_joint_pos": {},
+    "joint_order": [],
+    "max_delta_per_step_rad": 0.175
+  },
+  "controller_hash": "5e1e2ccb7dfe9ef88c7405c1a90a6efac96e9321e72f6a1a4ae61ebc26d47e1b",
+  "files": {
+    "env_config": "79069ffc946ccec18c297b73917bf208999137404722db2cd9db8dd05d3a9526",
+    "policy_checkpoint": "08add590c2963dba42e72ff388cc3a34dec9adb029075dfdcc296a871f03bfdd",
+    "policy_onnx": "3207d1b7fe887e94fcc2f1c43b828ae2b05d314e76d1fad66eec71df5cff57d0",
+    "policy_onnx_data": "20fa42cc86cfb13c5cc2ecdb5d8c186ea186d35621ce53a2a297f01932a0380e",
+    "shield_artifact": "49d516f54d811f54c2196095a71dafbd7b5996234b2bb287d0d1b6465808becd"
+  },
+  "manifest_version": 1,
+  "note": "paired closed-loop intervention study",
+  "versions": {
+    "isaaclab": "4.5.22",
+    "numpy": "1.26.4",
+    "rsl_rl_lib": "5.0.1",
+    "torch": "2.10.0+cu128"
+  }
+}
