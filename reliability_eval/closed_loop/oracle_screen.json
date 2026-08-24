@@ -1,0 +1,46 @@
+{
+  "bundle_id": "7aedf38c7a7c9008",
+  "disturbance_kind": "motor",
+  "disturbed_fall_count": {
+    "oracle": 217,
+    "unshielded": 130
+  },
+  "disturbed_fall_rate": {
+    "oracle": 0.423828125,
+    "unshielded": 0.25390625
+  },
+  "envs_per_block": 16,
+  "interpretation": "Positive effects mean a perfect-onset fallback prevents falls. Negative effects mean the fallback causes falls even with perfect timing.",
+  "limitation": "This screen evaluates intervention exactly at disturbance onset. It does not exclude benefit from preemptive or delayed intervention.",
+  "n_disturbed_blocks": 32,
+  "n_nominal_blocks": 16,
+  "nominal_identical_treatment_noise_oracle_minus_unshielded": {
+    "alpha": 0.05,
+    "blocks_a_worse": 2,
+    "blocks_b_worse": 1,
+    "blocks_tied": 13,
+    "ci_high": 0.015625,
+    "ci_low": -0.0078125,
+    "excludes_zero": false,
+    "mean_difference": 0.00390625,
+    "n_blocks": 16
+  },
+  "oracle_effect_unshielded_minus_oracle": {
+    "alpha": 0.05,
+    "blocks_a_worse": 2,
+    "blocks_b_worse": 25,
+    "blocks_tied": 5,
+    "ci_high": -0.125,
+    "ci_low": -0.212890625,
+    "excludes_zero": true,
+    "mean_difference": -0.169921875,
+    "n_blocks": 32
+  },
+  "oracle_engagement": {
+    "disturbed": 1.0,
+    "nominal": 0.0
+  },
+  "protocol_hash": "93743d4ab6203736ee6d0212fa609194c5c6c9825aeed185aef45d7171399278",
+  "schema_version": 1,
+  "verdict": "fallback_harms"
+}

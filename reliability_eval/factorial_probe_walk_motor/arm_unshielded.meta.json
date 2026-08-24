@@ -1,0 +1,11 @@
+{
+  "arm": "unshielded",
+  "bundle_id": "a7cc6651ce6d3d4b",
+  "protocol_hash": "f851b9c94e2f32ab0cf2980a73516810e34df671e16502e2f7ce16ec4c526b9e",
+  "blocks": 12,
+  "envs_per_block": 16,
+  "empirical_normalization": false,
+  "pilot": false,
+  "diagnostic": false,
+  "oracle_delay_ticks": null
+}

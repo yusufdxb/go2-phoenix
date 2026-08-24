@@ -1,0 +1,142 @@
+{
+  "arms": [
+    "unshielded",
+    "shielded",
+    "sham"
+  ],
+  "blocks": [
+    {
+      "block_id": 0,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.4556992428794142,
+      "obs_noise": null,
+      "onset_tick": 163,
+      "seed": 519714379
+    },
+    {
+      "block_id": 1,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.5363510186667976,
+      "obs_noise": null,
+      "onset_tick": 105,
+      "seed": 861037876
+    },
+    {
+      "block_id": 2,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.30961747284658986,
+      "obs_noise": null,
+      "onset_tick": 186,
+      "seed": 1690525620
+    },
+    {
+      "block_id": 3,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.5122850055140233,
+      "obs_noise": null,
+      "onset_tick": 155,
+      "seed": 934734539
+    },
+    {
+      "block_id": 4,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.36681770414933373,
+      "obs_noise": null,
+      "onset_tick": 188,
+      "seed": 1746243620
+    },
+    {
+      "block_id": 5,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.447560341985707,
+      "obs_noise": null,
+      "onset_tick": 147,
+      "seed": 753055371
+    },
+    {
+      "block_id": 6,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.4684045786797396,
+      "obs_noise": null,
+      "onset_tick": 116,
+      "seed": 792062313
+    },
+    {
+      "block_id": 7,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": 0.3091748911652395,
+      "obs_noise": null,
+      "onset_tick": 144,
+      "seed": 1623325027
+    },
+    {
+      "block_id": 8,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 165,
+      "seed": 1755395082
+    },
+    {
+      "block_id": 9,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 160,
+      "seed": 2051696463
+    },
+    {
+      "block_id": 10,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 129,
+      "seed": 1898486705
+    },
+    {
+      "block_id": 11,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 153,
+      "seed": 1123885798
+    }
+  ],
+  "bundle_id": "a7cc6651ce6d3d4b",
+  "params": {
+    "analysis_unit": "scenario block",
+    "artifact_K": 10,
+    "artifact_arming_ticks": 15,
+    "artifact_trip": 7389.710061655233,
+    "disturbance_kind": "motor",
+    "envs_per_block": 16,
+    "horizon_ticks": 500,
+    "primary_estimand": "paired block-level fall-rate difference, unshielded minus shielded",
+    "secondary_estimand": "paired block-level fall-rate difference, sham minus shielded"
+  },
+  "protocol_hash": "f851b9c94e2f32ab0cf2980a73516810e34df671e16502e2f7ce16ec4c526b9e"
+}
