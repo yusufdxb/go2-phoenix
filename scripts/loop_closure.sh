@@ -21,7 +21,7 @@
 # comparison (baseline v3b vs adapted policies on the same held-out
 # conditions in sim).
 #
-# Total wall time: ~60-80 min on RTX 5070 (replay ~15 min + 3× fine-tune
+# Total wall time: ~60-80 min on NVIDIA (Blackwell) consumer GPU (replay ~15 min + 3× fine-tune
 # ~36 min + 4× eval ~15 min).
 
 set -euo pipefail

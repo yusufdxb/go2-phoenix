@@ -199,7 +199,7 @@ current OOD numbers are developmental rather than confirmatory.
 - **No hardware.** Everything here is sim plus a replay of sim observations
   through the shipped ONNX. The August CaresLab session is the first real-robot
   evidence.
-- **Latency measured on mewtwo (x86), not on the Orin NX (aarch64).** The
+- **Latency measured on the workstation (x86), not on the Orin NX (aarch64).** The
   arithmetic is fixed and tiny, but the number must be re-measured on the target.
   The benchmark records `platform` / `machine` so the two runs are never confused.
 - **Intervention remains a counterfactual, and this is the headline gap.** The

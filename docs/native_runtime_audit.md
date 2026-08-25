@@ -111,7 +111,7 @@ recent change.
 | `deploy/stand_v3_latent.onnx` | `Sub, Div, Gemm, Elu, Gemm, Elu, Gemm, Elu, Gemm, Concat` | **YES**, `normalizer.mean [48]`, `normalizer.std [48]`, both **inline** (not external data) |
 | `deploy/flat_v4_latent.onnx` | `Gemm, Elu, Gemm, Elu, Gemm, Elu, Gemm, Concat` | **NO** |
 
-⚠️ Two shipped artifacts in the same directory disagree about whether normalization exists. A C++
+ Two shipped artifacts in the same directory disagree about whether normalization exists. A C++
 loader must never assume either.
 
 **Clipping:** there is **no observation clipping** anywhere on the deploy path, not in
