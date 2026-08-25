@@ -263,7 +263,7 @@ for step in range(total):
             print(f"[cine] PathTracing @ {args.spp} spp, "
                   f"{n_accum} render calls/frame", flush=True)
         else:
-            print("[cine] carb unavailable — staying on the real-time renderer", flush=True)
+            print("[cine] carb unavailable, staying on the real-time renderer", flush=True)
 
     if step >= args.warmup:
         # The camera moved this frame, so the buffer still holds reprojected
