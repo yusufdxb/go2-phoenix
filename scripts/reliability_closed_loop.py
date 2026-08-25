@@ -467,7 +467,7 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         )
     elif args.pilot:
         blocks = blocks[: args.pilot]
-        print(f"[cl] PILOT: {len(blocks)} blocks — results are NOT part of the study", flush=True)
+        print(f"[cl] PILOT: {len(blocks)} blocks, results are NOT part of the study", flush=True)
 
     # Gate 2: the sham arm needs the shielded arm's realised switching behaviour.
     sham_sched = None

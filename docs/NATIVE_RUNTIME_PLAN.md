@@ -26,8 +26,8 @@ because they are the ones a reviewer will check.
 |---|---|---|
 | Replace PHM's `vector.erase(begin())` with a ring buffer; "remove avoidable hot-path allocation" | **Measured**: the erase shifts 29 × 24-byte vector *headers* (696 B of memmove), because move-assignment steals the heap pointers. It is ~0.1% of the call. At PHM's 10 Hz publish rate the whole detector is ~0.03% of the frame budget. | **Do not do it.** Rank-10 item, explicitly recommended against. The `flat` buffer (122,880 B/call) is the real allocation, and even that is deferred pending a stated rate requirement. |
 | Port normalization to C++ with parity tests | Normalization is **baked into the ONNX graph** for `stand_v3` and **absent** from `flat_v4` (R1). A config-driven C++ normalizer double-normalizes one of them. | **Never normalize in C++.** Feed raw obs. Detect the `Sub/Div` prefix from the graph, not from a config flag. There is no `observation_normalizer` module. |
-| Adopt precedence `ESTOP > watchdog > PHM STOP > PHM INTERVENE > limits > policy` | Omits the startup gate, sensor-validity gates, the NaN gate and the attitude gate — four gates that today sit **above** the shield. Adopting verbatim is a **safety regression**. | Use the corrected 11-rank ladder (§3). Limits are a **terminal filter**, not a precedence rank. |
-| Consider `librobotguard`, a shared C11 safety kernel | The honest intersection between Phoenix's and PHM's safety logic is `age > timeout` plus an integer counter. PHM does not actuate anything, so it is not a safety consumer. The NaN convention — the one thing worth sharing — is **directionally opposite** in the two repos. | **NO-GO.** Replaced by `docs/safety_invariants.md`: a numbered rule list duplicated in both repos, each testing the same rule numbers against its own semantics. Re-open trigger recorded in §7. |
+| Adopt precedence `ESTOP > watchdog > PHM STOP > PHM INTERVENE > limits > policy` | Omits the startup gate, sensor-validity gates, the NaN gate and the attitude gate, four gates that today sit **above** the shield. Adopting verbatim is a **safety regression**. | Use the corrected 11-rank ladder (§3). Limits are a **terminal filter**, not a precedence rank. |
+| Consider `librobotguard`, a shared C11 safety kernel | The honest intersection between Phoenix's and PHM's safety logic is `age > timeout` plus an integer counter. PHM does not actuate anything, so it is not a safety consumer. The NaN convention, the one thing worth sharing, is **directionally opposite** in the two repos. | **NO-GO.** Replaced by `docs/safety_invariants.md`: a numbered rule list duplicated in both repos, each testing the same rule numbers against its own semantics. Re-open trigger recorded in §7. |
 
 ---
 
@@ -103,16 +103,16 @@ including aborts.
 | 1 | Runtime watchdog (`max_runtime`; N consecutive deadline misses; inference timeout; ORT exception) | sticky |
 | 2 | Estop-chain integrity (heartbeat missing or stale) | sticky |
 | 3 | Startup gate (not all of estop/imu/joint_state seen) | none while waiting; latch at 15 s |
-| 4 | Sensor validity (stale, frozen-payload, **non-finite IMU** — L2 fix, joint-name completeness) | sticky |
-| 5 | Command freshness (`/cmd_vel` stale — L1 fix): ramp command to zero, policy keeps running | non-latching |
+| 4 | Sensor validity (stale, frozen-payload, **non-finite IMU**, L2 fix, joint-name completeness) | sticky |
+| 5 | Command freshness (`/cmd_vel` stale, L1 fix): ramp command to zero, policy keeps running | non-latching |
 | 6 | Attitude abort (`!isfinite \|\| \|pitch\|>0.8 \|\| \|roll\|>0.6`) | sticky |
-| 7a | Shield STOP (blend saturated): full `default_q` via calibrated ramp — **commanded hold, not abort** | escalates to rank 1 only after persistence |
+| 7a | Shield STOP (blend saturated): full `default_q` via calibrated ramp, **commanded hold, not abort** | escalates to rank 1 only after persistence |
 | 7b | Shield INTERVENE: `(1-blend)·learned + blend·default_q` | non-latching |
-| 8 | Policy command | — |
+| 8 | Policy command |, |
 | 9 | *filter* Output validity (non-finite target ⇒ hold previous, latch) | sticky |
-| 10a | *filter* Joint position limits — **does not exist today** | counter-latching |
-| 10b | *filter* Slew-rate limit — **applies to every path including aborts** (L3 fix) | — |
-| 11 | Emit, or stay silent per the abort output contract | — |
+| 10a | *filter* Joint position limits, **does not exist today** | counter-latching |
+| 10b | *filter* Slew-rate limit, **applies to every path including aborts** (L3 fix) |, |
+| 11 | Emit, or stay silent per the abort output contract |, |
 
 **Shield authority.** Today the shield is strictly advisory: it can only blend toward `default_q`,
 never latch, and sits at rank 9 of 11. The plan grants it **commanded-hold** authority, and
@@ -288,7 +288,7 @@ absorbed silently into a rewrite.
 | L3 | The abort path is the only path with no slew clip; the bound comes solely from the bridge. | Medium now, High after the port |
 | L4 | The bridge has no startup grace for the estop topic; starting it before the deadman latches it permanently. | Medium |
 | L5 | A code comment claims a default pose is published at abort; false for `external_estop` and `max_runtime`. | Doc |
-| L6 | No joint **position** limit clipping anywhere — only rate limiting. | Medium |
+| L6 | No joint **position** limit clipping anywhere, only rate limiting. | Medium |
 | L7 | A non-finite target survives `np.clip` and is published; caught only by a different process. | Medium |
 | L8 | The bridge computes ages in ROS time while the node uses `monotonic_ns`. Two clock domains in the actuation chain. | Low now, a trap later |
 

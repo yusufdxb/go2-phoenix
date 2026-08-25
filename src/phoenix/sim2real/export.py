@@ -6,7 +6,7 @@ mirrors those shapes (no dependency on rsl_rl's internal classes for
 inference), trace it to ONNX, and verify numerical parity against
 onnxruntime on 16 random inputs.
 
-The verify step is what makes the deploy script trustworthy — a silent
+The verify step is what makes the deploy script trustworthy, a silent
 normalization mismatch is the most common cause of sim-to-real failure.
 
 Observation normalization
@@ -18,7 +18,7 @@ layer lives *inside* the actor module, so its running statistics are
 serialized inside ``actor_state_dict`` under the buffer keys
 ``obs_normalizer._mean`` / ``obs_normalizer._var``. The exported policy
 MUST reapply that same normalization or the deployed policy sees raw,
-un-normalized observations — a silent train/deploy mismatch that the
+un-normalized observations, a silent train/deploy mismatch that the
 ONNX-vs-TorchScript parity gate cannot catch, because both sides export
 the same (wrong) wrapper. :func:`_extract_normalizer_stats` locates
 those buffers; :class:`_Normalizer` reproduces rsl_rl's exact
@@ -170,14 +170,14 @@ def default_tap_indices(n_hidden: int) -> list[int]:
     Indices are positions in the actor's ordered list of ``Linear`` modules.
     The input to Linear ``j`` (for ``j >= 1``) is the post-activation output of
     hidden layer ``j``, so tapping Linear inputs rather than activation outputs
-    is robust to an actor that reuses one shared ``ELU`` module — which the
+    is robust to an actor that reuses one shared ``ELU`` module, which the
     rsl_rl actors do, and which silently collapses a naive
     "hook every activation module" scheme down to a single tap.
 
     The default takes a middle hidden layer and the last one: the penultimate
     layer carries the most task-specific summary, while a mid-network tap keeps
     some of the less-collapsed representation. This MUST match the taps used
-    when the monitor was fit — the artifact records them and
+    when the monitor was fit, the artifact records them and
     :func:`phoenix.reliability.deploy.load_artifact` refuses a dimension
     mismatch.
     """
@@ -262,7 +262,7 @@ def _extract_normalizer_stats(ckpt: dict, actor_sd: dict) -> tuple[Any, Any] | N
     Pure dict traversal (no torch) so the lookup logic is unit-testable
     in CI. Searches, in order:
 
-    1. ``actor_sd`` itself — rsl_rl 3.x keeps the EmpiricalNormalization
+    1. ``actor_sd`` itself, rsl_rl 3.x keeps the EmpiricalNormalization
        buffers inside ``actor_state_dict``.
     2. Legacy top-level checkpoint dicts (``obs_norm_state_dict`` etc.)
        used by older rsl_rl / hand-rolled exporters.
@@ -381,8 +381,8 @@ try:  # pragma: no cover - only meaningful with torch available
 
         Reproduces ``rsl_rl.modules.EmpiricalNormalization.forward`` exactly:
         ``(x - mean) / (sqrt(var) + eps)`` with ``eps = 1e-2``. The
-        epsilon is part of the trained transform — it is added to the
-        standard deviation, not buried under it — so it must match the
+        epsilon is part of the trained transform, it is added to the
+        standard deviation, not buried under it, so it must match the
         training-time value or low-variance observation dims are scaled
         wrong by orders of magnitude.
         """

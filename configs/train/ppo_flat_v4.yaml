@@ -1,4 +1,4 @@
-# PPO training config for Flat-v0 v4 — robustness upgrade over v3b.
+# PPO training config for Flat-v0 v4, robustness upgrade over v3b.
 #
 # v3b converged (rollout bench 2026-04-17: 32/32 stand + 32/32 flat, 20 s
 # episodes). v4 targets higher-quality behavior, not raw survival:

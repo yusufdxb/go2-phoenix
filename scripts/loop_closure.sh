@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phoenix loop closure — Gate 9 intermediate.
+# Phoenix loop closure, Gate 9 intermediate.
 #
 # One-command workflow for Day 2-3 of the 2026-04-22 → 2026-04-26 sprint:
 #   1. Stage training + held-out parquets from data/failures/
@@ -17,7 +17,7 @@
 #       data/failures/pqa_slip_2026-04-22_16-10-44.parquet
 #
 # The training parquet feeds replay + curriculum. The held-out parquet is
-# NOT seen during adaptation — it's used only for eval-time scenario
+# NOT seen during adaptation, it's used only for eval-time scenario
 # comparison (baseline v3b vs adapted policies on the same held-out
 # conditions in sim).
 #
@@ -150,7 +150,7 @@ done
 echo "[loop_closure] stage 5/5: report"
 REPORT="$OUT_DIR/report.md"
 {
-    echo "# Loop closure report — ${TS}"
+    echo "# Loop closure report, ${TS}"
     echo ""
     echo "## Inputs"
     echo "- Training parquet: \`$TRAIN_PARQUET\`"
@@ -165,7 +165,7 @@ REPORT="$OUT_DIR/report.md"
     for label in baseline_v3b adapted_seed42 adapted_seed43 adapted_seed44; do
         J="$OUT_DIR/eval_${label}.json"
         if [[ ! -f "$J" ]]; then
-            echo "| $label | — | — | — | — | — |"
+            echo "| $label |, |, |, |, |, |"
             continue
         fi
         python3 -c "
@@ -187,7 +187,7 @@ print('| $label | {:.3f} | {:.2f} | {:.4f} | {:.4f} | {:.4f} |'.format(
     echo ""
     echo "## Next"
     echo "- If pass: pick best seed, rsync its ONNX to T7, scp to Jetson for Day 4 hardware validation."
-    echo "- Held-out parquet \`$HELDOUT_PARQUET\` is reserved for Day 4 hw eval — do NOT re-train on it."
+    echo "- Held-out parquet \`$HELDOUT_PARQUET\` is reserved for Day 4 hw eval, do NOT re-train on it."
 } > "$REPORT"
 
 echo ""

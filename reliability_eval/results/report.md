@@ -1,4 +1,4 @@
-# Reliability Shield — Phase 3 (Isaac twin) Results
+# Reliability Shield, Phase 3 (Isaac twin) Results
 
 dt=0.02s, warmup=15 frames dropped/episode, operating point = 5% nominal FPR.
 

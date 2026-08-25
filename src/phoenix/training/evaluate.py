@@ -127,7 +127,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     # Track the robot in env 0 so the captured video shows the GO2 walking
     # rather than the world origin (which is empty terrain). The default
-    # ViewerCfg points /OmniverseKit_Persp at world (0,0,0) — for rough
+    # ViewerCfg points /OmniverseKit_Persp at world (0,0,0), for rough
     # terrain that's empty space and produces black frames.
     if args.video_out is not None:
         # Note: env_cfg.viewer.* settings are intentionally NOT set here.
@@ -147,7 +147,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         # the exact path the caller asked for, we record into a temp folder
         # under name_prefix, then rename to the requested video_out path
         # after env.close(). step_trigger (not episode_trigger) so recording
-        # starts at step 0 — episode_trigger fires on reset and a 16-env
+        # starts at step 0, episode_trigger fires on reset and a 16-env
         # vec env's "episode 0" boundary is fuzzy.
         env = gym.wrappers.RecordVideo(
             env,
@@ -259,7 +259,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         # Manually frame env 0. Use env 0's origin offset so this also works
         # for multi-env scenes where the cloner spreads envs across the world.
         try:
-            import torch as _torch  # local import — torch is already loaded
+            import torch as _torch  # local import, torch is already loaded
 
             env_origin = unwrapped_env.scene.env_origins[0]
             if hasattr(env_origin, "cpu"):
@@ -278,14 +278,14 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             )
             del _torch
         except Exception as cam_err:  # noqa: BLE001
-            logger.warning("set_camera_view failed: %r — using default pose", cam_err)
+            logger.warning("set_camera_view failed: %r, using default pose", cam_err)
 
-        # Annotator warmup — first env.render() lazily creates it, then we
+        # Annotator warmup, first env.render() lazily creates it, then we
         # need several Kit ticks for the renderer to populate its buffer.
         try:
             _ = unwrapped_env.render()
         except Exception as warmup_err:  # noqa: BLE001
-            logger.warning("warmup render() raised: %r — continuing", warmup_err)
+            logger.warning("warmup render() raised: %r, continuing", warmup_err)
         for _ in range(12):
             simulation_app.update()
         logger.info("renderer warmup: 12 simulation_app.update() ticks complete")
@@ -342,7 +342,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                 )
                 slew_sat_steps += 1
             # First step after an env reset will contribute a small delta because
-            # the policy sees the default stand obs again — acceptable noise at
+            # the policy sees the default stand obs again, acceptable noise at
             # thousands of steps; no per-env reset bookkeeping needed.
             prev_actions_np = actions_np
             obs, reward, dones, extras = env.step(actions)
@@ -368,7 +368,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                 except Exception:  # noqa: BLE001, S110
                     pass
 
-            # tracking error — done on numpy to avoid torch/warp interop pitfalls.
+            # tracking error, done on numpy to avoid torch/warp interop pitfalls.
             # Root velocities are Warp arrays in Isaac Lab 3.x; the matching
             # conversion pattern in synthesize_failure.py proves the .numpy()
             # route works. Keep this block loud: if it skips, we want to know.

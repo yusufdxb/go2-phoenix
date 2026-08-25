@@ -8,7 +8,7 @@ things separate it from the offline scorers in
 **Fit in float64, deploy in float32.** The covariance estimate, its Cholesky
 factor, and the inversion are numerically delicate; they happen once, offline,
 in double precision. What ships is a single dense whitener ``W = L^-1`` in
-float32. The deploy-time score is then ``||W (x - mu)||^2`` — one matrix-vector
+float32. The deploy-time score is then ``||W (x - mu)||^2``, one matrix-vector
 product, no solve, no allocation. :func:`parity_report` is the gate that proves
 the float32 path agrees with the float64 one, both numerically and (the part
 that actually matters) in its *trip decisions*.
@@ -29,7 +29,7 @@ measured.
 The artifact is a single ``.npz``: constants plus a JSON provenance blob
 recording which checkpoint, which rollouts, and which measured operating point
 produced it. Loading refuses artifacts whose latent dimension disagrees with the
-policy, and refuses non-finite constants — fail closed, as everywhere else in
+policy, and refuses non-finite constants, fail closed, as everywhere else in
 this layer.
 """
 
@@ -53,7 +53,7 @@ class OperatingPoint:
 
     ``trip_threshold`` / ``clear_threshold`` are on the squared-Mahalanobis
     scale. ``trip_persistence`` is the ``K`` consecutive over-threshold ticks
-    required to engage — jointly calibrated with the threshold, never chosen
+    required to engage, jointly calibrated with the threshold, never chosen
     independently.
 
     ``arming_ticks`` is the number of ticks after a start or reset during which
@@ -121,7 +121,7 @@ class OperatingPoint:
 
 @dataclass(frozen=True)
 class ArbiterTimings:
-    """Ramp and release timings — part of the frozen bundle, not launch config.
+    """Ramp and release timings, part of the frozen bundle, not launch config.
 
     These affect outcomes as much as the threshold does: the handoff ramp sets
     how long it takes to actually reach the fallback (and therefore the real
@@ -161,7 +161,7 @@ def whitener_from_cholesky(chol: np.ndarray) -> np.ndarray:
     """Return ``W = L^-1`` for lower-Cholesky ``L``, in float64.
 
     Inverting the triangular factor once, offline, turns the per-tick cost from
-    a triangular solve into a single matrix-vector product — the same arithmetic
+    a triangular solve into a single matrix-vector product, the same arithmetic
     (``||W z||^2 == z^T (L L^T)^-1 z``) with a fixed, allocation-free shape.
     """
     chol = np.asarray(chol, dtype=np.float64)
@@ -318,7 +318,7 @@ def load_artifact(path: str | Path, *, expected_dim: int | None = None):
         raise ValueError(f"unsupported artifact version {version} (expected {ARTIFACT_VERSION})")
     # The metadata's declared width is what every downstream compatibility check
     # is made against, so it has to agree with the constants actually stored
-    # here — otherwise a truthful-looking dimension check passes while the
+    # here, otherwise a truthful-looking dimension check passes while the
     # monitor scores something else entirely.
     if int(meta["latent_dim"]) != int(np.asarray(mean).size):
         raise ValueError(
@@ -377,7 +377,7 @@ def parity_report(
 ) -> dict:
     """Compare the float64 fit path against the float32 deploy path.
 
-    Numerical agreement alone is not the interesting question — a shield is a
+    Numerical agreement alone is not the interesting question, a shield is a
     *decision*, so the report also counts how often the two paths disagree about
     whether a frame is above the trip threshold. ``decision_disagreement`` is the
     number that gates a deployment; ``max_rel_err`` is diagnostic.

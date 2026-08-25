@@ -1,4 +1,4 @@
-# Phase 4 — Orin packaging, parity, and the real-time budget
+# Phase 4, Orin packaging, parity, and the real-time budget
 
 Phase 3 answered *does policy-latent OOD scoring warn before the robot falls*.
 Phase 4 answers *can the exact thing that was measured run on the robot*. Every
@@ -14,7 +14,7 @@ A single 588 KB artifact, `deploy/shield_stand_v3.npz`:
 | `whitener` (384x384) float32 | `W = L^-1` of the shrinkage covariance |
 | `meta` JSON | operating point + full provenance |
 
-The deploy-time score is `||W (x - mu)||^2` — one matrix-vector product. The
+The deploy-time score is `||W (x - mu)||^2`, one matrix-vector product. The
 covariance estimate, its Cholesky factor and the inversion happen once, offline,
 in float64; only the whitener ships, in float32.
 
@@ -26,7 +26,7 @@ and its budget, and the measured per-condition evaluation.
 
 Phase 3 reported **0% nominal-episode false alarms**. That number was optimistic.
 The sweep split nominal *frames* randomly between fitting and calibration, and
-consecutive frames of one episode are near-duplicates — so the calibration set
+consecutive frames of one episode are near-duplicates, so the calibration set
 was scoring data the scorer had effectively already seen.
 
 Phase 4 splits by **environment**, keeping whole episodes on one side of the
@@ -46,8 +46,8 @@ The rule is fixed in advance and uses **nominal data only**:
 > nominal per-episode engagement rate is within budget, minimise `K` first, then
 > the threshold.
 
-`K` is minimised first because it is the shield's *intrinsic detection delay* —
-it cannot warn sooner than `K` ticks after the latent goes bad — so buying quiet
+`K` is minimised first because it is the shield's *intrinsic detection delay* , 
+it cannot warn sooner than `K` ticks after the latent goes bad, so buying quiet
 with a long persistence window forfeits exactly the fast failures the shield
 exists to catch. That is not hindsight: an earlier run of this script used
 "lowest threshold first", landed on `K=30`, and dropped `friction_severe`
@@ -64,19 +64,19 @@ nominal episode FPR **0.0417** (8 of 192 episodes).
 | friction_moderate | 56 | 56 (100%) | 2.40 s | 2.20 s | 73.5% |
 | friction_severe | 1297 | 1297 (100%) | 0.64 s | 0.44 s | 99.9% |
 | motor_severe | 93 | 93 (100%) | 0.84 s | 0.64 s | 100% |
-| mass_moderate | 0 | — | — | — | 37.5% |
-| mass_severe | 0 | — | — | — | 92.7% |
-| motor_moderate | 0 | — | — | — | 100% |
+| mass_moderate | 0 |, |, |, | 37.5% |
+| mass_severe | 0 |, |, |, | 92.7% |
+| motor_moderate | 0 |, |, |, | 100% |
 
 Lead is measured to the **decision** tick (the end of the K-run, which is when
-the arbiter actually trips), not to the start of the run — reporting from the run
+the arbiter actually trips), not to the start of the run, reporting from the run
 start overstates the margin by K-1 ticks. The full-fallback column further
 subtracts the handoff ramp and is the margin that physically matters.
 
 **Read the engagement column before believing the warn column.** `motor_moderate`
 engages on 100% of episodes and produces zero falls; `mass_severe` engages on
 92.7% with zero falls; `friction_moderate` engages ~141 episodes for 56 falls.
-Episode-level precision is therefore low — the monitor is demonstrably good at
+Episode-level precision is therefore low, the monitor is demonstrably good at
 detecting *that the physics changed*, and this study does **not** establish that
 it detects *that a fall is coming*. The shifts are also static from reset, which
 makes the AUROC result partly an environment-classification result. Treating this
@@ -87,7 +87,7 @@ as a safety claim requires the closed-loop intervention experiment (§8).
 **float64 fit vs float32 deploy** (16,000 samples spanning nominal and every
 shift): max relative error `2.2e-6`, **0 trip-decision disagreements**.
 
-**Exported ONNX vs the studied path** — the gate that matters, because a shield
+**Exported ONNX vs the studied path**, the gate that matters, because a shield
 can be perfectly calibrated and still worthless if the latent the *robot*
 computes lives in a different space than the latent the monitor was *fit* on. An
 action-only parity check cannot see that failure: the robot would walk correctly
@@ -121,7 +121,7 @@ lessons rather than benchmarking trivia:
 1. **Single-threaded BLAS.** A 384x384 matrix-vector product is far too small to
    amortise a thread fan-out; a multi-threaded BLAS pinned to one core spends its
    time in its own barriers. Setting `OPENBLAS_NUM_THREADS=1` *before* importing
-   numpy took the worst-case tick from 3.6 ms to 0.024 ms — about 150x.
+   numpy took the worst-case tick from 3.6 ms to 0.024 ms, about 150x.
 2. **CPU pinning.** Unpinned, the worst case was ~5 ms while the median stayed at
    8 us. That tail was core migration on a shared desktop, not the shield. The
    deployed control thread is pinned, so the benchmark pins too and records that
@@ -145,7 +145,7 @@ for `["action", "latent"]`, scores the latent, and blends:
 target = (1 - blend) * learned_target + blend * default_stand_pose
 ```
 
-The fallback is the default stand pose — the same posture every abort path in
+The fallback is the default stand pose, the same posture every abort path in
 this node already commands, and the only controller here with any
 independent standing; see the caveat in section 8 about calling it "verified". The blend ramps over `handoff_ticks` rather than snapping.
 

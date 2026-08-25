@@ -3,7 +3,7 @@
 The shield artifact pins the detector and the arbiter. It does not pin the
 *controller*, and the controller is what the study measures. Change the action
 scale, the default pose, the slew cap, or the control rate, and you have a
-different system producing different fall rates against the same artifact — with
+different system producing different fall rates against the same artifact, with
 nothing in the pipeline noticing.
 
 So a bundle manifest records a content hash for every input that can change the
@@ -218,6 +218,6 @@ def verify_bundle(
 
     if problems:
         raise ValueError(
-            "bundle verification FAILED — the controller is not the one that was "
+            "bundle verification FAILED, the controller is not the one that was "
             "calibrated:\n  - " + "\n  - ".join(problems)
         )

@@ -3,13 +3,13 @@
 Runs in the **system Python + ROS 2** context (not Isaac Lab's Python).
 Reads:
 
-* ``/imu/data`` — sensor_msgs/Imu (orientation, angular velocity, linear accel)
-* ``/joint_states`` — sensor_msgs/JointState (positions + velocities)
-* ``/cmd_vel`` — geometry_msgs/Twist (teleop / higher-level policy command)
+* ``/imu/data``, sensor_msgs/Imu (orientation, angular velocity, linear accel)
+* ``/joint_states``, sensor_msgs/JointState (positions + velocities)
+* ``/cmd_vel``, geometry_msgs/Twist (teleop / higher-level policy command)
 
 Publishes:
 
-* ``/joint_group_position_controller/command`` — std_msgs/Float64MultiArray
+* ``/joint_group_position_controller/command``, std_msgs/Float64MultiArray
   of 12 target joint positions in canonical order.
 
 Safety:
@@ -20,12 +20,12 @@ Safety:
   ``per_step_clip_array`` in ``phoenix.sim2real.safety``. NOTE: per-joint
   position / velocity / torque limit clipping is not implemented here.
 * Attitude abort (pitch/roll) and NaN-in-joint-state abort; same latch path
-  as an external estop — node stops publishing policy actions and holds
+  as an external estop, node stops publishing policy actions and holds
   the default stand pose.
 
 Optional telemetry:
 
-* ``--log-parquet PATH`` — write every control step to a parquet that
+* ``--log-parquet PATH``, write every control step to a parquet that
   matches :class:`phoenix.real_world.TrajectoryLogger`'s schema, so the
   file is directly consumable by the Phoenix replay/fine-tune pipeline.
 """
@@ -175,7 +175,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
         # Two-policy mode switch (stand-v2 + v3b). Opt-in via deploy.yaml.
         # When disabled, ``self.session`` is the only policy and the
-        # behaviour below is a straight passthrough — backwards-compatible
+        # behaviour below is a straight passthrough, backwards-compatible
         # with all pre-mode-switch bringups.
         ms_cfg = cfg.get("policy", {}).get("mode_switch", {}) or {}
         self.mode_switch_enabled = bool(ms_cfg.get("enabled", False))
@@ -242,8 +242,8 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 )
             latent_dim = self.session.get_outputs()[out_names.index("latent")].shape[-1]
             # Only the artifact path is configurable. Every parameter that
-            # changes the shield's behaviour — threshold, K, arming window,
-            # ramps, release policy — is frozen inside the artifact, because
+            # changes the shield's behaviour, threshold, K, arming window,
+            # ramps, release policy, is frozen inside the artifact, because
             # they were all calibrated together. Refit to change them.
             # Whitelist, not a denylist: a denylist silently accepts whatever
             # key someone invents next (it already missed `clear_persistence`),
@@ -253,7 +253,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             if extra:
                 raise ValueError(
                     f"reliability config sets {sorted(extra)}; only {sorted(allowed)} are "
-                    "settable here. Everything else is frozen in the artifact — change it by "
+                    "settable here. Everything else is frozen in the artifact, change it by "
                     "refitting with scripts/reliability_fit_deploy.py."
                 )
             self.shield, self.shield_op, shield_meta = build_shield(
@@ -366,7 +366,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
     def _latch_abort(self, reason: str) -> None:
         self._estopped = True
         self._abort_reason = reason
-        logger.warning("ABORT: %s — holding stand pose.", reason)
+        logger.warning("ABORT: %s, holding stand pose.", reason)
         # Flush the parquet footer at abort time. A hard kill during the
         # post-abort default-pose hold (e.g. operator SIGKILL after
         # max_runtime latched) otherwise skips shutdown() and leaves a
@@ -430,8 +430,8 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         now_ns = time.monotonic_ns()
         elapsed_s = time.monotonic() - self._started_at
 
-        # The ladder is a pure function so its composition — which gate wins,
-        # and what each one publishes — is exhaustively testable without
+        # The ladder is a pure function so its composition, which gate wins,
+        # and what each one publishes, is exhaustively testable without
         # rclpy. See tests/test_gate_ladder.py and docs/NATIVE_RUNTIME_PLAN.md.
         # It is also the parity oracle for the native C++ runtime.
         snap = self._build_snapshot(now_ns, elapsed_s)
@@ -508,7 +508,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
     def _log_step(self, *, q, qd, action, quat_xyzw, ang_vel) -> None:
         # base_pos and contact_forces aren't observable on stock GO2 without
-        # odometry / foot sensors — emit zeros so the parquet schema matches
+        # odometry / foot sensors, emit zeros so the parquet schema matches
         # what the replay pipeline expects.
         self._logger.append(
             TrajectoryStep(
@@ -626,7 +626,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
     def _apply_shield(self, latent: np.ndarray, learned_target: np.ndarray) -> np.ndarray:
         """Score the policy latent and blend toward the verified fallback.
 
-        The fallback is the default stand pose — the same posture every abort
+        The fallback is the default stand pose, the same posture every abort
         path in this node commands, and the only controller here that is
         verified in the Simplex sense. ``blend`` ramps rather than snaps
         (see :mod:`phoenix.reliability.arbiter`) so the handoff cannot yank a
@@ -635,7 +635,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         Note on ``last_action``: the policy keeps consuming *its own* action as
         ``last_action`` even while the fallback is partly in control, matching
         how the Isaac study scored the shield. Once the blend is non-zero the
-        policy's observations are off-distribution regardless — which is the
+        policy's observations are off-distribution regardless, which is the
         point, and why the arbiter's release path requires a sustained return
         to nominal scores rather than a single quiet tick.
         """
@@ -663,7 +663,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         states = ("nominal", "handoff", "fallback", "recovering")
         msg = self._float_msg()
         # A non-finite score is a real signal (bad latent), so clamp only for
-        # transport — the arbiter already saw the true value.
+        # transport, the arbiter already saw the true value.
         score = decision.raw_score if np.isfinite(decision.raw_score) else -1.0
         msg.data = [
             float(decision.blend),
@@ -707,7 +707,7 @@ def _projected_gravity_from_quat(x: float, y: float, z: float, w: float) -> np.n
     Matches Isaac Lab's ``mdp.projected_gravity`` and the parity-gate
     helper in :func:`phoenix.sim2real.verify_deploy._projected_gravity_from_quat_xyzw`
     byte-for-byte. The previous implementation had the gx/gy sign flipped
-    (mirror-image gravity in the policy's obs vector) — see the
+    (mirror-image gravity in the policy's obs vector), see the
     audit fixes in this branch. Tested in ``tests/test_projected_gravity.py``.
     """
     gx = -2.0 * (x * z - w * y)

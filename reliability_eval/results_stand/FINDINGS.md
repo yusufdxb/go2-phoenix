@@ -1,4 +1,4 @@
-# Reliability Shield — Phase 3 confirmation on the robust stand-v3 policy
+# Reliability Shield, Phase 3 confirmation on the robust stand-v3 policy
 
 Re-runs the Phase 3 grid on `checkpoints/phoenix-stand-v3-h25-final/latest.pt` (the
 verified-robust GO2 policy: README sim eval 32/32) to firm up the flat-policy results.
@@ -24,7 +24,7 @@ the false-alarm numbers are unambiguous.
 The robust policy fully absorbs added mass and mild motor loss; only low friction and
 severe motor weakening induce falls. Friction is the failure-inducing shift.
 
-## Finding 1 — Detection (AUROC, mean +/- std over 3 seeds)
+## Finding 1, Detection (AUROC, mean +/- std over 3 seeds)
 | condition | latent-Maha (shield) | obs-Maha | obs-magnitude | value-signal | action-sat |
 |---|---|---|---|---|---|
 | friction_moderate | **0.994** | 0.993 | 0.568 | 0.334 | 0.431 |
@@ -40,7 +40,7 @@ on the subtler added-mass shifts (0.87/0.97 vs 0.82/0.92) that the raw observati
 registers. Observation magnitude, value signal and action saturation are near or below chance
 (action saturation *drops* under these shifts because the robot moves less).
 
-## Finding 2 — Actionable shield (episode-level calibration; friction_severe)
+## Finding 2, Actionable shield (episode-level calibration; friction_severe)
 | threshold %ile | K | nominal-episode FPR | falls warned | median lead (s) |
 |---|---|---|---|---|
 | 99.9 | 20 | **0.000** | 1.000 | 0.68 |

@@ -102,7 +102,7 @@ class ScenarioBlock:
 
     ``onset_tick`` is when the disturbance is applied. It is bounded below by
     ``MIN_ONSET_TICK`` so that the disturbance always lands well after the
-    shield has armed and the robot has stabilised — otherwise the study would be
+    shield has armed and the robot has stabilised, otherwise the study would be
     partly measuring the startup transient rather than the intervention, and the
     arming window would confound the treatment.
     """
@@ -111,14 +111,14 @@ class ScenarioBlock:
     seed: int
     disturbed: bool
     # Motor-strength scale applied at ``onset_tick``: actuator stiffness and
-    # damping multiplied by this factor. None for nominal blocks (not NaN —
+    # damping multiplied by this factor. None for nominal blocks (not NaN , 
     # NaN is not valid JSON and would break the protocol hash round-trip).
     #
     # Motor degradation rather than friction because it is the disturbance that
     # can actually be injected mid-episode: Isaac Lab's friction event term
     # caches a fixed bucket pool at startup and cannot be retargeted later,
     # whereas actuator gains are writable per environment at any tick. It is
-    # also the stronger held-out shift — motor strength was never randomised
+    # also the stronger held-out shift, motor strength was never randomised
     # during training at all.
     motor_scale: float | None
     onset_tick: int

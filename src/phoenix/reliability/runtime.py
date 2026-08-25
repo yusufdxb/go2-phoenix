@@ -8,8 +8,8 @@ node then mixes the learned and fallback controller outputs by that weight.
 
 Keeping the whole reliability layer behind one pure-python object (no rclpy /
 onnxruntime here, exactly like :mod:`phoenix.sim2real.mode_switch`) means the
-end-to-end behavior — nominal stays on the learned policy, sustained OOD hands
-off to the fallback — is unit-testable without Isaac or the robot. The ROS
+end-to-end behavior, nominal stays on the learned policy, sustained OOD hands
+off to the fallback, is unit-testable without Isaac or the robot. The ROS
 node wiring is then a thin adapter, which is what makes the August hardware
 bring-up plug-and-play.
 """
@@ -104,8 +104,8 @@ def calibrate_arbiter_thresholds(
 
     Returns ``(trip_threshold, clear_threshold)`` as upper quantiles of the
     nominal score distribution: ``trip`` is exceeded by a fraction
-    ``trip_fpr`` of nominal frames (rare — engage conservatively) and
-    ``clear`` by ``clear_fpr`` (looser — release generously). Requiring
+    ``trip_fpr`` of nominal frames (rare, engage conservatively) and
+    ``clear`` by ``clear_fpr`` (looser, release generously). Requiring
     ``trip_fpr < clear_fpr`` guarantees ``trip > clear`` (the hysteresis gap
     the arbiter demands). No OOD data touches this calibration.
     """

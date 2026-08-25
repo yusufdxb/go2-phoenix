@@ -3,10 +3,10 @@
 The monitor scores two feature sources and the eval harness compares them
 ("latents vs obs"):
 
-* **latent** — the post-activation outputs of the policy MLP's hidden
+* **latent**, the post-activation outputs of the policy MLP's hidden
   layers (mid + penultimate by default). This is the "reads the model's
   own internal state" signal.
-* **obs** — the (normalized) observation vector the policy consumes.
+* **obs**, the (normalized) observation vector the policy consumes.
 
 Phoenix's exported actor is a plain ``nn.Sequential`` of
 ``Linear, ELU, Linear, ELU, ..., Linear`` (see
@@ -19,7 +19,7 @@ things:
    extractor must match bit-for-bit (parity, mirroring the ONNX parity
    gate philosophy already in this repo).
 2. A monitor pipeline that is **unit-testable in CI without torch or
-   Isaac** — the numpy reference stands in for the policy.
+   Isaac**, the numpy reference stands in for the policy.
 
 :class:`TorchActivationExtractor` is the on-robot path: it hooks the ELU
 outputs of the real Sequential. It is lazy about torch (no module-level
@@ -78,7 +78,7 @@ def forward_hidden(
     ``obs`` is ``(n, obs_dim)`` (1-D promoted to a single row). ``linears``
     is the ordered list of ``(weight, bias)`` for each ``Linear`` in the
     actor Sequential. When ``mean`` / ``std`` are given, the observation is
-    normalized as ``(obs - mean) / std`` first — the exact transform the
+    normalized as ``(obs - mean) / std`` first, the exact transform the
     exported policy applies (rsl_rl EmpiricalNormalization; ``std`` here is
     already ``sqrt(var) + eps``).
 

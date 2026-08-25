@@ -171,7 +171,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     try:
         runner.learn(num_learning_iterations=runner_cfg.max_iterations, init_at_random_ep_len=True)
     except KeyboardInterrupt:
-        logger.warning("Interrupted — writing final checkpoint.")
+        logger.warning("Interrupted, writing final checkpoint.")
     elapsed = time.time() - start
     logger.info("Training wall-time: %.1fs", elapsed)
 

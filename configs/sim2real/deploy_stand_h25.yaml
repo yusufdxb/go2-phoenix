@@ -5,7 +5,7 @@
 # rad/step cap vs measured q, no train/deploy mismatch), (2) motor-strength gain
 # DR, (3) DelayedDCMotor actuator latency [1,5] physics steps, (4) observation
 # noise (enable_corruption: noisy IMU/encoder obs). It is trained against the
-# disturbances the real robot actually has, which is the point — not the lowest
+# disturbances the real robot actually has, which is the point, not the lowest
 # clean-sim number.
 #
 # Verified 2026-06-23 (checkpoints/phoenix-stand-h25-lat-noise/, model_799):
@@ -40,7 +40,7 @@ control:
   # MUST equal the training default_joint_pos (IsaacLab unitree.py GO2 init_state),
   # because use_default_offset=True makes this the action offset AND the
   # joint-relative observation reference. The previous deploy configs set all
-  # hips to 0.0, but training uses L=+0.1 / R=-0.1 — a constant 0.1 rad hip
+  # hips to 0.0, but training uses L=+0.1 / R=-0.1, a constant 0.1 rad hip
   # offset the policy never saw (off-distribution obs + offset on all 4 hips).
   default_joint_pos:
     FL_hip_joint: 0.1
