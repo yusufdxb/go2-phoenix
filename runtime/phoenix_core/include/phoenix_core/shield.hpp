@@ -30,7 +30,7 @@
 // The shield is ADVISORY in the current deploy path: it returns a blend weight
 // and cannot latch, abort, or suppress any hard predicate above it in the gate
 // ladder. That is a deliberate property, not an omission. See
-// docs/NATIVE_RUNTIME_PLAN.md §3.
+// the native runtime plan in the author private notes §3.
 #ifndef PHOENIX_CORE__SHIELD_HPP_
 #define PHOENIX_CORE__SHIELD_HPP_
 

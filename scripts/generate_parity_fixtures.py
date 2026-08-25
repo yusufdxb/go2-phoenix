@@ -15,7 +15,7 @@ stages is *bit-exact*, so a decimal fixture would inject an error larger than
 the thing being measured.
 
 *Tolerances are declared before the comparison runs*, in
-``docs/NATIVE_RUNTIME_PLAN.md`` and in the C++ test, derived from the dtype and
+``the native runtime plan in the author private notes`` and in the C++ test, derived from the dtype and
 operation chain. They are not chosen after looking at a diff.
 
 Covered here:
