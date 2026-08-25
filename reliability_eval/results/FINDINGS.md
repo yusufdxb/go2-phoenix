@@ -1,4 +1,4 @@
-# Reliability Shield — Phase 3 (Isaac twin) Findings
+# Reliability Shield, Phase 3 (Isaac twin) Findings
 
 Policy: `checkpoints/phoenix-flat/latest.pt` (flat-terrain velocity-tracking GO2, rsl_rl PPO,
 actor [512,256,128] ELU). Sim: Isaac-Velocity-Flat-Unitree-Go2-v0, Isaac Lab 4.5.22.
@@ -27,7 +27,7 @@ Only low friction and severe motor-weakening reliably *induce falls*; the policy
 added mass and mild motor loss (fall rate at/below nominal). Lead-time claims are therefore
 strongest on friction (the failure-inducing shift).
 
-## Finding 1 — Detection works and beats every baseline (AUROC, mean [95% CI])
+## Finding 1, Detection works and beats every baseline (AUROC, mean [95% CI])
 | condition | latent-Maha (shield) | obs-Maha | obs-magnitude | value-signal | action-sat | random |
 |---|---|---|---|---|---|---|
 | friction_moderate | **0.957** [.950,.965] | 0.876 | 0.535 | 0.287 | 0.511 | 0.500 |
@@ -43,14 +43,14 @@ value is *below* chance on friction), and beats observation-space Mahalanobis on
 This is the core defensible result. The internal-state signal carries information the raw
 observation and the policy's own value head do not surface.
 
-## Finding 2 — Naive frame-level calibration is NOT actionable
+## Finding 2, Naive frame-level calibration is NOT actionable
 Calibrating the Simplex trip at a 1% *frame* FPR engages the shield on **100% of nominal
 episodes**. Latent scores are temporally autocorrelated, so 1% per-frame false positives
 arrive in runs and trip the arbiter within essentially every 400-frame episode. At that
 operating point the "warn before failure" and "intervention" numbers are meaningless
 (the shield is always on).
 
-## Finding 3 — Episode-level calibration IS actionable (the principled fix)
+## Finding 3, Episode-level calibration IS actionable (the principled fix)
 Recalibrating the threshold at the episode level (see `sweep.json`), on friction_severe:
 
 | threshold %ile | persistence K | nominal-episode FPR | falls warned | median lead (s) |
@@ -61,7 +61,7 @@ Recalibrating the threshold at the episode level (see `sweep.json`), on friction
 | 99.99 | 5 | 0.000 | 0.755 | 0.64 |
 
 At p=99.95 / K=5: **0.4% of nominal episodes false-alarm, 98.7% of friction-induced falls
-warned before onset, ~0.72 s (about 36 control steps) median lead** — enough head-room for a
+warned before onset, ~0.72 s (about 36 control steps) median lead**, enough head-room for a
 Simplex handoff. The warning is real and early once the operating point controls
 episode-level, not frame-level, false alarms.
 

@@ -1,6 +1,6 @@
 """Tests for the layered YAML config loader.
 
-These tests run in the CI (non-sim) job — they exercise only OmegaConf
+These tests run in the CI (non-sim) job, they exercise only OmegaConf
 and the Phoenix loader, with no Isaac Lab dependency.
 """
 
@@ -144,7 +144,7 @@ def test_unwired_flags_base_yaml_current_state() -> None:
     termination, robot.init_state, and robot.actuator (unwired sections).
     reward was wired in Phase 0 of the 2026-04-19 retrain.
     motor_strength_scale and actuator_latency_steps were wired in the
-    2026-06-07 DR-wiring PR; observation.noise was wired 2026-06-21 — they
+    2026-06-07 DR-wiring PR; observation.noise was wired 2026-06-21, they
     must NOT appear in the unwired list.
     If any remaining unwired sections graduate to wired, update this test."""
     cfg = load_layered_config(CONFIGS / "env" / "base.yaml").to_container()

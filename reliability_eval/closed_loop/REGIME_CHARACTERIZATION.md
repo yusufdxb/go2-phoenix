@@ -38,10 +38,10 @@ a **standing** fallback, that gap is nearly empty:
 - Under **perceptual** or **command** disturbance, the standing policy keeps
   standing (its action is rate-limited and it was trained to be stationary), so
   it rarely falls in the first place. There is almost nothing for the fallback to
-  prevent — the two behaviours coincide.
+  prevent, the two behaviours coincide.
 - Under **actuator** disturbance, the policy *does* fall, but the failure is
   physical: the motors that the fallback also depends on are weakened. Here the
-  behaviours finally diverge, and they diverge the wrong way — the active policy
+  behaviours finally diverge, and they diverge the wrong way, the active policy
   compensates for the weak motors while the frozen pose cannot. The oracle arm
   (a perfect, false-alarm-free detector) confirms this is intrinsic to the
   fallback, not a timing or calibration artefact.

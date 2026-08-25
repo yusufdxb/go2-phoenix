@@ -3,11 +3,11 @@
 Subscribes to /lowcmd_dry and /lowstate for N seconds, prints simple stats:
 
 * Cmd publish rate (Hz)
-* Distinct kp values seen — tells you whether the bridge stayed in
+* Distinct kp values seen, tells you whether the bridge stayed in
   hold-pose (kp=hold_kp, default 20) or transitioned into active mode
   (kp=cfg.kp, default 25). If you only see hold_kp, the bridge isn't
   receiving the policy commands (likely a QoS mismatch).
-* mean / max |cmd.q − state.q| across the run — close to zero means
+* mean / max |cmd.q − state.q| across the run, close to zero means
   the bridge is in hold mode; close to the 0.175 rad/step clip means
   the policy is driving the bridge into active control with saturated
   per-step deltas (i.e. policy output is large vs current pose).

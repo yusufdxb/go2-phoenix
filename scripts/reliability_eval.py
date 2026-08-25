@@ -320,7 +320,7 @@ def _to_jsonable(dd):
 
 
 def _write_report(out, summary, ood_conds, methods):
-    L = ["# Reliability Shield — Phase 3 (Isaac twin) Results\n"]
+    L = ["# Reliability Shield, Phase 3 (Isaac twin) Results\n"]
     c = summary["config"]
     L.append(f"dt={c['dt']}s, warmup={c['warmup']} frames dropped/episode, operating point = {c['target_fpr']:.0%} nominal FPR.\n")
     L.append("## Behavioral fall rate (env base-contact oracle)\n")

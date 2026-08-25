@@ -1,6 +1,6 @@
-# Unloaded-feet stand-fixture EVAL scenario (Phase A — no retrain).
+# Unloaded-feet stand-fixture EVAL scenario (Phase A, no retrain).
 #
-# Pins the trunk rigidly in the air with the feet hanging — the
+# Pins the trunk rigidly in the air with the feet hanging, the
 # off-distribution contact state that drove ~33% slew saturation (100% on
 # RL/RR thigh) on the CaresLab stand 2026-04-21. Training has the feet loaded
 # on the ground; the rig has them dangling, so the policy goes OOD there

@@ -4,17 +4,17 @@ Everything upstream of this is a component check. This is the one that matters,
 and it is the check that would have caught the class of bug that ruins sim-to-real
 transfers: the shield can be perfectly calibrated and still be worthless if the
 latent the *robot* computes lives in a slightly different space than the latent
-the monitor was *fit* on. An action-only export parity check cannot see that —
+the monitor was *fit* on. An action-only export parity check cannot see that , 
 the robot would walk correctly and the monitor would score nonsense.
 
 So this replays real recorded observations from the Phase 3 rollouts through the
 exported ONNX policy (the artifact the Jetson actually loads), and compares, in
 order:
 
-1. **Latent parity** — ONNX latent vs the latent recorded during the Isaac study.
-2. **Score parity** — the OOD score from each, through the deployed float32
+1. **Latent parity**, ONNX latent vs the latent recorded during the Isaac study.
+2. **Score parity**, the OOD score from each, through the deployed float32
    monitor.
-3. **Decision parity** — the only one with a pass/fail budget of zero: for every
+3. **Decision parity**, the only one with a pass/fail budget of zero: for every
    frame, do the two paths agree on whether it is above the trip threshold, and
    does the full arbiter produce an identical engage/disengage trace?
 
@@ -73,7 +73,7 @@ def main() -> int:
     out_names = [o.name for o in session.get_outputs()]
     if "latent" not in out_names:
         raise SystemExit(
-            f"FAIL CLOSED: {args.onnx} has outputs {out_names} — no 'latent'. "
+            f"FAIL CLOSED: {args.onnx} has outputs {out_names}, no 'latent'. "
             "Re-export with `--emit-latent`; the shield cannot run on this policy."
         )
     onnx_latent_dim = session.get_outputs()[out_names.index("latent")].shape[-1]

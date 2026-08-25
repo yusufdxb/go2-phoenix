@@ -25,7 +25,7 @@ from phoenix.reliability.ood_monitor import MahalanobisScorer
 @pytest.fixture
 def nominal() -> np.ndarray:
     rng = np.random.default_rng(0)
-    # Correlated, anisotropic cloud — an identity covariance would let a broken
+    # Correlated, anisotropic cloud, an identity covariance would let a broken
     # whitener pass.
     base = rng.standard_normal((2000, 8))
     mix = rng.standard_normal((8, 8))
@@ -289,7 +289,7 @@ def test_shield_cannot_engage_during_arming(tmp_path, scorer, nominal) -> None:
         decision = shield.step(ood)
         assert decision.blend == 0.0, f"engaged at tick {tick} during arming"
         assert decision.state is ShieldState.NOMINAL
-        # The score is still reported truthfully — only the arbiter is held.
+        # The score is still reported truthfully, only the arbiter is held.
         assert decision.raw_score > op.trip_threshold
 
     assert shield.armed

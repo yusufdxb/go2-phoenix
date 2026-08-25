@@ -6,7 +6,7 @@ point*:
 
 * The scorer is fit on one half of the nominal envs, in float64.
 * The threshold and persistence ``K`` are selected on the **held-out** half of
-  the nominal envs, using nominal data only — the selection rule is "the most
+  the nominal envs, using nominal data only, the selection rule is "the most
   sensitive operating point whose held-out nominal *episode* false-alarm rate
   stays within budget". No OOD rollout influences the choice.
 * The shifted conditions are then scored *once*, as evaluation, and the
@@ -127,7 +127,7 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=0)
     # Ramp / release timings are frozen INTO the artifact (they change the
     # outcome as much as the threshold does), so they are set here, once, at
-    # fit time — not in the launch config.
+    # fit time, not in the launch config.
     ap.add_argument("--handoff-ticks", type=int, default=10)
     ap.add_argument("--recover-ticks", type=int, default=25)
     ap.add_argument("--clear-persistence", type=int, default=10)
@@ -201,8 +201,8 @@ def main() -> int:
         )
     # Selection rule, fixed a priori and computable from nominal data alone:
     # minimise K first, then the threshold. K is the *intrinsic detection delay*
-    # — the shield cannot possibly warn sooner than K ticks after the latent
-    # goes bad — so buying quiet with a long persistence window silently
+    #, the shield cannot possibly warn sooner than K ticks after the latent
+    # goes bad, so buying quiet with a long persistence window silently
     # forfeits exactly the fast failures the shield exists to catch. Among
     # equal-K candidates the lowest (most sensitive) threshold wins.
     chosen = min(feasible, key=lambda c: (c["K"], c["threshold"]))

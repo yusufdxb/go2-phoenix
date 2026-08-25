@@ -1,4 +1,4 @@
-"""Unloaded-feet (stand-fixture) scenario — rigidly pin the trunk in the air.
+"""Unloaded-feet (stand-fixture) scenario, rigidly pin the trunk in the air.
 
 Reproduces the CaresLab stand fixture in sim: the trunk is clamped and the feet
 hang unloaded. That off-distribution contact state (training has feet loaded
@@ -9,7 +9,7 @@ saturates on the fixture in sim, instead of discovering it on the robot.
 Mechanism: monkeypatch ``scene.write_data_to_sim`` (called once per physics
 substep inside the decimation loop) to re-write the trunk root pose and zero its
 velocity for the fixture envs every substep. The trunk becomes effectively
-kinematic — a rigid clamp — while the legs actuate in free space, exactly like a
+kinematic, a rigid clamp, while the legs actuate in free space, exactly like a
 stand. The rig's measured ~0.32 rad L/R asymmetry is modelled as a fixed trunk
 roll (``roll_rad``); the held height lifts the feet clear of the ground.
 
@@ -32,7 +32,7 @@ def install_fixture_hold(env: Any, fixture: dict[str, Any]) -> int:
 
     Args:
         env: The constructed (possibly wrapped) Isaac Lab env.
-        fixture: The ``fixture:`` config block — ``enabled``, ``rel_fixture_envs``
+        fixture: The ``fixture:`` config block, ``enabled``, ``rel_fixture_envs``
             (fraction of envs on the fixture, 1.0 for eval), ``hold_height_m``
             (trunk world height so feet clear the ground), ``roll_rad`` (fixed
             trunk roll modelling the rig's L/R asymmetry).

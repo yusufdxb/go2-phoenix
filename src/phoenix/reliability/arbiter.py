@@ -11,18 +11,18 @@ learned policy) supervised by a verified safe controller (a stand / classical
 fallback), with a decision module that switches between them. The design
 follows the review points codex raised (2026-07-16):
 
-* **Hysteresis** — separate ``trip`` (engage) and ``clear`` (release)
+* **Hysteresis**, separate ``trip`` (engage) and ``clear`` (release)
   thresholds so a score dithering around one value can't chatter the shield.
-* **Dwell / persistence** — a run of consecutive ticks above ``trip`` is
+* **Dwell / persistence**, a run of consecutive ticks above ``trip`` is
   required before engaging, and below ``clear`` before releasing, so a single
   spike neither trips nor clears it.
-* **Bounded ramp** — the handoff blends over ``handoff_ticks`` rather than
+* **Bounded ramp**, the handoff blends over ``handoff_ticks`` rather than
   snapping, so the robot is never yanked from high-speed locomotion into an
   instant stand. Recovery ramps back over ``recover_ticks``.
-* **Fail toward safe** — a non-finite score counts as maximal evidence of
+* **Fail toward safe**, a non-finite score counts as maximal evidence of
   trouble (drives engagement, never release), matching the monitor's
   NaN -> +inf convention.
-* **Re-trip beats recovery** — if the score climbs back above ``trip`` while
+* **Re-trip beats recovery**, if the score climbs back above ``trip`` while
   recovering, the arbiter snaps back to full fallback immediately.
 
 Like :mod:`phoenix.sim2real.mode_switch`, this module has no rclpy /

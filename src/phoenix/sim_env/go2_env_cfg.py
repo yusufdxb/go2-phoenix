@@ -23,7 +23,7 @@ Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
 
 Reward wiring added 2026-04-19 (retrain spec Phase 0); prior to this,
 YAML reward.* overrides were silent no-ops. This change invalidates
-v3b as a reproducible baseline — v3b checkpoint stays as the frozen
+v3b as a reproducible baseline, v3b checkpoint stays as the frozen
 reference for comparisons but cannot be re-created from its config.
 
 ``_unwired_sections_present`` flags both unwired sections and unapplied keys
@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING, Any
 
 from .config_loader import PhoenixConfig, load_layered_config
 
-# Isaac Lab's RewardTermCfg — lazy-import guard so this module can
+# Isaac Lab's RewardTermCfg, lazy-import guard so this module can
 # still be imported in CI without isaaclab. The actual usage is
 # gated behind _NEW_TERM_FACTORIES, which only fires at env build.
 try:  # pragma: no cover - exercised only on machines with Isaac Lab
@@ -82,7 +82,7 @@ _APPLIED_DR_KEYS = (
 # IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/
 #   velocity/velocity_env_cfg.py (class RewardsCfg).
 # Only terms supported by UnitreeGo2RoughEnvCfg are listed. Keys in YAML
-# not present here raise KeyError in _apply_rewards — we do NOT want
+# not present here raise KeyError in _apply_rewards, we do NOT want
 # silent drift reappearing.
 _REWARD_TERM_MAP: dict[str, str] = {
     "track_lin_vel_xy": "track_lin_vel_xy_exp",
@@ -95,11 +95,11 @@ _REWARD_TERM_MAP: dict[str, str] = {
     "feet_air_time": "feet_air_time",
 }
 
-# Factories for Phoenix-owned reward terms — not in upstream
+# Factories for Phoenix-owned reward terms, not in upstream
 # UnitreeGo2RoughEnvCfg.rewards. When a YAML key lands here,
 # _apply_rewards constructs a RewTerm via the factory and setattrs
 # it onto env_cfg.rewards. Keys must not collide with
-# _REWARD_TERM_MAP — see _apply_rewards dispatch.
+# _REWARD_TERM_MAP, see _apply_rewards dispatch.
 _NEW_TERM_FACTORIES: dict[str, tuple[str, Callable[[float], Any]]] = {
     "slew_sat_hinge": (
         "slew_sat_hinge_l2",  # attribute name on env_cfg.rewards
@@ -158,15 +158,15 @@ def _apply_domain_randomization(env_cfg: Any, dr: dict[str, Any]) -> None:
     """Patch DR ranges into event terms and env-cfg attributes.
 
     Wired knobs:
-    * ``friction_range`` / ``restitution_range`` — patched on
+    * ``friction_range`` / ``restitution_range``, patched on
       ``events.physics_material.params``.
-    * ``mass_offset_kg`` — patched on ``events.add_base_mass.params``.
-    * ``motor_strength_scale`` — patched on
+    * ``mass_offset_kg``, patched on ``events.add_base_mass.params``.
+    * ``motor_strength_scale``, patched on
       ``events.scale_motor_strength.params`` (stiffness + damping, scale
       operation).  The event term is pre-created by ``_prepare_dr_event_terms``
       inside ``build_env_cfg`` (which has Isaac Lab available); for mock tests
       the attribute can be set directly on the events object.
-    * ``actuator_latency_steps`` — written to
+    * ``actuator_latency_steps``, written to
       ``events.phoenix_actuator_latency_range`` as a ``(lo, hi)`` tuple.  The
       training harness reads this attribute to configure its action-delay
       buffer; it is intentionally a plain attribute rather than an event term
@@ -238,7 +238,7 @@ def _apply_perturbation(env_cfg: Any, pert: dict[str, Any]) -> None:
     vel_xy = float(pert["push_velocity_xy"])
     vel_yaw = float(pert["push_velocity_yaw"])
     # Convert a ~1 m/s impulse intent into a proxy body-frame force spike.
-    # The robot is ~15 kg — f ≈ m·Δv/Δt over one control step (0.02 s).
+    # The robot is ~15 kg, f ≈ m·Δv/Δt over one control step (0.02 s).
     push_force = 15.0 * vel_xy / 0.02
     push_torque = 2.0 * vel_yaw / 0.02
     efx.params["force_range"] = (-push_force, push_force)
@@ -273,7 +273,7 @@ def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
     new ``RewTerm`` via the factory and attach it to
     ``env_cfg.rewards`` under the factory's attribute name.
 
-    Unknown keys raise ``KeyError`` — this is deliberate, to prevent
+    Unknown keys raise ``KeyError``, this is deliberate, to prevent
     the silent-no-op drift that motivated adding this helper (see
     :mod:`phoenix.sim_env.go2_env_cfg` module docstring, 2026-04-19).
     """
@@ -295,7 +295,7 @@ def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
             setattr(env_cfg.rewards, attr_name, factory(weight))
         else:
             raise KeyError(
-                f"Unknown reward key {yaml_key!r} — add it to _REWARD_TERM_MAP, "
+                f"Unknown reward key {yaml_key!r}, add it to _REWARD_TERM_MAP, "
                 f"add it to _NEW_TERM_FACTORIES, or remove from YAML. "
                 f"Known upstream keys: {sorted(_REWARD_TERM_MAP)}; "
                 f"known phoenix keys: {sorted(_NEW_TERM_FACTORIES)}"
@@ -356,7 +356,7 @@ def _prepare_dr_event_terms(env_cfg: Any, dr: dict[str, Any]) -> None:
     ``_apply_domain_randomization``, which patches params on these terms.
 
     Currently creates:
-    * ``events.scale_motor_strength`` — a startup term that scales the explicit
+    * ``events.scale_motor_strength``, a startup term that scales the explicit
       DCMotor actuator gains for ``motor_strength_scale`` (see
       :func:`scale_explicit_actuator_gains` for why the built-in
       ``randomize_actuator_gains`` cannot be used here).
@@ -393,7 +393,7 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
     trained against ``current_q ± max_delta_per_step``, the exact limiter the
     Jetson bridge enforces (``sim2real.safety.per_step_clip_array``). Without
     this the limiter exists only at deploy and the policy meets it for the first
-    time on hardware — the closed-loop mismatch behind the 0.33%->33% slew blowup.
+    time on hardware, the closed-loop mismatch behind the 0.33%->33% slew blowup.
 
     Defaults to ENABLED with the canonical ``MAX_DELTA_PER_STEP_RAD``. Set
     ``action.rate_limit.enabled: false`` only to reproduce a pre-limiter baseline.
@@ -402,7 +402,7 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
     if not rl.get("enabled", True):
         logger.warning(
             "phoenix env cfg: per-step rate limiter DISABLED "
-            "(action.rate_limit.enabled=false) — sim will NOT match the deploy "
+            "(action.rate_limit.enabled=false), sim will NOT match the deploy "
             "slew cap; do this only for a pre-limiter baseline."
         )
         return
@@ -435,7 +435,7 @@ def _apply_rate_limit(env_cfg: Any, action: dict[str, Any]) -> None:
     # loudly visible in every run's log, not buried at info level.
     logger.warning(
         "phoenix env cfg: per-step rate limiter ACTIVE (max_delta=%.4f rad/step, "
-        "clip_mode=%s, clip_ref_noise=%.4f) — sim action pipeline matches the deploy slew cap%s.",
+        "clip_mode=%s, clip_ref_noise=%.4f), sim action pipeline matches the deploy slew cap%s.",
         max_delta,
         clip_mode,
         clip_ref_noise,
@@ -479,7 +479,7 @@ def _apply_observation_noise(env_cfg: Any, observation: dict[str, Any]) -> None:
         term_attr = _OBS_NOISE_TERM_MAP.get(yaml_key)
         if term_attr is None:
             raise KeyError(
-                f"Unknown observation.noise key {yaml_key!r} — known keys: "
+                f"Unknown observation.noise key {yaml_key!r}, known keys: "
                 f"{sorted(_OBS_NOISE_TERM_MAP)}."
             )
         term = getattr(policy, term_attr, None)
@@ -488,7 +488,7 @@ def _apply_observation_noise(env_cfg: Any, observation: dict[str, Any]) -> None:
         term.noise = Unoise(n_min=-float(level), n_max=float(level))
         applied.append(f"{yaml_key}=±{float(level)}")
     logger.warning(
-        "phoenix env cfg: observation noise ENABLED (enable_corruption=True) — "
+        "phoenix env cfg: observation noise ENABLED (enable_corruption=True), "
         "policy trains on noisy IMU/encoder obs to match the real robot: %s",
         ", ".join(applied),
     )
@@ -509,7 +509,7 @@ def _apply_fixture(env_cfg: Any, fixture: dict[str, Any]) -> None:
         env_cfg.phoenix_fixture = dict(fixture)
         logger.warning(
             "phoenix env cfg: stand-fixture scenario REQUESTED "
-            "(rel=%.2f, hold_height=%.2fm, roll=%.2frad) — trunk will be pinned "
+            "(rel=%.2f, hold_height=%.2fm, roll=%.2frad), trunk will be pinned "
             "in the air at env construction; this is an OOD eval, not ground standing.",
             float(fixture.get("rel_fixture_envs", 1.0)),
             float(fixture.get("hold_height_m", 0.55)),
@@ -556,7 +556,7 @@ def _apply_actuator_latency(env_cfg: Any, dr: dict[str, Any]) -> None:
 
     if swapped:
         logger.warning(
-            "phoenix env cfg: actuator latency WIRED — %s now DelayedDCMotor "
+            "phoenix env cfg: actuator latency WIRED, %s now DelayedDCMotor "
             "(delay=[%d,%d] physics steps); stiffness/damping preserved.",
             ", ".join(swapped),
             lo,
@@ -579,7 +579,7 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     unwired = _unwired_sections_present(data)
     if unwired:
         logger.warning(
-            "phoenix env cfg: YAML sections present but not applied to env_cfg — "
+            "phoenix env cfg: YAML sections present but not applied to env_cfg, "
             "upstream Go2 defaults win: %s. See go2_env_cfg.py module docstring.",
             ", ".join(unwired),
         )

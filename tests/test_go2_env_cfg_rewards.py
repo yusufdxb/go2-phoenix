@@ -36,7 +36,7 @@ def test_reward_term_map_covers_phoenix_base_keys() -> None:
 
 
 class _FakeRewardTerm:
-    """Stand-in for Isaac Lab RewardTermCfg — only `.weight` is exercised."""
+    """Stand-in for Isaac Lab RewardTermCfg, only `.weight` is exercised."""
 
     def __init__(self, weight: float):
         self.weight = weight
@@ -103,7 +103,7 @@ def test_wired_dr_keys_not_flagged() -> None:
     """2026-06-07 DR-wiring PR: ``motor_strength_scale`` and
     ``actuator_latency_steps`` are now wired into ``_apply_domain_randomization``
     and added to ``_APPLIED_DR_KEYS``. ``_unwired_sections_present`` must NOT
-    flag them — regression guard against accidental removal from
+    flag them, regression guard against accidental removal from
     ``_APPLIED_DR_KEYS``."""
     dr = {
         "enabled": True,
@@ -125,7 +125,7 @@ def test_wired_dr_keys_not_flagged() -> None:
 
 def test_unwired_sections_does_not_flag_fully_applied_dr() -> None:
     """A ``domain_randomization`` block containing only applied keys produces
-    no warning — the check must not be noisy on the supported config."""
+    no warning, the check must not be noisy on the supported config."""
     dr = {
         "enabled": True,
         "friction_range": [0.4, 1.0],
@@ -163,7 +163,7 @@ def test_unwired_sections_empty_config_is_clean() -> None:
 def test_apply_rewards_missing_term_on_env_cfg_raises_with_context() -> None:
     """If the env cfg's RewardsCfg doesn't have the mapped term at all
     (e.g. a flat-env subclass dropped feet_air_time), we want a clear
-    AttributeError that names both the upstream term and the YAML key —
+    AttributeError that names both the upstream term and the YAML key , 
     not a bare AttributeError from getattr."""
     env_cfg = _FakeEnvCfg(_FakeRewards())  # no reward terms at all
     with pytest.raises(AttributeError) as exc:
@@ -217,13 +217,13 @@ def test_apply_rewards_new_term_factory_mixed_with_upstream() -> None:
 # ---------------------------------------------------------------------------
 # DR-wiring regression tests (2026-06-07)
 # These guard the two keys that were previously declared-but-dropped:
-#   motor_strength_scale  — wired via events.scale_motor_strength.params
-#   actuator_latency_steps — wired via events.phoenix_actuator_latency_range
+#   motor_strength_scale , wired via events.scale_motor_strength.params
+#   actuator_latency_steps, wired via events.phoenix_actuator_latency_range
 # ---------------------------------------------------------------------------
 
 
 class _FakeEventTerm:
-    """Minimal stand-in for an Isaac Lab EventTerm — only .params is used."""
+    """Minimal stand-in for an Isaac Lab EventTerm, only .params is used."""
 
     def __init__(self, **params):
         self.params: dict = dict(params)
@@ -286,7 +286,7 @@ def test_apply_dr_motor_strength_scale_patches_event_params() -> None:
 
 def test_apply_dr_motor_strength_scale_skipped_when_term_absent() -> None:
     """If events.scale_motor_strength is not present (upstream cfg not pre-prepared),
-    _apply_domain_randomization must not raise — it silently skips."""
+    _apply_domain_randomization must not raise, it silently skips."""
     events = _FakeEvents(
         physics_material=_FakeEventTerm(
             static_friction_range=(0.8, 0.8),

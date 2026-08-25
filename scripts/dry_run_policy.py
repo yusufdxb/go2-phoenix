@@ -1,16 +1,16 @@
 """Offline dry-run harness for the Phoenix ROS 2 policy node.
 
 Runs the policy node against synthetic /imu/data, /joint_states, /cmd_vel,
-and /phoenix/estop publishers — no robot, no joystick, no Jetson required.
+and /phoenix/estop publishers, no robot, no joystick, no Jetson required.
 
 Verifies, in order:
 
 1. Node starts cleanly (no shape error, ONNX loads).
 2. /joint_group_position_controller/command is published at ~50 Hz.
 3. Commands respect the per-step delta clip (<= 0.175 rad from joint_pos).
-4. Pitch > 0.8 rad latches the attitude abort — commands collapse to
+4. Pitch > 0.8 rad latches the attitude abort, commands collapse to
    the default stand pose.
-5. /phoenix/estop True latches the estop — same stand-pose behavior.
+5. /phoenix/estop True latches the estop, same stand-pose behavior.
 6. NaN in joint_states latches the abort.
 
 Usage:
@@ -225,7 +225,7 @@ def main() -> int:
         failed = False
 
         # Gate 1+2: clean start, 50 Hz, commands near default_q.
-        logger.info("Scenario 1: normal — expect ~50 Hz commands near default.")
+        logger.info("Scenario 1: normal, expect ~50 Hz commands near default.")
         time.sleep(0.5)  # warmup
         samples = _run_scenario(recorder, args.duration)
         rate = _rate(samples)
@@ -241,7 +241,7 @@ def main() -> int:
             failed = True
 
         # Gate 4: attitude abort.
-        logger.info("Scenario 2: pitch=1.0 rad — expect aborted stand-pose commands.")
+        logger.info("Scenario 2: pitch=1.0 rad, expect aborted stand-pose commands.")
         fakes.pitch = 1.0
         time.sleep(0.3)
         samples = _run_scenario(recorder, args.duration)
@@ -253,7 +253,7 @@ def main() -> int:
         fakes.pitch = 0.0
 
         # Reset policy to re-run estop scenario cleanly (abort is latched).
-        logger.info("Scenario 3: estop latch — re-init node, flip /phoenix/estop True.")
+        logger.info("Scenario 3: estop latch, re-init node, flip /phoenix/estop True.")
         policy.shutdown()
         policy.node.destroy_node()
         policy = _PhoenixPolicyNode(cfg, onnx_path, log_parquet=None)
@@ -270,7 +270,7 @@ def main() -> int:
         fakes.estop = False
 
         # Gate: NaN abort.
-        logger.info("Scenario 4: NaN in joint_states — expect abort.")
+        logger.info("Scenario 4: NaN in joint_states, expect abort.")
         policy.shutdown()
         policy.node.destroy_node()
         policy = _PhoenixPolicyNode(cfg, onnx_path, log_parquet=None)
@@ -292,7 +292,7 @@ def main() -> int:
         if failed:
             logger.error("DRY-RUN FAILED")
             return 1
-        logger.info("DRY-RUN PASSED — all gates clean.")
+        logger.info("DRY-RUN PASSED, all gates clean.")
         return 0
     finally:
         rclpy.shutdown()

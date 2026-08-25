@@ -7,17 +7,17 @@ early-warning signal that lets the Simplex arbiter (Phase 2) hand off to
 a safe fallback before the robot visibly fails.
 
 Two complementary scorers, both fit on **nominal rollouts only** (never
-on failures — that would leak the label and make the lead-time claim
+on failures, that would leak the label and make the lead-time claim
 circular):
 
-* :class:`MahalanobisScorer` — squared Mahalanobis distance to the
+* :class:`MahalanobisScorer`, squared Mahalanobis distance to the
   nominal feature cloud under a shrinkage covariance. Cheap (one
   triangular solve), parametric, great when the nominal cloud is roughly
   one blob. Shrinkage (:func:`ledoit_wolf_shrinkage`) keeps the
   covariance invertible when feature dim approaches sample count, which
   is exactly the regime for penultimate-layer activations.
 
-* :class:`KNNScorer` — distance to the k-th nearest nominal sample in a
+* :class:`KNNScorer`, distance to the k-th nearest nominal sample in a
   PCA-whitened subspace. Non-parametric, catches multi-modal nominal
   structure (different gaits / command bins) that a single Gaussian
   smears over.
@@ -28,7 +28,7 @@ Design rules baked in for the eventual Orin NX deployment (codex review,
 * Everything is fit in float64 offline; deploy constants are whatever
   dtype the caller stores. The scorers never allocate per-call beyond a
   couple of temporaries.
-* A NaN or inf anywhere in the feature vector returns ``+inf`` — the
+* A NaN or inf anywhere in the feature vector returns ``+inf``, the
   monitor must fail *toward* SAFE, never silently pass a garbage frame.
 * No sklearn / scipy / torch dependency, so this stays in the pure-python
   CI lane.
@@ -81,7 +81,7 @@ def ledoit_wolf_shrinkage(x: np.ndarray) -> tuple[np.ndarray, float]:
 
     mean = arr.mean(axis=0)
     centered = arr - mean
-    # Empirical (MLE, 1/n) covariance — matches the Ledoit-Wolf derivation.
+    # Empirical (MLE, 1/n) covariance, matches the Ledoit-Wolf derivation.
     emp = (centered.T @ centered) / n
     mu = np.trace(emp) / d
     target = mu * np.eye(d)

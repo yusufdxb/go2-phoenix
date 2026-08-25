@@ -6,7 +6,7 @@
 # distribution by construction, so the bench (|a|_inf < 0.3) should pass.
 #
 # 1000 iters at 10240 envs (~17 min on RTX 5070) is more than enough for a
-# task this narrow — v3b hit plateau on the much harder velocity-tracking
+# task this narrow, v3b hit plateau on the much harder velocity-tracking
 # task at ~iter 100 with the same hyperparameters.
 
 run:

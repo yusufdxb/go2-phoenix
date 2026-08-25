@@ -6,7 +6,7 @@ uses an explicit ``DCMotor`` which has no delayed variant. This mirrors the
 policy trains against the real robot's command latency. Until now the
 ``domain_randomization.actuator_latency_steps`` `[1,5]` range was stored but
 never consumed (``go2_env_cfg.py`` no-op note), so the trained policy assumed
-zero actuation delay — a known sim-to-real gap.
+zero actuation delay, a known sim-to-real gap.
 
 It delays ONLY the setpoints (positions/velocities/efforts) by a per-env random
 number of physics steps drawn from ``[min_delay, max_delay]`` at each reset, then

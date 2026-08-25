@@ -7,7 +7,7 @@ the ``EmpiricalNormalization`` buffers *inside* ``actor_state_dict`` under
 ``obs_normalizer._mean`` / ``obs_normalizer._var``. The old code therefore
 always returned ``None`` and exported a policy with no observation
 normalization at all, even though every training config sets
-``empirical_normalization: true`` — a silent train/deploy mismatch the
+``empirical_normalization: true``, a silent train/deploy mismatch the
 ONNX-vs-TorchScript parity gate cannot catch.
 
 The statistics-extraction logic is pure dict traversal (no torch), so it
@@ -53,7 +53,7 @@ def test_extract_from_rsl_rl_3x_layout() -> None:
 
 
 def test_extract_returns_none_when_no_normalizer() -> None:
-    # Policy trained with empirical_normalization: false — no buffers.
+    # Policy trained with empirical_normalization: false, no buffers.
     actor_sd = {
         "mlp.0.weight": np.zeros((512, 48)),
         "mlp.0.bias": np.zeros(512),

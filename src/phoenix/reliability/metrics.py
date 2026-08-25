@@ -3,12 +3,12 @@
 The reliability layer lives or dies on two questions a skeptical reviewer
 will ask:
 
-1. *Separability without a hand-picked threshold* — how well does the raw
+1. *Separability without a hand-picked threshold*, how well does the raw
    score rank out-of-distribution frames above nominal ones? Answered with
    AUROC, average precision (AUPR), and FPR@95TPR, each with a bootstrap
    confidence interval so a lucky split can't masquerade as a result.
 
-2. *Does it warn in time?* — the headline claim is not "we detect OOD" but
+2. *Does it warn in time?*, the headline claim is not "we detect OOD" but
    "we detect it early enough to act". :func:`lead_time_seconds` measures
    the gap between the monitor first firing and the **independent**
    observable-failure oracle (the rule-based
@@ -17,7 +17,7 @@ will ask:
    circular.
 
 Thresholds are calibrated on **nominal data only** (:func:`threshold_at_fpr`)
-— never on the OOD set — so the operating point can't be tuned to the very
+,  never on the OOD set, so the operating point can't be tuned to the very
 perturbations we then report on.
 
 Pure numpy: no sklearn/scipy, so this stays in the CI lane. Convention:

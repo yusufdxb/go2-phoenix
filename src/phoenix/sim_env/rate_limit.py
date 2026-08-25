@@ -47,7 +47,7 @@ def rate_limit_targets(processed: Any, joint_pos: Any, max_delta: float) -> Any:
     lower = joint_pos - max_delta
     upper = joint_pos + max_delta
     clamp = getattr(processed, "clamp", None)
-    if clamp is not None:  # torch.Tensor — supports tensor min/max bounds
+    if clamp is not None:  # torch.Tensor, supports tensor min/max bounds
         return clamp(lower, upper)
     import numpy as np
 
