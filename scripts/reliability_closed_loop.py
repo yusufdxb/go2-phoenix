@@ -683,18 +683,25 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
                 axis=1,
             )
             obs = _unwrap(reset_obs)
-            zero_actions = torch.zeros(
-                (args.envs, env.num_actions),
-                device=env.unwrapped.device,
-                dtype=torch.float32,
-            )
+            # Settle the environment before initial_obs is captured, so the root
+            # state buffers carry this block's reset rather than the previous
+            # block's terminal state. The settle steps the POLICY, not zero
+            # actions: for a standing policy a zero action is a release, not a
+            # hold, and it terminates the environment in the unshielded arm while
+            # the oracle fallback survives it (probe 2026-08-24). A
+            # treatment-dependent settle would defeat the negative control it is
+            # meant to repair. No shield step and no blend is applied here, so
+            # the settle is identical across arms by construction.
             for _ in range(int(params["reset_settle_ticks"])):
+                with torch.no_grad():
+                    settle_actions = policy(obs)
                 settle_obs, _settle_reward, settle_dones, _settle_extras = env.step(
-                    zero_actions
+                    settle_actions
                 )
                 if bool(settle_dones.any()):
                     raise RuntimeError("FAIL CLOSED: environment terminated during reset settling")
                 obs = _unwrap(settle_obs)
+            captured.clear()
             initial_obs = _policy_group(obs).detach().cpu().numpy().copy()
             onset_obs = np.full_like(initial_obs, np.nan)
 
