@@ -56,7 +56,7 @@ e.g. `cell_03__f0.05-0.4__p1.0__a-2.0`.
 
 ## Two scales
 
-| Scale | num_envs | max_iterations | per-cell wall (RTX 5070, est) | total grid wall |
+| Scale | num_envs | max_iterations | per-cell wall (NVIDIA (Blackwell) consumer GPU, est) | total grid wall |
 |---|---|---|---|---|
 | SMOKE | 256 | 50 | 2 to 5 min | 24 to 60 min (12 cells) |
 | FULL | 4096 | 300 | 25 to 40 min | 5 to 8 h (12 cells) |

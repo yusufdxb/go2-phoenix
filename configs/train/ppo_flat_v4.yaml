@@ -7,7 +7,7 @@
 #   - rel_standing_envs 0.02 -> 0.15 (via configs/env/flat_v4.yaml)
 #   - max_iterations 2500 -> 5000   : more budget at 10240 envs
 #
-# Budget: 5000 iters * 10240 envs on RTX 5070 ~ 85 min (v3b was ~17 min / 1000 iters).
+# Budget: 5000 iters * 10240 envs on NVIDIA (Blackwell) consumer GPU ~ 85 min (v3b was ~17 min / 1000 iters).
 
 run:
   name: "phoenix-flat-v4"

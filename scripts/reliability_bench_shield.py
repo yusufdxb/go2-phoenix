@@ -59,7 +59,7 @@ def main() -> int:
 
     # Without pinning, the tail of this measurement is core migration and
     # frequency scaling on a shared desktop, not the cost of the shield: on
-    # mewtwo the unpinned worst case is ~5 ms while the pinned worst case is
+    # the workstation the unpinned worst case is ~5 ms while the pinned worst case is
     # ~25 us. The deployed control thread is pinned, so the benchmark pins too
     # and records that it did.
     pinned = None

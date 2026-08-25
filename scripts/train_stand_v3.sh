@@ -13,7 +13,7 @@
 # Prereqs:
 #   - Isaac Sim venv at $ISAAC_VENV (default ~/Sim/isaac-sim-venv)
 #   - IsaacLab at $ISAACLAB_PATH (default ~/Sim/IsaacLab)
-#   - RTX-class GPU with ≥12 GB VRAM (mewtwo 5070 or lab-PC 5080 both fit)
+#   - RTX-class GPU with ≥12 GB VRAM (the workstation 5070 or lab-PC 5080 both fit)
 #   - Repo checked out at audit-fixes-2026-04-16 (3c52b05 or newer)
 #
 # Usage (from the repo root):

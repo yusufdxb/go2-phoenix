@@ -5,7 +5,7 @@
 # Usage (Jetson-side, real run):
 #   bash scripts/harness_preflight.sh
 #
-# Usage (self-test on mewtwo, skips ROS2 and motor checks):
+# Usage (self-test on the workstation, skips ROS2 and motor checks):
 #   bash scripts/harness_preflight.sh --mock
 #
 # Optional env vars:
@@ -73,7 +73,7 @@ fi
 # ---- P1: T7 -> Jetson rsync with md5 verification ---------------------------
 step "P1: rsync checkpoint + deploy yaml from T7"
 if [[ $MOCK -eq 1 ]]; then
-    c_yellow "[mock] skipping T7 rsync (no T7 mount on mewtwo for self-test)"
+    c_yellow "[mock] skipping T7 rsync (no T7 mount on the workstation for self-test)"
 else
     if [[ ! -d "$T7_MOUNT" ]]; then
         halt "P1: T7 not mounted at $T7_MOUNT"
@@ -105,7 +105,7 @@ fi
 # ---- P2: git fetch + ff-only merge ------------------------------------------
 step "P2: git fetch + ff-only merge $PHOENIX_BRANCH"
 if [[ $MOCK -eq 1 ]]; then
-    c_yellow "[mock] skipping git ff-only (would mutate local repo on mewtwo)"
+    c_yellow "[mock] skipping git ff-only (would mutate local repo on the workstation)"
 else
     cd "$JETSON_REPO"
     git fetch origin "$PHOENIX_BRANCH" | tee "$LOG_DIR/p2_fetch.log"

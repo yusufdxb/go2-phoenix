@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Post-CUDA-12.8-install smoke test for the mewtwo toolchain.
+# Post-CUDA-12.8-install smoke test for the the workstation toolchain.
 # Walks the full phoenix-relevant layers in order. Halts on the first
 # failure so you know exactly which layer broke.
 #

@@ -5,7 +5,7 @@
 # constant zero, rel_standing_envs=1.0. Canonical stand is now the training
 # distribution by construction, so the bench (|a|_inf < 0.3) should pass.
 #
-# 1000 iters at 10240 envs (~17 min on RTX 5070) is more than enough for a
+# 1000 iters at 10240 envs (~17 min on NVIDIA (Blackwell) consumer GPU) is more than enough for a
 # task this narrow, v3b hit plateau on the much harder velocity-tracking
 # task at ~iter 100 with the same hyperparameters.
 
