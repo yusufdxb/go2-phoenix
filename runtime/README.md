@@ -4,7 +4,7 @@
 still owns training, evaluation and every offline artifact; this owns the on-robot decision logic
 and the policy evaluation.
 
-Nothing here has run on a robot. See `docs/NATIVE_RUNTIME_PLAN.md` §9 for what is and is not
+Nothing here has run on a robot. See `the native runtime plan in the author private notes` §9 for what is and is not
 evidenced.
 
 ## What is in it
