@@ -163,6 +163,13 @@ def parse_args() -> argparse.Namespace:
         "capturing initial_obs. Guards against stale root-state buffers leaking the previous "
         "block terminal state across arms.",
     )
+    p.add_argument(
+        "--reset-invalidate-buffers",
+        action="store_true",
+        help="After env.reset(), mark the articulation lazy data buffers stale so the "
+        "reset observation is recomputed from root_state_w instead of served from the "
+        "previous block cache.",
+    )
     p.add_argument("--onset-lo", type=int, default=100)
     p.add_argument("--onset-hi", type=int, default=200)
     p.add_argument("--device", default="cuda:0")
@@ -279,6 +286,7 @@ def do_freeze(args) -> int:
         "artifact_arming_ticks": op.arming_ticks,
         "oracle_handoff_ticks": int(meta["timings"]["handoff_ticks"]),
         "reset_settle_ticks": int(args.reset_settle_ticks),
+        "reset_invalidate_buffers": bool(args.reset_invalidate_buffers),
         "primary_estimand": (
             "paired block-level post-onset fall-rate difference among jointly "
             "onset-eligible environment pairs, unshielded minus oracle"
@@ -339,6 +347,31 @@ def main() -> int:
         raise
     finally:
         app.close()
+
+
+def invalidate_data_buffers(robot) -> int:
+    """Mark every lazy TimestampedBuffer on the articulation data as stale.
+
+    IsaacLab caches root_lin_vel_b, root_ang_vel_b, projected_gravity_b and friends
+    in TimestampedBuffers keyed on the sim timestamp. A reset writes root_state_w but
+    does not advance that timestamp, so the next observation is served from the cache
+    and carries the PREVIOUS block's terminal body rates. A timestamp of -1.0 is the
+    documented "not updated yet" sentinel and forces a recompute from root_state_w,
+    which the probe of 2026-08-24 confirmed is already correct and arm-identical.
+
+    Returns the number of buffers invalidated.
+    """
+    data = getattr(robot, "_data", None)
+    if data is None:
+        raise RuntimeError("FAIL CLOSED: articulation exposes no _data to invalidate")
+    n = 0
+    for value in vars(data).values():
+        if hasattr(value, "timestamp") and hasattr(value, "data"):
+            value.timestamp = -1.0
+            n += 1
+    if n == 0:
+        raise RuntimeError("FAIL CLOSED: no TimestampedBuffer found on articulation data")
+    return n
 
 
 def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
@@ -683,6 +716,11 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
                 axis=1,
             )
             obs = _unwrap(reset_obs)
+            if bool(params.get("reset_invalidate_buffers", False)):
+                n_inval = invalidate_data_buffers(robot)
+                if block.block_id == 0:
+                    print(f"[cl] invalidated {n_inval} lazy data buffers after reset")
+                obs = _unwrap(env.unwrapped.observation_manager.compute())
             # Settle the environment before initial_obs is captured, so the root
             # state buffers carry this block's reset rather than the previous
             # block's terminal state. The settle steps the POLICY, not zero
