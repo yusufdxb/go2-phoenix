@@ -111,7 +111,7 @@ class ScenarioBlock:
     seed: int
     disturbed: bool
     # Motor-strength scale applied at ``onset_tick``: actuator stiffness and
-    # damping multiplied by this factor. None for nominal blocks (not NaN , 
+    # damping multiplied by this factor. None for nominal blocks (not NaN,
     # NaN is not valid JSON and would break the protocol hash round-trip).
     #
     # Motor degradation rather than friction because it is the disturbance that
