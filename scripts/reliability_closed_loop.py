@@ -170,6 +170,16 @@ def parse_args() -> argparse.Namespace:
         "reset observation is recomputed from root_state_w instead of served from the "
         "previous block cache.",
     )
+    p.add_argument(
+        "--batched-blocks",
+        action="store_true",
+        help="Run every block concurrently as its own slice of a single larger "
+        "environment batch, so each environment lives exactly one block and no "
+        "simulator state can carry from one block into the next. This is the "
+        "leak-free-by-construction replacement for the sequential block loop, "
+        "whose pre-onset negative control failed because PhysX state survives "
+        "env.reset() and depends on execution history.",
+    )
     p.add_argument("--onset-lo", type=int, default=100)
     p.add_argument("--onset-hi", type=int, default=200)
     p.add_argument("--device", default="cuda:0")
@@ -286,6 +296,7 @@ def do_freeze(args) -> int:
         "artifact_arming_ticks": op.arming_ticks,
         "oracle_handoff_ticks": int(meta["timings"]["handoff_ticks"]),
         "reset_settle_ticks": int(args.reset_settle_ticks),
+        "batched_blocks": bool(args.batched_blocks),
         "reset_invalidate_buffers": bool(args.reset_invalidate_buffers),
         "primary_estimand": (
             "paired block-level post-onset fall-rate difference among jointly "
@@ -421,6 +432,11 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         )
     if args.envs != int(params["envs_per_block"]):
         raise SystemExit("FAIL CLOSED: --envs does not match the frozen protocol")
+    if bool(args.batched_blocks) != bool(params.get("batched_blocks", False)):
+        raise SystemExit(
+            "FAIL CLOSED: --batched-blocks does not match the frozen protocol "
+            f"(arm={bool(args.batched_blocks)}, protocol={bool(params.get('batched_blocks', False))})"
+        )
     if args.horizon != int(params["horizon_ticks"]):
         raise SystemExit("FAIL CLOSED: --horizon does not match the frozen protocol")
     if any(block.horizon_ticks != args.horizon for block in blocks):
@@ -499,7 +515,19 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
     # ---- env + policy (mirrors reliability_rollout.py exactly) --------------
     cfg = load_layered_config(args.env_config)
     env_cfg = build_env_cfg(cfg)
-    env_cfg.scene.num_envs = args.envs
+    # In batched-block mode every block gets its own private slice of one larger
+    # environment batch, so an environment lives exactly one block and there is
+    # no second block for simulator state to carry into.
+    envs_per_block = int(args.envs)
+    n_blocks = len(blocks)
+    total_envs = envs_per_block * n_blocks if args.batched_blocks else envs_per_block
+    if args.batched_blocks:
+        print(
+            f"[cl] BATCHED BLOCKS: {n_blocks} blocks x {envs_per_block} envs = "
+            f"{total_envs} environments, one pass of {int(args.horizon)} ticks",
+            flush=True,
+        )
+    env_cfg.scene.num_envs = total_envs
     env_cfg.seed = int(args.process_seed)
     task_name = cfg.to_container()["env"]["task_name"]
     torch.manual_seed(int(args.process_seed))
@@ -594,8 +622,14 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         for name, a in robot.actuators.items()
     }
 
-    def set_motor_scale(scale: float) -> bool:
+    def set_motor_scale(scale) -> bool:
         """Scale actuator stiffness and damping mid-episode.
+
+        ``scale`` is either a python float applied to every environment, or a
+        torch tensor of shape ``(num_envs,)`` giving each environment its own
+        factor. The per-environment form is what batched-block mode needs: the
+        environments in one block are under their block's fault while the
+        environments in the next block are still nominal, in the same tick.
 
         Writing the actuator gains directly is the only disturbance that can
         actually be retargeted mid-episode: Isaac Lab's physics-material event
@@ -607,16 +641,21 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         try:
             for name, actuator in robot.actuators.items():
                 stiffness, damping = base_gains[name]
-                actuator.stiffness = stiffness * scale
-                actuator.damping = damping * scale
+                # A per-env vector must broadcast down the joint axis, a scalar
+                # must not be reshaped at all.
+                mult = scale
+                if isinstance(scale, torch.Tensor) and scale.ndim == 1:
+                    mult = scale.to(stiffness.device, stiffness.dtype).view(-1, 1)
+                actuator.stiffness = stiffness * mult
+                actuator.damping = damping * mult
                 if not torch.allclose(
                     _tensor(actuator.stiffness),
-                    stiffness * scale,
+                    stiffness * mult,
                     rtol=0.0,
                     atol=1e-7,
                 ) or not torch.allclose(
                     _tensor(actuator.damping),
-                    damping * scale,
+                    damping * mult,
                     rtol=0.0,
                     atol=1e-7,
                 ):
@@ -640,19 +679,28 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         preserved -- the model indexes ``obs["policy"]`` -- so only the policy
         group's tensor is replaced.
         """
+        def _scaled(noise, tensor):
+            # ``std`` is a float for the sequential path and a per-env tensor in
+            # batched-block mode. The noise is drawn for EVERY environment either
+            # way, including the ones whose std is zero, so the generator advances
+            # identically in both arms no matter how their trajectories diverge.
+            if isinstance(std, torch.Tensor) and std.ndim == 1:
+                return noise * std.to(tensor.device, tensor.dtype).view(-1, 1)
+            return noise * std
+
         if isinstance(obs, torch.Tensor):
             noise = torch.randn(obs.shape, generator=generator, device=obs.device, dtype=obs.dtype)
-            return obs + noise * std
+            return obs + _scaled(noise, obs)
         pol = obs["policy"]
         noise = torch.randn(pol.shape, generator=generator, device=pol.device, dtype=pol.dtype)
         try:
             new = obs.clone()
         except AttributeError:
             new = dict(obs)
-        new["policy"] = pol + noise * std
+        new["policy"] = pol + _scaled(noise, pol)
         return new
 
-    def set_command(speed: float) -> bool:
+    def set_command(speed) -> bool:
         """Write a forward velocity command into the env's command buffer.
 
         The policy was trained only at zero command, so a nonzero command is out
@@ -662,13 +710,18 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         try:
             cmd = env.unwrapped.command_manager.get_command("base_velocity")
             cmd[:] = 0.0
-            cmd[:, 0] = speed
+            # A per-env vector carries zero for the environments that are still
+            # nominal or still pre-onset, so this one write covers the whole batch.
+            if isinstance(speed, torch.Tensor):
+                cmd[:, 0] = speed.to(cmd.device, cmd.dtype)
+            else:
+                cmd[:, 0] = speed
             return True
         except Exception as exc:  # noqa: BLE001 - reported, never silently ignored
             print(f"[cl] COMMAND INJECTION FAILED: {type(exc).__name__}: {exc}", flush=True)
             return False
 
-    shield = VectorShield(args.artifact, args.envs)
+    shield = VectorShield(args.artifact, total_envs)
     handoff = int(meta["timings"]["handoff_ticks"])
 
     # ---- per-block loop -----------------------------------------------------
@@ -695,8 +748,236 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
             "onset_obs",
         )
     }
+    if args.batched_blocks:
+        # ---- batched-block pass ---------------------------------------------
+        # Environment ``i`` belongs to block ``i // envs_per_block`` and lives
+        # exactly that one block. Every quantity the sequential loop held as a
+        # per-block scalar becomes a per-environment vector, so a single pass
+        # over the horizon runs all blocks concurrently.
+        #
+        # Why this is the negative control's fix: the sequential loop replayed
+        # blocks back to back inside one environment, and PhysX state that
+        # survives env.reset() and depends on execution history therefore
+        # carried the previous block, whose treatment differs between arms, into
+        # the next block's pre-onset window. Here there is no previous block.
+        # Both arms build the same environment from the same seed and step it
+        # identically until each environment reaches its own onset tick, so the
+        # pre-onset window is identical across arms by construction rather than
+        # by a state-scrubbing fix that has to be believed.
+        dev = env.unwrapped.device
+
+        def _per_env(values, dtype):
+            return np.repeat(np.asarray(values, dtype=dtype), envs_per_block)
+
+        onset_v = _per_env([b.onset_tick for b in blocks], np.int64)
+        disturbed_v = _per_env([b.disturbed for b in blocks], bool)
+        motor_v = _per_env(
+            [1.0 if b.motor_scale is None else b.motor_scale for b in blocks], np.float64
+        )
+        noise_v = _per_env(
+            [0.0 if b.obs_noise is None else b.obs_noise for b in blocks], np.float64
+        )
+        speed_v = _per_env(
+            [0.0 if b.command_speed is None else b.command_speed for b in blocks], np.float64
+        )
+        horizon = int(blocks[0].horizon_ticks)
+
+        # One seed for the whole pass. The per-block seeds no longer have a
+        # sequential stream to realign, and both arms consume this stream in
+        # lockstep because every draw is made for the full batch every tick.
+        pass_seed = int(args.process_seed)
+        torch.manual_seed(pass_seed)
+        np.random.seed(pass_seed)
+        corrupt_gen = torch.Generator(device=dev).manual_seed(pass_seed ^ 0x0B5EED)
+        if not set_motor_scale(1.0):
+            raise RuntimeError("FAIL CLOSED: could not restore baseline motor gains")
+        env.seed(pass_seed)
+        reset_obs, _reset_extras = env.reset()
+        shield.reset()
+        reset_state = np.concatenate(
+            [
+                _tensor(robot.data.root_state_w).detach().cpu().numpy(),
+                _tensor(robot.data.joint_pos).detach().cpu().numpy(),
+                _tensor(robot.data.joint_vel).detach().cpu().numpy(),
+            ],
+            axis=1,
+        )
+        obs = _unwrap(reset_obs)
+        if bool(params.get("reset_invalidate_buffers", False)):
+            n_inval = invalidate_data_buffers(robot)
+            print(f"[cl] invalidated {n_inval} lazy data buffers after reset", flush=True)
+            obs = _unwrap(env.unwrapped.observation_manager.compute())
+        with torch.inference_mode():
+            for _ in range(int(params["reset_settle_ticks"])):
+                with torch.no_grad():
+                    settle_actions = policy(obs)
+                settle_obs, _r, settle_dones, _e = env.step(settle_actions)
+                if bool(settle_dones.any()):
+                    raise RuntimeError("FAIL CLOSED: environment terminated during reset settling")
+                obs = _unwrap(settle_obs)
+        captured.clear()
+        initial_obs_all = _policy_group(obs).detach().cpu().numpy().copy()
+        onset_obs_all = np.full_like(initial_obs_all, np.nan)
+
+        motor_base_t = torch.as_tensor(motor_v, device=dev, dtype=torch.float32)
+        noise_base_t = torch.as_tensor(noise_v, device=dev, dtype=torch.float32)
+        speed_base_t = torch.as_tensor(speed_v, device=dev, dtype=torch.float32)
+        ones_t = torch.ones_like(motor_base_t)
+        zeros_t = torch.zeros_like(motor_base_t)
+
+        fell = np.zeros(total_envs, bool)
+        pre_onset_fall = np.zeros(total_envs, bool)
+        post_onset_fall = np.zeros(total_envs, bool)
+        fall_tick = np.full(total_envs, -1, np.int32)
+        switch_tick = np.full(total_envs, -1, np.int32)
+        full_fallback_tick = np.full(total_envs, -1, np.int32)
+        engaged = np.zeros(total_envs, bool)
+        return_until_first_fall = np.zeros(total_envs, np.float64)
+        active_ticks = np.zeros(total_envs, np.int32)
+        blend_sum = np.zeros(total_envs, np.float64)
+        reset_count = np.zeros(total_envs, np.int32)
+        injected_v = np.zeros(total_envs, bool)
+
+        sham_switch = None
+        if sham_sched is not None:
+            sham_switch = np.concatenate(
+                [
+                    np.array(
+                        [-1 if t is None else int(t) for t in sham_sched[b.block_id]], np.int32
+                    )
+                    for b in blocks
+                ]
+            )
+
+        with torch.inference_mode():
+            for tick in range(horizon):
+                # Captured BEFORE this tick's treatment, matching the sequential
+                # loop: onset_obs is the state the disturbance lands on.
+                at_onset = onset_v == tick
+                if at_onset.any():
+                    cur = _policy_group(obs).detach().cpu().numpy()
+                    onset_obs_all[at_onset] = cur[at_onset]
+
+                active = disturbed_v & (tick >= onset_v)
+                active_t = torch.as_tensor(active, device=dev)
+                pol_in = obs
+                if disturbance_kind == "motor":
+                    # Rewritten every tick rather than once at onset. The write
+                    # is idempotent, and a single vector write covers blocks that
+                    # are already faulted and blocks that are still nominal.
+                    if not set_motor_scale(torch.where(active_t, motor_base_t, ones_t)):
+                        raise RuntimeError("FAIL CLOSED: motor fault injection failed")
+                    injected_v |= active
+                elif disturbance_kind == "obs":
+                    pol_in = corrupt_obs(
+                        obs, torch.where(active_t, noise_base_t, zeros_t), corrupt_gen
+                    )
+                    injected_v |= active
+                elif disturbance_kind == "command":
+                    if not set_command(torch.where(active_t, speed_base_t, zeros_t)):
+                        raise RuntimeError("FAIL CLOSED: command fault injection failed")
+                    injected_v |= active
+
+                captured.clear()
+                actions = policy(pol_in)
+                latent = torch.cat([captured[i] for i in tap_idx], dim=1)
+                blend_np, _score, _armed = shield.step(latent.detach().cpu().numpy())
+                alive = ~fell
+
+                if args.arm == "unshielded":
+                    applied_blend = np.zeros(total_envs)  # passive monitor only
+                elif args.arm == "shielded":
+                    applied_blend = blend_np
+                elif args.arm == "oracle":
+                    since = tick - (onset_v + args.oracle_delay_ticks)
+                    ramp = np.where(since >= 0, np.minimum(1.0, (since + 1) / handoff), 0.0)
+                    applied_blend = np.where(disturbed_v, ramp, 0.0)
+                else:  # sham
+                    since = tick - sham_switch
+                    applied_blend = np.where(
+                        (sham_switch >= 0) & (since >= 0), np.minimum(1.0, since / handoff), 0.0
+                    )
+
+                applied_blend = np.where(alive, applied_blend, 0.0)
+                newly = (applied_blend > 0) & (switch_tick < 0)
+                switch_tick[newly] = tick
+                newly_full = (applied_blend >= 1.0) & (full_fallback_tick < 0)
+                full_fallback_tick[newly_full] = tick
+                engaged |= applied_blend > 0
+                blend_sum += applied_blend * alive
+                active_ticks += alive.astype(np.int32)
+
+                blended = actions * torch.as_tensor(
+                    1.0 - applied_blend, device=actions.device, dtype=actions.dtype
+                ).unsqueeze(1)
+                blended[torch.as_tensor(~alive, device=actions.device)] = 0.0
+
+                obs2, reward, dones, extras = env.step(blended)
+                time_out = extras.get("time_outs") if isinstance(extras, dict) else None
+                d = np.asarray(dones.detach().cpu()).astype(bool).reshape(-1)
+                reward_np = np.asarray(reward.detach().cpu(), dtype=np.float64).reshape(-1)
+                return_until_first_fall += reward_np * alive
+                t_out = (
+                    np.asarray(time_out.detach().cpu()).astype(bool).reshape(-1)
+                    if time_out is not None
+                    else np.zeros(total_envs, bool)
+                )
+                new_falls = d & (~t_out) & alive
+                fall_tick[new_falls] = tick
+                pre_onset_fall |= new_falls & (tick < onset_v)
+                post_onset_fall |= new_falls & (tick >= onset_v)
+                fell |= new_falls
+                reset_count += d.astype(np.int32)
+                if d.any():
+                    shield.reset(np.flatnonzero(d))
+                obs = _unwrap(obs2)
+
+                if (tick + 1) % 100 == 0:
+                    print(
+                        f"[cl] tick {tick + 1}/{horizon} fell={fell.sum()}/{total_envs} "
+                        f"engaged={engaged.sum()}/{total_envs}",
+                        flush=True,
+                    )
+
+        def _by_block(arr):
+            return np.asarray(arr).reshape(n_blocks, envs_per_block, *np.asarray(arr).shape[1:])
+
+        injected_by_block = injected_v.reshape(n_blocks, envs_per_block).any(axis=1)
+        for i, block in enumerate(blocks):
+            if block.disturbed and not injected_by_block[i]:
+                raise RuntimeError(
+                    f"FAIL CLOSED: block {block.block_id} never received its registered fault"
+                )
+        rows["block_id"] = [b.block_id for b in blocks]
+        rows["fell"] = _by_block(fell)
+        rows["pre_onset_fall"] = _by_block(pre_onset_fall)
+        rows["post_onset_fall"] = _by_block(post_onset_fall)
+        rows["switch_tick"] = _by_block(switch_tick)
+        rows["full_fallback_tick"] = _by_block(full_fallback_tick)
+        rows["engaged"] = _by_block(engaged)
+        rows["fall_tick"] = _by_block(fall_tick)
+        rows["return_until_first_fall"] = _by_block(return_until_first_fall)
+        rows["active_ticks"] = _by_block(active_ticks)
+        rows["blend_sum"] = _by_block(blend_sum)
+        rows["reset_count"] = _by_block(reset_count)
+        rows["fault_injected"] = [
+            bool(injected_by_block[i]) if b.disturbed else True for i, b in enumerate(blocks)
+        ]
+        rows["reset_state"] = _by_block(reset_state)
+        rows["initial_obs"] = _by_block(initial_obs_all)
+        rows["onset_obs"] = _by_block(onset_obs_all)
+        print(
+            f"[cl] batched pass complete: {n_blocks} blocks, fell={fell.sum()}/{total_envs}, "
+            f"pre={pre_onset_fall.sum()} post={post_onset_fall.sum()} "
+            f"engaged={engaged.sum()}/{total_envs}",
+            flush=True,
+        )
+
     with torch.inference_mode():
-        for bi, block in enumerate(blocks):
+        # The sequential loop is skipped entirely in batched-block mode; it is
+        # retained so previously frozen protocols still replay under their own
+        # recorded settings.
+        for bi, block in enumerate(blocks) if not args.batched_blocks else []:
             torch.manual_seed(block.seed)
             np.random.seed(block.seed)
             corrupt_gen = torch.Generator(device=env.unwrapped.device).manual_seed(
