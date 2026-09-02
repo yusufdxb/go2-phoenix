@@ -163,7 +163,7 @@ def test_unwired_sections_empty_config_is_clean() -> None:
 def test_apply_rewards_missing_term_on_env_cfg_raises_with_context() -> None:
     """If the env cfg's RewardsCfg doesn't have the mapped term at all
     (e.g. a flat-env subclass dropped feet_air_time), we want a clear
-    AttributeError that names both the upstream term and the YAML key , 
+    AttributeError that names both the upstream term and the YAML key,
     not a bare AttributeError from getattr."""
     env_cfg = _FakeEnvCfg(_FakeRewards())  # no reward terms at all
     with pytest.raises(AttributeError) as exc:
