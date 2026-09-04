@@ -330,9 +330,7 @@ def table_units(table, *, source: str = "<table>") -> dict[str, str]:
     try:
         units = json.loads(meta[UNITS_KEY].decode())
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise EpisodeTelemetrySchemaError(
-            f"{source}: units map is not valid JSON: {exc}"
-        ) from exc
+        raise EpisodeTelemetrySchemaError(f"{source}: units map is not valid JSON: {exc}") from exc
     if not isinstance(units, dict):
         raise EpisodeTelemetrySchemaError(
             f"{source}: units map is not a JSON object, got {type(units).__name__}"
@@ -383,8 +381,7 @@ def load_episode_signals(path: str | Path) -> dict[tuple[str, int, int], dict]:
         dt_values = {round(float(r["control_dt_s"]), 12) for r in rows}
         if len(dt_values) != 1:
             raise EpisodeTelemetrySchemaError(
-                f"{src}: episode {key} carries more than one control_dt_s: "
-                f"{sorted(dt_values)}"
+                f"{src}: episode {key} carries more than one control_dt_s: " f"{sorted(dt_values)}"
             )
         out[key] = {
             "dt_s": float(rows[0]["control_dt_s"]),

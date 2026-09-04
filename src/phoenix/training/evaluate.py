@@ -546,9 +546,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                                         "contact_forces_n": (
                                             np.zeros(4, dtype=np.float32)
                                             if contact_np is None
-                                            else np.asarray(
-                                                contact_np[i_env], dtype=np.float32
-                                            )
+                                            else np.asarray(contact_np[i_env], dtype=np.float32)
                                         ),
                                     }
                                 )
