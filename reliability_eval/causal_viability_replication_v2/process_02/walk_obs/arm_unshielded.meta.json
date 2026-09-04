@@ -1,0 +1,105 @@
+{
+  "arm": "unshielded",
+  "blocks": 48,
+  "bundle_file_hashes": {
+    "env_config": "79069ffc946ccec18c297b73917bf208999137404722db2cd9db8dd05d3a9526",
+    "policy_checkpoint": "08add590c2963dba42e72ff388cc3a34dec9adb029075dfdcc296a871f03bfdd",
+    "policy_onnx": "3207d1b7fe887e94fcc2f1c43b828ae2b05d314e76d1fad66eec71df5cff57d0",
+    "policy_onnx_data": "20fa42cc86cfb13c5cc2ecdb5d8c186ea186d35621ce53a2a297f01932a0380e",
+    "shield_artifact": "49d516f54d811f54c2196095a71dafbd7b5996234b2bb287d0d1b6465808becd"
+  },
+  "bundle_id": "c840b0060f2ac783",
+  "cell_id": "walk_obs",
+  "code_commit": "b8ceaa6035dd4a59a0744323c0335d4018af016f",
+  "code_dirty": true,
+  "diagnostic": false,
+  "empirical_normalization": false,
+  "envs_per_block": 16,
+  "fallback_contract": {
+    "action_scale": 0.25,
+    "control_dt_s": 0.02,
+    "default_joint_pos": [
+      0.10000000149011612,
+      -0.10000000149011612,
+      0.10000000149011612,
+      -0.10000000149011612,
+      0.800000011920929,
+      0.800000011920929,
+      1.0,
+      1.0,
+      -1.5,
+      -1.5,
+      -1.5,
+      -1.5
+    ],
+    "handoff_ticks": 10,
+    "implementation": "policy action multiplied by one minus applied blend",
+    "joint_names": [
+      "FL_hip_joint",
+      "FR_hip_joint",
+      "RL_hip_joint",
+      "RR_hip_joint",
+      "FL_thigh_joint",
+      "FR_thigh_joint",
+      "RL_thigh_joint",
+      "RR_thigh_joint",
+      "FL_calf_joint",
+      "FR_calf_joint",
+      "RL_calf_joint",
+      "RR_calf_joint"
+    ]
+  },
+  "fallback_contract_sha256": "a20e4293a794b898b912fc5ff116d425ffdaa4678ed55b44b14e1994f6607b65",
+  "fault_configuration": {
+    "disturbance_kind": "obs",
+    "horizon_ticks": 500,
+    "motor_scale_range": [
+      0.3,
+      0.55
+    ],
+    "obs_noise_range": [
+      1.0,
+      3.0
+    ],
+    "onset_range": [
+      100,
+      200
+    ]
+  },
+  "oracle_delay_ticks": null,
+  "pilot": false,
+  "policy_name": "walk",
+  "preflight_subset": false,
+  "process_pid": 179562,
+  "process_seed": 2026074102,
+  "process_uuid": "dcb8b39c-f9fc-4f96-a57a-62ea93f6acc0",
+  "protocol_hash": "f53f483967175f28d3101bffb0d5752e19556105afe6e0ef71843b9d30bced9a",
+  "protocol_seed": 2026074008,
+  "raw_output_sha256": "82ff3f320decf81e854191974f21d24777c7b04ad97da0a27ad7f1a33e8c3444",
+  "replicate_id": "process_02",
+  "resolved_env_config_sha256": "97862dbc1a6533d8f5025969270fd16534f9983f58dc263f109193442ca6db91",
+  "run_finished_unix_s": 1788389093.086889,
+  "run_started_unix_s": 1788389078.667115,
+  "runtime_versions": {
+    "isaaclab": "4.5.22",
+    "numpy": "1.26.4",
+    "rsl_rl_lib": "5.0.1",
+    "torch": "2.10.0+cu128"
+  },
+  "source_files": {
+    "scripts/reliability_closed_loop.py": "ded00d59710328a64463d57bdc28f0d2a0912bee2736b5ae315b4fd9ae6552b1",
+    "scripts/reliability_oracle_screen.py": "038b57b5bdd77413d016ba7ff81c0dc6fafcd21fc7e860787e5281a264b4851b",
+    "scripts/reliability_replication.py": "3ede2c9d7a4151fda04b8eed4829030aa3d0b48536b4972ae305c38b5e36249b",
+    "src/phoenix/reliability/bundle.py": "4119e45673374f6f558e92c3c3da707434cbfa57f66e64af14d1ac30108b78e6",
+    "src/phoenix/reliability/deploy.py": "9c17d78ffcc8ba499bf10189880fa286c1b4ce57ec8171f3993ef0681a0b4eed",
+    "src/phoenix/reliability/oracle_screen.py": "7535ef1501802f1af9c45b83ea7d9347a3f1a4785ebd6ceb3ea55424febc73b2",
+    "src/phoenix/reliability/replication.py": "d298c8887f6116c086d801dcc6b42426093f4a61d38261be3acb31c486ab1be6",
+    "src/phoenix/reliability/study.py": "2969ec17cdf8f8525f6e528439759429ab273b681e6d6c15b0ce4c55b0fa9319",
+    "src/phoenix/sim_env/config_loader.py": "e9d25802a9d565adb9c40b23c7bcef6f088bcb87e08371b32035e8f5447610da",
+    "src/phoenix/sim_env/go2_env_cfg.py": "52fd32eb6b02a2159898cd94c4b80ef561ffbf779ba2fa148f0d1059eeb901ee",
+    "src/phoenix/training/checkpoint.py": "1e719d75d50af362ed56ce6832c47fbb79f3d4ed8f6510ed99314d26a90594f3"
+  },
+  "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac",
+  "study_id": "phoenix_causal_viability_replication_v2",
+  "trajectory_sha256": "18d80c03571a1668360e1c24ca26906f593dd3cab13870c104f36c3b10ed96fc"
+}
