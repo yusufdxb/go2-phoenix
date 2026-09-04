@@ -14,19 +14,39 @@
 #      is missing or if passed is not true.
 #
 # Usage:
-#   scripts/stage_payload_bundle.sh <checkpoint-dir> <deploy-cfg> <dest-dir>
+#   scripts/stage_payload_bundle.sh <checkpoint-dir> <deploy-cfg> <dest>
 #
-# Example:
+# <dest> is either a local directory or a remote [user@]host:/path, in which
+# case the bundle is assembled locally, rsynced over, and the SHA256SUMS is
+# re-verified ON THE PAYLOAD, which is the only check that proves the transfer
+# rather than the copy. Host aliases jetson (wifi 192.168.0.70) and
+# jetson-cable (192.168.123.18) are already in ~/.ssh/config; the password
+# comes from JETSON_PW, default 123.
+#
+# Examples:
 #   scripts/stage_payload_bundle.sh \
 #       checkpoints/phoenix-stand-h25-lat-noise \
 #       configs/sim2real/deploy_stand_h25.yaml \
-#       /media/yusuf/T7/phoenix-stand-h25-lat-noise
+#       deploy_staging/phoenix-stand-h25-lat-noise
+#
+#   scripts/stage_payload_bundle.sh \
+#       checkpoints/phoenix-stand-h25-lat-noise \
+#       configs/sim2real/deploy_stand_h25.yaml \
+#       jetson:/home/unitree/phoenix/stand-h25-lat-noise
 
 set -euo pipefail
 
-CKPT_DIR="${1:?usage: $0 <checkpoint-dir> <deploy-cfg> <dest-dir>}"
-DEPLOY_CFG="${2:?usage: $0 <checkpoint-dir> <deploy-cfg> <dest-dir>}"
-DEST="${3:?usage: $0 <checkpoint-dir> <deploy-cfg> <dest-dir>}"
+CKPT_DIR="${1:?usage: $0 <checkpoint-dir> <deploy-cfg> <dest>}"
+DEPLOY_CFG="${2:?usage: $0 <checkpoint-dir> <deploy-cfg> <dest>}"
+DEST="${3:?usage: $0 <checkpoint-dir> <deploy-cfg> <dest>}"
+
+# A dest of the form host:/path is remote. A leading / or ./ is always local,
+# so an absolute path containing a colon is not mistaken for a host.
+REMOTE=""
+case "$DEST" in
+  /*|./*|../*) ;;
+  *:*) REMOTE="$DEST"; DEST="$(mktemp -d)" ;;
+esac
 
 GATE="$CKPT_DIR/parity_gate.json"
 if [[ ! -f "$GATE" ]]; then
@@ -59,6 +79,29 @@ cp -f "$DEPLOY_CFG" "$DEST/$(basename "$DEPLOY_CFG")"
 ( cd "$DEST" && sha256sum ./* > SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS )
 ( cd "$DEST" && sha256sum -c SHA256SUMS )
 
+if [[ -z "$REMOTE" ]]; then
+  echo
+  echo "[stage] staged $CKPT_DIR -> $DEST"
+  echo "[stage] verify on the payload with: sha256sum -c SHA256SUMS"
+  exit 0
+fi
+
+# ------------------------------------------------------------------ remote push
+HOST="${REMOTE%%:*}"
+RPATH="${REMOTE#*:}"
+PW="${JETSON_PW:-123}"
+SSH=(sshpass -p "$PW" ssh "$HOST")
+
 echo
-echo "[stage] staged $CKPT_DIR -> $DEST"
-echo "[stage] verify on the payload with: sha256sum -c SHA256SUMS"
+echo "[stage] pushing to $HOST:$RPATH"
+"${SSH[@]}" "mkdir -p '$RPATH'"
+sshpass -p "$PW" rsync -a --delete -e "sshpass -p $PW ssh" "$DEST"/ "$HOST:$RPATH"/
+
+# The local sha256sum -c above only proves the local copy. This one proves the
+# bytes that actually reached the payload.
+echo "[stage] verifying on $HOST"
+"${SSH[@]}" "cd '$RPATH' && sha256sum -c SHA256SUMS"
+
+rm -rf "$DEST"
+echo
+echo "[stage] staged $CKPT_DIR -> $HOST:$RPATH, verified on the payload"
