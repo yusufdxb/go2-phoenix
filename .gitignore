@@ -113,3 +113,7 @@ reliability_eval/closed_loop*/*_pilot*
 # per-arm preflight rollouts are not cited by any result.
 reliability_eval/causal_viability_replication_preflight*/**/*_preflight.npz
 reliability_eval/causal_viability_replication_preflight*/**/*_preflight.meta.json
+
+# Payload staging bundles assembled by scripts/stage_payload_bundle.sh.
+# Copies of already-tracked-or-ignored artifacts; the transport is the T7, not git.
+deploy_staging/
