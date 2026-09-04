@@ -54,6 +54,45 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--metrics-out", type=Path, default=None)
     p.add_argument(
+        "--episode-records-out",
+        type=Path,
+        default=None,
+        help=(
+            "If set, write a per-episode parquet (one row per finished episode) "
+            "alongside the metrics JSON. Additive: metrics JSON is unaffected."
+        ),
+    )
+    p.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help="Run identifier stamped into every episode record (default: metrics stem)",
+    )
+    p.add_argument(
+        "--terrain-id",
+        type=str,
+        default=None,
+        help="Terrain identifier stamped into every episode record (default: env-config stem)",
+    )
+    p.add_argument(
+        "--challenge-id",
+        type=str,
+        default="unspecified",
+        help="Challenge / condition identifier stamped into every episode record",
+    )
+    p.add_argument(
+        "--episode-telemetry-out",
+        type=Path,
+        default=None,
+        help=(
+            "If set, write a per-step, per-episode telemetry parquet keyed by "
+            "(run_id, seed, episode_id). Carries attitude, base height and "
+            "commanded vs actual velocity, which the episode-record summary "
+            "averages away and the env-0 --telemetry-out CSV cannot supply. "
+            "Additive: metrics JSON and episode records are unaffected."
+        ),
+    )
+    p.add_argument(
         "--slew-saturation-max",
         type=float,
         default=None,
@@ -331,6 +370,54 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     slew_sat_steps = 0
     telemetry_rows: list | None = [] if args.telemetry_out else None
 
+    # ---- Per-episode records (additive) ------------------------------------
+    # The aggregate RolloutMetrics below averages every episode away. These
+    # accumulators keep the per-episode identity so a per-failure-mode
+    # recurrence question can be answered downstream. They feed a separate
+    # parquet artifact and never touch the metrics JSON.
+    from phoenix.training.episode_records import (
+        EpisodeRecord,
+        build_episode_record,
+        sha256_file,
+        write_episode_records,
+    )
+
+    episode_records: list[EpisodeRecord] = []
+    ep_lin_err_sum = np.zeros(args.num_envs, dtype=np.float64)
+    ep_lin_err_max = np.zeros(args.num_envs, dtype=np.float64)
+    ep_ang_err_sum = np.zeros(args.num_envs, dtype=np.float64)
+    ep_ang_err_max = np.zeros(args.num_envs, dtype=np.float64)
+    ep_track_steps = np.zeros(args.num_envs, dtype=np.int64)
+    if args.episode_records_out is not None:
+        policy_sha = sha256_file(args.checkpoint)
+    else:
+        policy_sha = ""
+    run_id = args.run_id or (
+        args.metrics_out.stem if args.metrics_out is not None else args.checkpoint.stem
+    )
+    terrain_id = args.terrain_id or args.env_config.stem
+
+    # ---- Per-step episode telemetry (additive) -----------------------------
+    # Buffered per env, and emitted only when that env's episode finishes, so
+    # every row carries the same episode_id the episode record was built with
+    # and the two artifacts join on (run_id, seed, episode_id).
+    from phoenix.training.episode_telemetry import (
+        EpisodeTelemetryWriter,
+        TelemetryStep,
+        quat_wxyz_to_euler,
+    )
+
+    telemetry_writer = (
+        EpisodeTelemetryWriter(args.episode_telemetry_out)
+        if args.episode_telemetry_out is not None
+        else None
+    )
+    # One pending list per env, each holding that env's steps since its last
+    # reset. Cleared on done, so a row is never attributed to two episodes.
+    ep_tel_pending: list[list[dict]] = [[] for _ in range(args.num_envs)]
+    foot_body_ids: list[int] | None = None
+    contact_warned = False
+
     print("[eval] rollout started", flush=True)
     with torch.inference_mode():
         while len(returns) < args.num_episodes:
@@ -380,11 +467,91 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                     lin_b_np = _to_numpy(root.root_lin_vel_b)
                     ang_b_np = _to_numpy(root.root_ang_vel_b)
                     if cmd_np.ndim >= 2 and lin_b_np.ndim >= 2:
-                        lin_err_acc += float(
-                            np.mean(np.linalg.norm(cmd_np[:, :2] - lin_b_np[:, :2], axis=-1))
-                        )
-                        ang_err_acc += float(np.mean(np.abs(cmd_np[:, 2] - ang_b_np[:, 2])))
+                        lin_err_per_env = np.linalg.norm(cmd_np[:, :2] - lin_b_np[:, :2], axis=-1)
+                        ang_err_per_env = np.abs(cmd_np[:, 2] - ang_b_np[:, 2])
+                        lin_err_acc += float(np.mean(lin_err_per_env))
+                        ang_err_acc += float(np.mean(ang_err_per_env))
                         tracking_steps += 1
+                        # Per-episode accumulation, additive and independent of
+                        # the aggregate accumulators above.
+                        n_env = min(args.num_envs, lin_err_per_env.shape[0])
+                        ep_lin_err_sum[:n_env] += lin_err_per_env[:n_env]
+                        ep_ang_err_sum[:n_env] += ang_err_per_env[:n_env]
+                        np.maximum(
+                            ep_lin_err_max[:n_env],
+                            lin_err_per_env[:n_env],
+                            out=ep_lin_err_max[:n_env],
+                        )
+                        np.maximum(
+                            ep_ang_err_max[:n_env],
+                            ang_err_per_env[:n_env],
+                            out=ep_ang_err_max[:n_env],
+                        )
+                        ep_track_steps[:n_env] += 1
+                        if telemetry_writer is not None:
+                            # Attitude and height come from the same root data
+                            # handle the tracking error above already read, so
+                            # this adds no extra sim query per step.
+                            quat_np = _to_numpy(root.root_quat_w)
+                            pos_np = _to_numpy(root.root_pos_w)
+                            jvel_np = _to_numpy(root.joint_vel)
+                            contact_np = None
+                            try:
+                                sensor = unwrapped.scene["contact_forces"]
+                                if foot_body_ids is None:
+                                    names = list(sensor.body_names)
+                                    foot_body_ids = [
+                                        idx
+                                        for idx, nm in enumerate(names)
+                                        if nm.lower().endswith("foot")
+                                    ]
+                                if foot_body_ids:
+                                    forces = _to_numpy(sensor.data.net_forces_w)
+                                    contact_np = np.linalg.norm(
+                                        forces[:, foot_body_ids, :], axis=-1
+                                    )
+                            except Exception as contact_err:  # noqa: BLE001
+                                if not contact_warned:
+                                    logger.warning(
+                                        "contact forces unavailable, writing zeros "
+                                        "(disables stumble and contact-loss "
+                                        "detection downstream): %r",
+                                        contact_err,
+                                    )
+                                    contact_warned = True
+                            for i_env in range(n_env):
+                                roll_i, pitch_i, yaw_i = quat_wxyz_to_euler(quat_np[i_env])
+                                ep_tel_pending[i_env].append(
+                                    {
+                                        # Index of this step within the episode
+                                        # times the control period, so t_s and
+                                        # step_index cannot disagree.
+                                        "t_s": len(ep_tel_pending[i_env]) * dt_ctrl,
+                                        "pitch_rad": pitch_i,
+                                        "roll_rad": roll_i,
+                                        "yaw_rad": yaw_i,
+                                        "base_height_m": float(pos_np[i_env, 2]),
+                                        "base_quat_wxyz": np.asarray(
+                                            quat_np[i_env], dtype=np.float32
+                                        ),
+                                        "cmd_lin_vel_x_mps": float(cmd_np[i_env, 0]),
+                                        "cmd_lin_vel_y_mps": float(cmd_np[i_env, 1]),
+                                        "cmd_ang_vel_z_radps": float(cmd_np[i_env, 2]),
+                                        "actual_lin_vel_x_mps": float(lin_b_np[i_env, 0]),
+                                        "actual_lin_vel_y_mps": float(lin_b_np[i_env, 1]),
+                                        "actual_ang_vel_z_radps": float(ang_b_np[i_env, 2]),
+                                        "joint_vel_radps": np.asarray(
+                                            jvel_np[i_env], dtype=np.float32
+                                        ),
+                                        "contact_forces_n": (
+                                            np.zeros(4, dtype=np.float32)
+                                            if contact_np is None
+                                            else np.asarray(
+                                                contact_np[i_env], dtype=np.float32
+                                            )
+                                        ),
+                                    }
+                                )
                         if telemetry_rows is not None:
                             telemetry_rows.append(
                                 (
@@ -439,6 +606,47 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                         successes += 1
                     else:
                         failures += 1
+                    episode_records.append(
+                        build_episode_record(
+                            run_id=run_id,
+                            episode_id=len(returns) - 1,
+                            seed=args.seed,
+                            env_index=i,
+                            terrain_id=terrain_id,
+                            challenge_id=args.challenge_id,
+                            timed_out=time_out,
+                            termination_reason="time_out" if time_out else "termination",
+                            episode_return=float(episode_return[i].item()),
+                            episode_length_steps=int(ep_len),
+                            control_dt_s=dt_ctrl,
+                            lin_err_sum_mps=float(ep_lin_err_sum[i]),
+                            lin_err_max_mps=float(ep_lin_err_max[i]),
+                            ang_err_sum_radps=float(ep_ang_err_sum[i]),
+                            ang_err_max_radps=float(ep_ang_err_max[i]),
+                            tracking_steps=int(ep_track_steps[i]),
+                            policy_path=str(args.checkpoint),
+                            policy_sha256=policy_sha,
+                        )
+                    )
+                    if telemetry_writer is not None:
+                        for step_index, pending in enumerate(ep_tel_pending[i]):
+                            telemetry_writer.append(
+                                TelemetryStep(
+                                    run_id=run_id,
+                                    episode_id=len(returns) - 1,
+                                    seed=args.seed,
+                                    env_index=i,
+                                    step_index=step_index,
+                                    control_dt_s=dt_ctrl,
+                                    **pending,
+                                )
+                            )
+                        ep_tel_pending[i] = []
+                    ep_lin_err_sum[i] = 0.0
+                    ep_lin_err_max[i] = 0.0
+                    ep_ang_err_sum[i] = 0.0
+                    ep_ang_err_max[i] = 0.0
+                    ep_track_steps[i] = 0
                     episode_return[i] = 0.0
                     episode_length[i] = 0.0
 
@@ -469,6 +677,21 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     if args.metrics_out:
         args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
         args.metrics_out.write_text(json.dumps(asdict(metrics), indent=2))
+
+    if telemetry_writer is not None:
+        rows = telemetry_writer.rows_written
+        telemetry_writer.close()
+        print(
+            f"[eval] episode telemetry: {rows} rows -> {args.episode_telemetry_out}",
+            flush=True,
+        )
+
+    if args.episode_records_out is not None:
+        write_episode_records(args.episode_records_out, episode_records)
+        print(
+            f"[eval] episode records: {len(episode_records)} rows -> {args.episode_records_out}",
+            flush=True,
+        )
 
     if args.telemetry_out and telemetry_rows:
         args.telemetry_out.parent.mkdir(parents=True, exist_ok=True)
