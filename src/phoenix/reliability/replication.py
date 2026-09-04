@@ -18,6 +18,11 @@ EXPECTED_CELLS = {
     "walk_obs": ("walk", "obs"),
 }
 EXPECTED_REPLICATES = ("process_01", "process_02", "process_03")
+
+#: Study identifier the v1 replication froze. Kept as the default so every
+#: existing artifact validates unchanged; a re-run under a changed design
+#: passes its own id rather than overwriting v1.
+DEFAULT_STUDY_ID = "phoenix_causal_viability_replication_v1"
 REQUIRED_ARRAYS = {
     "block_id",
     "fell",
@@ -239,7 +244,13 @@ def _ordered_arm(
     return ordered
 
 
-def validate_replicate(out_dir: str | Path, *, n_boot: int = 10_000, seed: int = 0) -> dict:
+def validate_replicate(
+    out_dir: str | Path,
+    *,
+    n_boot: int = 10_000,
+    seed: int = 0,
+    study_id: str = DEFAULT_STUDY_ID,
+) -> dict:
     """Validate one paired process-cell directory and return block-level effects."""
 
     out_dir = Path(out_dir)
@@ -247,8 +258,11 @@ def validate_replicate(out_dir: str | Path, *, n_boot: int = 10_000, seed: int =
     params = protocol["params"]
     if protocol.get("arms") != ["unshielded", "oracle"]:
         raise ValueError("replication protocol must freeze exactly unshielded and oracle")
-    if params.get("study_id") != "phoenix_causal_viability_replication_v1":
-        raise ValueError("unexpected or missing replication study ID")
+    if params.get("study_id") != study_id:
+        raise ValueError(
+            f"unexpected or missing replication study ID: {params.get('study_id')!r}, "
+            f"expected {study_id!r}"
+        )
     n_blocks = len(blocks)
     envs = int(params["envs_per_block"])
     if n_blocks != 48 or params.get("n_disturbed") != 32 or params.get("n_nominal") != 16:
@@ -483,6 +497,7 @@ def build_registry(
     root: str | Path,
     *,
     exploratory_protocols: list[str | Path] | None = None,
+    study_id: str = DEFAULT_STUDY_ID,
 ) -> dict:
     """Validate all frozen protocols before any arm runs and return a registry."""
 
@@ -504,7 +519,7 @@ def build_registry(
             if protocol.get("arms") != ["unshielded", "oracle"]:
                 raise ValueError(f"{out_dir} did not freeze exactly the required arms")
             expected = {
-                "study_id": "phoenix_causal_viability_replication_v1",
+                "study_id": study_id,
                 "replicate_id": replicate_id,
                 "cell_id": cell_id,
                 "policy_name": policy,
@@ -570,7 +585,7 @@ def build_registry(
 
     payload = {
         "schema_version": 1,
-        "study_id": "phoenix_causal_viability_replication_v1",
+        "study_id": study_id,
         "expected_cells": sorted(EXPECTED_CELLS),
         "expected_replicates": list(EXPECTED_REPLICATES),
         "entries": entries,
@@ -631,8 +646,17 @@ def analyze_registry(
 
     registry = read_registry(registry_path)
     registry_root = Path(registry_path).parent
+    # Validate every protocol against the id the registry itself declares, so a
+    # registry and the artifacts under it cannot silently belong to different
+    # studies.
+    registry_study_id = registry.get("study_id", DEFAULT_STUDY_ID)
     process_results = [
-        validate_replicate(registry_root / entry["out_dir"], n_boot=n_boot, seed=seed + index)
+        validate_replicate(
+            registry_root / entry["out_dir"],
+            n_boot=n_boot,
+            seed=seed + index,
+            study_id=registry_study_id,
+        )
         for index, entry in enumerate(registry["entries"])
     ]
     process_uuids = [
