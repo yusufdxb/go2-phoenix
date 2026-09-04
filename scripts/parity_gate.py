@@ -3,14 +3,30 @@
 Why this exists alongside ``phoenix.sim2real.verify_deploy``
 -----------------------------------------------------------
 ``verify_deploy`` compares ONNX against the TorchScript fallback. Both are
-produced by the same ``_ExportablePolicy`` wrapper in the same export run, so a
-bug in that wrapper (wrong actor weights loaded, normalizer stats read from the
-wrong buffer, layer ordering scrambled) is present identically on both sides and
-cancels out. That gate is still useful, it covers the deploy path, but it cannot
-see a bad rebuild.
+produced by the same ``_ExportablePolicy`` wrapper in the same export run and
+held in the same process, so neither side re-reads the checkpoint and neither
+side re-runs the graph export. It therefore cannot see a shipped ``.onnx`` that
+stopped matching the checkpoint it claims to come from.
 
-This gate rebuilds the actor from the rsl_rl checkpoint independently and
-compares ONNX against *that*, so a wrapper bug shows up as a parity failure.
+This gate re-derives the torch side in a fresh process, straight from
+``latest.pt``, and compares the SHIPPED ONNX file against that. What it catches:
+
+* a ``policy.onnx`` or ``policy.onnx.data`` that no longer corresponds to the
+  checkpoint next to it, whether from a stale export, a partial rebuild, or a
+  corrupted transfer;
+* a ``torch.onnx.export`` graph bug, since the ONNX side is the exported graph
+  and the torch side never goes through it;
+* an observation layout that drifted away from what the deploy node emits,
+  because the batches are rebuilt through :class:`ObservationBuilder`.
+
+What it does NOT catch, stated plainly: the torch side calls the same
+``_extract_actor_state_dict``, ``_build_actor_mlp``, ``_load_actor_weights`` and
+``_ExportablePolicy`` helpers the export path calls. A bug INSIDE those shared
+helpers (normalizer stats read from the wrong buffer, a systematically wrong
+layer mapping) is present identically on both sides here too, and cancels. Only
+an independent reimplementation of the forward pass would close that, and this
+gate is not one. Treat it as a shipped-artifact gate, not a proof of the
+wrapper.
 
 It also adds two things ``verify_deploy`` does not report:
 
@@ -264,13 +280,17 @@ def main(argv: list[str] | None = None) -> int:
             onnx_in_dim,
         )
         return 2
-    logger.info("shape contract OK: node emits 48+%d=%d, onnx expects %s", pad, node_dim, onnx_in_dim)
+    logger.info(
+        "shape contract OK: node emits 48+%d=%d, onnx expects %s", pad, node_dim, onnx_in_dim
+    )
 
     batches: list[tuple[str, np.ndarray]] = []
     for pq in args.parquet:
         batches.append((f"parquet:{pq}", obs_from_parquet(pq, cfg, args.max_steps)))
     for nz in args.npz:
-        batches.append((f"npz:{nz}[{args.npz_key}]", obs_from_npz(nz, args.npz_key, args.max_steps)))
+        batches.append(
+            (f"npz:{nz}[{args.npz_key}]", obs_from_npz(nz, args.npz_key, args.max_steps))
+        )
     if not batches:
         logger.error("no real input batch given; refusing to gate on random data")
         return 2
@@ -285,9 +305,7 @@ def main(argv: list[str] | None = None) -> int:
         bp = BatchParity(source=source, n_samples=int(obs.shape[0]))
         ref_tuple = (ref,) if not isinstance(ref, tuple) else ref
         for name, r, g in zip(out_names, ref_tuple, got, strict=True):
-            bp.outputs.append(
-                compare(name, r, g, max_abs_tol=args.tol, cos_tol=args.cos_tol)
-            )
+            bp.outputs.append(compare(name, r, g, max_abs_tol=args.tol, cos_tol=args.cos_tol))
         results.append(bp)
 
     ok = True
