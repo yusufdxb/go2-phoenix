@@ -180,6 +180,13 @@ def parse_args() -> argparse.Namespace:
         "whose pre-onset negative control failed because PhysX state survives "
         "env.reset() and depends on execution history.",
     )
+    p.add_argument(
+        "--study-id",
+        default="phoenix_causal_viability_replication_v1",
+        help="Study identifier written into the frozen protocol. Defaults to the v1 "
+        "replication so previously frozen protocols keep their recorded value; a "
+        "re-run under a changed design must pass a NEW id and must not overwrite v1.",
+    )
     p.add_argument("--onset-lo", type=int, default=100)
     p.add_argument("--onset-hi", type=int, default=200)
     p.add_argument("--device", default="cuda:0")
@@ -276,7 +283,7 @@ def do_freeze(args) -> int:
     )
     snapshot = source_snapshot()
     params = {
-        "study_id": "phoenix_causal_viability_replication_v1",
+        "study_id": args.study_id,
         "replicate_id": args.replicate_id,
         "cell_id": args.cell_id,
         "policy_name": args.policy_name,
@@ -432,6 +439,10 @@ def run_arm(args) -> int:  # noqa: C901 - one long, linear experimental loop
         )
     if args.envs != int(params["envs_per_block"]):
         raise SystemExit("FAIL CLOSED: --envs does not match the frozen protocol")
+    if args.study_id != params.get("study_id"):
+        raise SystemExit(
+            f"FAIL CLOSED: --study-id {args.study_id!r} != protocol {params.get('study_id')!r}"
+        )
     if bool(args.batched_blocks) != bool(params.get("batched_blocks", False)):
         raise SystemExit(
             "FAIL CLOSED: --batched-blocks does not match the frozen protocol "

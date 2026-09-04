@@ -24,6 +24,12 @@ def parse_args() -> argparse.Namespace:
     registry.add_argument("--root", required=True)
     registry.add_argument("--output", required=True)
     registry.add_argument("--exploratory-protocol", action="append", default=[])
+    registry.add_argument(
+        "--study-id",
+        default=None,
+        help="Study id every protocol under --root must declare. Defaults to the v1 "
+        "replication id so existing artifacts validate unchanged.",
+    )
 
     validate = sub.add_parser("validate")
     validate.add_argument("--out-dir", required=True)
@@ -55,9 +61,11 @@ def write_json(path: str | Path, value: dict) -> None:
 def main() -> int:
     args = parse_args()
     if args.command == "registry":
+        kwargs = {} if args.study_id is None else {"study_id": args.study_id}
         result = build_registry(
             args.root,
             exploratory_protocols=args.exploratory_protocol,
+            **kwargs,
         )
         write_json(args.output, result)
         print(
