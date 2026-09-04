@@ -95,6 +95,15 @@ for row in "${PROTOCOLS[@]}"; do
   for arm in unshielded oracle; do
     echo "=== [$replicate/$cell] arm $arm"
     "$PY" "$CL" --arm "$arm" "${common[@]}" </dev/null
+    # Do not trust the exit status alone. Isaac's app.close() has been observed
+    # returning 0 from an arm that aborted on a FAIL CLOSED guard, so set -e
+    # cannot see it. The artifact either exists or the run stops here.
+    for f in "arm_$arm.npz" "arm_$arm.meta.json"; do
+      if [[ ! -s "$out/$f" ]]; then
+        echo "ABORT: [$replicate/$cell] arm $arm produced no $f" >&2
+        exit 1
+      fi
+    done
   done
 done
 
