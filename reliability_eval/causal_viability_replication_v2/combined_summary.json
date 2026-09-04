@@ -343,10 +343,10 @@
       },
       "process_seed": 2026074101,
       "process_uuid": {
-        "oracle": "f71cebee-b2f8-45b4-8c1c-0bf29900482f",
-        "unshielded": "fd70b353-f017-4fb1-b5ab-6b3c2c85c603"
+        "oracle": "6bd5feaa-7a5c-4181-9eca-c9ec43aae047",
+        "unshielded": "dae44d0c-0024-4960-82b7-bb68009a7b31"
       },
-      "protocol_hash": "b5f2183e7b38474c26d294759eb4339f807624b66c26a0deb47345a16f31beee",
+      "protocol_hash": "a8894894a5f69ab4c5d31184714f1ee4833b5c9bde047916c98deeac15672beb",
       "protocol_seed": 2026074001,
       "replicate_id": "process_01",
       "reset_state_max_abs_difference": 0.0,
@@ -487,10 +487,10 @@
       },
       "process_seed": 2026074101,
       "process_uuid": {
-        "oracle": "44ec31bc-7de9-4a06-91e3-99a364d57331",
-        "unshielded": "2a14cd6d-bf17-40be-adb8-4b8debb02d5f"
+        "oracle": "de47ad07-39e3-4e35-ad9c-a163c1b31158",
+        "unshielded": "c8425702-f468-4263-a6b6-6d28478b83fd"
       },
-      "protocol_hash": "b70edf47ecd6c7821693e55c35a629dc0d6b806270b72e700074099df459baa4",
+      "protocol_hash": "a56d084dee866f1d5b9e5e2a307df419fe32b6ffc038db178775c42a331e9337",
       "protocol_seed": 2026074002,
       "replicate_id": "process_01",
       "reset_state_max_abs_difference": 0.0,
@@ -631,10 +631,10 @@
       },
       "process_seed": 2026074101,
       "process_uuid": {
-        "oracle": "0b37f3ed-258f-4e49-9aeb-d450192fc695",
-        "unshielded": "f659f415-abd6-42ca-abcd-5fb26bfea122"
+        "oracle": "31d35dc8-fcf1-4743-97c2-7de08aff6f85",
+        "unshielded": "df9904a8-6011-4acc-927f-a7d597496575"
       },
-      "protocol_hash": "f56b4e3e07e79a326e4f819e11ff88d34b628c9ee905f5e82e8f4382525915ff",
+      "protocol_hash": "d46d2fbae6dea671bc748c83537dd0035fede1f7db16973404857c8129f85cdc",
       "protocol_seed": 2026074003,
       "replicate_id": "process_01",
       "reset_state_max_abs_difference": 0.0,
@@ -775,10 +775,10 @@
       },
       "process_seed": 2026074101,
       "process_uuid": {
-        "oracle": "23cf0800-fc0a-44e9-a408-516e2171944c",
-        "unshielded": "acdb4d66-2b4b-4de7-b3f0-1d3d48e0430a"
+        "oracle": "6dcf50f0-5ceb-4b50-8dc4-541332e8817c",
+        "unshielded": "89809e35-04d9-426f-a3f5-dc694945460a"
       },
-      "protocol_hash": "a8d39a18fa39c588f673cb6a72a54399f3e9a670cae49560b5712c86608beb98",
+      "protocol_hash": "ed44d5e6db9dd19cbba55b866206103c7cc5beb402c5c3691d2c312a19791701",
       "protocol_seed": 2026074004,
       "replicate_id": "process_01",
       "reset_state_max_abs_difference": 0.0,
@@ -919,10 +919,10 @@
       },
       "process_seed": 2026074102,
       "process_uuid": {
-        "oracle": "040d4b60-dcda-469a-b86c-5a86fe0cd464",
-        "unshielded": "b9ae6801-8d54-42a4-ac74-a5fe62f9b426"
+        "oracle": "fc3865aa-a579-4960-9077-54dfe7a4bbfb",
+        "unshielded": "9b124bc0-b22d-4f6a-a9fa-221a26ae66ba"
       },
-      "protocol_hash": "edc9ca205d3433d643a2847b8ea179217b46184ba46d1689783616e3b65b1bc3",
+      "protocol_hash": "29724084285f833b3d2e5be00203134ce12b494ae9c5510ac2be9cda9d2f52f8",
       "protocol_seed": 2026074005,
       "replicate_id": "process_02",
       "reset_state_max_abs_difference": 0.0,
@@ -1063,10 +1063,10 @@
       },
       "process_seed": 2026074102,
       "process_uuid": {
-        "oracle": "ebb47333-cf2f-4802-b54a-3c8e95a11fd9",
-        "unshielded": "3bfd00b8-9719-4c97-b4a5-92da5c971329"
+        "oracle": "a132d360-7efc-40c7-a3ad-d4a734fae431",
+        "unshielded": "8b8c1dad-5da0-444b-b72a-06beac3d6938"
       },
-      "protocol_hash": "a88b3049e94705e53e254d6ac6b249bd064956f75c64decd1bfeb92f2aebc0cf",
+      "protocol_hash": "eabe215a878bbbd9f11e8637e02ce164d5fb730b3dd402460abac1bfe80ce1fb",
       "protocol_seed": 2026074006,
       "replicate_id": "process_02",
       "reset_state_max_abs_difference": 0.0,
@@ -1207,10 +1207,10 @@
       },
       "process_seed": 2026074102,
       "process_uuid": {
-        "oracle": "43576a77-58cc-4aea-bb4a-9a36fb3b738d",
-        "unshielded": "1ae76959-fcaf-4eb1-b781-a892abaa0083"
+        "oracle": "ac0bb755-adf7-47b8-9d34-0523552ce733",
+        "unshielded": "7f43affe-e4e9-4f41-9903-74b685ea1429"
       },
-      "protocol_hash": "abaa1a10a1e8b8c909fe9639a938bc45c6f92884efd6f4d6b0a72bbb8b9b2bc6",
+      "protocol_hash": "b63e8be8f09f2314a3435e9fdd3884d31aa36533d3a5244f0968c1c71d7c0bc5",
       "protocol_seed": 2026074007,
       "replicate_id": "process_02",
       "reset_state_max_abs_difference": 0.0,
@@ -1351,10 +1351,10 @@
       },
       "process_seed": 2026074102,
       "process_uuid": {
-        "oracle": "b38d8fbf-d851-478b-b4fc-8f49250642a7",
-        "unshielded": "dcb8b39c-f9fc-4f96-a57a-62ea93f6acc0"
+        "oracle": "356a0797-f1b1-4560-92b1-a03d60d8908b",
+        "unshielded": "6e9ed4d2-96bc-4597-8388-b367f5d3bb63"
       },
-      "protocol_hash": "f53f483967175f28d3101bffb0d5752e19556105afe6e0ef71843b9d30bced9a",
+      "protocol_hash": "f21c553bfec333e89cefe696a396e75bec8760a2879aa1069ca937c3d380946f",
       "protocol_seed": 2026074008,
       "replicate_id": "process_02",
       "reset_state_max_abs_difference": 0.0,
@@ -1495,10 +1495,10 @@
       },
       "process_seed": 2026074103,
       "process_uuid": {
-        "oracle": "3cb2128e-4e05-4db6-82c9-02aca2bfc27e",
-        "unshielded": "346510af-85ce-4254-8ecc-a81559a75684"
+        "oracle": "44a1488a-271f-456b-a145-51b3f4f8c811",
+        "unshielded": "0b18b7ad-1e2b-4364-a8fc-faa3c46b0815"
       },
-      "protocol_hash": "0d23a25f11402dc1ac944d1bb31f367acfdc0d4d95e77ef6d3711af5abf339a6",
+      "protocol_hash": "94c2124a56dd4a79f55814abbd71b9fc61fb8f719e3378ba774efd8c81d13adf",
       "protocol_seed": 2026074009,
       "replicate_id": "process_03",
       "reset_state_max_abs_difference": 0.0,
@@ -1639,10 +1639,10 @@
       },
       "process_seed": 2026074103,
       "process_uuid": {
-        "oracle": "b81f2e4c-cd06-499f-a992-8d2aaaab2da9",
-        "unshielded": "7ced7e1e-2c7f-4fac-9d18-3b35cd1f72b4"
+        "oracle": "a4cee2a0-3585-4bff-ad00-555c0aa16c5f",
+        "unshielded": "176b1c15-9c18-418b-8c72-492986f2f2ce"
       },
-      "protocol_hash": "5226f13e8427a527685f6ed130c198f6a0f596c3576af28e5b34f3e1467c9c61",
+      "protocol_hash": "3f0a51a28eb839303999eac89b031035bf1a8f7bc9e3a41950a1448267aa790b",
       "protocol_seed": 2026074010,
       "replicate_id": "process_03",
       "reset_state_max_abs_difference": 0.0,
@@ -1783,10 +1783,10 @@
       },
       "process_seed": 2026074103,
       "process_uuid": {
-        "oracle": "46609f73-67a7-4a79-957d-30d6469ca6a9",
-        "unshielded": "b6cce51d-bfae-443d-96a5-99b412a29317"
+        "oracle": "34803cf6-20a8-4778-91c5-29773aad14ff",
+        "unshielded": "a97dd93d-622c-46e8-b31c-5de6e350cbdf"
       },
-      "protocol_hash": "bcbd87e553d94f4d125790942752a37044c7010a3c7b5041e52f241e747c0a52",
+      "protocol_hash": "400fb909195b4b4922b08f6c5031725ce5ee8582a6aea7a3e83daf0b17f73f82",
       "protocol_seed": 2026074011,
       "replicate_id": "process_03",
       "reset_state_max_abs_difference": 0.0,
@@ -1927,10 +1927,10 @@
       },
       "process_seed": 2026074103,
       "process_uuid": {
-        "oracle": "53198cca-e315-43ed-b6aa-663d53baa0e1",
-        "unshielded": "295e0c0b-3df5-4433-848f-598a13bd4a18"
+        "oracle": "28603bc9-f96e-4bf7-9bde-589b78503c54",
+        "unshielded": "1a8f32cd-9976-4f65-b9e2-07f8b836ad43"
       },
-      "protocol_hash": "ba0d48137c27328b9ba5a8c2cd5a1df557c3772ad282fe4ad823889db86f258f",
+      "protocol_hash": "5bdde786f30bb81d20465ff034d167b4df4ae0b33988e30cfa29dc7dd2ab0dfb",
       "protocol_seed": 2026074012,
       "replicate_id": "process_03",
       "reset_state_max_abs_difference": 0.0,
@@ -1950,7 +1950,7 @@
       "within_block_environments": 16
     }
   ],
-  "registry_hash": "3f4af8c891aa16a5b9965b242d5dd664f72b6f28b38a05fda8fcbc854c80014d",
+  "registry_hash": "bf1e18dbc862609b7e2d0c2df1739a04fecf195c9427a6a36ac1c2df0608fc23",
   "schema_version": 1,
   "sign_convention": "positive unshielded-minus-oracle means fallback reduces post-onset falls; negative means fallback increases post-onset falls"
 }
