@@ -11,7 +11,7 @@ Formal gate: **PASSED**.
 | pooled fault intervals exclude zero | pass |
 | pre onset negative controls include zero | pass |
 
-Registry hash: `3f4af8c891aa16a5b9965b242d5dd664f72b6f28b38a05fda8fcbc854c80014d`
+Registry hash: `bf1e18dbc862609b7e2d0c2df1739a04fecf195c9427a6a36ac1c2df0608fc23`
 
 ## Primary outcome
 

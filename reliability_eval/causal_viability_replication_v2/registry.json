@@ -1,160 +1,160 @@
 {
   "entries": [
     {
-      "bundle_id": "31b55a71725727f1",
+      "bundle_id": "a867c991a28fccff",
       "cell_id": "stand_motor",
       "fault_family": "motor",
       "out_dir": "process_01/stand_motor",
       "policy_name": "stand",
       "process_seed": 2026074101,
-      "protocol_hash": "b5f2183e7b38474c26d294759eb4339f807624b66c26a0deb47345a16f31beee",
+      "protocol_hash": "a8894894a5f69ab4c5d31184714f1ee4833b5c9bde047916c98deeac15672beb",
       "protocol_seed": 2026074001,
       "replicate_id": "process_01",
       "scenario_set_sha256": "e17febc1d8deb63ddd0cfbb173c08222fbc3758c1b2cd48bbf0f14473512e77d",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "31b55a71725727f1",
+      "bundle_id": "a867c991a28fccff",
       "cell_id": "stand_obs",
       "fault_family": "obs",
       "out_dir": "process_01/stand_obs",
       "policy_name": "stand",
       "process_seed": 2026074101,
-      "protocol_hash": "b70edf47ecd6c7821693e55c35a629dc0d6b806270b72e700074099df459baa4",
+      "protocol_hash": "a56d084dee866f1d5b9e5e2a307df419fe32b6ffc038db178775c42a331e9337",
       "protocol_seed": 2026074002,
       "replicate_id": "process_01",
       "scenario_set_sha256": "d269e8f2309aa21c0a06a428b9aa80fac00aa815ca1f894db98927dff761713a",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "c840b0060f2ac783",
+      "bundle_id": "f59d80f2558000a3",
       "cell_id": "walk_motor",
       "fault_family": "motor",
       "out_dir": "process_01/walk_motor",
       "policy_name": "walk",
       "process_seed": 2026074101,
-      "protocol_hash": "f56b4e3e07e79a326e4f819e11ff88d34b628c9ee905f5e82e8f4382525915ff",
+      "protocol_hash": "d46d2fbae6dea671bc748c83537dd0035fede1f7db16973404857c8129f85cdc",
       "protocol_seed": 2026074003,
       "replicate_id": "process_01",
       "scenario_set_sha256": "b843b1787a83e24906e6f051ad3fa3ef501fe5e59cf29e7d4463107498a937c1",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "c840b0060f2ac783",
+      "bundle_id": "f59d80f2558000a3",
       "cell_id": "walk_obs",
       "fault_family": "obs",
       "out_dir": "process_01/walk_obs",
       "policy_name": "walk",
       "process_seed": 2026074101,
-      "protocol_hash": "a8d39a18fa39c588f673cb6a72a54399f3e9a670cae49560b5712c86608beb98",
+      "protocol_hash": "ed44d5e6db9dd19cbba55b866206103c7cc5beb402c5c3691d2c312a19791701",
       "protocol_seed": 2026074004,
       "replicate_id": "process_01",
       "scenario_set_sha256": "5bc92db70bb690dcb13b69316f9cc5b9dc92c86ade1ddeb21bf1806f90b6457c",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "31b55a71725727f1",
+      "bundle_id": "a867c991a28fccff",
       "cell_id": "stand_motor",
       "fault_family": "motor",
       "out_dir": "process_02/stand_motor",
       "policy_name": "stand",
       "process_seed": 2026074102,
-      "protocol_hash": "edc9ca205d3433d643a2847b8ea179217b46184ba46d1689783616e3b65b1bc3",
+      "protocol_hash": "29724084285f833b3d2e5be00203134ce12b494ae9c5510ac2be9cda9d2f52f8",
       "protocol_seed": 2026074005,
       "replicate_id": "process_02",
       "scenario_set_sha256": "320119e0dd5b4210abd6d78282f339a74fce91da71b6f61224e745020d12e1ea",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "31b55a71725727f1",
+      "bundle_id": "a867c991a28fccff",
       "cell_id": "stand_obs",
       "fault_family": "obs",
       "out_dir": "process_02/stand_obs",
       "policy_name": "stand",
       "process_seed": 2026074102,
-      "protocol_hash": "a88b3049e94705e53e254d6ac6b249bd064956f75c64decd1bfeb92f2aebc0cf",
+      "protocol_hash": "eabe215a878bbbd9f11e8637e02ce164d5fb730b3dd402460abac1bfe80ce1fb",
       "protocol_seed": 2026074006,
       "replicate_id": "process_02",
       "scenario_set_sha256": "5809cc4338593319cc71cb7961f09c408351caf8e192eadd777034972d68f06e",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "c840b0060f2ac783",
+      "bundle_id": "f59d80f2558000a3",
       "cell_id": "walk_motor",
       "fault_family": "motor",
       "out_dir": "process_02/walk_motor",
       "policy_name": "walk",
       "process_seed": 2026074102,
-      "protocol_hash": "abaa1a10a1e8b8c909fe9639a938bc45c6f92884efd6f4d6b0a72bbb8b9b2bc6",
+      "protocol_hash": "b63e8be8f09f2314a3435e9fdd3884d31aa36533d3a5244f0968c1c71d7c0bc5",
       "protocol_seed": 2026074007,
       "replicate_id": "process_02",
       "scenario_set_sha256": "da5e56c7e02ab20ceeccdc9f04f4b82dbaeeb28ae46b2ef008749a036b01f41a",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "c840b0060f2ac783",
+      "bundle_id": "f59d80f2558000a3",
       "cell_id": "walk_obs",
       "fault_family": "obs",
       "out_dir": "process_02/walk_obs",
       "policy_name": "walk",
       "process_seed": 2026074102,
-      "protocol_hash": "f53f483967175f28d3101bffb0d5752e19556105afe6e0ef71843b9d30bced9a",
+      "protocol_hash": "f21c553bfec333e89cefe696a396e75bec8760a2879aa1069ca937c3d380946f",
       "protocol_seed": 2026074008,
       "replicate_id": "process_02",
       "scenario_set_sha256": "1f16475447e6d419480a8824120118ac026ada6b822efaec1e5aab04d1f0a02f",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "31b55a71725727f1",
+      "bundle_id": "a867c991a28fccff",
       "cell_id": "stand_motor",
       "fault_family": "motor",
       "out_dir": "process_03/stand_motor",
       "policy_name": "stand",
       "process_seed": 2026074103,
-      "protocol_hash": "0d23a25f11402dc1ac944d1bb31f367acfdc0d4d95e77ef6d3711af5abf339a6",
+      "protocol_hash": "94c2124a56dd4a79f55814abbd71b9fc61fb8f719e3378ba774efd8c81d13adf",
       "protocol_seed": 2026074009,
       "replicate_id": "process_03",
       "scenario_set_sha256": "0ec2d56da1e70de66c39bda296b228385e9c6e8e0386349d248c3fd150a3e08b",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "31b55a71725727f1",
+      "bundle_id": "a867c991a28fccff",
       "cell_id": "stand_obs",
       "fault_family": "obs",
       "out_dir": "process_03/stand_obs",
       "policy_name": "stand",
       "process_seed": 2026074103,
-      "protocol_hash": "5226f13e8427a527685f6ed130c198f6a0f596c3576af28e5b34f3e1467c9c61",
+      "protocol_hash": "3f0a51a28eb839303999eac89b031035bf1a8f7bc9e3a41950a1448267aa790b",
       "protocol_seed": 2026074010,
       "replicate_id": "process_03",
       "scenario_set_sha256": "7f74ef68c7432cba44d40d9a754d2a0219de1dcfb08c65bd5a81ec17881b59c2",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "c840b0060f2ac783",
+      "bundle_id": "f59d80f2558000a3",
       "cell_id": "walk_motor",
       "fault_family": "motor",
       "out_dir": "process_03/walk_motor",
       "policy_name": "walk",
       "process_seed": 2026074103,
-      "protocol_hash": "bcbd87e553d94f4d125790942752a37044c7010a3c7b5041e52f241e747c0a52",
+      "protocol_hash": "400fb909195b4b4922b08f6c5031725ce5ee8582a6aea7a3e83daf0b17f73f82",
       "protocol_seed": 2026074011,
       "replicate_id": "process_03",
       "scenario_set_sha256": "fc2f3cc8720e5360e2c27ef4924945339cc2b7ce42dcf932f4b94b9cb4f99a35",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     },
     {
-      "bundle_id": "c840b0060f2ac783",
+      "bundle_id": "f59d80f2558000a3",
       "cell_id": "walk_obs",
       "fault_family": "obs",
       "out_dir": "process_03/walk_obs",
       "policy_name": "walk",
       "process_seed": 2026074103,
-      "protocol_hash": "ba0d48137c27328b9ba5a8c2cd5a1df557c3772ad282fe4ad823889db86f258f",
+      "protocol_hash": "5bdde786f30bb81d20465ff034d167b4df4ae0b33988e30cfa29dc7dd2ab0dfb",
       "protocol_seed": 2026074012,
       "replicate_id": "process_03",
       "scenario_set_sha256": "07666afe0df1a50453a2d54c913fce4ee8860c6eca5d95df5b6287dbe43b1f6e",
-      "source_snapshot_sha256": "ba4e4b7216cd94d7390cbf8ab6017ea2b8469e8b7e7ccb7b1c0481e939ea78ac"
+      "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396"
     }
   ],
   "expected_cells": [
@@ -171,7 +171,7 @@
   "exploratory_protocols_excluded": [],
   "independent_blocks": 576,
   "independent_protocols": 12,
-  "registry_hash": "3f4af8c891aa16a5b9965b242d5dd664f72b6f28b38a05fda8fcbc854c80014d",
+  "registry_hash": "bf1e18dbc862609b7e2d0c2df1739a04fecf195c9427a6a36ac1c2df0608fc23",
   "schema_version": 1,
   "study_id": "phoenix_causal_viability_replication_v2"
 }
