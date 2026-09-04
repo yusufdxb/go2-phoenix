@@ -357,14 +357,24 @@ def main() -> int:
     app = AppLauncher(headless=True).app
     print("[cl] app launched", flush=True)
     try:
-        return run_arm(args)
+        code = run_arm(args)
     except BaseException:
+        import os
+        import sys
         import traceback
 
         traceback.print_exc()
-        raise
-    finally:
-        app.close()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        # Isaac's app.close() terminates the process with status 0. That
+        # swallows every FAIL CLOSED guard in run_arm and makes the driver
+        # script's set -e blind to an aborted arm, which is how three arms of a
+        # 24-arm run went missing while the driver reported success. Measured
+        # 2026-09-04: a commit-mismatch abort printed its traceback and still
+        # exited 0. Leave by a path app.close() cannot rewrite.
+        os._exit(1)
+    app.close()
+    return code
 
 
 def invalidate_data_buffers(robot) -> int:
