@@ -47,7 +47,7 @@ def ci(d: dict) -> str:
 
 def weighted(rows: list[dict], weights: list[int], pick) -> float:
     total = sum(weights)
-    return sum(pick(r) * w for r, w in zip(rows, weights)) / total
+    return sum(pick(r) * w for r, w in zip(rows, weights, strict=True)) / total
 
 
 def render(summary: dict) -> str:
@@ -150,9 +150,7 @@ def render(summary: dict) -> str:
         dose = weighted(rows, w, lambda r: r["oracle_fallback_dose_mean"])
         treated = sum(r["oracle_treated_falls"] for r in rows)
         lat_min = min(r["oracle_intervention_latency_ticks"]["min"] for r in rows)
-        lat_med = statistics.median(
-            r["oracle_intervention_latency_ticks"]["median"] for r in rows
-        )
+        lat_med = statistics.median(r["oracle_intervention_latency_ticks"]["median"] for r in rows)
         lat_max = max(r["oracle_intervention_latency_ticks"]["max"] for r in rows)
         handoffs = sum(r["nominal_false_handoff_count"] for r in rows)
         a(

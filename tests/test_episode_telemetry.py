@@ -82,9 +82,7 @@ def test_round_trip_preserves_values(tmp_path):
     table = pq.read_table(path)
     assert table.num_rows == 5
     validate_table(table, source=str(path))
-    assert table.column("pitch_rad").to_pylist() == pytest.approx(
-        [0.0, 0.01, 0.02, 0.03, 0.04]
-    )
+    assert table.column("pitch_rad").to_pylist() == pytest.approx([0.0, 0.01, 0.02, 0.03, 0.04])
 
 
 def test_schema_version_in_metadata_and_column(tmp_path):
@@ -190,9 +188,7 @@ def test_missing_units_raises(tmp_path):
     path = tmp_path / "nounits.parquet"
     write_episode_telemetry(path, [make_step(0)])
     table = pq.read_table(path)
-    stripped = table.replace_schema_metadata(
-        {SCHEMA_VERSION_KEY: SCHEMA_VERSION.encode()}
-    )
+    stripped = table.replace_schema_metadata({SCHEMA_VERSION_KEY: SCHEMA_VERSION.encode()})
     pq.write_table(stripped, path)
     with pytest.raises(EpisodeTelemetrySchemaError, match="units map missing"):
         load_episode_signals(path)
@@ -271,9 +267,7 @@ def test_signals_construct_the_downstream_detector_container(tmp_path):
     recurrence = pytest.importorskip("ashfall.analysis.recurrence")
     path = tmp_path / "tel.parquet"
     # A clear attitude failure: pitch past the detector's 0.8 rad threshold.
-    write_episode_telemetry(
-        path, [make_step(i, pitch=1.2 if i > 10 else 0.0) for i in range(30)]
-    )
+    write_episode_telemetry(path, [make_step(i, pitch=1.2 if i > 10 else 0.0) for i in range(30)])
     signals = load_episode_signals(path)[("run_a", 7, 0)]
     telemetry = recurrence.EpisodeTelemetry(**signals)
     assert recurrence.missing_signals(telemetry) == []
