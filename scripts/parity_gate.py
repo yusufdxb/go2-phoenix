@@ -160,6 +160,29 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def shipped_manifest(checkpoint: Path, onnx: Path) -> dict[str, dict]:
+    """sha256 and size of every file a deploy transfer has to carry intact.
+
+    ``policy.onnx.data`` is the external-data sidecar and holds all the weights,
+    so a manifest that lists only ``policy.onnx`` cannot prove a transfer was
+    intact. The TorchScript fallback is included when present because the deploy
+    node falls back to it.
+    """
+
+    candidates = [checkpoint, onnx, onnx.with_suffix(onnx.suffix + ".data")]
+    fallback = onnx.with_name("policy.pt")
+    if fallback != checkpoint:
+        candidates.append(fallback)
+    manifest: dict[str, dict] = {}
+    for path in candidates:
+        if path.exists():
+            manifest[str(path)] = {
+                "sha256": sha256_file(path),
+                "bytes": path.stat().st_size,
+            }
+    return manifest
+
+
 # ---------------------------------------------------------------- real batches
 
 
@@ -284,6 +307,12 @@ def main(argv: list[str] | None = None) -> int:
         "shape contract OK: node emits 48+%d=%d, onnx expects %s", pad, node_dim, onnx_in_dim
     )
 
+    manifest = shipped_manifest(args.checkpoint, args.onnx)
+    for path, entry in sorted(manifest.items()):
+        logger.info("shipped %s  %d bytes  sha256=%s", path, entry["bytes"], entry["sha256"])
+    if not any(k.endswith(".onnx.data") for k in manifest):
+        logger.info("no policy.onnx.data sidecar; weights are inline in the onnx file")
+
     batches: list[tuple[str, np.ndarray]] = []
     for pq in args.parquet:
         batches.append((f"parquet:{pq}", obs_from_parquet(pq, cfg, args.max_steps)))
@@ -337,6 +366,7 @@ def main(argv: list[str] | None = None) -> int:
             "action_dim": action_dim,
             "tol_max_abs": args.tol,
             "tol_cos": args.cos_tol,
+            "shipped_manifest": manifest,
             "passed": ok,
             "batches": [
                 {
