@@ -7,7 +7,7 @@ association AT THAT LEVEL rather than at the convenient one.
 import json, sys, numpy as np, pandas as pd
 from pathlib import Path
 from scipy import stats
-ROOT = Path("/home/yusuf/workspace/go2-phoenix")
+ROOT = Path(__file__).resolve().parents[2]
 R = ROOT/"reliability_eval/causal_viability_replication_v2"
 here = ROOT/"analysis/selection_bias"
 
@@ -17,8 +17,15 @@ print("  ", p["primary_estimand"])
 print("   eligibility_rule:", p["eligibility_rule"])
 print("   analysis_unit  :", p["analysis_unit"])
 
-s = json.load(open(R/"combined_summary.json"))
-print("\nGATE CHECKS actually evaluated by analyze_registry (combined_summary.json):")
+# Follow the frame: an n=5 frame must be read against the n=5 summary, or this
+# script silently compares the registered gate of one sample to the blocks of
+# another. SUMMARY overrides; otherwise pick by the replicate count in the frame.
+import os
+_n = pd.read_csv(here/"blocks.csv").replicate.nunique()
+_default = "combined_summary.json" if _n == 3 else f"combined_summary_n{_n}.json"
+SUMMARY = R/os.environ.get("SUMMARY", _default)
+s = json.load(open(SUMMARY))
+print(f"\nGATE CHECKS actually evaluated by analyze_registry ({SUMMARY.name}):")
 for k,v in s["gate_checks"].items(): print("   %-45s %s" % (k,v))
 print("   gate_passed:", s["gate_passed"])
 print("\nAggregation levels present in the frozen summary:")

@@ -1,11 +1,18 @@
 import numpy as np, pandas as pd, json
 from pathlib import Path
-here = Path("/home/yusuf/workspace/go2-phoenix/analysis/selection_bias")
+here = Path(__file__).resolve().parent
 b = pd.read_csv(here/"blocks.csv"); d = b[b.disturbed].copy()
 e = pd.read_csv(here/"envs.csv")
 
 print("--- audit json vs my recomputation (contamination-free cells) ---")
-a = json.load(open("/home/yusuf/workspace/go2-phoenix/reliability_eval/causal_viability_replication_v2/onset_residual_audit.json"))
+import os
+_here = Path(__file__).resolve().parent
+_R = Path(__file__).resolve().parents[2] / "reliability_eval/causal_viability_replication_v2"
+_n = pd.read_csv(_here/"blocks.csv").replicate.nunique()
+# Follow the frame, so an n=5 frame is never audited against the n=3 audit JSON.
+AUDIT = _R / os.environ.get(
+    "AUDIT", "onset_residual_audit.json" if _n == 3 else f"onset_residual_audit_n{_n}.json")
+a = json.load(open(AUDIT))
 for cell,v in a["cells"].items():
     print(" %-12s registered %+6.2f [%+6.2f,%+6.2f] n=%3d | clean %+6.2f [%+6.2f,%+6.2f] n=%3d | pre %+5.3f [%+5.3f,%+5.3f]"
       % (cell, v["registered"]["mean_difference"]*100, v["registered"]["ci_low"]*100, v["registered"]["ci_high"]*100,
@@ -15,7 +22,7 @@ for cell,v in a["cells"].items():
          v["pre_onset_negative_control"]["mean_difference"]*100,
          v["pre_onset_negative_control"]["ci_low"]*100, v["pre_onset_negative_control"]["ci_high"]*100))
 
-print("\n--- 'pre-onset fall status differs for 2 of 6,144' : direct recount ---")
+print("\n--- pre-onset fall-status discrepancies: direct recount from the raw frame ---")
 ed = e[e.disturbed]
 diff = (ed.u_pre.astype(bool) != ed.o_pre.astype(bool))
 print("disturbed env pairs =", len(ed), " differing pre-onset fall status =", int(diff.sum()))

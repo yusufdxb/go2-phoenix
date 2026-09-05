@@ -18,6 +18,9 @@ EXPECTED_CELLS = {
     "walk_obs": ("walk", "obs"),
 }
 EXPECTED_REPLICATES = ("process_01", "process_02", "process_03")
+# Per the frozen protocol parameters build_registry enforces on every entry.
+_DISTURBED_PER_PROCESS_CELL = 32
+_NOMINAL_PER_PROCESS_CELL = 16
 
 #: Study identifier the v1 replication froze. Kept as the default so every
 #: existing artifact validates unchanged; a re-run under a changed design
@@ -846,12 +849,24 @@ def analyze_registry(
             "negative means fallback increases post-onset falls"
         ),
         "process_results": process_results,
+        # Derived, not hardcoded. These were literals for the registered n=3
+        # study and silently reported 384/192 after the study was extended to
+        # n=5, contradicting pooled_cells[*].independent_disturbed_blocks in
+        # the same file. Anything that scales with the replicate count has to
+        # be computed from the registry.
         "independent_block_accounting": {
-            "disturbed_per_process_cell": 32,
-            "disturbed_per_pooled_cell": 96,
-            "disturbed_per_fault_family": 192,
-            "disturbed_total": 384,
-            "nominal_total": 192,
+            "processes": len(replicates),
+            "disturbed_per_process_cell": _DISTURBED_PER_PROCESS_CELL,
+            "disturbed_per_pooled_cell": _DISTURBED_PER_PROCESS_CELL * len(replicates),
+            "disturbed_per_fault_family": (
+                _DISTURBED_PER_PROCESS_CELL * len(replicates) * len(EXPECTED_CELLS) // 2
+            ),
+            "disturbed_total": (
+                _DISTURBED_PER_PROCESS_CELL * len(replicates) * len(EXPECTED_CELLS)
+            ),
+            "nominal_total": (
+                _NOMINAL_PER_PROCESS_CELL * len(replicates) * len(EXPECTED_CELLS)
+            ),
         },
         "pooled_cells": pooled_cells,
         "pooled_fault_families": pooled_faults,

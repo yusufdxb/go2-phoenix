@@ -8,7 +8,7 @@ only place a number can come from.
 Pooling rules, stated here because the table quotes pooled numbers that the
 summary only stores per process:
 
-* fall counts are summed across the three processes;
+* fall counts are summed across every process in the summary;
 * rates, task completion, return-until-first-fall and oracle dose are weighted
   by that process-cell's jointly eligible environment pair count, which is the
   denominator those rates were computed against;
@@ -96,15 +96,16 @@ def render(summary: dict) -> str:
 
     a("## Leave-one-process-out effects")
     a("")
-    a("| Cell | Leave out process 1, pp | Leave out process 2, pp | Leave out process 3, pp |")
-    a("|---|---:|---:|---:|")
+    _procs = sorted(cells[CELL_ORDER[0]]["leave_one_process_out"])
+    a("| Cell | " + " | ".join(
+        f"Leave out {k.replace('_', ' ')}, pp" for k in _procs) + " |")
+    a("|---" * (len(_procs) + 1) + "|")
     for cid in CELL_ORDER:
         lopo = cells[cid]["leave_one_process_out"]
         policy, fault = CELL_LABEL[cid]
-        vals = [
-            f"{pp(lopo[k]['mean_difference'])} {ci(lopo[k])}"
-            for k in ("process_01", "process_02", "process_03")
-        ]
+        # Follow whatever processes the summary actually carries; hardcoding
+        # three made this script unable to render the n=5 study at all.
+        vals = [f"{pp(lopo[k]['mean_difference'])} {ci(lopo[k])}" for k in sorted(lopo)]
         a(f"| {policy}, {fault.split()[0].lower()} | " + " | ".join(vals) + " |")
     a("")
 

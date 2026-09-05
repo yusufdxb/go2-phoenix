@@ -17,18 +17,31 @@ here = Path(__file__).parent
 b = pd.read_csv(here/"blocks.csv"); d = b[b.disturbed].copy()
 
 print("=== (a) membership | onset: is block_index informative AT ALL? ===")
-print("membership is 1{onset <= per-pair threshold} with 0/576 mismatches, so by")
-print("construction nothing else can carry information. Verify by exact conditioning:")
+# These two lines used to be hardcoded prints asserting "0/576 mismatches" and
+# "ZERO residual variance". At n=5 both are false, and the same file's computed
+# output contradicted them. Compute the mismatch count instead of claiming it.
+mismatch = 0
+for (rep, cell), g in b.groupby(["replicate", "cell"]):
+    thr = g[g.leakfree].onset.max()
+    mismatch += int((g.leakfree != (g.onset <= thr)).sum())
+print("  membership vs 1{onset <= per-pair threshold}: %d mismatches in %d blocks"
+      % (mismatch, len(b)))
+print("  If that count is 0, nothing but onset can carry information about membership.")
+print("  Verify directly by exact conditioning:")
 tot=0; informative=0
 for (rep,cell), g in b.groupby(["replicate","cell"]):
-    thr = g[g.leakfree].onset.max()
     for o, gg in g.groupby("onset"):
         if gg.leakfree.nunique() > 1: informative += 1   # same onset, different membership
         tot += 1
 print("  distinct (arm-pair, onset) strata:", tot,
       " strata where membership varies within the stratum:", informative)
-print("  => conditional on onset within an arm pair, membership has ZERO residual variance.")
-print("  => block_index / neighbour effects on membership are 100%% mediated by onset.")
+if informative == 0:
+    print("  => conditional on onset within an arm pair, membership has ZERO residual variance.")
+    print("  => block_index / neighbour effects on membership are 100% mediated by onset.")
+else:
+    print("  => membership is NOT a pure function of onset: %d of %d strata are impure."
+          % (informative, tot))
+    print("  => onset mediates almost all of it, but the 'exactly deterministic' claim fails.")
 
 print("\n=== is the reported block_index association just onset-block_index correlation? ===")
 for cell, g in d.groupby("cell"):

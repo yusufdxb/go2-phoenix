@@ -1,5 +1,5 @@
-# Phoenix selection-bias evidence, regenerated 2026-09-05T09:38:09-04:00
-# repo HEAD: 5d2fcd8d921d9cda76519d1150cbb9edff6687ef
+# Phoenix selection-bias evidence, regenerated 2026-09-05T10:03:01-04:00
+# repo HEAD: 85033c7578fc01e727aed4e60100578077b1df6b
 # registry:  reliability_eval/causal_viability_replication_v2/registry.json
 
 blocks 576 envs 9216
@@ -196,7 +196,7 @@ True     378.495726
 dtype: float64
 
 ################ tests_perm_sens.py ################
---- pre-onset env-pair discrepancies (the '2 / 6144' claim) ---
+--- pre-onset env-pair discrepancies: direct recount (an earlier draft said 2; it is not) ---
 disturbed env pairs: 6144  eligible: 5972
 pre-onset fall differing env pairs, ALL blocks   : 6
 pre-onset fall differing env pairs, DISTURBED    : 4
@@ -231,7 +231,7 @@ observed per-replicate pre-onset discrepancy budget: {'process_01': 3, 'process_
  walk_motor   registered  -5.95 [ -7.87, -4.03] n= 96 | clean  -7.19 [-10.40, -4.00] n= 24 | pre +0.065 [+0.000,+0.195]
  walk_obs     registered +17.52 [+15.31,+19.88] n= 96 | clean +16.19 [+13.19,+19.28] n= 32 | pre +0.065 [+0.000,+0.195]
 
---- 'pre-onset fall status differs for 2 of 6,144' : direct recount ---
+--- pre-onset fall-status discrepancies: direct recount from the raw frame ---
 disturbed env pairs = 6144  differing pre-onset fall status = 4
 by cell: {'walk_motor': 3, 'walk_obs': 1}
 all 9216 env pairs, differing = 6
@@ -488,8 +488,9 @@ counts per q:
 
 ### ATTACK 6a: the frozen bootstrap resamples BLOCKS WITHIN each process but
 ### NEVER resamples PROCESSES, so between-process variance is excluded from
-### every reported CI. With only 3 processes this is the real inferential gap.
-cell         subset     block-boot CI (frozen)   process-level t CI (n=3)
+### every reported CI. This is the real inferential gap; the process-level
+### column below closes it at whatever n the frame actually carries.
+cell         subset     block-boot CI (frozen)   process-level t CI      
 stand_motor  FULL        -23.73 [ -26.32, -21.20]    -23.73 [ -33.96, -13.51]  EXCLUDES 0
 stand_motor  LEAKFREE    -23.28 [ -30.56, -16.57]    -23.36 [ -34.89, -11.83]  EXCLUDES 0
 stand_obs    FULL         +9.61 [  +8.09, +11.23]     +9.61 [  +8.19, +11.04]  EXCLUDES 0
@@ -508,3 +509,67 @@ obs          0.395833     0.135688
   obs blocks are 39.6% leak-free vs motor 21.4%; obs effect is +, motor is -.
   => the leak-free pool is obs-enriched, so its pooled mean effect is pulled up.
   Predicted pooled LF-DIV effect gap from mixing alone: +6.11 pp; observed +5.31 pp
+
+################ process_level.py ################
+processes: 3 ['process_01', 'process_02', 'process_03']
+
+=== PRIMARY, four cells, FULL sample (process level) ===
+  stand_motor                 -23.73 [ -33.96, -13.51] n_proc=3 n_blk=96  EXCL 0   block-boot  -23.73 [ -26.30, -21.23]
+  stand_obs                    +9.61 [  +8.19, +11.04] n_proc=3 n_blk=96  EXCL 0   block-boot   +9.61 [  +8.09, +11.24]
+  walk_motor                   -5.95 [  -7.11,  -4.78] n_proc=3 n_blk=96  EXCL 0   block-boot   -5.95 [  -7.87,  -4.04]
+  walk_obs                    +17.52 [ +15.15, +19.89] n_proc=3 n_blk=96  EXCL 0   block-boot  +17.52 [ +15.32, +19.85]
+
+=== FAULT FAMILY (the level the registered gate criterion is defined on) ===
+  motor                       -14.84 [ -20.54,  -9.15] n_proc=3 n_blk=192 EXCL 0   block-boot  -14.84 [ -16.90, -12.79]
+  obs                         +13.57 [ +11.85, +15.29] n_proc=3 n_blk=192 EXCL 0   block-boot  +13.57 [ +12.14, +15.09]
+  interaction obs-motor       +28.41 [ +21.14, +35.68] n_proc=3 n_blk=-1  EXCL 0
+
+=== LEAK-FREE SUBSET, four cells (process level) ===
+  stand_motor                 -23.36 [ -34.89, -11.83] n_proc=3 n_blk=17  EXCL 0   block-boot  -23.28 [ -30.52, -16.59]
+  stand_obs                    +9.32 [  -2.88, +21.52] n_proc=3 n_blk=44  *** INCLUDES 0 ***   block-boot   +9.27 [  +6.97, +11.70]
+  walk_motor                   -7.56 [ -10.96,  -4.16] n_proc=3 n_blk=24  EXCL 0   block-boot   -7.19 [ -10.44,  -4.00]
+  walk_obs                    +16.13 [  +5.93, +26.34] n_proc=3 n_blk=32  EXCL 0   block-boot  +16.19 [ +13.13, +19.34]
+
+=== LEAK-FREE SUBSET, fault family ===
+  motor                       -15.06 [ -27.42,  -2.70] n_proc=3 n_blk=41  EXCL 0   block-boot  -13.86 [ -18.17,  -9.84]
+  obs                         +12.08 [  +7.70, +16.47] n_proc=3 n_blk=76  EXCL 0   block-boot  +12.19 [ +10.09, +14.36]
+  interaction obs-motor       +27.14 [ +10.41, +43.87] n_proc=3 n_blk=-1  EXCL 0
+
+=== PRE-ONSET NEGATIVE CONTROL (must include zero) ===
+  stand_motor                  +0.00 [  +0.00,  +0.00] n_proc=3 n_blk=96  *** INCLUDES 0 ***   block-boot   +0.00 [  +0.00,  +0.00]
+  stand_obs                    +0.00 [  +0.00,  +0.00] n_proc=3 n_blk=96  *** INCLUDES 0 ***   block-boot   +0.00 [  +0.00,  +0.00]
+  walk_motor                   +0.07 [  -0.22,  +0.35] n_proc=3 n_blk=96  *** INCLUDES 0 ***   block-boot   +0.07 [  +0.00,  +0.20]
+  walk_obs                     +0.07 [  -0.22,  +0.35] n_proc=3 n_blk=96  *** INCLUDES 0 ***   block-boot   +0.07 [  +0.00,  +0.20]
+
+=== COMMON WINDOW W=300, full sample ===
+  stand_motor                 -23.73 [ -33.96, -13.51] n_proc=3 n_blk=96  EXCL 0   block-boot  -23.73 [ -26.30, -21.23]
+  stand_obs                    +8.31 [  +6.04, +10.58] n_proc=3 n_blk=96  EXCL 0   block-boot   +8.31 [  +6.98,  +9.70]
+  walk_motor                   -6.08 [  -6.53,  -5.64] n_proc=3 n_blk=96  EXCL 0   block-boot   -6.08 [  -8.04,  -4.15]
+  walk_obs                    +15.54 [ +13.51, +17.57] n_proc=3 n_blk=96  EXCL 0   block-boot  +15.54 [ +13.46, +17.77]
+
+=== COMMON WINDOW W=300, fault family ===
+  motor                       -14.91 [ -20.24,  -9.58] n_proc=3 n_blk=192 EXCL 0   block-boot  -14.91 [ -16.96, -12.85]
+  obs                         +11.93 [ +10.04, +13.81] n_proc=3 n_blk=192 EXCL 0   block-boot  +11.93 [ +10.60, +13.33]
+
+=== ONSET SENSITIVITY (effect modification by onset tick) ===
+  stand_motor  slope=-0.0271 pp/tick [-0.3196,+0.2653]  onset shift=+48.6 ticks  implied bias=-1.32 pp  bound [-15.54,+12.90]
+  stand_obs    slope=-0.0037 pp/tick [-0.1862,+0.1788]  onset shift=+29.5 ticks  implied bias=-0.11 pp  bound [-5.50,+5.28]
+  walk_motor   slope=-0.0339 pp/tick [-0.1082,+0.0405]  onset shift=+55.2 ticks  implied bias=-1.87 pp  bound [-5.97,+2.23]
+  walk_obs     slope=+0.0128 pp/tick [-0.3149,+0.3404]  onset shift=+52.7 ticks  implied bias=+0.67 pp  bound [-16.60,+17.95]
+
+=== SUBSET MINUS COMPLEMENT (process level; must cross zero) ===
+  stand_motor                  +0.14 [ -21.72, +22.00] n_proc=3 n_blk=-1  *** INCLUDES 0 ***
+  stand_obs                    +0.54 [ -15.09, +16.17] n_proc=3 n_blk=-1  *** INCLUDES 0 ***
+  walk_motor                   -2.01 [  -5.13,  +1.11] n_proc=3 n_blk=-1  *** INCLUDES 0 ***
+  walk_obs                     -2.02 [ -20.64, +16.59] n_proc=3 n_blk=-1  *** INCLUDES 0 ***
+
+=== RESIDUAL CONTAMINATION ===
+  env_pairs_all                                  9216
+  env_pairs_disturbed                            6144
+  pre_onset_fall_status_differs_all              6
+  pre_onset_fall_status_differs_disturbed        4
+  blocks_affected_disturbed                      3
+  leakfree_disturbed_pairs_with_discrepancy      0
+  by_cell_disturbed                              {'walk_motor': 3, 'walk_obs': 1}
+
+wrote /home/yusuf/workspace/go2-phoenix/analysis/selection_bias/process_level.json

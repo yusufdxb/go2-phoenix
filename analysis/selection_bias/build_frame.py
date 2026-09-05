@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path("/home/yusuf/workspace/go2-phoenix")
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 from phoenix.reliability.replication import _read_arm, _ordered_arm, read_registry  # noqa
 from phoenix.reliability.study import read_protocol  # noqa

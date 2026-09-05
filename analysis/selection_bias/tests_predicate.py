@@ -1,6 +1,6 @@
 import numpy as np, pandas as pd
 from pathlib import Path
-here = Path("/home/yusuf/workspace/go2-phoenix/analysis/selection_bias")
+here = Path(__file__).resolve().parent
 b = pd.read_csv(here/"blocks.csv")
 
 print("--- Is membership EXACTLY a function of onset tick within an arm pair? (all 576 blocks) ---")
