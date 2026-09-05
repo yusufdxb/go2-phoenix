@@ -64,7 +64,21 @@ PROTOCOLS=(
   "stand_obs   stand obs   2026074010 2026074103 process_03"
   "walk_motor  walk  motor 2026074011 2026074103 process_03"
   "walk_obs    walk  obs   2026074012 2026074103 process_03"
+  # n=5 extension, pre-registered in analysis/PREREG_n5_extension.md before it ran.
+  # Seeds continue the sequence above verbatim; no seed search was performed.
+  "stand_motor stand motor 2026074013 2026074104 process_04"
+  "stand_obs   stand obs   2026074014 2026074104 process_04"
+  "walk_motor  walk  motor 2026074015 2026074104 process_04"
+  "walk_obs    walk  obs   2026074016 2026074104 process_04"
+  "stand_motor stand motor 2026074017 2026074105 process_05"
+  "stand_obs   stand obs   2026074018 2026074105 process_05"
+  "walk_motor  walk  motor 2026074019 2026074105 process_05"
+  "walk_obs    walk  obs   2026074020 2026074105 process_05"
 )
+
+# Optional whitespace-separated allowlist of replicate ids, so the n=5 extension
+# can be run without re-running (and thereby overwriting) the frozen first three.
+ONLY_REPLICATES="${PHOENIX_ONLY_REPLICATES:-}"
 
 cd "$REPO_ROOT"
 echo "[run] out root : $OUT_ROOT"
@@ -73,6 +87,9 @@ echo "[run] extra    : ${EXTRA[*]:-<none>}"
 
 for row in "${PROTOCOLS[@]}"; do
   read -r cell policy disturbance protocol_seed process_seed replicate <<<"$row"
+  if [[ -n "$ONLY_REPLICATES" && " $ONLY_REPLICATES " != *" $replicate "* ]]; then
+    continue
+  fi
   out="$OUT_ROOT/$replicate/$cell"
   if [[ "$policy" == "stand" ]]; then policy_args=("${stand_args[@]}"); else policy_args=("${walk_args[@]}"); fi
 
@@ -107,4 +124,4 @@ for row in "${PROTOCOLS[@]}"; do
   done
 done
 
-echo "[run] all 12 protocols complete under $OUT_ROOT"
+echo "[run] all requested protocols complete under $OUT_ROOT"
