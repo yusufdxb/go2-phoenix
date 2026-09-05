@@ -1,176 +1,235 @@
 # The onset residual: measured, bounded, and reported
 
-Source of every number below: `reliability_eval/causal_viability_replication_v2/onset_residual_audit.json`,
-produced by `scripts/reliability_onset_residual.py --registry reliability_eval/causal_viability_replication_v2/registry.json`.
-The registered gate output it is compared against is `combined_summary.json` in the same directory.
-This file is drafting material for Section 6 (Threats to Validity), not final typeset prose.
+Source of every number below: `reliability_eval/causal_viability_replication_v2/onset_residual_audit_n5.json`
+and `combined_summary_n5.json`, produced from `registry_n5.json`, plus
+`analysis/selection_bias/process_level.json` for process-level inference. All of
+them are rendered into `paper/numbers.md` by `scripts/paper_numbers.py`; nothing
+in this file is retyped by hand. This is drafting material for Section 6
+(Threats to Validity), not final typeset prose.
+
+**Sample.** 5 independent process seeds, 20 protocols, 960 independent blocks,
+640 of them disturbed, 10,240 disturbed environment pairs. `process_04` and
+`process_05` were added under the pre-registration in
+`analysis/PREREG_n5_extension.md`, which was committed before either ran and
+declared its own kill criterion. They pinned the bit-identical experimental
+source snapshot the first three did, so all five processes executed the same
+experiment.
+
+**Two inferential levels, never mixed.** The frozen block bootstrap resamples
+blocks within each process and never resamples processes, so its intervals are
+conditional on the seeds actually run. Blocks inside one process share a policy
+load, a physics batch and a process RNG, and are not independent replicates of
+the process. Every table below therefore carries both that interval and the
+process-level interval (mean of the per-process means, Student t on n = 5), and
+labels which is which. Where they disagree, the process-level one is the one a
+reviewer asking "would this replicate on new seeds" should read.
 
 ## What is and is not aligned across the paired arms
 
-The batched-block harness removes temporal carryover by construction: block `i` owns
-environments `i*16 .. i*16+15` and lives for exactly one block, so no block has a
-predecessor whose simulator state it could inherit. Measured across all 12 process-cell
-arm pairs of the v2 replication:
+The batched-block harness removes temporal carryover by construction: block `i`
+owns environments `i*16 .. i*16+15` and lives for exactly one block, so no block
+has a predecessor whose simulator state it could inherit. Measured across all 20
+process-cell arm pairs:
 
-- Reset states are bit-identical between arms. Maximum absolute difference is exactly
-  0.0 in 12 of 12 pairs.
-- Initial observations are bit-identical between arms. Maximum absolute difference is
-  exactly 0.0 in 12 of 12 pairs.
-- Onset observations are not. Between 4 and 42 of 48 blocks per pair carry a non-zero
-  difference, with per-pair maximum absolute differences from 2.87 to 13.18.
+- Reset states are bit-identical between arms in every pair.
+- Initial observations are bit-identical between arms in every pair.
+- Onset observations are not, in most blocks of most pairs.
 
-The v1 leak channel (a stale reset observation carrying the previous block's terminal
-state) is therefore closed. What remains is a smaller channel that acts after reset.
+The v1 leak channel (a stale reset observation carrying the previous block's
+terminal state) is therefore closed. What remains is a smaller channel acting
+after reset.
 
 ## The residual is positively measured, not inferred by elimination
 
-Earlier characterisation attributed the residual to simulator-internal history by
-elimination, after ruling out observation, reset state, per-block RNG, action-term memory
-and actuator-delay memory. That is an argument from a shrinking list, not a measurement.
-We replace it with a falsifiable prediction and its test.
+Earlier characterisation attributed the residual to simulator-internal history
+by elimination, after ruling out observation, reset state, per-block RNG,
+action-term memory and actuator-delay memory. That is an argument from a
+shrinking list, not a measurement. We replace it with a falsifiable prediction
+and its test.
 
-If the channel is within-tick coupling through the single shared GPU PhysX batch that
-advances all 768 environments together, then whether a block's onset observation diverges
-must be decided by that block's onset **tick** alone: a perturbation seeded when the
-earliest-onset environments are treated needs a finite number of ticks to reach
-environments that have not yet reached their own onset, so divergence must be an upward
-closed set in onset tick, with one threshold per arm pair. Temporal carryover across
-blocks would instead order divergence by block index, which the batched harness does not
-define, and disturbance status or environment index would order it if the channel were
+If the channel is within-tick coupling through the single shared GPU PhysX batch
+that advances all 768 environments together, then whether a block's onset
+observation diverges must be decided by that block's onset **tick** alone: a
+perturbation seeded when the earliest-onset environments are treated needs a
+finite number of ticks to reach environments that have not yet reached their own
+onset, so divergence must be an upward closed set in onset tick, with one
+threshold per arm pair. Temporal carryover across blocks would instead order
+divergence by block index, which the batched harness does not define, and
+disturbance status or environment index would order it if the channel were
 per-environment.
 
-The prediction holds exactly. **In 12 of 12 arm pairs a single onset-tick threshold
-separates the divergent blocks from the bit-identical ones with no exceptions**: every
-block with onset at or above the threshold diverges and every block below it is
-bit-identical. Divergence is uncorrelated with block index, disturbance status, and
-environment index once onset tick is known. Under a null in which the divergent set is an
-arbitrary subset of blocks of the observed size, the joint probability of perfect
-separation in all 12 pairs is on the order of 10^-124.
+**The prediction holds in 18 of 20 arm pairs exactly, and in 956 of 960 blocks
+overall.** In 18 pairs a single onset-tick threshold separates the divergent
+blocks from the bit-identical ones with no exceptions. In the remaining two
+pairs, both in `process_05` (`walk_motor` 1 block, `walk_obs` 3 blocks), a small
+number of blocks fall on the wrong side of the best-fitting threshold. Under a
+null in which the divergent set is an arbitrary subset of blocks of the observed
+size, the joint probability of separation this good across all 20 pairs is on
+the order of 10^-212.
 
-The mechanism is therefore identified as within-tick spatial coupling in the shared
-physics batch, not temporal carryover. One quantitative caveat: the implied propagation
-delay is not a single constant. The per-pair brackets on the delay, in ticks after the
-earliest onset in the batch, run from (12, 18] to (86, 88] and admit no common value, so
-the delay depends on the magnitude of the seeding perturbation and on the specific
-dynamics rather than on the solver alone.
+**We report the 4 exceptions rather than describing the rule as exceptionless.**
+At n = 3 the predicate held in 12 of 12 pairs with zero mismatches, and the
+earlier draft of this section said "without exception". That statement does not
+survive two more seeds and has been withdrawn. What survives is weaker and still
+sufficient: onset tick explains divergence almost completely, and no competing
+ordering (block index, disturbance status, environment index) explains any of the
+residual variation once onset tick is known. The consequence for the selection
+argument is stated below rather than buried.
+
+One quantitative caveat carries over: the implied propagation delay is not a
+single constant. The per-pair delay brackets admit no common value, so the delay
+depends on the magnitude of the seeding perturbation and on the specific
+dynamics, not on the solver alone.
 
 ## Magnitude on the registered estimand
 
-The registered pre-onset negative control is a paired block-level fall-rate difference in
-a window where the oracle has not engaged, so its true value is exactly zero. Measured on
-v2, pooled over three processes (96 disturbed blocks per cell):
+The registered pre-onset negative control is a paired block-level fall-rate
+difference in a window where the oracle has not engaged, so its true value is
+exactly zero. Any non-zero estimate is residual imbalance or noise. At n = 5
+(160 disturbed blocks per cell); see Table III of `paper/numbers.md`:
 
-| cell | pre-onset negative control | 95% CI |
+| cell | block bootstrap | process level (n=5) |
 |---|---|---|
-| stand_motor | +0.000 pp | [+0.000, +0.000] |
-| stand_obs | +0.000 pp | [+0.000, +0.000] |
-| walk_motor | +0.065 pp | [+0.000, +0.195] |
-| walk_obs | +0.065 pp | [+0.000, +0.195] |
+| stand_motor | +0.000 pp [+0.000, +0.000] | +0.000 pp [+0.000, +0.000] |
+| stand_obs | +0.000 pp [+0.000, +0.000] | +0.000 pp [+0.000, +0.000] |
+| walk_motor | +0.039 pp [+0.000, +0.117] | +0.039 pp [-0.069, +0.148] |
+| walk_obs | +0.039 pp [+0.000, +0.117] | +0.039 pp [-0.069, +0.148] |
 
-The two walking cells pass the frozen criterion by touching zero, not by straddling it,
-and we state it that way. The underlying count is small enough to name exactly: across
-all 12 pairs, pre-onset fall status differs for **6 of 9,216 environment pairs**, and
-within the disturbed blocks the registered estimand actually uses, for **4 of 6,144
-environment pairs**. The largest residual, +0.065 pp, is 1.1% of the smallest primary
-effect in the study (walk_motor, -5.95 pp) and 0.4% of the largest (walk_obs, +17.52 pp).
+The two walking cells pass the frozen criterion by touching zero under the block
+bootstrap, and straddle it properly under process-level inference. The
+underlying count is small enough to name exactly: **pre-onset fall status
+differs for 4 of 10,240 disturbed environment pairs**, the pairs the registered
+estimand actually uses, and for 6 of 15,360 environment pairs counting the
+nominal blocks the estimand never touches. Three disturbed blocks are affected,
+none of them inside the leak-free subset. The two new processes contributed zero
+additional discrepancies.
+
+The largest residual, +0.039 pp, is 0.6% of the smallest primary effect in the
+study (`walk_motor`, -6.60 pp) and 0.2% of the largest (`walk_obs`, +17.21 pp).
+
+> **Note on a corrected number.** An earlier draft quoted this residual as 2
+> disturbed environment pairs. That figure was hand-typed and wrong: the audit
+> had only ever derived the all-blocks count, and the disturbed-only figure was
+> never computed. It is now derived in
+> `onset_residual.audit_replicate` as `pre_onset_fall_difference_environments_disturbed`,
+> covered by a regression test, and emitted by `scripts/paper_numbers.py`. The
+> correct figure at n = 3 was 4 of 6,144; at n = 5 it is 4 of 10,240.
 
 ## Contamination-free sensitivity analysis
 
-Because divergence is exactly the upper tail in onset tick, the bit-identical blocks form
-a subset on which the two arms are provably identical up to onset. Recomputing the
-registered primary estimand on that subset alone is a leakage-free replication of the
-headline. It is post hoc and is reported as a sensitivity analysis, not as a replacement
+Because divergence is very nearly the upper tail in onset tick, the
+bit-identical blocks form a subset on which the two arms are provably identical
+up to onset: the subset is defined by `max |onset_obs_u - onset_obs_o| == 0`
+measured directly, not by the threshold model, so the 4 predicate exceptions
+above do not put a contaminated block into the subset. Recomputing the
+registered primary estimand there is a leakage-free replication of the headline.
+It is post hoc and is reported as a sensitivity analysis, not as a replacement
 for the registered estimand.
 
-| cell | registered (n=96) | contamination-free subset |
-|---|---|---|
-| stand_motor | -23.73 pp [-26.32, -21.20] | -23.28 pp [-30.56, -16.57] (n=17) |
-| stand_obs | +9.61 pp [+8.09, +11.23] | +9.27 pp [+6.98, +11.70] (n=44) |
-| walk_motor | -5.95 pp [-7.87, -4.03] | -7.19 pp [-10.40, -4.00] (n=24) |
-| walk_obs | +17.52 pp [+15.31, +19.88] | +16.19 pp [+13.19, +19.28] (n=32) |
+| cell | subset blocks | block bootstrap | process level (n=5) |
+|---|---|---|---|
+| stand_motor | 35 of 160 | -22.74 pp [-26.89, -18.63] | -22.80 pp [-27.49, -18.10] |
+| stand_obs | 91 of 160 | +10.00 pp [+8.38, +11.65] | +9.90 pp [+5.42, +14.38] |
+| walk_motor | 38 of 160 | -6.87 pp [-9.67, -4.16] | -7.06 pp [-8.62, -5.51] |
+| walk_obs | 53 of 160 | +17.24 pp [+14.66, +19.90] | +17.08 pp [+12.65, +21.52] |
 
-All four cells keep their sign, all four contamination-free intervals exclude zero, and
-every registered point estimate falls inside its contamination-free interval. The
-sign-flip between fault families, which is the paper's contribution, survives on data the
-residual cannot have touched. The subsets are small, so the intervals are wider, and the
-subsets are the early-onset blocks rather than a random sample, so this bounds the
-residual's influence without being an unbiased estimate of the same population.
+All four cells keep their sign and **all four exclude zero at both inferential
+levels**. At the fault-family level the subset also survives process-level
+inference: motor -15.09 pp [-19.81, -10.37], obs +12.52 pp [+10.79, +14.24],
+interaction +27.61 pp [+21.33, +33.89].
+
+**This is the claim that n = 3 could not support.** At three processes the
+`stand_obs` leak-free cell gave +9.32 pp [-2.88, +21.52] at the process level, an
+interval crossing zero, and the earlier draft reported it as not replicating at
+that level. Two further pre-registered process seeds resolve it: the five process
+estimates are +9.22, +4.46, +14.29, +9.92 and +11.61 pp, and the interval is
++9.90 [+5.42, +14.38]. The subsets are still the early-onset blocks rather than a
+random sample, so this bounds the residual's influence without being an unbiased
+estimate of the same population.
 
 ### Selection into the subset, and what it can and cannot bias
 
-The obvious objection is that the subset was selected in a way that could manufacture the
-result. It was not, and the reason is structural rather than statistical. Subset membership
-is not merely correlated with onset tick, it **is** onset tick: across all 576 blocks,
-membership equals `1{onset_tick <= threshold}` for a single per-arm-pair threshold with
-zero exceptions, and across the 458 distinct (arm pair, onset tick) strata not one stratum
-contains blocks of differing membership. Onset tick is drawn at design time, before either
-arm runs, so conditioning on membership is conditioning on a coarsening of a pre-randomised
-covariate and opens no collider path.
+The obvious objection is that the subset was selected in a way that could
+manufacture the result. Subset membership is very nearly onset tick itself:
+across all 960 blocks, membership equals `1{onset_tick <= threshold}` for a
+single per-arm-pair threshold in 956 cases, with 4 exceptions in 2 of the 20
+pairs. Onset tick is drawn at design time, before either arm runs, so
+conditioning on membership is overwhelmingly conditioning on a coarsening of a
+pre-randomised covariate, which opens no collider path.
 
-That reduces the whole question to one channel: effect modification by onset tick. It is
-absent in all four cells (Pearson and Spearman both, all p > 0.3), which bounds the implied
-extrapolation bias at -0.84, -0.07, -1.18 and +0.60 pp against effects of -23.73, +9.61,
--5.95 and +17.52 pp. Three further checks agree. Subset-minus-complement differences cross
-zero in all four cells. A threshold sweep that discards the fitted threshold and takes
-`{onset <= q}` on a grid from q=115 to q=195 is flat, so the result is not an artefact of
-where the threshold happened to land. Block-level sign-flip permutation at the registered
-analysis unit gives p = 3.05e-05 (exact, n=17), 0, 3.95e-04 and 0.
+The 4 exceptions mean we can no longer say membership is *exactly* a
+deterministic function of a pre-treatment covariate, and we do not say it. Two
+things bound what those 4 blocks can do. They are 0.4% of the sample. And the
+subset itself is defined by a measured bit-identity, not by the fitted threshold,
+so an exception is a block the threshold model mispredicts, not a contaminated
+block admitted to the clean set: the count of leak-free disturbed pairs carrying
+a pre-onset discrepancy is 0.
 
-Two caveats belong here rather than in a rebuttal.
+That reduces the question to one channel: effect modification by onset tick. At
+the process level it is null in all four cells, with implied extrapolation bias
+of -1.43, -0.69, -0.31 and -0.51 pp against effects of -23.53, +9.89, -6.60 and
++17.21 pp. Three further checks agree. Subset-minus-complement differences cross
+zero in all four cells (+0.72, +1.06, -0.56, -0.05 pp). A threshold sweep that
+discards the fitted threshold and takes `{onset <= q}` on a grid from q = 115 to
+q = 195 is flat, so the result is not an artefact of where the threshold happened
+to land. Arm-label permutation within environment pairs on the leak-free subset
+gives p = 2e-4 in all four cells, the minimum resolvable at 5,000 permutations.
 
-**Post-onset exposure is a block-level constant.** Onset is shared by both arms in all 576
-blocks, so every within-block contrast is evaluated at identical exposure and window length
-cannot bias it. Exposure differences between subset and complement act only through effect
-modification by onset, which is the null channel bounded above.
+**Post-onset exposure is a block-level constant.** Onset is shared by both arms
+in all 960 blocks, so every within-block contrast is evaluated at identical
+exposure and window length cannot bias it. Exposure differences between subset
+and complement act only through effect modification by onset, the null channel
+bounded above.
 
-**The intervals above are conditional on the three process seeds.** The block bootstrap
-resamples blocks within each process and never resamples processes, so between-process
-variance is absent from every interval in this document. Recomputing at the process level
-(t interval on three process means) is materially wider, and for one cell it matters:
+## The observation-fault effects are horizon-conditional
 
-| cell | subset, block bootstrap | subset, process-level (n=3) |
-|---|---|---|
-| stand_motor | -23.28 pp [-30.56, -16.57] | -23.36 pp [-34.89, -11.83] |
-| stand_obs | +9.27 pp [+6.98, +11.70] | +9.32 pp [-2.88, +21.52] |
-| walk_motor | -7.19 pp [-10.40, -4.00] | -7.56 pp [-10.96, -4.16] |
-| walk_obs | +16.19 pp [+13.19, +19.28] | +16.13 pp [+5.93, +26.34] |
+The episode horizon is 500 ticks and onset is drawn from [100, 200], so the
+post-onset window varies from 300 to 400 ticks by design. In the observation
+cells the unshielded arm is still falling near the horizon while the oracle arm
+has stopped: 1.61% of `stand_obs` and 1.76% of `walk_obs` unshielded environment
+pairs fall at elapsed tick 300 or later, against 0.00% for the oracle in both.
 
-The `stand_obs` subset replication does not survive process-level inference; its three
-process estimates are +9.22 (n=30), +4.46 (n=7) and +14.29 (n=7). We state that rather than
-report the narrower interval alone. The registered gate is unaffected, because its only
-interval-based criterion is at the fault-family level, and there the subset survives
-process-level inference: motor -15.06 pp [-27.42, -2.70], obs +12.08 pp [+7.70, +16.47],
-interaction +27.14 pp [+10.41, +43.87]. All four registered full-sample cells also exclude
-zero at the process level.
-
-**The observation-fault effects are horizon-conditional.** The episode horizon is 500 ticks
-and onset is drawn from [100, 200], so the post-onset window varies from 300 to 400 ticks by
-design. In the observation cells the unshielded arm is still falling near the horizon while
-the oracle arm has stopped: 1.31 percent of `stand_obs` and 1.99 percent of `walk_obs`
-unshielded environment pairs fall at elapsed tick 300 or later, against 0.00 percent for the
-oracle in both. Recomputing on a common 300-tick window, the longest every block can supply,
-moves `stand_obs` from +9.61 to +8.31 pp and `walk_obs` from +17.52 to +15.54 pp; the motor
-cells move by at most 0.13 pp. Every sign and every gate outcome is unchanged, but the
-observation effect sizes are a function of how long the episode is watched, and we report
-them as such.
+Recomputing on a common 300-tick window, the longest every block can supply in
+full, moves `stand_obs` from +9.89 to +8.28 pp and `walk_obs` from +17.21 to
++15.46 pp; the motor cells move by 0.08 pp. At the fault-family level, motor goes
+-15.07 to -15.15 pp and obs +13.55 to +11.87 pp, both still excluding zero at the
+process level. Every sign and every gate outcome is unchanged, but the
+observation effect sizes are a function of how long the episode is watched, and
+we report them as such rather than quoting only the full-window figure.
 
 ## What we do not claim
 
-We do not claim the harness is bit-exact. It is not: 11 of 12 arm pairs diverge in a
-majority of blocks at onset. We claim that the divergence enters after reset through a
-mechanism we have identified by a positive test rather than by elimination, that its
-effect on the registered pre-onset negative control is at most +0.065 pp with an interval
-touching zero, and that the primary effects reproduce in sign and magnitude on the blocks
-it provably did not reach. Eliminating the residual entirely would require one physics
-batch per block, which is a 48-fold increase in simulator launches and was judged not
-worth the compute against a residual of this size.
+We do not claim the harness is bit-exact. It is not: most arm pairs diverge in a
+majority of blocks at onset. We claim that the divergence enters after reset
+through a mechanism identified by a positive test rather than by elimination,
+that the test now has 4 exceptions in 960 blocks which we report, that the
+residual's effect on the registered pre-onset negative control is at most
++0.039 pp with a process-level interval straddling zero, and that the primary
+effects reproduce in sign and magnitude on the blocks it provably did not reach.
+Eliminating the residual entirely would require one physics batch per block, a
+48-fold increase in simulator launches, judged not worth the compute against a
+residual of this size.
 
 ## Reproducing this section
 
 ```
+# registered estimand and gate, n=5
+PYTHONPATH=src python scripts/reliability_replication.py analyze \
+  --registry reliability_eval/causal_viability_replication_v2/registry_n5.json \
+  --output  reliability_eval/causal_viability_replication_v2/combined_summary_n5.json
+
+# residual audit, n=5
 PYTHONPATH=src python scripts/reliability_onset_residual.py \
-  --registry reliability_eval/causal_viability_replication_v2/registry.json \
-  --output reliability_eval/causal_viability_replication_v2/onset_residual_audit.json
+  --registry reliability_eval/causal_viability_replication_v2/registry_n5.json \
+  --output  reliability_eval/causal_viability_replication_v2/onset_residual_audit_n5.json
+
+# the full selection-bias suite, including process-level inference
+cd analysis/selection_bias && \
+  REGISTRY=../../reliability_eval/causal_viability_replication_v2/registry_n5.json \
+  OUT=RESULTS_n5.txt ./run_all.sh
+
+# every number this section quotes, rendered from the three artifacts above
+PYTHONPATH=src python scripts/paper_numbers.py --out paper/numbers.md
 ```
 
-CPU only. No GPU and no simulator re-run: the audit reads the frozen arm arrays.
+CPU only. No GPU and no simulator re-run: all four read the frozen arm arrays.

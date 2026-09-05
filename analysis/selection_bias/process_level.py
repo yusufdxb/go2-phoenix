@@ -135,6 +135,26 @@ def _effects_at_window(envs: pd.DataFrame, W: int) -> pd.DataFrame:
     return g
 
 
+def _subset_minus_complement(disturbed: pd.DataFrame) -> dict:
+    """Leak-free subset effect minus contaminated complement effect, per cell.
+
+    The direct test of whether the subset is unrepresentative: if selecting on
+    onset tick manufactured the result, the two halves should disagree. Paired
+    within process so between-process spread is not counted as disagreement, and
+    the interval is a process-level t interval on the per-process deltas.
+    """
+    out = {}
+    for cell, g in disturbed.groupby("cell"):
+        lf = g[g.leakfree].groupby("replicate").effect.mean()
+        dv = g[~g.leakfree].groupby("replicate").effect.mean()
+        joined = pd.concat([lf, dv], axis=1, keys=["lf", "dv"]).dropna()
+        delta = (joined["lf"] - joined["dv"]).sort_index()
+        iv = _t_interval(delta.to_numpy())
+        iv["n_processes_paired"] = int(len(delta))
+        out[cell] = iv
+    return out
+
+
 def _onset_sensitivity(disturbed: pd.DataFrame) -> dict:
     """Effect modification by onset tick, per cell, at the process level.
 
@@ -274,6 +294,7 @@ def main() -> None:
 
     # --- selection diagnostics -------------------------------------------------
     result["onset_sensitivity"] = _onset_sensitivity(d)
+    result["subset_minus_complement"] = _subset_minus_complement(d)
     result["threshold_sweep"] = _threshold_sweep(d)
     result["leakfree_counts"] = {
         c: {"leakfree": int(g.leakfree.sum()), "total": int(len(g))}
@@ -329,6 +350,9 @@ def main() -> None:
                  s["mean_onset_shift_divergent_minus_leakfree_ticks"],
                  s["implied_extrapolation_bias_pp"],
                  "" if b is None else "  bound [%+.2f,%+.2f]" % (b[0], b[1])))
+    print("\n=== SUBSET MINUS COMPLEMENT (process level; must cross zero) ===")
+    for c, s_ in result["subset_minus_complement"].items():
+        print(line(c, s_))
     print("\n=== RESIDUAL CONTAMINATION ===")
     for k, v in result["residual"].items():
         print("  %-46s %s" % (k, v))
