@@ -99,14 +99,27 @@ class FailureCurriculum:
         self,
         pool: TrajectoryPool,
         *,
-        failure_fraction: float,
+        failure_reset_fraction: float | None = None,
+        failure_fraction: float | None = None,
         seed: int = 0,
     ) -> None:
-        if not 0.0 <= failure_fraction <= 1.0:
+        if failure_reset_fraction is not None and failure_fraction is not None:
+            raise ValueError("Use failure_reset_fraction or legacy failure_fraction, not both")
+        fraction = (
+            failure_reset_fraction if failure_reset_fraction is not None else failure_fraction
+        )
+        if fraction is None:
+            raise ValueError("failure_reset_fraction is required")
+        if not 0.0 <= fraction <= 1.0:
             raise ValueError(f"failure_fraction must be in [0, 1], got {failure_fraction}")
         self.pool = pool
-        self.failure_fraction = failure_fraction
+        self.failure_reset_fraction = float(fraction)
         self._rng = np.random.default_rng(seed)
+
+    @property
+    def failure_fraction(self) -> float:
+        """Compatibility alias for the historical name."""
+        return self.failure_reset_fraction
 
     def assign(self, num_envs: int) -> np.ndarray:
         """Return an ``int64[num_envs]`` assignment array."""

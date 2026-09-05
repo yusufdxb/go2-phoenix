@@ -18,6 +18,18 @@ from pathlib import Path
 logger = logging.getLogger("phoenix.adaptation.fine_tune")
 
 
+def resolve_failure_reset_fraction(config):
+    """Read the accurate name with explicit legacy YAML aliases."""
+    names = ("failure_reset_fraction", "failure_sample_fraction", "failure_fraction")
+    present = [name for name in names if name in config]
+    if len(present) != 1:
+        raise ValueError(f"Specify exactly one failure reset fraction key, found {present}")
+    value = float(config[present[0]])
+    if not 0 <= value <= 1:
+        raise ValueError("failure_reset_fraction must be in [0,1]")
+    return value
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Fine-tune a Phoenix policy with failure curriculum.")
     p.add_argument("--config", type=Path, required=True)
@@ -98,11 +110,13 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     curriculum_seed = int(cfg["run"].get("seed", 42))
     curriculum = FailureCurriculum(
         pool,
-        failure_fraction=float(cfg["curriculum"]["failure_sample_fraction"]),
+        failure_reset_fraction=resolve_failure_reset_fraction(cfg["curriculum"]),
         seed=curriculum_seed,
     )
+    if pool.empty() and curriculum.failure_reset_fraction > 0:
+        raise ValueError("Active failure reset curriculum has no trajectories")
     if pool.empty():
-        logger.warning(
+        logger.info(
             "Curriculum trajectory dir %s is empty (modes=%s) — "
             "adaptation will behave like plain fine-tune.",
             traj_dir,
@@ -174,7 +188,20 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # Install the reset bridge so curriculum assignments actually take effect.
     from phoenix.adaptation.reset_bridge import install as install_reset_bridge
 
-    install_reset_bridge(env, curriculum)
+    reset_cfg = cfg["curriculum"]
+    install_reset_bridge(
+        env,
+        curriculum,
+        seed_row_strategy=reset_cfg.get("seed_row_strategy", "failure_onset_minus_seconds"),
+        seed_row_offset_steps=reset_cfg.get(
+            "seed_row_offset_steps", reset_cfg.get("seed_row_offset_k", 0)
+        ),
+        seed_row_offset_seconds=float(reset_cfg.get("seed_row_offset_seconds", 0.5)),
+        telemetry_path=log_dir / "failure_resets.jsonl",
+    )
+    # The wrapper constructed the runner before bridge installation. Reset once
+    # more so the first fresh PPO rollout also uses the intended distribution.
+    env.reset()
 
     # Why ``init_at_random_ep_len=False`` when warm-starting: rsl_rl's
     # Logger only contributes reward values to ``rewbuffer`` when an

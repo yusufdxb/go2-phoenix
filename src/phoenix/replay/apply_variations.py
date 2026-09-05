@@ -18,6 +18,7 @@ from typing import TypedDict
 import numpy as np
 
 from .trajectory_reader import InitialState
+from .state_adapter import body_to_world
 from .variations import VariationSample
 
 
@@ -89,6 +90,11 @@ def build_per_env_initial_conditions(
     push_yaw = np.asarray([v.push_yaw_delta for v in variations], dtype=np.float32)
     base_lin_vel[:, 0] += push_lin
     base_ang_vel[:, 2] += push_yaw
+
+    # Logged velocities and push deltas are body-frame. Isaac root writes are
+    # world-frame, including angular velocity under roll/pitch/yaw.
+    base_lin_vel = body_to_world(base_lin_vel, initial.base_quat).astype(np.float32)
+    base_ang_vel = body_to_world(base_ang_vel, initial.base_quat).astype(np.float32)
 
     mass_delta = np.asarray([v.mass_delta_kg for v in variations], dtype=np.float32)
     # friction_delta is interpreted as Δμ around the scene's nominal μ; we

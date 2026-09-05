@@ -73,7 +73,17 @@ def _fake_env(robot, env_origins, device):  # noqa: ANN001
     def _reset_idx(env_ids):
         inner_calls.append(env_ids)
 
+    import torch
+
+    term = SimpleNamespace(
+        vel_command_b=torch.zeros(len(env_origins), 3),
+        time_left=torch.zeros(len(env_origins)),
+        is_heading_env=torch.ones(len(env_origins), dtype=torch.bool),
+        is_standing_env=torch.ones(len(env_origins), dtype=torch.bool),
+    )
+    term.command = term.vel_command_b
     unwrapped = SimpleNamespace(
+        command_manager=SimpleNamespace(get_term=lambda name: term),
         scene=_FakeScene(robot, env_origins),
         device=device,
         _reset_idx=_reset_idx,
@@ -88,7 +98,8 @@ def test_install_skips_when_pool_empty() -> None:
     curriculum = FailureCurriculum(TrajectoryPool(paths=[]), failure_fraction=0.3)
     env = SimpleNamespace(unwrapped=SimpleNamespace(_reset_idx=lambda ids: None))
     original = env.unwrapped._reset_idx
-    install(env, curriculum)
+    with pytest.raises(ValueError, match="empty pool"):
+        install(env, curriculum)
     assert env.unwrapped._reset_idx is original
     assert not hasattr(env.unwrapped, "phoenix_curriculum")
 
@@ -116,7 +127,7 @@ def test_patched_reset_calls_original_and_rewrites_pose(tmp_path: Path) -> None:
     env_origins = torch.zeros(4, 3)  # 4 envs, zeroed origins
     env, inner_calls, unwrapped = _fake_env(robot, env_origins, device)
 
-    install(env, curriculum)
+    install(env, curriculum, seed_row_strategy="failure_onset")
     assert unwrapped.phoenix_curriculum is curriculum
 
     env_ids = torch.tensor([0, 2], dtype=torch.int64)
@@ -241,7 +252,7 @@ def test_install_writes_velocity_when_opted_in(tmp_path: Path) -> None:
     assert vel_ids.dtype == torch.int64 and vel_ids.numel() == 1
 
 
-def test_install_skips_velocity_by_default(tmp_path: Path) -> None:
+def test_install_restores_velocity_by_default(tmp_path: Path) -> None:
     torch = pytest.importorskip("torch")
     p = tmp_path / "slip.parquet"
     _write_multi_row_parquet(p, n_stable=70, n_failure=20, vx_stable=0.5)
@@ -249,13 +260,16 @@ def test_install_skips_velocity_by_default(tmp_path: Path) -> None:
     robot = _FakeRobot()
     env, _, unwrapped = _fake_env(robot, torch.zeros(2, 3), "cpu")
 
-    install(env, curriculum)  # defaults: first / 0 / write_velocity=False
+    install(env, curriculum)  # defaults: pre-onset .5 seconds, mandatory velocity
     unwrapped._reset_idx(torch.tensor([0, 1], dtype=torch.int64))
 
     assert len(robot.root_pose_calls) == 2
     assert len(robot.joint_state_calls) == 2
-    # Default path must NOT call the velocity writer (preserves legacy behavior).
-    assert robot.root_velocity_calls == []
+    assert len(robot.root_velocity_calls) == 2
+    assert unwrapped.phoenix_reset_telemetry[0]["resolved_row"] == 45
+    assert unwrapped.command_manager.get_term("base_velocity").command[0].tolist() == pytest.approx(
+        [0.5, 0, 0]
+    )
 
 
 def test_patched_reset_is_noop_when_no_envs(tmp_path: Path) -> None:
@@ -266,7 +280,7 @@ def test_patched_reset_is_noop_when_no_envs(tmp_path: Path) -> None:
     robot = _FakeRobot()
     env, inner_calls, unwrapped = _fake_env(robot, torch.zeros(2, 3), "cpu")
 
-    install(env, curriculum)
+    install(env, curriculum, seed_row_strategy="failure_onset")
     unwrapped._reset_idx(torch.tensor([], dtype=torch.int64))
     # Original still gets called; no overrides applied.
     assert len(inner_calls) == 1

@@ -24,7 +24,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def sim_app():
     """Boot Isaac Sim once per test module, tear down after."""
     os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
-    from isaaclab.app import AppLauncher
+    # Gate on the import the same way the rest of the suite gates torch: without
+    # this, a bare ``pytest tests`` run (no ``-m sim`` filter) reports four
+    # setup ERRORS on any machine that lacks Isaac Lab, which is noise that
+    # hides real failures in the summary line.
+    app_module = pytest.importorskip("isaaclab.app")
+    AppLauncher = app_module.AppLauncher
 
     app = AppLauncher(headless=True).app
     yield app
