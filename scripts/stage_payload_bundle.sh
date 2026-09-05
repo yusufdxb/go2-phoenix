@@ -68,6 +68,8 @@ for f in "${REQUIRED[@]}"; do
   fi
 done
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 mkdir -p "$DEST"
 for f in "${REQUIRED[@]}"; do
   cp -Lf "$CKPT_DIR/$f" "$DEST/$f"
@@ -76,13 +78,37 @@ cp -f "$GATE" "$DEST/parity_gate.json"
 cp -f "$DEPLOY_CFG" "$DEST/$(basename "$DEPLOY_CFG")"
 [[ -f "$CKPT_DIR/export_report.txt" ]] && cp -f "$CKPT_DIR/export_report.txt" "$DEST/"
 
+# Transfer is not activation. The deploy configs ship workstation-relative paths
+# ("checkpoints/<run>/policy.onnx") and ros2_policy_node resolves them with a
+# bare Path() against the payload's working directory, so a bundle whose bytes
+# verify perfectly can still sit untouched while the node loads whatever the
+# payload's own checkpoints/ tree holds. activation.py rewrites the bundle's own
+# copy of the config so every path the node opens is absolute and in-bundle.
+# It is stdlib + PyYAML only and travels with the bundle so it can re-verify on
+# the payload with no repo checkout and no PYTHONPATH.
+cp -f "$REPO_ROOT/src/phoenix/sim2real/activation.py" "$DEST/activation.py"
+
+# The pin target is where the bundle will LIVE, which for a remote push is the
+# payload path, not the local staging temp dir.
+if [[ -n "$REMOTE" ]]; then
+  PIN_TARGET="${REMOTE#*:}"
+else
+  PIN_TARGET="$(cd "$DEST" && pwd)"
+fi
+
+# Pin BEFORE the manifest is written: pinning rewrites the config, so a manifest
+# taken first would be invalidated by the very step that activates the bundle.
+python3 "$DEST/activation.py" pin --bundle "$DEST" --target "$PIN_TARGET"
+
 ( cd "$DEST" && sha256sum ./* > SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS )
 ( cd "$DEST" && sha256sum -c SHA256SUMS )
 
 if [[ -z "$REMOTE" ]]; then
+  # Local dest: the bundle already lives at its pin target, so activation is
+  # checkable here and now.
+  python3 "$DEST/activation.py" verify --bundle "$DEST"
   echo
   echo "[stage] staged $CKPT_DIR -> $DEST"
-  echo "[stage] verify on the payload with: sha256sum -c SHA256SUMS"
   exit 0
 fi
 
@@ -102,6 +128,11 @@ sshpass -p "$PW" rsync -a --delete -e "sshpass -p $PW ssh" "$DEST"/ "$HOST:$RPAT
 echo "[stage] verifying on $HOST"
 "${SSH[@]}" "cd '$RPATH' && sha256sum -c SHA256SUMS"
 
+# sha256sum -c proves the bytes arrived. This proves the config that arrived
+# names those exact bytes, so the node cannot silently load an older export.
+echo "[stage] verifying activation on $HOST"
+"${SSH[@]}" "cd '$RPATH' && python3 activation.py verify --bundle '$RPATH'"
+
 rm -rf "$DEST"
 echo
-echo "[stage] staged $CKPT_DIR -> $HOST:$RPATH, verified on the payload"
+echo "[stage] staged $CKPT_DIR -> $HOST:$RPATH, transfer AND activation verified"
