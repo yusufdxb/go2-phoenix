@@ -12,11 +12,12 @@
   },
   "gate_passed": true,
   "independent_block_accounting": {
-    "disturbed_per_fault_family": 192,
-    "disturbed_per_pooled_cell": 96,
+    "disturbed_per_fault_family": 320,
+    "disturbed_per_pooled_cell": 160,
     "disturbed_per_process_cell": 32,
-    "disturbed_total": 384,
-    "nominal_total": 192
+    "disturbed_total": 640,
+    "nominal_total": 320,
+    "processes": 5
   },
   "pooled_cells": {
     "stand_motor": {

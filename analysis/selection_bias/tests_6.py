@@ -1,7 +1,7 @@
 import numpy as np, pandas as pd
 from pathlib import Path
 from scipy import stats
-here = Path("/home/yusuf/workspace/go2-phoenix/analysis/selection_bias")
+here = Path(__file__).resolve().parent
 b = pd.read_csv(here/"blocks.csv"); d = b[b.disturbed].copy()
 
 ct = pd.crosstab(d.cell, d.leakfree)

@@ -1,7 +1,7 @@
 import numpy as np, pandas as pd
 from scipy import stats
 from pathlib import Path
-here = Path("/home/yusuf/workspace/go2-phoenix/analysis/selection_bias")
+here = Path(__file__).resolve().parent
 d = pd.read_csv(here/"blocks.csv"); d = d[d.disturbed]
 print("Selection is deterministic in onset. The ONLY route to bias is effect modification")
 print("by onset tick. Bound it: bias = slope(effect~onset) * (mean onset full - mean onset subset).")

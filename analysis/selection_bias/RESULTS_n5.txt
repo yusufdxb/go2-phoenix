@@ -1,5 +1,5 @@
-# Phoenix selection-bias evidence, regenerated 2026-09-05T09:52:38-04:00
-# repo HEAD: 93669b890a84142acb3b80fd73cde6bb1ece0cf5
+# Phoenix selection-bias evidence, regenerated 2026-09-05T10:08:16-04:00
+# repo HEAD: 85033c7578fc01e727aed4e60100578077b1df6b
 # registry:  ../../reliability_eval/causal_viability_replication_v2/registry_n5.json
 
 blocks 960 envs 15360
@@ -222,7 +222,7 @@ True     378.967742
 dtype: float64
 
 ################ tests_perm_sens.py ################
---- pre-onset env-pair discrepancies (the '2 / 6144' claim) ---
+--- pre-onset env-pair discrepancies: direct recount (an earlier draft said 2; it is not) ---
 disturbed env pairs: 10240  eligible: 9965
 pre-onset fall differing env pairs, ALL blocks   : 6
 pre-onset fall differing env pairs, DISTURBED    : 4
@@ -252,12 +252,12 @@ observed per-replicate pre-onset discrepancy budget: {'process_01': 3, 'process_
 
 ################ tests_final.py ################
 --- audit json vs my recomputation (contamination-free cells) ---
- stand_motor  registered -23.73 [-26.32,-21.20] n= 96 | clean -23.28 [-30.56,-16.57] n= 17 | pre +0.000 [+0.000,+0.000]
- stand_obs    registered  +9.61 [ +8.09,+11.23] n= 96 | clean  +9.27 [ +6.98,+11.70] n= 44 | pre +0.000 [+0.000,+0.000]
- walk_motor   registered  -5.95 [ -7.87, -4.03] n= 96 | clean  -7.19 [-10.40, -4.00] n= 24 | pre +0.065 [+0.000,+0.195]
- walk_obs     registered +17.52 [+15.31,+19.88] n= 96 | clean +16.19 [+13.19,+19.28] n= 32 | pre +0.065 [+0.000,+0.195]
+ stand_motor  registered -23.53 [-25.43,-21.66] n=160 | clean -22.74 [-26.89,-18.67] n= 35 | pre +0.000 [+0.000,+0.000]
+ stand_obs    registered  +9.89 [ +8.67,+11.18] n=160 | clean +10.00 [ +8.36,+11.65] n= 91 | pre +0.000 [+0.000,+0.000]
+ walk_motor   registered  -6.60 [ -8.12, -5.11] n=160 | clean  -6.87 [ -9.68, -4.14] n= 38 | pre +0.039 [+0.000,+0.117]
+ walk_obs     registered +17.21 [+15.60,+18.87] n=160 | clean +17.24 [+14.67,+19.89] n= 53 | pre +0.039 [+0.000,+0.117]
 
---- 'pre-onset fall status differs for 2 of 6,144' : direct recount ---
+--- pre-onset fall-status discrepancies: direct recount from the raw frame ---
 disturbed env pairs = 10240  differing pre-onset fall status = 4
 by cell: {'walk_motor': 3, 'walk_obs': 1}
 all 9216 env pairs, differing = 6
@@ -354,7 +354,7 @@ REGISTERED primary_estimand string from the frozen protocol:
    eligibility_rule: exclude an environment pair from the post-onset estimand if either arm falls before the registered onset
    analysis_unit  : scenario block
 
-GATE CHECKS actually evaluated by analyze_registry (combined_summary.json):
+GATE CHECKS actually evaluated by analyze_registry (combined_summary_n5.json):
    direction_reproduces_in_all_process_cells     True
    leave_one_process_out_preserves_direction     True
    pooled_fault_intervals_exclude_zero           True
@@ -364,8 +364,8 @@ GATE CHECKS actually evaluated by analyze_registry (combined_summary.json):
 Aggregation levels present in the frozen summary:
    pooled_cells (policy x family, n=96):      ['stand_motor', 'stand_obs', 'walk_motor', 'walk_obs']
    pooled_fault_families (family, n=192):     ['motor', 'obs']
-     motor  -14.841 pp [-16.471,-13.264] blocks=192
-     obs    +13.569 pp [+12.205,+14.966] blocks=192
+     motor  -15.068 pp [-16.283,-13.859] blocks=320
+     obs    +13.550 pp [+12.533,+14.599] blocks=320
 
 >>> The CI-based gate criterion is at the FAULT-FAMILY level (motor / obs),
 >>> which POOLS stand and walk. 'Per-cell' is one level FINER than the gate.
@@ -415,16 +415,17 @@ Aggregation levels present in the frozen summary:
    process-cells violating the registered direction on the subset: []
 
 ################ adv_3_batch.py ################
-/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:75: RuntimeWarning: invalid value encountered in scalar divide
+/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:88: RuntimeWarning: invalid value encountered in scalar divide
   ac1 = float((xc[1:]*xc[:-1]).sum()/ (xc**2).sum())
-/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:77: RuntimeWarning: invalid value encountered in scalar divide
+/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:90: RuntimeWarning: invalid value encountered in scalar divide
   null=np.array([ (lambda y:(y[1:]*y[:-1]).sum()/(y**2).sum())(rng.permutation(xc)) for _ in range(20000)])
 === (a) membership | onset: is block_index informative AT ALL? ===
-membership is 1{onset <= per-pair threshold} with 0/576 mismatches, so by
-construction nothing else can carry information. Verify by exact conditioning:
+  membership vs 1{onset <= per-pair threshold}: 4 mismatches in 960 blocks
+  If that count is 0, nothing but onset can carry information about membership.
+  Verify directly by exact conditioning:
   distinct (arm-pair, onset) strata: 753  strata where membership varies within the stratum: 1
-  => conditional on onset within an arm pair, membership has ZERO residual variance.
-  => block_index / neighbour effects on membership are 100%% mediated by onset.
+  => membership is NOT a pure function of onset: 1 of 753 strata are impure.
+  => onset mediates almost all of it, but the 'exactly deterministic' claim fails.
 
 === is the reported block_index association just onset-block_index correlation? ===
   stand_motor spearman(block_index,onset) rho=-0.128 p=0.1078 | raw block_index MWU p=0.1519 | LF-DIV mean bi diff=+2.54
@@ -630,6 +631,12 @@ processes: 5 ['process_01', 'process_02', 'process_03', 'process_04', 'process_0
   stand_obs    slope=-0.0184 pp/tick [-0.0876,+0.0509]  onset shift=+37.6 ticks  implied bias=-0.69 pp  bound [-3.29,+1.91]
   walk_motor   slope=-0.0057 pp/tick [-0.0618,+0.0504]  onset shift=+54.4 ticks  implied bias=-0.31 pp  bound [-3.36,+2.74]
   walk_obs     slope=-0.0098 pp/tick [-0.1323,+0.1127]  onset shift=+51.5 ticks  implied bias=-0.51 pp  bound [-6.82,+5.81]
+
+=== SUBSET MINUS COMPLEMENT (process level; must cross zero) ===
+  stand_motor                  +0.72 [  -7.94,  +9.39] n_proc=5 n_blk=-1  *** INCLUDES 0 ***
+  stand_obs                    +1.06 [  -4.55,  +6.66] n_proc=5 n_blk=-1  *** INCLUDES 0 ***
+  walk_motor                   -0.56 [  -3.31,  +2.19] n_proc=5 n_blk=-1  *** INCLUDES 0 ***
+  walk_obs                     -0.05 [  -8.12,  +8.02] n_proc=5 n_blk=-1  *** INCLUDES 0 ***
 
 === RESIDUAL CONTAMINATION ===
   env_pairs_all                                  15360

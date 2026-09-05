@@ -24,6 +24,25 @@ process-level interval (mean of the per-process means, Student t on n = 5), and
 labels which is which. Where they disagree, the process-level one is the one a
 reviewer asking "would this replicate on new seeds" should read.
 
+Two honest qualifications on that. The process-level interval is the *correct*
+level for a claim about new seeds, but it is not uniformly the *wider* one: for
+`stand_obs` and `walk_obs` on the full sample its half-width is 0.79x and 0.60x
+the block-level one, because with 4 degrees of freedom the sample SD of five
+process means can come out small. The measured between-process variance component
+is close to zero (one-way ANOVA over processes gives ICC ~ 0 in three of four
+cells, largest F = 1.78, p = 0.135), which is consistent with that. And the
+interval is parametric: at n = 5 the sign test, the exact sign-flip randomization
+test and the exact Wilcoxon signed-rank all bottom out at p = 0.0625, the minimum
+attainable value at five paired units, so no exact distribution-free test can
+reject at alpha = 0.05 no matter how large the effect. The data are as extreme as
+the design permits; the inference rests on approximate normality of five process
+means, which Shapiro-Wilk does not contradict (p in [0.07, 1.00]).
+
+Under Holm correction over all 18 process-level intervals reported here, all 14
+substantive quantities still reject; the weakest is the leak-free `stand_obs`
+cell at raw p = 3.59e-3, Holm-adjusted 1.79e-2. The four pre-onset negative
+controls correctly do not reject.
+
 ## What is and is not aligned across the paired arms
 
 The batched-block harness removes temporal carryover by construction: block `i`
@@ -189,13 +208,67 @@ cells the unshielded arm is still falling near the horizon while the oracle arm
 has stopped: 1.61% of `stand_obs` and 1.76% of `walk_obs` unshielded environment
 pairs fall at elapsed tick 300 or later, against 0.00% for the oracle in both.
 
-Recomputing on a common 300-tick window, the longest every block can supply in
+The dependence is monotone and has not plateaued by W = 300. Sweeping the
+window: `stand_obs` runs +1.80 (W=100), +5.54 (W=200), +8.28 (W=300), +9.89
+(full); `walk_obs` runs +6.27, +11.06, +15.46, +17.21. The motor cells are flat
+across the same sweep (-22.87 to -23.61, and -7.22 to -6.60). **The sign is
+horizon-invariant; the observation magnitude is not.** Because the maximum onset
+is 200, W = 300 truncates no block, so the remaining gap is falls landing later
+than onset + 300: roughly 16% of the reported `stand_obs` effect and 10% of
+`walk_obs` is late-window exposure that the common-horizon check does not remove.
+
+Recomputing on that common 300-tick window, the longest every block can supply in
 full, moves `stand_obs` from +9.89 to +8.28 pp and `walk_obs` from +17.21 to
 +15.46 pp; the motor cells move by 0.08 pp. At the fault-family level, motor goes
 -15.07 to -15.15 pp and obs +13.55 to +11.87 pp, both still excluding zero at the
 process level. Every sign and every gate outcome is unchanged, but the
 observation effect sizes are a function of how long the episode is watched, and
 we report them as such rather than quoting only the full-window figure.
+
+## The outcome is falls, and only falls
+
+The registered outcome is the post-onset fall rate and nothing else. This must be
+stated in the paper rather than left for a reviewer to derive, because the
+artifacts contain a field that looks like a second outcome and is not:
+`task_complete` is defined as `~fell` (`scripts/reliability_closed_loop.py:1191`),
+so `task_complete + fell = 1` exactly in every cell. It is the primary outcome
+restated, not corroboration, and it may not be quoted as a secondary outcome. The
+one other candidate, `return_until_first_fall`, is unusable in the observation
+cells because the injected observation noise enters the reward terms directly
+(`stand_obs` median -1588.76 unshielded against -26.93 oracle), so it measures
+the corruption rather than the task.
+
+The consequence bounds the claim. The fallback under test is a null-action
+controller: at full blend the commanded action is exactly zero
+(`reliability_closed_loop.py:1134`), pinning joint targets to the default stand
+pose, open-loop with respect to observations. Under observation corruption that
+severs the fault's only causal pathway, which is why the oracle arm's post-onset
+fall rate is 0.51% (`stand_obs`) and 2.78% (`walk_obs`) against 38.18% and 59.30%
+in the motor cells. A walking robot that freezes into a stance stops falling and
+also stops walking, and **this study measures no cost for that**. "Benefit" here
+means "fewer post-onset falls" and cannot be read as "safer", "better", or
+"preferable"; the paper says so in the introduction, not only in the limitations.
+
+## Provenance details a reviewer will check, stated before they ask
+
+- **`bundle_id` differs between `process_01-03` and `process_04/05`** (`stand`:
+  `a867c991a28fccff` against `1d09a70edc057bc9`). The bundle id hashes the code
+  commit as well as the inputs. Diffing `bundle.json`, the only fields that differ
+  are `code_commit` and `code_dirty`; every entry in `files{}` (checkpoint, ONNX,
+  shield artifact, resolved env config) is byte-identical across all five
+  processes. Nothing experimental changed.
+- **`code_dirty` is `true` on all 16 new arm runs** and `false` on the original
+  24. The 11-file `source_snapshot_sha256` in `EXPERIMENT_SOURCE_PATHS` is
+  identical across all 40 arms, so the experimental surface was clean; the dirty
+  flag reflects the untracked output directories the run itself was creating.
+- **"5 independent process seeds" means exactly one thing.** Each replicate
+  re-seeds the environment, torch and numpy RNGs
+  (`reliability_closed_loop.py:552-555`); the seed is shared by the four cells
+  within a replicate, which is why the process, not the cell, is the clustering
+  unit. It is not an independent re-instantiation of a policy, an environment, a
+  fallback design or a fault model. The generalization is over RNG streams, and
+  the Limitations section scopes the claim to one policy family, one simulator and
+  one fallback accordingly.
 
 ## What we do not claim
 

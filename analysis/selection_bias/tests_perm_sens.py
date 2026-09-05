@@ -1,11 +1,11 @@
 import numpy as np, pandas as pd
 from pathlib import Path
 from scipy import stats
-here = Path("/home/yusuf/workspace/go2-phoenix/analysis/selection_bias")
+here = Path(__file__).resolve().parent
 b = pd.read_csv(here/"blocks.csv"); d = b[b.disturbed].copy()
 e = pd.read_csv(here/"envs.csv"); ed = e[e.disturbed & e.eligible].copy()
 
-print("--- pre-onset env-pair discrepancies (the '2 / 6144' claim) ---")
+print("--- pre-onset env-pair discrepancies: direct recount (an earlier draft said 2; it is not) ---")
 print("disturbed env pairs:", len(e[e.disturbed]), " eligible:", len(ed))
 allb = b
 print("pre-onset fall differing env pairs, ALL blocks   :", int(allb.pre_fall_env_diff.sum()))
