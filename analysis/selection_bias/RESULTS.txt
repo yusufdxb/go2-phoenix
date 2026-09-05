@@ -1,0 +1,510 @@
+# Phoenix selection-bias evidence, regenerated 2026-09-05T09:38:09-04:00
+# repo HEAD: 5d2fcd8d921d9cda76519d1150cbb9edff6687ef
+# registry:  reliability_eval/causal_viability_replication_v2/registry.json
+
+blocks 576 envs 9216
+
+################ tests_predicate.py ################
+--- Is membership EXACTLY a function of onset tick within an arm pair? (all 576 blocks) ---
+ process_01  stand_motor thr=128  earliest_onset=100  delay=28 ticks  nLF=15/48  mismatches=0
+ process_01  stand_obs   thr=186  earliest_onset=100  delay=86 ticks  nLF=44/48  mismatches=0
+ process_01  walk_motor  thr=113  earliest_onset=101  delay=12 ticks  nLF=12/48  mismatches=0
+ process_01  walk_obs    thr=144  earliest_onset=101  delay=43 ticks  nLF=18/48  mismatches=0
+ process_02  stand_motor thr=117  earliest_onset=101  delay=16 ticks  nLF= 8/48  mismatches=0
+ process_02  stand_obs   thr=118  earliest_onset=100  delay=18 ticks  nLF=10/48  mismatches=0
+ process_02  walk_motor  thr=127  earliest_onset=100  delay=27 ticks  nLF=19/48  mismatches=0
+ process_02  walk_obs    thr=128  earliest_onset=101  delay=27 ticks  nLF=14/48  mismatches=0
+ process_03  stand_motor thr=121  earliest_onset=100  delay=21 ticks  nLF= 9/48  mismatches=0
+ process_03  stand_obs   thr=120  earliest_onset=100  delay=20 ticks  nLF=13/48  mismatches=0
+ process_03  walk_motor  thr=120  earliest_onset=101  delay=19 ticks  nLF= 6/48  mismatches=0
+ process_03  walk_obs    thr=131  earliest_onset=103  delay=28 ticks  nLF=17/48  mismatches=0
+TOTAL blocks where membership != 1{onset <= per-pair threshold}: 0 / 576
+
+--- Does the SAME onset threshold hold for NOMINAL (never-treated) blocks? ---
+If yes, divergence is batch-level coupling, not the focal block's own treatment.
+  process_01  stand_motor disturbed-thr=124  nominal blocks agreeing=15/16  nominal LF= 6/16
+  process_01  stand_obs   disturbed-thr=185  nominal blocks agreeing=15/16  nominal LF=14/16
+  process_01  walk_motor  disturbed-thr=110  nominal blocks agreeing=13/16  nominal LF= 4/16
+  process_01  walk_obs    disturbed-thr=144  nominal blocks agreeing=16/16  nominal LF= 7/16
+  process_02  stand_motor disturbed-thr=117  nominal blocks agreeing=16/16  nominal LF= 4/16
+  process_02  stand_obs   disturbed-thr=113  nominal blocks agreeing=15/16  nominal LF= 3/16
+  process_02  walk_motor  disturbed-thr=127  nominal blocks agreeing=16/16  nominal LF= 6/16
+  process_02  walk_obs    disturbed-thr=128  nominal blocks agreeing=16/16  nominal LF= 4/16
+  process_03  stand_motor disturbed-thr=121  nominal blocks agreeing=16/16  nominal LF= 5/16
+  process_03  stand_obs   disturbed-thr=120  nominal blocks agreeing=16/16  nominal LF= 6/16
+  process_03  walk_motor  disturbed-thr=120  nominal blocks agreeing=16/16  nominal LF= 3/16
+  process_03  walk_obs    disturbed-thr=131  nominal blocks agreeing=16/16  nominal LF= 6/16
+
+--- Balance of PRE-TREATMENT design variables inside vs outside the subset, per cell ---
+  stand_motor motor_scale   LF=0.4162 DIV=0.4350  MWU p=0.352
+  stand_motor block_index   LF=16.9412 DIV=15.1899  MWU p=0.483
+  stand_motor seed          LF=974591983.4706 DIV=1049901621.8608  MWU p=0.687
+  stand_obs   obs_noise     LF=2.0089 DIV=2.0344  MWU p=0.840
+  stand_obs   block_index   LF=16.7273 DIV=14.4615  MWU p=0.235
+  stand_obs   seed          LF=1078294826.3182 DIV=1217000876.3269  MWU p=0.238
+  walk_motor  motor_scale   LF=0.4430 DIV=0.4427  MWU p=0.770
+  walk_motor  block_index   LF=11.9167 DIV=16.6944  MWU p=0.029
+  walk_motor  seed          LF=1091908023.2083 DIV=1067971527.9167  MWU p=0.823
+  walk_obs    obs_noise     LF=1.9478 DIV=1.9602  MWU p=0.966
+  walk_obs    block_index   LF=18.9688 DIV=13.7656  MWU p=0.010
+  walk_obs    seed          LF=1117481222.9062 DIV=1087956427.9375  MWU p=0.861
+
+################ tests_1_5.py ################
+======================================================================
+SHAPE: total blocks 576  disturbed 384  env pairs(dist) 6144
+leak-free (bit-identical) blocks: all=185/576  disturbed=117/384
+
+--- TEST 1: membership x arm/cell ---
+leakfree     False  True 
+cell                     
+stand_motor     79     17
+stand_obs       52     44
+walk_motor      72     24
+walk_obs        64     32
+chi2=19.803 dof=0 p=3
+rate per cell:
+ cell
+stand_motor    0.177083
+stand_obs      0.458333
+walk_motor     0.250000
+walk_obs       0.333333
+Name: leakfree, dtype: float64
+by replicate chi2=21.462 p=2.185e-05
+replicate
+process_01    0.453125
+process_02    0.265625
+process_03    0.195312
+Name: leakfree, dtype: float64
+NOTE: membership is defined jointly on the PAIR, so it is identical for both arms
+within a pair by construction -> no unshielded-vs-oracle imbalance is possible.
+per-arm-pair (replicate x cell) leak-free block counts (disturbed):
+replicate  process_01                       ... process_03                    
+cell      stand_motor stand_obs walk_motor  ...  stand_obs walk_motor walk_obs
+sum                 9        30          8  ...          7          3       11
+count              32        32         32  ...         32         32       32
+
+[2 rows x 12 columns]
+all-blocks leak-free counts per arm pair (the '4-42 of 48' claim, DIVERGENT count):
+count    12.000000
+mean     32.583333
+std       9.876127
+min       4.000000
+25%      30.750000
+50%      34.500000
+75%      38.250000
+max      42.000000
+Name: divergent, dtype: float64
+
+--- TEST 2: membership x onset tick ---
+ process_01  stand_motor nLF= 9 onsetLF[105,124] onsetDIV[131,200] sep=True
+ process_01  stand_obs   nLF=30 onsetLF[107,185] onsetDIV[191,197] sep=True
+ process_01  walk_motor  nLF= 8 onsetLF[101,110] onsetDIV[120,200] sep=True
+ process_01  walk_obs    nLF=11 onsetLF[101,144] onsetDIV[152,198] sep=True
+ process_02  stand_motor nLF= 4 onsetLF[101,117] onsetDIV[127,198] sep=True
+ process_02  stand_obs   nLF= 7 onsetLF[100,113] onsetDIV[122,196] sep=True
+ process_02  walk_motor  nLF=13 onsetLF[100,127] onsetDIV[143,199] sep=True
+ process_02  walk_obs    nLF=10 onsetLF[101,128] onsetDIV[130,200] sep=True
+ process_03  stand_motor nLF= 4 onsetLF[100,121] onsetDIV[125,196] sep=True
+ process_03  stand_obs   nLF= 7 onsetLF[100,120] onsetDIV[131,200] sep=True
+ process_03  walk_motor  nLF= 3 onsetLF[102,120] onsetDIV[123,200] sep=True
+ process_03  walk_obs    nLF=11 onsetLF[103,131] onsetDIV[132,195] sep=True
+pooled Mann-Whitney U p=1.4e-37 ; AUC(onset predicts divergence)=0.0912
+mean onset leak-free=121.5  divergent=164.3
+
+--- TEST 3: membership x block index / seed / dose ---
+block_index: pointbiserial r=0.0634 p=0.215
+seed:        pointbiserial r=-0.0149 p=0.771
+ obs_noise     n=192 r=-0.0081 p=0.911  MWU p=0.946  meanLF=1.9832 meanDIV=1.9935
+ motor_scale   n=192 r=-0.0371 p=0.609  MWU p=0.725  meanLF=0.4319 meanDIV=0.4386
+
+--- TEST 4: membership x OUTCOME and pre-outcome covariates ---
+[control-arm potential outcome Y(0) = unshielded post-onset fall rate]
+ Y(0) unshielded post-onset fall rate                 LF=0.2180 DIV=0.2349  r=-0.0366 p=0.474 MWU p=0.526
+ Y(1) oracle post-onset fall rate                     LF=0.1874 DIV=0.2574  r=-0.1170 p=0.0218 MWU p=0.00813
+ PRE-treatment: unshielded pre-onset fall rate        LF=0.0176 DIV=0.0323  r=-0.1353 p=0.00791 MWU p=0.0138
+ PRE-treatment: oracle pre-onset fall rate            LF=0.0176 DIV=0.0318  r=-0.1316 p=0.00982 MWU p=0.017
+ PRE-treatment: eligible env pairs per block          LF=15.7179 DIV=15.4794  r=+0.1364 p=0.00745 MWU p=0.0136
+ EFFECT (u-o)                                         LF=0.0306 DIV=-0.0225  r=+0.1282 p=0.0119 MWU p=0.00854
+
+within-cell (stratified) outcome association:
+  stand_motor u_post_rate  LF=0.1380 DIV=0.1201 r=+0.0544 p=0.599
+  stand_motor o_post_rate  LF=0.3708 DIV=0.3584 r=+0.0241 p=0.816
+  stand_motor effect       LF=-0.2328 DIV=-0.2383 r=+0.0157 p=0.879
+  stand_motor u_pre_rate   LF=0.0074 DIV=0.0047 r=+0.0511 p=0.621
+  stand_obs   u_post_rate  LF=0.0984 DIV=0.1027 r=-0.0272 p=0.792
+  stand_obs   o_post_rate  LF=0.0057 DIV=0.0036 r=+0.0637 p=0.538
+  stand_obs   effect       LF=0.0927 DIV=0.0990 r=-0.0404 p=0.696
+  stand_obs   u_pre_rate   LF=0.0043 DIV=0.0060 r=-0.0447 p=0.665
+  walk_motor  u_post_rate  LF=0.5070 DIV=0.4821 r=+0.0485 p=0.639
+  walk_motor  o_post_rate  LF=0.5789 DIV=0.5375 r=+0.0774 p=0.453
+  walk_motor  effect       LF=-0.0719 DIV=-0.0553 r=-0.0750 p=0.468
+  walk_motor  u_pre_rate   LF=0.0260 DIV=0.0599 r=-0.2396 p=0.0187
+  walk_obs    u_post_rate  LF=0.2082 DIV=0.2057 r=+0.0099 p=0.924
+  walk_obs    o_post_rate  LF=0.0462 DIV=0.0239 r=+0.2332 p=0.0222
+  walk_obs    effect       LF=0.1619 DIV=0.1819 r=-0.0827 p=0.423
+  walk_obs    u_pre_rate   LF=0.0352 DIV=0.0566 r=-0.1734 p=0.0911
+
+--- effect-modification by onset tick (the mechanism that would make the subset non-representative) ---
+  stand_motor pearson r=-0.045 p=0.661 spearman=-0.066 p=0.523 slope=-0.02088 pp/tick p=0.661
+  stand_obs   pearson r=-0.017 p=0.868 spearman=+0.021 p=0.838 slope=-0.00469 pp/tick p=0.868
+  walk_motor  pearson r=-0.095 p=0.36 spearman=-0.105 p=0.309 slope=-0.02855 pp/tick p=0.36
+  walk_obs    pearson r=+0.046 p=0.655 spearman=-0.011 p=0.914 slope=+0.01718 pp/tick p=0.655
+
+################ tests_6.py ################
+TEST1 corrected: chi2=19.803 dof=3 p=0.0001865
+
+--- TEST 6: primary effects, pp  (subset vs complement vs full) ---
+cell         | FULL (registered)          | LEAK-FREE subset           | CONTAMINATED complement   
+stand_motor  | -23.73 [-26.32,-21.20] n= 96 | -23.36 [-29.06,-17.92] n= 17 | -23.50 [-26.20,-20.78] n= 79
+stand_obs    |  +9.61 [ +8.09,+11.23] n= 96 |  +9.32 [ +6.68,+12.13] n= 44 |  +8.78 [ +7.44,+10.14] n= 52
+walk_motor   |  -5.95 [ -7.87, -4.03] n= 96 |  -7.56 [-11.66, -3.69] n= 24 |  -5.55 [ -7.81, -3.31] n= 72
+walk_obs     | +17.52 [+15.31,+19.88] n= 96 | +16.13 [+13.11,+19.25] n= 32 | +18.16 [+15.39,+21.19] n= 64
+
+--- interaction (obs family minus motor family), pp ---
+ full +28.41 [+25.93,+30.96]  n_obs=192 n_motor=192
+ lf   +27.14 [+22.38,+32.06]  n_obs=76 n_motor=41
+ dv   +29.48 [+26.61,+32.43]  n_obs=116 n_motor=151
+
+--- pre-onset negative control, pp ---
+ stand_motor  full +0.00 [+0.00,+0.00] | lf +0.00 [+0.00,+0.00] | dv +0.00 [+0.00,+0.00]
+ stand_obs    full +0.00 [+0.00,+0.00] | lf +0.00 [+0.00,+0.00] | dv +0.00 [+0.00,+0.00]
+ walk_motor   full +0.07 [+0.00,+0.20] | lf +0.00 [+0.00,+0.00] | dv +0.09 [+0.00,+0.26]
+ walk_obs     full +0.07 [+0.00,+0.20] | lf +0.00 [+0.00,+0.00] | dv +0.09 [+0.00,+0.28]
+
+--- difference-in-effect: subset minus complement (paired bootstrap within cell) ---
+ stand_motor  delta= +0.14 pp [ -6.08, +6.21]  crosses zero=True
+ stand_obs    delta= +0.54 pp [ -2.48, +3.60]  crosses zero=True
+ walk_motor   delta= -2.01 pp [ -6.74, +2.52]  crosses zero=True
+ walk_obs     delta= -2.02 pp [ -6.30, +2.19]  crosses zero=True
+
+################ tests_extrap.py ################
+Selection is deterministic in onset. The ONLY route to bias is effect modification
+by onset tick. Bound it: bias = slope(effect~onset) * (mean onset full - mean onset subset).
+ stand_motor  slope=-0.0209 pp/tick [-0.1152,+0.0735]  onset shift=40.0 ticks
+      -> implied extrapolation bias -0.84 pp, 95% bound [-4.61,+2.94] pp (effect is -23.73 pp)
+ stand_obs    slope=-0.0047 pp/tick [-0.0607,+0.0513]  onset shift=16.0 ticks
+      -> implied extrapolation bias -0.07 pp, 95% bound [-0.97,+0.82] pp (effect is +9.61 pp)
+ walk_motor   slope=-0.0286 pp/tick [-0.0901,+0.0330]  onset shift=41.4 ticks
+      -> implied extrapolation bias -1.18 pp, 95% bound [-3.73,+1.37] pp (effect is -5.95 pp)
+ walk_obs     slope=+0.0172 pp/tick [-0.0589,+0.0933]  onset shift=35.1 ticks
+      -> implied extrapolation bias +0.60 pp, 95% bound [-2.07,+3.28] pp (effect is +17.52 pp)
+
+post-onset exposure window (500 - onset):
+leakfree
+False    335.715356
+True     378.495726
+dtype: float64
+
+################ tests_perm_sens.py ################
+--- pre-onset env-pair discrepancies (the '2 / 6144' claim) ---
+disturbed env pairs: 6144  eligible: 5972
+pre-onset fall differing env pairs, ALL blocks   : 6
+pre-onset fall differing env pairs, DISTURBED    : 4
+blocks affected (disturbed): 3  of which leak-free: 0
+onset_obs maxdiff among leak-free blocks (must be all 0): 0.0
+
+--- PERMUTATION: randomize arm label within env pair, leak-free subset only ---
+ stand_motor  observed=-23.36 pp  perm-null mean=-0.047 sd=3.303  two-sided p=0.0002 (5000 perms, min resolvable 2e-4)
+ stand_obs    observed= +9.32 pp  perm-null mean=+0.013 sd=1.566  two-sided p=0.0002 (5000 perms, min resolvable 2e-4)
+ walk_motor   observed= -7.56 pp  perm-null mean=+0.010 sd=2.494  two-sided p=0.0016 (5000 perms, min resolvable 2e-4)
+ walk_obs     observed=+16.13 pp  perm-null mean=-0.027 sd=1.849  two-sided p=0.0002 (5000 perms, min resolvable 2e-4)
+
+--- SENSITIVITY: adversarial values for the CONTAMINATED (excluded) blocks ---
+bound the FULL-sample per-cell effect if every contaminated block took its most adverse value
+ stand_motor  registered=-23.73  worst-case-low= -86.41  worst-case-high= +78.17  (79/96 blocks excluded)
+ stand_obs    registered= +9.61  worst-case-low= -49.92  worst-case-high= +58.42  (52/96 blocks excluded)
+ walk_motor   registered= -5.95  worst-case-low= -76.80  worst-case-high= +73.20  (72/96 blocks excluded)
+ walk_obs     registered=+17.52  worst-case-low= -61.27  worst-case-high= +72.06  (64/96 blocks excluded)
+
+constrained sensitivity: contamination flips at most k eligible env-pair outcomes per replicate,
+calibrated by the observed pre-onset discrepancy budget (k = observed differing env pairs per replicate)
+observed per-replicate pre-onset discrepancy budget: {'process_01': 3, 'process_02': 1, 'process_03': 0}
+ stand_motor  max |shift| from a k-flip budget = 0.262 pp  (registered -23.73 pp)
+ stand_obs    max |shift| from a k-flip budget = 0.262 pp  (registered +9.61 pp)
+ walk_motor   max |shift| from a k-flip budget = 0.276 pp  (registered -5.95 pp)
+ walk_obs     max |shift| from a k-flip budget = 0.275 pp  (registered +17.52 pp)
+
+################ tests_final.py ################
+--- audit json vs my recomputation (contamination-free cells) ---
+ stand_motor  registered -23.73 [-26.32,-21.20] n= 96 | clean -23.28 [-30.56,-16.57] n= 17 | pre +0.000 [+0.000,+0.000]
+ stand_obs    registered  +9.61 [ +8.09,+11.23] n= 96 | clean  +9.27 [ +6.98,+11.70] n= 44 | pre +0.000 [+0.000,+0.000]
+ walk_motor   registered  -5.95 [ -7.87, -4.03] n= 96 | clean  -7.19 [-10.40, -4.00] n= 24 | pre +0.065 [+0.000,+0.195]
+ walk_obs     registered +17.52 [+15.31,+19.88] n= 96 | clean +16.19 [+13.19,+19.28] n= 32 | pre +0.065 [+0.000,+0.195]
+
+--- 'pre-onset fall status differs for 2 of 6,144' : direct recount ---
+disturbed env pairs = 6144  differing pre-onset fall status = 4
+by cell: {'walk_motor': 3, 'walk_obs': 1}
+all 9216 env pairs, differing = 6
+audit json summary field pre_onset_fall_difference_environments = 6
+
+--- how much of the estimand the subset discards, in ENV PAIRS ---
+eligible pairs total=5972  in leak-free blocks=1839 (30.8%)  discarded=4133 (69.2%)
+
+--- leave-one-process-out ON THE LEAK-FREE SUBSET (subset sizes are very unequal) ---
+the audit pools with np.concatenate, so the cell with 9/4/4 blocks is process_01-weighted
+ stand_motor  per-process leak-free effect/nblocks: {'process_01': (np.float64(-23.1), 9), 'process_02': (np.float64(-18.85), 4), 'process_03': (np.float64(-28.12), 4)}   pooled=-23.28  mean-of-means=-23.36
+      leave out process_01 -> -23.49 pp (n=8)
+      leave out process_02 -> -24.65 pp (n=13)
+      leave out process_03 -> -21.79 pp (n=13)
+ stand_obs    per-process leak-free effect/nblocks: {'process_01': (np.float64(9.22), 30), 'process_02': (np.float64(4.46), 7), 'process_03': (np.float64(14.29), 7)}   pooled=+9.27  mean-of-means=+9.32
+      leave out process_01 -> +9.38 pp (n=14)
+      leave out process_02 -> +10.18 pp (n=37)
+      leave out process_03 -> +8.32 pp (n=37)
+ walk_motor   per-process leak-free effect/nblocks: {'process_01': (np.float64(-6.35), 8), 'process_02': (np.float64(-7.28), 13), 'process_03': (np.float64(-9.05), 3)}   pooled=-7.19  mean-of-means=-7.56
+      leave out process_01 -> -7.61 pp (n=16)
+      leave out process_02 -> -7.09 pp (n=11)
+      leave out process_03 -> -6.93 pp (n=21)
+ walk_obs     per-process leak-free effect/nblocks: {'process_01': (np.float64(20.85), 11), 'process_02': (np.float64(14.22), 10), 'process_03': (np.float64(13.33), 11)}   pooled=+16.19  mean-of-means=+16.13
+      leave out process_01 -> +13.75 pp (n=21)
+      leave out process_02 -> +17.09 pp (n=22)
+      leave out process_03 -> +17.69 pp (n=21)
+
+################ adv_1_exposure.py ################
+onset range over all blocks: 100 200  horizon = 500
+largest window every block can supply in full: W = 300
+
+cell                  W    FULL pp   LEAKFREE  DIVERGENT
+stand_motor         300     -23.73     -23.36     -23.50
+stand_obs           300       8.31       7.21       8.28
+walk_motor          300      -6.08      -8.14      -5.73
+walk_obs            300      15.54      13.05      16.75
+
+stand_motor         336     -23.73     -23.36     -23.50
+stand_obs           336       8.90       7.86       8.53
+walk_motor          336      -6.02      -8.14      -5.64
+walk_obs            336      16.91      14.87      17.86
+
+stand_motor         378     -23.73     -23.36     -23.50
+stand_obs           378       9.55       9.25       8.78
+walk_motor          378      -5.95      -8.14      -5.55
+walk_obs            378      17.52      16.13      18.16
+
+stand_motor         400     -23.73     -23.36     -23.50
+stand_obs           400       9.61       9.32       8.78
+walk_motor          400      -5.95      -7.56      -5.55
+walk_obs            400      17.52      16.13      18.16
+
+stand_motor         500     -23.73     -23.36     -23.50
+stand_obs           500       9.61       9.32       8.78
+walk_motor          500      -5.95      -7.56      -5.55
+walk_obs            500      17.52      16.13      18.16
+
+=== Is the exposure effect DIFFERENTIAL across arms? ===
+Per-cell post-onset hazard by elapsed-since-onset decile, both arms, on
+ELIGIBLE disturbed env pairs. If the arms' hazards have the same SHAPE,
+a longer window changes both levels but not the difference sign/size.
+  stand_motor unsh cumulative post-onset fall frac @t=50..300: 0.080 0.110 0.116 0.121 0.123 0.123
+  stand_motor orac cumulative post-onset fall frac @t=50..300: 0.271 0.342 0.353 0.358 0.359 0.361
+  stand_motor falls occurring at elapsed>=300: unsh=0.0000 orac=0.0000  diff=+0.0000 pp
+  stand_obs   unsh cumulative post-onset fall frac @t=50..300: 0.003 0.022 0.045 0.065 0.077 0.088
+  stand_obs   orac cumulative post-onset fall frac @t=50..300: 0.002 0.005 0.005 0.005 0.005 0.005
+  stand_obs   falls occurring at elapsed>=300: unsh=0.0131 orac=0.0000  diff=+1.3089 pp
+  walk_motor  unsh cumulative post-onset fall frac @t=50..300: 0.409 0.463 0.477 0.483 0.486 0.486
+  walk_motor  orac cumulative post-onset fall frac @t=50..300: 0.480 0.530 0.541 0.544 0.544 0.547
+  walk_motor  falls occurring at elapsed>=300: unsh=0.0021 orac=0.0007  diff=+0.1374 pp
+  walk_obs    unsh cumulative post-onset fall frac @t=50..300: 0.046 0.095 0.117 0.146 0.171 0.187
+  walk_obs    orac cumulative post-onset fall frac @t=50..300: 0.022 0.030 0.031 0.031 0.032 0.032
+  walk_obs    falls occurring at elapsed>=300: unsh=0.0199 orac=0.0000  diff=+1.9863 pp
+
+=== Direct test: within the LEAK-FREE subset only, truncate to the
+=== window length the DIVERGENT blocks actually get (336 ticks).
+=== If the subset effect moves toward the complement, exposure explains the gap.
+ stand_motor  LF: full=-23.36 W336=-23.36 W300=-23.36 | DIV: full=-23.50 W300=-23.50 | gap full= +0.14 gap W300= +0.14
+ stand_obs    LF: full= +9.32 W336= +7.86 W300= +7.21 | DIV: full= +8.78 W300= +8.28 | gap full= +0.54 gap W300= -1.07
+ walk_motor   LF: full= -7.56 W336= -8.14 W300= -8.14 | DIV: full= -5.55 W300= -5.73 | gap full= -2.01 gap W300= -2.42
+ walk_obs     LF: full=+16.13 W336=+14.87 W300=+13.05 | DIV: full=+18.16 W300=+16.75 | gap full= -2.02 gap W300= -3.70
+
+################ adv_2_estimand.py ################
+REGISTERED primary_estimand string from the frozen protocol:
+   paired block-level post-onset fall-rate difference among jointly onset-eligible environment pairs, unshielded minus oracle
+   eligibility_rule: exclude an environment pair from the post-onset estimand if either arm falls before the registered onset
+   analysis_unit  : scenario block
+
+GATE CHECKS actually evaluated by analyze_registry (combined_summary.json):
+   direction_reproduces_in_all_process_cells     True
+   leave_one_process_out_preserves_direction     True
+   pooled_fault_intervals_exclude_zero           True
+   pre_onset_negative_controls_include_zero      True
+   gate_passed: True
+
+Aggregation levels present in the frozen summary:
+   pooled_cells (policy x family, n=96):      ['stand_motor', 'stand_obs', 'walk_motor', 'walk_obs']
+   pooled_fault_families (family, n=192):     ['motor', 'obs']
+     motor  -14.841 pp [-16.471,-13.264] blocks=192
+     obs    +13.569 pp [+12.205,+14.966] blocks=192
+
+>>> The CI-based gate criterion is at the FAULT-FAMILY level (motor / obs),
+>>> which POOLS stand and walk. 'Per-cell' is one level FINER than the gate.
+
+=== membership-outcome association AT THE REGISTERED (fault-family) LEVEL ===
+  family=motor  u_post_rate  LF=0.3540 DIV=0.2927  r=+0.0978 p=0.1771  MWU p=0.2142
+  family=obs    u_post_rate  LF=0.1446 DIV=0.1595  r=-0.0654 p=0.3673  MWU p=0.4625
+  family=motor  o_post_rate  LF=0.4927 DIV=0.4438  r=+0.0854 p=0.239  MWU p=0.3074
+  family=obs    o_post_rate  LF=0.0228 DIV=0.0148  r=+0.1068 p=0.1404  MWU p=0.2932
+  family=motor  effect       LF=-0.1386 DIV=-0.1511  r=+0.0349 p=0.631  MWU p=0.4355
+  family=obs    effect       LF=0.1219 DIV=0.1448  r=-0.1063 p=0.1423  MWU p=0.182
+
+=== and POOLED over everything (the crudest level) ===
+  pooled u_post_rate  LF=0.2180 DIV=0.2349 r=-0.0366 p=0.4744
+  pooled o_post_rate  LF=0.1874 DIV=0.2574 r=-0.1170 p=0.0218
+  pooled effect       LF=0.0306 DIV=-0.0225 r=+0.1282 p=0.01194
+
+=== the gate criterion itself, recomputed on the leak-free subset ===
+  family=motor  FULL       -14.84 pp [ -16.45, -13.25] n=192  gate-criterion-passes=True
+  family=motor  LEAKFREE   -13.86 pp [ -17.34, -10.51] n= 41  gate-criterion-passes=True
+  family=motor  DIVERGENT  -15.11 pp [ -16.92, -13.31] n=151  gate-criterion-passes=True
+  family=obs    FULL       +13.57 pp [ +12.23, +14.96] n=192  gate-criterion-passes=True
+  family=obs    LEAKFREE   +12.19 pp [ +10.33, +14.10] n= 76  gate-criterion-passes=True
+  family=obs    DIVERGENT  +14.48 pp [ +12.73, +16.34] n=116  gate-criterion-passes=True
+
+=== direction-in-all-12-process-cells gate check, on the subset ===
+   process_01  stand_motor n= 9 effect= -23.10 pp  direction_ok=True
+   process_01  stand_obs   n=30 effect=  +9.22 pp  direction_ok=True
+   process_01  walk_motor  n= 8 effect=  -6.35 pp  direction_ok=True
+   process_01  walk_obs    n=11 effect= +20.85 pp  direction_ok=True
+   process_02  stand_motor n= 4 effect= -18.85 pp  direction_ok=True
+   process_02  stand_obs   n= 7 effect=  +4.46 pp  direction_ok=True
+   process_02  walk_motor  n=13 effect=  -7.28 pp  direction_ok=True
+   process_02  walk_obs    n=10 effect= +14.22 pp  direction_ok=True
+   process_03  stand_motor n= 4 effect= -28.12 pp  direction_ok=True
+   process_03  stand_obs   n= 7 effect= +14.29 pp  direction_ok=True
+   process_03  walk_motor  n= 3 effect=  -9.05 pp  direction_ok=True
+   process_03  walk_obs    n=11 effect= +13.33 pp  direction_ok=True
+   process-cells violating the registered direction on the subset: []
+
+################ adv_3_batch.py ################
+/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:75: RuntimeWarning: invalid value encountered in scalar divide
+  ac1 = float((xc[1:]*xc[:-1]).sum()/ (xc**2).sum())
+/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:77: RuntimeWarning: invalid value encountered in scalar divide
+  null=np.array([ (lambda y:(y[1:]*y[:-1]).sum()/(y**2).sum())(rng.permutation(xc)) for _ in range(20000)])
+=== (a) membership | onset: is block_index informative AT ALL? ===
+membership is 1{onset <= per-pair threshold} with 0/576 mismatches, so by
+construction nothing else can carry information. Verify by exact conditioning:
+  distinct (arm-pair, onset) strata: 458  strata where membership varies within the stratum: 0
+  => conditional on onset within an arm pair, membership has ZERO residual variance.
+  => block_index / neighbour effects on membership are 100%% mediated by onset.
+
+=== is the reported block_index association just onset-block_index correlation? ===
+  stand_motor spearman(block_index,onset) rho=-0.100 p=0.3335 | raw block_index MWU p=0.4833 | LF-DIV mean bi diff=+1.75
+  stand_obs   spearman(block_index,onset) rho=-0.043 p=0.6754 | raw block_index MWU p=0.2348 | LF-DIV mean bi diff=+2.27
+  walk_motor  spearman(block_index,onset) rho=+0.177 p=0.08538 | raw block_index MWU p=0.02928 | LF-DIV mean bi diff=-4.78
+  walk_obs    spearman(block_index,onset) rho=-0.289 p=0.004356 | raw block_index MWU p=0.009728 | LF-DIV mean bi diff=+5.20
+
+=== (b) neighbour coupling: does block i's divergence depend on block i-1's, given onset? ===
+       rep        cell  lag1_agree  null_mean  p_one_sided
+process_01 stand_motor    0.510638   0.561054      0.82710
+process_01   stand_obs    0.872340   0.844219      0.24140
+process_01  walk_motor    0.744681   0.617200      0.02070
+process_01    walk_obs    0.531915   0.521603      0.50130
+process_02 stand_motor    0.723404   0.715794      0.45450
+process_02   stand_obs    0.638298   0.663013      0.73205
+process_02  walk_motor    0.574468   0.511778      0.22800
+process_02    walk_obs    0.489362   0.578045      0.95820
+process_03 stand_motor    0.702128   0.689166      0.48675
+process_03   stand_obs    0.489362   0.596691      0.99035
+process_03  walk_motor    0.744681   0.776826      1.00000
+process_03    walk_obs    0.531915   0.533664      0.57775
+  Fisher combined p over 12 arm pairs: 0.6877
+
+=== (c) THE REAL INDEPENDENCE QUESTION: are BLOCK OUTCOMES autocorrelated ===
+=== along block_index within an arm pair? (bootstrap/permutation assume not) ===
+  effect       mean|lag1 autocorr|=0.140  n_pairs_p<.05=1/12  Fisher combined p=0.3652
+  o_post_rate  mean|lag1 autocorr|=0.167  n_pairs_p<.05=2/12  Fisher combined p=0.000285
+  u_post_rate  mean|lag1 autocorr|=0.154  n_pairs_p<.05=1/12  Fisher combined p=0.2902
+       rep        cell         col  lag1_autocorr       p
+process_01 stand_motor      effect       0.240229 0.16560
+process_01 stand_motor u_post_rate      -0.144464 0.41585
+process_01 stand_motor o_post_rate      -0.066672 0.70640
+process_01   stand_obs      effect       0.419951 0.00980
+process_01   stand_obs u_post_rate       0.419951 0.00980
+process_01   stand_obs o_post_rate            NaN 0.00000
+process_01  walk_motor      effect      -0.232223 0.18255
+process_01  walk_motor u_post_rate      -0.256580 0.14725
+process_01  walk_motor o_post_rate      -0.226695 0.19990
+process_01    walk_obs      effect      -0.116485 0.50285
+process_01    walk_obs u_post_rate      -0.092039 0.60055
+process_01    walk_obs o_post_rate       0.441987 0.00565
+process_02 stand_motor      effect      -0.009715 0.95400
+process_02 stand_motor u_post_rate       0.144018 0.41975
+process_02 stand_motor o_post_rate       0.179623 0.29760
+process_02   stand_obs      effect       0.207531 0.23830
+process_02   stand_obs u_post_rate       0.159222 0.36480
+process_02   stand_obs o_post_rate      -0.106681 0.84710
+process_02  walk_motor      effect      -0.107337 0.53035
+process_02  walk_motor u_post_rate       0.118484 0.50910
+process_02  walk_motor o_post_rate       0.072382 0.67695
+process_02    walk_obs      effect       0.112104 0.50475
+process_02    walk_obs u_post_rate       0.144998 0.39500
+process_02    walk_obs o_post_rate      -0.260960 0.08640
+process_03 stand_motor      effect      -0.060046 0.73245
+process_03 stand_motor u_post_rate      -0.049393 0.78405
+process_03 stand_motor o_post_rate      -0.092709 0.60010
+process_03   stand_obs      effect      -0.098541 0.56370
+process_03   stand_obs u_post_rate       0.075439 0.66245
+process_03   stand_obs o_post_rate      -0.147321 0.58520
+process_03  walk_motor      effect       0.013188 0.94020
+process_03  walk_motor u_post_rate      -0.202201 0.24860
+process_03  walk_motor o_post_rate      -0.109405 0.53715
+process_03    walk_obs      effect      -0.063083 0.72230
+process_03    walk_obs u_post_rate      -0.041377 0.81930
+process_03    walk_obs o_post_rate       0.137398 0.44175
+
+################ adv_4_inference.py ################
+### FIX to adv_3(c): the o_post_rate Fisher p was contaminated by a
+### DEGENERATE arm pair (process_01 stand_obs oracle rate is constant ->
+### autocorrelation undefined). Recompute excluding degenerate series.
+  effect       n=12 series  mean|ac1|=0.140  #p<.05=1  Fisher p=0.3652
+  o_post_rate  n=11 series  mean|ac1|=0.167  #p<.05=1  Fisher p=0.1868
+  u_post_rate  n=12 series  mean|ac1|=0.154  #p<.05=1  Fisher p=0.2902
+
+### ATTACK 3: the threshold is data-dependent. THRESHOLD SENSITIVITY SWEEP.
+### If the leak-free result is an artifact of where the threshold happened to
+### fall, moving it should move the answer. Recompute per cell on
+### subsets {onset <= q} for a grid of q, ignoring the fitted threshold.
+cell         q=105  q=115  q=125  q=135  q=145  q=155  q=165  q=175  q=185  q=195
+stand_motor       . -24.79 -22.32 -23.17 -23.65 -23.14 -23.05 -23.19 -23.54 -23.59  (full=-23.73)
+stand_obs         . +10.86  +9.45  +8.90  +9.68  +9.58  +9.88  +9.70  +9.91  +9.68  (full=+9.61)
+walk_motor   -11.25  -7.30  -4.68  -5.04  -5.17  -5.13  -4.78  -5.33  -5.51  -5.65  (full=-5.95)
+walk_obs     +17.03 +19.17 +17.23 +17.90 +17.80 +17.77 +17.43 +17.14 +17.04 +17.34  (full=+17.52)
+counts per q:
+  stand_motor    5  11  19  35  47  60  65  71  80  88
+  stand_obs      4  15  21  31  41  48  61  72  84  89
+  walk_motor    10  19  27  38  42  51  59  68  80  91
+  walk_obs       6  15  25  32  42  49  60  69  77  91
+
+### ATTACK 5: is the permutation test valid at the SMALL n it actually has?
+### The registered analysis_unit is 'scenario block'. Permuting ARM LABEL at
+### the ENV level (as tests_perm_sens.py does) assumes env-level exchangeability
+### INSIDE a block, which the shared batch does not guarantee. Redo it at the
+### registered unit: EXACT sign-flip permutation over BLOCK-LEVEL effects.
+  stand_motor  n_blocks=17 obs= -23.28 pp  block-level sign-flip p=3.05e-05 (EXACT 2^17, min attainable p=1.5e-05)
+  stand_obs    n_blocks=44 obs=  +9.27 pp  block-level sign-flip p=0 (200k MC, min attainable p=5e-06)
+  walk_motor   n_blocks=24 obs=  -7.19 pp  block-level sign-flip p=0.000395 (200k MC, min attainable p=5e-06)
+  walk_obs     n_blocks=32 obs= +16.19 pp  block-level sign-flip p=0 (200k MC, min attainable p=5e-06)
+  NOTE: sign-flip is valid here because the block effect is a paired
+  difference and the sharp null makes its sign exchangeable. n=17 gives a
+  minimum attainable two-sided p of 2^-16 = 1.5e-5, so n is NOT the binding
+  constraint; the test can resolve p far below 0.05.
+
+### ATTACK 6a: the frozen bootstrap resamples BLOCKS WITHIN each process but
+### NEVER resamples PROCESSES, so between-process variance is excluded from
+### every reported CI. With only 3 processes this is the real inferential gap.
+cell         subset     block-boot CI (frozen)   process-level t CI (n=3)
+stand_motor  FULL        -23.73 [ -26.32, -21.20]    -23.73 [ -33.96, -13.51]  EXCLUDES 0
+stand_motor  LEAKFREE    -23.28 [ -30.56, -16.57]    -23.36 [ -34.89, -11.83]  EXCLUDES 0
+stand_obs    FULL         +9.61 [  +8.09, +11.23]     +9.61 [  +8.19, +11.04]  EXCLUDES 0
+stand_obs    LEAKFREE     +9.27 [  +6.98, +11.70]     +9.32 [  -2.88, +21.52]  *** INCLUDES 0 ***
+walk_motor   FULL         -5.95 [  -7.87,  -4.03]     -5.95 [  -7.11,  -4.78]  EXCLUDES 0
+walk_motor   LEAKFREE     -7.19 [ -10.40,  -4.00]     -7.56 [ -10.96,  -4.16]  EXCLUDES 0
+walk_obs     FULL        +17.52 [ +15.31, +19.88]    +17.52 [ +15.15, +19.89]  EXCLUDES 0
+walk_obs     LEAKFREE    +16.19 [ +13.19, +19.28]    +16.13 [  +5.93, +26.34]  EXCLUDES 0
+
+### ATTACK 6b: does the pooled membership-outcome association reduce to
+### fault-family MIXING? (leak-free rate differs by family; effect sign differs)
+        leakfree_rate  mean_effect
+family                            
+motor        0.213542    -0.148415
+obs          0.395833     0.135688
+  obs blocks are 39.6% leak-free vs motor 21.4%; obs effect is +, motor is -.
+  => the leak-free pool is obs-enriched, so its pooled mean effect is pulled up.
+  Predicted pooled LF-DIV effect gap from mixing alone: +6.11 pp; observed +5.31 pp
