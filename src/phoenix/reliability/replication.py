@@ -498,8 +498,18 @@ def build_registry(
     *,
     exploratory_protocols: list[str | Path] | None = None,
     study_id: str = DEFAULT_STUDY_ID,
+    replicates: tuple[str, ...] = EXPECTED_REPLICATES,
 ) -> dict:
-    """Validate all frozen protocols before any arm runs and return a registry."""
+    """Validate all frozen protocols before any arm runs and return a registry.
+
+    ``replicates`` names the process replicates the registry must cover. It
+    defaults to the three the study registered, so an existing registry rebuilds
+    to a byte-identical payload and the same ``registry_hash``. The pre-registered
+    n=5 extension (see analysis/PREREG_n5_extension.md) passes five. Nothing else
+    about the study is parameterized here: the estimand, the eligibility rule, the
+    per-protocol parameter checks and the seed-collision checks are unchanged, so
+    widening this tuple can only add processes, never relax a check.
+    """
 
     root = Path(root)
     entries = []
@@ -511,7 +521,7 @@ def build_registry(
         blocks, _ = read_protocol(path)
         exploratory_seeds.update(block.seed for block in blocks)
 
-    for replicate_id in EXPECTED_REPLICATES:
+    for replicate_id in replicates:
         for cell_id, (policy, fault) in EXPECTED_CELLS.items():
             out_dir = root / replicate_id / cell_id
             blocks, protocol = read_protocol(out_dir / "protocol.json")
@@ -573,12 +583,12 @@ def build_registry(
             for entry in entries
             if entry["replicate_id"] == replicate_id
         }
-        for replicate_id in EXPECTED_REPLICATES
+        for replicate_id in replicates
     }
     if any(len(seeds) != 1 for seeds in process_seeds.values()):
         raise ValueError("all four cells in one replicate must share one registered process seed")
-    if len({next(iter(seeds)) for seeds in process_seeds.values()}) != 3:
-        raise ValueError("the three replicate process seeds must be distinct")
+    if len({next(iter(seeds)) for seeds in process_seeds.values()}) != len(replicates):
+        raise ValueError("every replicate process seed must be distinct")
     source_hashes = {entry["source_snapshot_sha256"] for entry in entries}
     if len(source_hashes) != 1:
         raise ValueError("all protocols must freeze the same experimental source snapshot")
@@ -587,7 +597,7 @@ def build_registry(
         "schema_version": 1,
         "study_id": study_id,
         "expected_cells": sorted(EXPECTED_CELLS),
-        "expected_replicates": list(EXPECTED_REPLICATES),
+        "expected_replicates": list(replicates),
         "entries": entries,
         "independent_protocols": len(entries),
         "independent_blocks": len(seen_block_seeds),
@@ -604,8 +614,11 @@ def read_registry(path: str | Path) -> dict:
     if stated != recomputed:
         raise ValueError("replication registry was modified after it was frozen")
     payload["registry_hash"] = stated
-    if len(payload.get("entries", [])) != 12:
-        raise ValueError("replication registry must contain exactly 12 process-cell entries")
+    expected = len(payload.get("expected_replicates", EXPECTED_REPLICATES)) * len(EXPECTED_CELLS)
+    if len(payload.get("entries", [])) != expected:
+        raise ValueError(
+            f"replication registry must contain exactly {expected} process-cell entries"
+        )
     return payload
 
 
@@ -664,14 +677,20 @@ def analyze_registry(
         for result in process_results
         for process_uuid in result["process_uuid"].values()
     ]
-    if len(set(process_uuids)) != 24:
-        raise ValueError("full replication does not contain 24 unique arm-process UUIDs")
+    replicates = tuple(registry.get("expected_replicates", EXPECTED_REPLICATES))
+    expected_uuids = 2 * len(replicates) * len(EXPECTED_CELLS)
+    if len(set(process_uuids)) != expected_uuids:
+        raise ValueError(
+            f"full replication does not contain {expected_uuids} unique arm-process UUIDs"
+        )
     by_cell: dict[str, list[dict]] = {
         cell: [result for result in process_results if result["cell_id"] == cell]
         for cell in EXPECTED_CELLS
     }
-    if any(len(results) != 3 for results in by_cell.values()):
-        raise ValueError("each cell must contain exactly three process results")
+    if any(len(results) != len(replicates) for results in by_cell.values()):
+        raise ValueError(
+            f"each cell must contain exactly {len(replicates)} process results"
+        )
 
     pooled_cells = {}
     pooled_pre_onset_cells = {}
@@ -683,7 +702,7 @@ def analyze_registry(
             for result in results
         ]
         loo = {}
-        for omitted in EXPECTED_REPLICATES:
+        for omitted in replicates:
             kept = [
                 np.asarray(result["block_differences"])
                 for result in results
@@ -692,7 +711,7 @@ def analyze_registry(
             estimate, ci_low, ci_high = _bootstrap_mean(
                 kept,
                 n_boot=n_boot,
-                seed=seed + 200 + EXPECTED_REPLICATES.index(omitted),
+                seed=seed + 200 + replicates.index(omitted),
             )
             loo[omitted] = {
                 "mean_difference": estimate,
