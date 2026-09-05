@@ -1,0 +1,1352 @@
+{
+  "cells_divergent": {
+    "stand_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -21.670928571428572,
+        "lo_pp": -25.880000000000003,
+        "point_pp": -23.75761904761905
+      },
+      "excludes_zero": true,
+      "hi_pp": -18.450518587811526,
+      "lo_pp": -28.589327521910356,
+      "n_blocks": 125,
+      "n_processes": 5,
+      "point_pp": -23.519923054860943,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -20.38721453667106,
+        "lo_pp": -26.719812925170068
+      },
+      "process_effects_pp": [
+        -18.278985507246375,
+        -29.156037414965986,
+        -23.06547619047619,
+        -21.647727272727273,
+        -25.451388888888886
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "stand_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 11.666666666666666,
+        "lo_pp": 7.945069875776397,
+        "point_pp": 9.759316770186336
+      },
+      "excludes_zero": true,
+      "hi_pp": 11.254684289315573,
+      "lo_pp": 6.432732738101456,
+      "n_blocks": 69,
+      "n_processes": 5,
+      "point_pp": 8.843708513708515,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 10.325194805194807,
+        "lo_pp": 7.36111111111111
+      },
+      "process_effects_pp": [
+        6.25,
+        11.06904761904762,
+        9.033333333333333,
+        7.638888888888888,
+        10.227272727272728
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -4.721727128745572,
+        "lo_pp": -8.327707470125501,
+        "point_pp": -6.517744550531436
+      },
+      "excludes_zero": true,
+      "hi_pp": -4.553797325224288,
+      "lo_pp": -8.455516498681186,
+      "n_blocks": 122,
+      "n_processes": 5,
+      "point_pp": -6.504656911952737,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -5.492411953845709,
+        "lo_pp": -7.866568986568985
+      },
+      "process_effects_pp": [
+        -5.207570207570206,
+        -5.850443416232888,
+        -5.598237968927623,
+        -9.129120879120878,
+        -6.737912087912087
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 19.223967426654337,
+        "lo_pp": 15.24757047858683,
+        "point_pp": 17.190227996302756
+      },
+      "excludes_zero": true,
+      "hi_pp": 20.809458534212283,
+      "lo_pp": 13.461501027275224,
+      "n_blocks": 107,
+      "n_processes": 5,
+      "point_pp": 17.135479780743754,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 19.500145472195157,
+        "lo_pp": 14.770814089292351
+      },
+      "process_effects_pp": [
+        14.224664224664224,
+        20.286796536796537,
+        19.954648526077097,
+        14.19345238095238,
+        17.017837235228537
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "cells_full": {
+    "stand_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -21.623121279761907,
+        "lo_pp": -25.474767485119052,
+        "point_pp": -23.53459821428571
+      },
+      "excludes_zero": true,
+      "hi_pp": -19.847439338894468,
+      "lo_pp": -27.221757089676956,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": -23.53459821428571,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -21.315104166666664,
+        "lo_pp": -25.960565476190478
+      },
+      "process_effects_pp": [
+        -19.635416666666668,
+        -27.86830357142857,
+        -23.697916666666664,
+        -22.5,
+        -23.971354166666668
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "stand_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 11.177455357142856,
+        "lo_pp": 8.658807663690474,
+        "point_pp": 9.89360119047619
+      },
+      "excludes_zero": true,
+      "hi_pp": 10.892226500752669,
+      "lo_pp": 8.89497588019971,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 9.89360119047619,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 10.5625,
+        "lo_pp": 9.336309523809524
+      },
+      "process_effects_pp": [
+        9.036458333333334,
+        9.624255952380953,
+        10.182291666666666,
+        9.4921875,
+        11.1328125
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -5.086589257097069,
+        "lo_pp": -8.115071972298534,
+        "point_pp": -6.601648351648351
+      },
+      "excludes_zero": true,
+      "hi_pp": -5.093451230115313,
+      "lo_pp": -8.10984547318139,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": -6.601648351648351,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -5.836137820512819,
+        "lo_pp": -7.674650869963369
+      },
+      "process_effects_pp": [
+        -5.494219322344321,
+        -6.431290064102564,
+        -5.9216174450549435,
+        -8.645260989010987,
+        -6.515853937728937
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 18.882363925137362,
+        "lo_pp": 15.598023981227103,
+        "point_pp": 17.206530448717945
+      },
+      "excludes_zero": true,
+      "hi_pp": 18.203549332271287,
+      "lo_pp": 16.209511565164608,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 17.206530448717945,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 17.904304029304026,
+        "lo_pp": 16.62769001831502
+      },
+      "process_effects_pp": [
+        16.50140224358974,
+        18.38999542124542,
+        17.678571428571427,
+        16.672962454212453,
+        16.789720695970693
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "cells_full_W300": {
+    "stand_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -21.68229166666667,
+        "lo_pp": -25.549562872023806,
+        "point_pp": -23.612723214285715
+      },
+      "excludes_zero": true,
+      "hi_pp": -19.901428836924975,
+      "lo_pp": -27.324017591646456,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": -23.612723214285715,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -21.354166666666664,
+        "lo_pp": -25.960565476190478
+      },
+      "process_effects_pp": [
+        -19.635416666666668,
+        -27.86830357142857,
+        -23.697916666666664,
+        -22.5,
+        -24.361979166666668
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "stand_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 9.40922619047619,
+        "lo_pp": 7.181156994047619,
+        "point_pp": 8.281622023809524
+      },
+      "excludes_zero": true,
+      "hi_pp": 9.312609702957676,
+      "lo_pp": 7.25063434466137,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 8.281622023809524,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 8.922247023809524,
+        "lo_pp": 7.640997023809523
+      },
+      "process_effects_pp": [
+        7.278645833333333,
+        8.647693452380953,
+        9.010416666666666,
+        7.5,
+        8.971354166666668
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -5.159168240613552,
+        "lo_pp": -8.215174278846153,
+        "point_pp": -6.682377518315017
+      },
+      "excludes_zero": true,
+      "hi_pp": -5.291222105928127,
+      "lo_pp": -8.073532930701909,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": -6.682377518315017,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -6.053113553113552,
+        "lo_pp": -7.681547619047619
+      },
+      "process_effects_pp": [
+        -5.884844322344322,
+        -6.235977564102565,
+        -6.129950778388277,
+        -8.645260989010989,
+        -6.515853937728938
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 17.06107200091575,
+        "lo_pp": 13.940468320741756,
+        "point_pp": 15.45784684065934
+      },
+      "excludes_zero": true,
+      "hi_pp": 16.19208942750876,
+      "lo_pp": 14.723604253809922,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 15.45784684065934,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 15.984518086080584,
+        "lo_pp": 15.067937271062274
+      },
+      "process_effects_pp": [
+        14.88681891025641,
+        16.458333333333332,
+        15.282738095238097,
+        15.264852335164836,
+        15.39649152930403
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "cells_leakfree": {
+    "stand_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -18.63095238095238,
+        "lo_pp": -26.89285714285714,
+        "point_pp": -22.738095238095237
+      },
+      "excludes_zero": true,
+      "hi_pp": -18.10281180484746,
+      "lo_pp": -27.492095602559946,
+      "n_blocks": 35,
+      "n_processes": 5,
+      "point_pp": -22.797453703703702,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -19.974537037037038,
+        "lo_pp": -25.656249999999996
+      },
+      "process_effects_pp": [
+        -23.10185185185185,
+        -18.854166666666668,
+        -28.125,
+        -24.375,
+        -19.53125
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "stand_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 11.64846611721611,
+        "lo_pp": 8.379120879120878,
+        "point_pp": 9.995421245421245
+      },
+      "excludes_zero": true,
+      "hi_pp": 14.38342342421359,
+      "lo_pp": 5.416271325481159,
+      "n_blocks": 91,
+      "n_processes": 5,
+      "point_pp": 9.899847374847374,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 12.53937728937729,
+        "lo_pp": 6.983974358974359
+      },
+      "process_effects_pp": [
+        9.222222222222221,
+        4.464285714285714,
+        14.285714285714285,
+        9.919871794871794,
+        11.607142857142858
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -4.161123963755543,
+        "lo_pp": -9.66782039232697,
+        "point_pp": -6.871023713128974
+      },
+      "excludes_zero": true,
+      "hi_pp": -5.505409027349895,
+      "lo_pp": -8.623384797872498,
+      "n_blocks": 38,
+      "n_processes": 5,
+      "point_pp": -7.064396912611197,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -6.200549450549449,
+        "lo_pp": -8.155448717948714
+      },
+      "process_effects_pp": [
+        -6.354166666666668,
+        -7.280219780219779,
+        -9.047619047619044,
+        -6.917189952904239,
+        -5.722789115646256
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 19.90378567972907,
+        "lo_pp": 14.656748911465892,
+        "point_pp": 17.239442946990117
+      },
+      "excludes_zero": true,
+      "hi_pp": 21.51889591758575,
+      "lo_pp": 12.645305621615785,
+      "n_blocks": 53,
+      "n_processes": 5,
+      "point_pp": 17.082100769600768,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 19.902703777703774,
+        "lo_pp": 14.26149776149776
+      },
+      "process_effects_pp": [
+        20.847902097902093,
+        14.217032967032967,
+        13.333333333333334,
+        20.805479242979242,
+        16.206756206756207
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "cells_leakfree_W300": {
+    "stand_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -18.63095238095238,
+        "lo_pp": -26.89285714285714,
+        "point_pp": -22.738095238095237
+      },
+      "excludes_zero": true,
+      "hi_pp": -18.10281180484746,
+      "lo_pp": -27.492095602559946,
+      "n_blocks": 35,
+      "n_processes": 5,
+      "point_pp": -22.797453703703702,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -19.974537037037038,
+        "lo_pp": -25.656249999999996
+      },
+      "process_effects_pp": [
+        -23.10185185185185,
+        -18.854166666666668,
+        -28.125,
+        -24.375,
+        -19.53125
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "stand_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 9.189560439560438,
+        "lo_pp": 6.401098901098901,
+        "point_pp": 7.788461538461538
+      },
+      "excludes_zero": true,
+      "hi_pp": 10.186297624503284,
+      "lo_pp": 5.12804913984348,
+      "n_blocks": 91,
+      "n_processes": 5,
+      "point_pp": 7.657173382173382,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 9.107142857142858,
+        "lo_pp": 6.00915750915751
+      },
+      "process_effects_pp": [
+        7.347222222222221,
+        4.464285714285714,
+        9.821428571428571,
+        7.7243589743589745,
+        8.928571428571429
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -4.096138784461155,
+        "lo_pp": -9.775180137844611,
+        "point_pp": -6.881988625409676
+      },
+      "excludes_zero": true,
+      "hi_pp": -4.672894949896925,
+      "lo_pp": -10.15248007190667,
+      "n_blocks": 38,
+      "n_processes": 5,
+      "point_pp": -7.412687510901797,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -6.153453689167974,
+        "lo_pp": -9.416176085818941
+      },
+      "process_effects_pp": [
+        -6.354166666666666,
+        -6.799450549450549,
+        -11.269841269841267,
+        -6.917189952904239,
+        -5.7227891156462585
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 16.998799156818016,
+        "lo_pp": 12.146299847950793,
+        "point_pp": 14.510937176031517
+      },
+      "excludes_zero": true,
+      "hi_pp": 18.897092308317916,
+      "lo_pp": 9.853444192218582,
+      "n_blocks": 53,
+      "n_processes": 5,
+      "point_pp": 14.37526825026825,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 17.18944018944019,
+        "lo_pp": 11.56109631109631
+      },
+      "process_effects_pp": [
+        17.287296037296038,
+        12.053571428571427,
+        9.81060606060606,
+        18.647741147741147,
+        14.077126577126576
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "common_window_ticks": 300,
+  "families_full": {
+    "motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -13.537049636561358,
+        "lo_pp": -16.618485290750918,
+        "point_pp": -15.068123282967033
+      },
+      "excludes_zero": true,
+      "hi_pp": -13.013556621567382,
+      "lo_pp": -17.122689944366684,
+      "n_blocks": 320,
+      "n_processes": 5,
+      "point_pp": -15.068123282967033,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -13.702137706043954,
+        "lo_pp": -16.300552312271062
+      },
+      "process_effects_pp": [
+        -12.564817994505495,
+        -17.149796817765566,
+        -14.809767055860803,
+        -15.572630494505493,
+        -15.243604052197801
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 14.690392127403843,
+        "lo_pp": 12.44620070684524,
+        "point_pp": 13.550065819597068
+      },
+      "excludes_zero": true,
+      "hi_pp": 14.271778224174817,
+      "lo_pp": 12.82835341501932,
+      "n_blocks": 320,
+      "n_processes": 5,
+      "point_pp": 13.550065819597068,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 13.97344322344322,
+        "lo_pp": 13.070126488095237
+      },
+      "process_effects_pp": [
+        12.768930288461538,
+        14.007125686813184,
+        13.930431547619046,
+        13.082574977106226,
+        13.961266597985347
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "families_full_W300": {
+    "motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -13.602736521291215,
+        "lo_pp": -16.700179930746337,
+        "point_pp": -15.147550366300367
+      },
+      "excludes_zero": true,
+      "hi_pp": -13.219229628401747,
+      "lo_pp": -17.075871104198985,
+      "n_blocks": 320,
+      "n_processes": 5,
+      "point_pp": -15.147550366300367,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -13.858387706043956,
+        "lo_pp": -16.301854395604398
+      },
+      "process_effects_pp": [
+        -12.760130494505495,
+        -17.05214056776557,
+        -14.913933722527473,
+        -15.572630494505493,
+        -15.438916552197801
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 12.921766970009157,
+        "lo_pp": 10.848163490155677,
+        "point_pp": 11.869734432234432
+      },
+      "excludes_zero": true,
+      "hi_pp": 12.6298590102418,
+      "lo_pp": 11.109609854227065,
+      "n_blocks": 320,
+      "n_processes": 5,
+      "point_pp": 11.869734432234432,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 12.32408997252747,
+        "lo_pp": 11.376788576007327
+      },
+      "process_effects_pp": [
+        11.082732371794872,
+        12.553013392857142,
+        12.146577380952381,
+        11.382426167582418,
+        12.183922847985349
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "families_leakfree": {
+    "motor": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -11.473336594911938,
+        "lo_pp": -17.48683137638617,
+        "point_pp": -14.478523759345673
+      },
+      "excludes_zero": true,
+      "hi_pp": -10.36511912450947,
+      "lo_pp": -19.813625193730644,
+      "n_blocks": 73,
+      "n_processes": 5,
+      "point_pp": -15.089372159120057,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": -12.09033613445378,
+        "lo_pp": -18.024146068683883
+      },
+      "process_effects_pp": [
+        -15.220588235294116,
+        -10.003501400560223,
+        -19.948979591836732,
+        -17.18648998060763,
+        -13.087301587301587
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "obs": {
+      "block_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 14.26444533475783,
+        "lo_pp": 11.108558614417989,
+        "point_pp": 12.661623677248675
+      },
+      "excludes_zero": true,
+      "hi_pp": 14.244149608611195,
+      "lo_pp": 10.792116606289014,
+      "n_blocks": 144,
+      "n_processes": 5,
+      "point_pp": 12.518133107450105,
+      "process_bootstrap": {
+        "excludes_zero": true,
+        "hi_pp": 13.421859670543878,
+        "lo_pp": 11.329719671900444
+      },
+      "process_effects_pp": [
+        12.341307066916823,
+        10.201195862960567,
+        13.7037037037037,
+        13.357432041642566,
+        12.987026862026863
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "interaction_full": {
+    "contrast": "obs minus motor",
+    "excludes_zero": true,
+    "hi_pp": 31.22222010108096,
+    "lo_pp": 26.01415810404724,
+    "n_processes": 5,
+    "point_pp": 28.618189102564102,
+    "process_bootstrap": {
+      "excludes_zero": true,
+      "hi_pp": 30.173234317765562,
+      "lo_pp": 26.789262820512818
+    },
+    "process_effects_pp": [
+      25.333748282967033,
+      31.156922504578755,
+      28.74019860347985,
+      28.655205471611723,
+      29.204870650183146
+    ]
+  },
+  "interaction_leakfree": {
+    "contrast": "obs minus motor",
+    "excludes_zero": true,
+    "hi_pp": 33.887459491924304,
+    "lo_pp": 21.327551041216015,
+    "n_processes": 5,
+    "point_pp": 27.607505266570158,
+    "process_bootstrap": {
+      "excludes_zero": true,
+      "hi_pp": 31.515260071639982,
+      "lo_pp": 23.726475975005386
+    },
+    "process_effects_pp": [
+      27.561895302210935,
+      20.204697263520792,
+      33.65268329554043,
+      30.543922022250193,
+      26.074328449328448
+    ]
+  },
+  "leakfree_counts": {
+    "stand_motor": {
+      "leakfree": 35,
+      "total": 160
+    },
+    "stand_obs": {
+      "leakfree": 91,
+      "total": 160
+    },
+    "walk_motor": {
+      "leakfree": 38,
+      "total": 160
+    },
+    "walk_obs": {
+      "leakfree": 53,
+      "total": 160
+    }
+  },
+  "n_blocks_disturbed": 640,
+  "n_blocks_total": 960,
+  "n_processes": 5,
+  "note": "point_pp / lo_pp / hi_pp are the PROCESS-level (mean-of-process-means, Student t on n processes) estimate and interval. block_bootstrap is the frozen within-process block bootstrap, reproduced for comparison only. The two answer different questions and must not be mixed in one table.",
+  "onset_sensitivity": {
+    "stand_motor": {
+      "implied_bias_bound_pp": [
+        -6.659976781837684,
+        3.809240089621925
+      ],
+      "implied_extrapolation_bias_pp": -1.4253683461078794,
+      "mean_onset_shift_divergent_minus_leakfree_ticks": 46.25485714285715,
+      "n_processes": 5,
+      "slope_hi_pp_per_tick": 0.08235329919746952,
+      "slope_lo_pp_per_tick": -0.14398437684648957,
+      "slope_pp_per_tick": -0.030815538824510026
+    },
+    "stand_obs": {
+      "implied_bias_bound_pp": [
+        -3.291676172970166,
+        1.9118342626133813
+      ],
+      "implied_extrapolation_bias_pp": -0.6899209551783925,
+      "mean_onset_shift_divergent_minus_leakfree_ticks": 37.57572861920687,
+      "n_processes": 5,
+      "slope_hi_pp_per_tick": 0.05087949942336302,
+      "slope_lo_pp_per_tick": -0.08760112694894284,
+      "slope_pp_per_tick": -0.018360813762789918
+    },
+    "walk_motor": {
+      "implied_bias_bound_pp": [
+        -3.3617248751788162,
+        2.740031897277139
+      ],
+      "implied_extrapolation_bias_pp": -0.3108464889508384,
+      "mean_onset_shift_divergent_minus_leakfree_ticks": 54.40465918895599,
+      "n_processes": 5,
+      "slope_hi_pp_per_tick": 0.0503639198944446,
+      "slope_lo_pp_per_tick": -0.061791120931444746,
+      "slope_pp_per_tick": -0.005713600518500067
+    },
+    "walk_obs": {
+      "implied_bias_bound_pp": [
+        -6.819281457423578,
+        5.807011479140374
+      ],
+      "implied_extrapolation_bias_pp": -0.5061349891416017,
+      "mean_onset_shift_divergent_minus_leakfree_ticks": 51.54329042496916,
+      "n_processes": 5,
+      "slope_hi_pp_per_tick": 0.11266280113788153,
+      "slope_lo_pp_per_tick": -0.13230202032503746,
+      "slope_pp_per_tick": -0.009819609593577952
+    }
+  },
+  "pre_onset_control_cells": {
+    "stand_motor": {
+      "block_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.0,
+        "lo_pp": 0.0,
+        "point_pp": 0.0
+      },
+      "excludes_zero": false,
+      "hi_pp": 0.0,
+      "lo_pp": 0.0,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 0.0,
+      "process_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.0,
+        "lo_pp": 0.0
+      },
+      "process_effects_pp": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "stand_obs": {
+      "block_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.0,
+        "lo_pp": 0.0,
+        "point_pp": 0.0
+      },
+      "excludes_zero": false,
+      "hi_pp": 0.0,
+      "lo_pp": 0.0,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 0.0,
+      "process_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.0,
+        "lo_pp": 0.0
+      },
+      "process_effects_pp": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_motor": {
+      "block_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.1171875,
+        "lo_pp": 0.0,
+        "point_pp": 0.0390625
+      },
+      "excludes_zero": false,
+      "hi_pp": 0.14751738692178906,
+      "lo_pp": -0.06939238692178905,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 0.0390625,
+      "process_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.1171875,
+        "lo_pp": 0.0
+      },
+      "process_effects_pp": [
+        0.1953125,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    },
+    "walk_obs": {
+      "block_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.1171875,
+        "lo_pp": 0.0,
+        "point_pp": 0.0390625
+      },
+      "excludes_zero": false,
+      "hi_pp": 0.14751738692178906,
+      "lo_pp": -0.06939238692178905,
+      "n_blocks": 160,
+      "n_processes": 5,
+      "point_pp": 0.0390625,
+      "process_bootstrap": {
+        "excludes_zero": false,
+        "hi_pp": 0.1171875,
+        "lo_pp": 0.0
+      },
+      "process_effects_pp": [
+        0.0,
+        0.1953125,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "process_ids": [
+        "process_01",
+        "process_02",
+        "process_03",
+        "process_04",
+        "process_05"
+      ]
+    }
+  },
+  "processes": [
+    "process_01",
+    "process_02",
+    "process_03",
+    "process_04",
+    "process_05"
+  ],
+  "residual": {
+    "blocks_affected_disturbed": 3,
+    "by_cell_disturbed": {
+      "walk_motor": 3,
+      "walk_obs": 1
+    },
+    "env_pairs_all": 15360,
+    "env_pairs_disturbed": 10240,
+    "leakfree_disturbed_pairs_with_discrepancy": 0,
+    "pre_onset_fall_status_differs_all": 6,
+    "pre_onset_fall_status_differs_disturbed": 4
+  },
+  "threshold_sweep": {
+    "stand_motor": {
+      "105": {
+        "effect_pp": -19.375,
+        "n_blocks": 9,
+        "n_processes": 5
+      },
+      "115": {
+        "effect_pp": -22.531249999999996,
+        "n_blocks": 24,
+        "n_processes": 5
+      },
+      "125": {
+        "effect_pp": -22.6412037037037,
+        "n_blocks": 39,
+        "n_processes": 5
+      },
+      "135": {
+        "effect_pp": -23.32473544973545,
+        "n_blocks": 65,
+        "n_processes": 5
+      },
+      "145": {
+        "effect_pp": -23.492665692007794,
+        "n_blocks": 84,
+        "n_processes": 5
+      },
+      "155": {
+        "effect_pp": -22.766720019746334,
+        "n_blocks": 107,
+        "n_processes": 5
+      },
+      "165": {
+        "effect_pp": -22.814666613579657,
+        "n_blocks": 114,
+        "n_processes": 5
+      },
+      "175": {
+        "effect_pp": -23.169439356939357,
+        "n_blocks": 126,
+        "n_processes": 5
+      },
+      "185": {
+        "effect_pp": -23.318753596339807,
+        "n_blocks": 139,
+        "n_processes": 5
+      },
+      "195": {
+        "effect_pp": -23.42701988099652,
+        "n_blocks": 150,
+        "n_processes": 5
+      }
+    },
+    "stand_obs": {
+      "105": {
+        "effect_pp": 10.286458333333334,
+        "n_blocks": 11,
+        "n_processes": 4
+      },
+      "115": {
+        "effect_pp": 11.453968253968254,
+        "n_blocks": 34,
+        "n_processes": 5
+      },
+      "125": {
+        "effect_pp": 11.053675491175492,
+        "n_blocks": 45,
+        "n_processes": 5
+      },
+      "135": {
+        "effect_pp": 10.275432900432898,
+        "n_blocks": 60,
+        "n_processes": 5
+      },
+      "145": {
+        "effect_pp": 10.284397893772894,
+        "n_blocks": 73,
+        "n_processes": 5
+      },
+      "155": {
+        "effect_pp": 10.150595238095237,
+        "n_blocks": 89,
+        "n_processes": 5
+      },
+      "165": {
+        "effect_pp": 10.299948240165632,
+        "n_blocks": 108,
+        "n_processes": 5
+      },
+      "175": {
+        "effect_pp": 10.014304228380315,
+        "n_blocks": 124,
+        "n_processes": 5
+      },
+      "185": {
+        "effect_pp": 10.128254599806324,
+        "n_blocks": 139,
+        "n_processes": 5
+      },
+      "195": {
+        "effect_pp": 9.915348182283667,
+        "n_blocks": 149,
+        "n_processes": 5
+      }
+    },
+    "walk_motor": {
+      "105": {
+        "effect_pp": -6.874999999999998,
+        "n_blocks": 11,
+        "n_processes": 4
+      },
+      "115": {
+        "effect_pp": -6.380876068376066,
+        "n_blocks": 28,
+        "n_processes": 5
+      },
+      "125": {
+        "effect_pp": -5.536414973914973,
+        "n_blocks": 42,
+        "n_processes": 5
+      },
+      "135": {
+        "effect_pp": -5.992216117216116,
+        "n_blocks": 55,
+        "n_processes": 5
+      },
+      "145": {
+        "effect_pp": -6.362899635378627,
+        "n_blocks": 63,
+        "n_processes": 5
+      },
+      "155": {
+        "effect_pp": -6.9190098644046,
+        "n_blocks": 78,
+        "n_processes": 5
+      },
+      "165": {
+        "effect_pp": -6.3906921743056175,
+        "n_blocks": 94,
+        "n_processes": 5
+      },
+      "175": {
+        "effect_pp": -6.523120103671346,
+        "n_blocks": 114,
+        "n_processes": 5
+      },
+      "185": {
+        "effect_pp": -6.586702631414168,
+        "n_blocks": 134,
+        "n_processes": 5
+      },
+      "195": {
+        "effect_pp": -6.618465979700685,
+        "n_blocks": 151,
+        "n_processes": 5
+      }
+    },
+    "walk_obs": {
+      "105": {
+        "effect_pp": 16.140682234432234,
+        "n_blocks": 9,
+        "n_processes": 4
+      },
+      "115": {
+        "effect_pp": 18.6291514041514,
+        "n_blocks": 30,
+        "n_processes": 5
+      },
+      "125": {
+        "effect_pp": 17.398080193615904,
+        "n_blocks": 49,
+        "n_processes": 5
+      },
+      "135": {
+        "effect_pp": 18.425168785462905,
+        "n_blocks": 61,
+        "n_processes": 5
+      },
+      "145": {
+        "effect_pp": 18.23717876069201,
+        "n_blocks": 72,
+        "n_processes": 5
+      },
+      "155": {
+        "effect_pp": 17.972752632879512,
+        "n_blocks": 86,
+        "n_processes": 5
+      },
+      "165": {
+        "effect_pp": 17.58258760176053,
+        "n_blocks": 100,
+        "n_processes": 5
+      },
+      "175": {
+        "effect_pp": 17.17775605433214,
+        "n_blocks": 116,
+        "n_processes": 5
+      },
+      "185": {
+        "effect_pp": 17.03223302338687,
+        "n_blocks": 128,
+        "n_processes": 5
+      },
+      "195": {
+        "effect_pp": 17.088424961054265,
+        "n_blocks": 152,
+        "n_processes": 5
+      }
+    }
+  }
+}

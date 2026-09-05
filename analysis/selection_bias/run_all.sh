@@ -8,16 +8,19 @@
 # writes outside this directory.
 set -euo pipefail
 cd "$(dirname "$0")"
-OUT=RESULTS.txt
+# REGISTRY selects which frozen registry the frame is built over. Default is the
+# registered n=3 study; the pre-registered n=5 extension passes registry_n5.json.
+OUT="${OUT:-RESULTS.txt}"
 {
   echo "# Phoenix selection-bias evidence, regenerated $(date -Is)"
   echo "# repo HEAD: $(git -C ../.. rev-parse HEAD)"
-  echo "# registry:  reliability_eval/causal_viability_replication_v2/registry.json"
+  echo "# registry:  ${REGISTRY:-reliability_eval/causal_viability_replication_v2/registry.json}"
   echo
-  python build_frame.py
+  python build_frame.py ${REGISTRY:+"$REGISTRY"}
   for s in tests_predicate.py tests_1_5.py tests_6.py tests_extrap.py \
            tests_perm_sens.py tests_final.py \
-           adv_1_exposure.py adv_2_estimand.py adv_3_batch.py adv_4_inference.py; do
+           adv_1_exposure.py adv_2_estimand.py adv_3_batch.py adv_4_inference.py \
+           process_level.py; do
     [ -f "$s" ] || continue
     echo; echo "################ $s ################"
     python "$s"

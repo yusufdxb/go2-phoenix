@@ -65,8 +65,9 @@ print("  constraint; the test can resolve p far below 0.05.")
 
 print("\n### ATTACK 6a: the frozen bootstrap resamples BLOCKS WITHIN each process but")
 print("### NEVER resamples PROCESSES, so between-process variance is excluded from")
-print("### every reported CI. With only 3 processes this is the real inferential gap.")
-print("%-12s %-10s %-24s %-24s" % ("cell","subset","block-boot CI (frozen)","process-level t CI (n=3)"))
+print("### every reported CI. This is the real inferential gap; the process-level")
+print("### column below closes it at whatever n the frame actually carries.")
+print("%-12s %-10s %-24s %-24s" % ("cell","subset","block-boot CI (frozen)","process-level t CI"))
 def boot(groups,n_boot=20000,seed=20260830):
     rng=np.random.default_rng(seed); groups=[np.asarray(g,float) for g in groups if len(g)]
     pt=float(np.mean(np.concatenate(groups)))
@@ -76,7 +77,7 @@ for cell,g in d.groupby("cell"):
     for name,sub in [("FULL",g),("LEAKFREE",g[g.leakfree])]:
         pt,lo,hi=boot([v.effect.dropna().values for _,v in sub.groupby("replicate")])
         pm=np.array([v.effect.mean() for _,v in sub.groupby("replicate")])
-        se=pm.std(ddof=1)/np.sqrt(3); t=stats.t.ppf(0.975,2)
+        npr=len(pm); se=pm.std(ddof=1)/np.sqrt(npr); t=stats.t.ppf(0.975,npr-1)
         print("%-12s %-10s %+7.2f [%+7.2f,%+7.2f]   %+7.2f [%+7.2f,%+7.2f]  %s"
               % (cell,name,pt*100,lo*100,hi*100,pm.mean()*100,(pm.mean()-t*se)*100,(pm.mean()+t*se)*100,
                  "EXCLUDES 0" if (pm.mean()-t*se)*(pm.mean()+t*se)>0 else "*** INCLUDES 0 ***"))

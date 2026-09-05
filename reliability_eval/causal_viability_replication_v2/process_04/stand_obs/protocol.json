@@ -1,0 +1,545 @@
+{
+  "arms": [
+    "unshielded",
+    "oracle"
+  ],
+  "blocks": [
+    {
+      "block_id": 0,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.3786209765918747,
+      "onset_tick": 109,
+      "seed": 1208009749
+    },
+    {
+      "block_id": 1,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.2940023320024248,
+      "onset_tick": 108,
+      "seed": 915903425
+    },
+    {
+      "block_id": 2,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.3292383415037525,
+      "onset_tick": 105,
+      "seed": 142963590
+    },
+    {
+      "block_id": 3,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.115156237399161,
+      "onset_tick": 156,
+      "seed": 2055091397
+    },
+    {
+      "block_id": 4,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.6860517484394648,
+      "onset_tick": 137,
+      "seed": 1031231307
+    },
+    {
+      "block_id": 5,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.282588115569375,
+      "onset_tick": 189,
+      "seed": 501513107
+    },
+    {
+      "block_id": 6,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.7723051093281694,
+      "onset_tick": 186,
+      "seed": 1313259762
+    },
+    {
+      "block_id": 7,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.2311766055005597,
+      "onset_tick": 119,
+      "seed": 356241008
+    },
+    {
+      "block_id": 8,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.7265157601259973,
+      "onset_tick": 132,
+      "seed": 470171195
+    },
+    {
+      "block_id": 9,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.9904468550582568,
+      "onset_tick": 166,
+      "seed": 1070072524
+    },
+    {
+      "block_id": 10,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.7880940276930828,
+      "onset_tick": 110,
+      "seed": 314329844
+    },
+    {
+      "block_id": 11,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.8977165839390333,
+      "onset_tick": 137,
+      "seed": 975208974
+    },
+    {
+      "block_id": 12,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.6308148883646612,
+      "onset_tick": 189,
+      "seed": 1776122854
+    },
+    {
+      "block_id": 13,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.1115690111943073,
+      "onset_tick": 122,
+      "seed": 1360744574
+    },
+    {
+      "block_id": 14,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.5147089935598013,
+      "onset_tick": 194,
+      "seed": 1610697501
+    },
+    {
+      "block_id": 15,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.7032701780931174,
+      "onset_tick": 102,
+      "seed": 1773181700
+    },
+    {
+      "block_id": 16,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.0068162825288005,
+      "onset_tick": 105,
+      "seed": 694892213
+    },
+    {
+      "block_id": 17,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.1119622922205235,
+      "onset_tick": 146,
+      "seed": 543104365
+    },
+    {
+      "block_id": 18,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.6849736958271848,
+      "onset_tick": 111,
+      "seed": 1229291529
+    },
+    {
+      "block_id": 19,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.92113203048058,
+      "onset_tick": 157,
+      "seed": 1516558142
+    },
+    {
+      "block_id": 20,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.069887618458143,
+      "onset_tick": 149,
+      "seed": 1818581699
+    },
+    {
+      "block_id": 21,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.1643082678807466,
+      "onset_tick": 107,
+      "seed": 207362003
+    },
+    {
+      "block_id": 22,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.1945903774637472,
+      "onset_tick": 114,
+      "seed": 1609712068
+    },
+    {
+      "block_id": 23,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.2225483950610336,
+      "onset_tick": 167,
+      "seed": 1635245960
+    },
+    {
+      "block_id": 24,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.3647482056728575,
+      "onset_tick": 198,
+      "seed": 1558350559
+    },
+    {
+      "block_id": 25,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.609067645203289,
+      "onset_tick": 167,
+      "seed": 1112699514
+    },
+    {
+      "block_id": 26,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 2.4396505258746712,
+      "onset_tick": 154,
+      "seed": 1446122520
+    },
+    {
+      "block_id": 27,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.9859229121156572,
+      "onset_tick": 112,
+      "seed": 1704939109
+    },
+    {
+      "block_id": 28,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.300910619135589,
+      "onset_tick": 149,
+      "seed": 755169668
+    },
+    {
+      "block_id": 29,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.6794407639051425,
+      "onset_tick": 123,
+      "seed": 1127987116
+    },
+    {
+      "block_id": 30,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.2634374631886454,
+      "onset_tick": 196,
+      "seed": 229198156
+    },
+    {
+      "block_id": 31,
+      "command_speed": null,
+      "disturbed": true,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": 1.3258418111799672,
+      "onset_tick": 160,
+      "seed": 1289059036
+    },
+    {
+      "block_id": 32,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 194,
+      "seed": 338470038
+    },
+    {
+      "block_id": 33,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 102,
+      "seed": 1459058685
+    },
+    {
+      "block_id": 34,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 120,
+      "seed": 1753936051
+    },
+    {
+      "block_id": 35,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 127,
+      "seed": 528548047
+    },
+    {
+      "block_id": 36,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 112,
+      "seed": 637977930
+    },
+    {
+      "block_id": 37,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 196,
+      "seed": 714300228
+    },
+    {
+      "block_id": 38,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 161,
+      "seed": 858895504
+    },
+    {
+      "block_id": 39,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 165,
+      "seed": 42620809
+    },
+    {
+      "block_id": 40,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 181,
+      "seed": 1458183698
+    },
+    {
+      "block_id": 41,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 152,
+      "seed": 1552635807
+    },
+    {
+      "block_id": 42,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 109,
+      "seed": 1968478475
+    },
+    {
+      "block_id": 43,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 193,
+      "seed": 1327236853
+    },
+    {
+      "block_id": 44,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 187,
+      "seed": 495372716
+    },
+    {
+      "block_id": 45,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 156,
+      "seed": 265275831
+    },
+    {
+      "block_id": 46,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 137,
+      "seed": 431735286
+    },
+    {
+      "block_id": 47,
+      "command_speed": null,
+      "disturbed": false,
+      "horizon_ticks": 500,
+      "motor_scale": null,
+      "obs_noise": null,
+      "onset_tick": 200,
+      "seed": 549410010
+    }
+  ],
+  "bundle_id": "1d09a70edc057bc9",
+  "params": {
+    "analysis_unit": "scenario block",
+    "artifact_K": 3,
+    "artifact_arming_ticks": 15,
+    "artifact_trip": 6385.379773690091,
+    "batched_blocks": true,
+    "cell_id": "stand_obs",
+    "command_speed_range": [
+      0.6,
+      1.4
+    ],
+    "disturbance_kind": "obs",
+    "eligibility_rule": "exclude an environment pair from the post-onset estimand if either arm falls before the registered onset",
+    "envs_per_block": 16,
+    "horizon_ticks": 500,
+    "motor_scale_range": [
+      0.3,
+      0.55
+    ],
+    "n_disturbed": 32,
+    "n_nominal": 16,
+    "obs_noise_range": [
+      1.0,
+      3.0
+    ],
+    "onset_range": [
+      100,
+      200
+    ],
+    "oracle_handoff_ticks": 10,
+    "policy_name": "stand",
+    "pre_onset_negative_control": "paired block-level pre-onset fall-rate difference, unshielded minus oracle",
+    "primary_estimand": "paired block-level post-onset fall-rate difference among jointly onset-eligible environment pairs, unshielded minus oracle",
+    "process_seed": 2026074104,
+    "protocol_seed": 2026074014,
+    "replicate_id": "process_04",
+    "reset_invalidate_buffers": false,
+    "reset_settle_ticks": 0,
+    "resolved_env_config_sha256": "61dd2e73f050f16c273a437b19e023f4c79d26c4935fa49b0f452000e60adf4c",
+    "source_files": {
+      "scripts/reliability_closed_loop.py": "b95836b9487d2ab9ad4097375a58392579bd1b4d1fd11f9d41fcdb38a5348760",
+      "scripts/reliability_oracle_screen.py": "038b57b5bdd77413d016ba7ff81c0dc6fafcd21fc7e860787e5281a264b4851b",
+      "scripts/reliability_replication.py": "d5537d37e6f809e4428b34ebff9465c720019c079d1a9c9d084f540bd9a3347a",
+      "src/phoenix/reliability/bundle.py": "4119e45673374f6f558e92c3c3da707434cbfa57f66e64af14d1ac30108b78e6",
+      "src/phoenix/reliability/deploy.py": "9c17d78ffcc8ba499bf10189880fa286c1b4ce57ec8171f3993ef0681a0b4eed",
+      "src/phoenix/reliability/oracle_screen.py": "7535ef1501802f1af9c45b83ea7d9347a3f1a4785ebd6ceb3ea55424febc73b2",
+      "src/phoenix/reliability/replication.py": "e9657cdb591680574302e973a457857030590b8cc7804c4b3fd14d23b5add9a8",
+      "src/phoenix/reliability/study.py": "2969ec17cdf8f8525f6e528439759429ab273b681e6d6c15b0ce4c55b0fa9319",
+      "src/phoenix/sim_env/config_loader.py": "e9d25802a9d565adb9c40b23c7bcef6f088bcb87e08371b32035e8f5447610da",
+      "src/phoenix/sim_env/go2_env_cfg.py": "52fd32eb6b02a2159898cd94c4b80ef561ffbf779ba2fa148f0d1059eeb901ee",
+      "src/phoenix/training/checkpoint.py": "1e719d75d50af362ed56ce6832c47fbb79f3d4ed8f6510ed99314d26a90594f3"
+    },
+    "source_snapshot_sha256": "d2f66d43173e8d4e367755c8f0878cda8f6990b82bfab1977d1b85f9e3d21396",
+    "study_id": "phoenix_causal_viability_replication_v2"
+  },
+  "protocol_hash": "01fd0a1300af41cde714369300ea260ba18656d1871425c81e8e0f4caec965db"
+}

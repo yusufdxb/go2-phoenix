@@ -12,7 +12,13 @@ sys.path.insert(0, str(ROOT / "src"))
 from phoenix.reliability.replication import _read_arm, _ordered_arm, read_registry  # noqa
 from phoenix.reliability.study import read_protocol  # noqa
 
-REG = ROOT / "reliability_eval/causal_viability_replication_v2/registry.json"
+# Default is the frozen n=3 registry so the file reproduces the original frame
+# unchanged; pass a registry path to build the frame over more replicates.
+REG = Path(
+    sys.argv[1]
+    if len(sys.argv) > 1
+    else ROOT / "reliability_eval/causal_viability_replication_v2/registry.json"
+)
 reg = read_registry(REG)
 root = REG.parent
 
