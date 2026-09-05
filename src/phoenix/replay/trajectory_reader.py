@@ -5,6 +5,7 @@ Paired with :class:`phoenix.real_world.TrajectoryLogger` — the same schema.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,7 +15,7 @@ import pyarrow.parquet as pq
 
 @dataclass
 class InitialState:
-    """The first-step snapshot needed to spawn a replay in sim."""
+    """A validated trajectory snapshot; velocities are explicitly body-frame."""
 
     base_pos: np.ndarray  # (3,)
     base_quat: np.ndarray  # (4,) xyzw
@@ -35,7 +36,19 @@ class TrajectoryReader:
         self.path = Path(path)
         if not self.path.exists():
             raise FileNotFoundError(f"Trajectory not found: {self.path}")
-        self._table = pq.read_table(self.path)
+        self.metadata = {}
+        if self.path.suffix == ".json":
+            import pyarrow as pa
+
+            data = json.loads(self.path.read_text())
+            if data.get("schema_version") != "1.0":
+                raise ValueError("Unsupported FailureCapsule schema_version")
+            if data.get("velocity_frame", "body") != "body":
+                raise ValueError("FailureCapsule velocity_frame must be body")
+            self.metadata = {k: v for k, v in data.items() if k != "frames"}
+            self._table = pa.Table.from_pylist(data["frames"])
+        else:
+            self._table = pq.read_table(self.path)
 
     def __len__(self) -> int:
         return self._table.num_rows
@@ -47,6 +60,8 @@ class TrajectoryReader:
         return arr
 
     def failure_indices(self) -> np.ndarray:
+        if "failure_onset_index" in self.metadata:
+            return np.asarray([int(self.metadata["failure_onset_index"])], dtype=np.int64)
         flags = self._table.column("failure_flag").to_pylist()
         return np.asarray([i for i, f in enumerate(flags) if f], dtype=np.int64)
 
@@ -54,11 +69,22 @@ class TrajectoryReader:
 def load_initial_state(path: str | Path, row: int = 0) -> InitialState:
     """Return the :class:`InitialState` at ``row`` of the given trajectory."""
     reader = TrajectoryReader(path)
-    if row >= len(reader):
+    if row < 0 or row >= len(reader):
         raise IndexError(f"Row {row} out of range (len={len(reader)})")
 
     def as_np(name: str) -> np.ndarray:
-        return np.asarray(reader._table.column(name)[row].as_py(), dtype=np.float32)
+        if name not in reader._table.column_names:
+            raise ValueError(f"Missing required seed state: {name}")
+        value = reader._table.column(name)[row].as_py()
+        if value is None:
+            raise ValueError(f"Missing required seed state: {name} at row {row}")
+        arr = np.asarray(value, dtype=np.float32)
+        expected = 4 if name == "base_quat" else (12 if name.startswith("joint_") else 3)
+        if arr.shape != (expected,) or not np.isfinite(arr).all():
+            raise ValueError(f"Invalid seed state {name}: expected {expected} finite values")
+        if name == "base_quat" and not np.isclose(np.linalg.norm(arr), 1.0, atol=1e-3):
+            raise ValueError("base_quat must be a normalized xyzw quaternion")
+        return arr
 
     return InitialState(
         base_pos=as_np("base_pos"),

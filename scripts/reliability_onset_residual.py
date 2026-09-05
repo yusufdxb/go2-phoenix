@@ -41,7 +41,9 @@ def main() -> int:
     )
     print(
         f"[onset-residual] pre-onset fall differences: "
-        f"{summary['pre_onset_fall_difference_environments']} environments"
+        f"{summary['pre_onset_fall_difference_environments']} environments "
+        f"({summary['pre_onset_fall_difference_environments_disturbed']} inside the "
+        f"disturbed blocks the registered estimand uses)"
     )
     for cell, values in result["cells"].items():
         registered = values["registered"]

@@ -104,3 +104,57 @@ def test_audit_reads_both_arms_from_the_frozen_protocol(tmp_path):
     assert result["cell_id"] == protocol["params"]["cell_id"]
     assert result["replicate_id"] == protocol["params"]["replicate_id"]
     assert result["blocks"] == 48
+
+
+def _stamp_pre_onset_fall(tmp_path, blocks, *, n_disturbed, n_nominal):
+    """Flip the oracle arm's pre-onset fall flag on a chosen number of env pairs.
+
+    Plants the discrepancies in disturbed and nominal blocks separately so the
+    two audit counters can be told apart. Returns ``(n_disturbed, n_nominal)``
+    as actually planted.
+    """
+
+    disturbed = np.asarray([block.disturbed for block in blocks])
+    arrays = _load_arrays(tmp_path, "oracle")
+    pre = arrays["pre_onset_fall"].copy()
+    planted = {}
+    for label, mask, count in (
+        ("disturbed", disturbed, n_disturbed),
+        ("nominal", ~disturbed, n_nominal),
+    ):
+        rows = np.flatnonzero(mask)
+        flat = [(row, env) for row in rows for env in range(pre.shape[1])][:count]
+        assert len(flat) == count, f"not enough {label} env pairs to plant {count}"
+        for row, env in flat:
+            pre[row, env] = 1 - pre[row, env]
+        planted[label] = count
+    arrays["pre_onset_fall"] = pre
+    _rewrite_raw_and_hash(tmp_path, "oracle", arrays)
+    return planted
+
+
+def test_pre_onset_residual_is_counted_separately_over_the_disturbed_analysis_set(
+    tmp_path,
+):
+    """The paper quotes the DISTURBED-only count; it must be derived, not hand-typed.
+
+    The registered primary estimand is computed on disturbed blocks alone, so the
+    all-blocks environment count overstates the set the residual can reach. These
+    two numbers are genuinely different, and a single counter cannot serve both.
+    """
+
+    blocks, _ = _valid_replicate(tmp_path)
+    planted = _stamp_pre_onset_fall(tmp_path, blocks, n_disturbed=4, n_nominal=2)
+
+    result = audit_replicate(tmp_path)
+
+    assert result["pre_onset_fall_difference_environments"] == (
+        planted["disturbed"] + planted["nominal"]
+    )
+    assert result["pre_onset_fall_difference_environments_disturbed"] == planted["disturbed"]
+    # The whole point: quoting the all-blocks figure for the disturbed analysis
+    # set is wrong, and the two counters must not be interchangeable.
+    assert (
+        result["pre_onset_fall_difference_environments"]
+        != result["pre_onset_fall_difference_environments_disturbed"]
+    )

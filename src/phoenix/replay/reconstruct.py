@@ -35,6 +35,10 @@ logger = logging.getLogger("phoenix.replay.reconstruct")
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Replay a real failure trajectory in Isaac Sim.")
     p.add_argument("--trajectory", type=Path, required=True, help="Parquet from real_world logger")
+    p.add_argument("--seed-row-strategy", default="failure_onset_minus_seconds",
+                   choices=["first", "failure_onset", "failure_onset_minus_steps", "failure_onset_minus_seconds"])
+    p.add_argument("--seed-row-offset-steps", type=int, default=0)
+    p.add_argument("--seed-row-offset-seconds", type=float, default=.5)
     p.add_argument("--variations-config", type=Path, required=True)
     p.add_argument("--env-config", type=Path, default=Path("configs/env/rough.yaml"))
     p.add_argument("--variations", type=int, default=None, help="Override per_trajectory")
@@ -76,7 +80,11 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     var_cfg = yaml.safe_load(args.variations_config.read_text())
     n_variations = args.variations or int(var_cfg["variations"]["per_trajectory"])
 
-    initial = load_initial_state(args.trajectory, row=0)
+    from phoenix.adaptation.reset_bridge import resolve_seed
+    from phoenix.replay.state_adapter import VelocityCommandAdapter
+    seed_record = resolve_seed(args.trajectory, args.seed_row_strategy,
+                               args.seed_row_offset_steps, args.seed_row_offset_seconds)
+    initial = load_initial_state(args.trajectory, row=seed_record["resolved_row"])
     logger.info("Loaded initial state from %s", args.trajectory)
 
     sampler = VariationSampler(
@@ -125,6 +133,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     robot.write_root_pose_to_sim(torch.cat([pos, quat_wxyz], dim=-1))
     robot.write_root_velocity_to_sim(torch.cat([lin_vel, ang_vel], dim=-1))
     robot.write_joint_state_to_sim(jpos, jvel)
+    VelocityCommandAdapter(unwrapped).restore(
+        torch.arange(n_variations, device=device), initial.command_vel)
 
     # Per-env mass perturbation on body[0] (trunk). Use root_physx_view if
     # the Isaac Lab build exposes it; otherwise log and skip.
@@ -145,6 +155,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summary = {
         "trajectory": str(args.trajectory),
+        "seed": seed_record,
+        "controller": "zero_action_diagnostic",
+        "reproduction_evidence": False,
         "n_variations": n_variations,
         "horizon_steps": n_steps,
         "friction_scale_mean": mean_friction_scale,

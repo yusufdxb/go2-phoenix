@@ -98,6 +98,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="If set, exit non-zero when slew_saturation_pct exceeds this value",
     )
+    p.add_argument(
+        "--episode-outcomes-out",
+        type=Path,
+        default=None,
+        help="V2 research JSONL (default: metrics stem + .episodes.jsonl)",
+    )
+    p.add_argument(
+        "--failure-analyzer-factory",
+        default=None,
+        help="Optional module:factory implementing step and compute (e.g. Ashfall)",
+    )
+    p.add_argument(
+        "--training-seed",
+        type=int,
+        default=None,
+        help="Checkpoint training seed, never inferred from evaluation seed",
+    )
     p.add_argument("--device", type=str, default="cuda:0")
     p.add_argument("--seed", type=int, default=1234)
     p.add_argument(
@@ -375,6 +392,12 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # accumulators keep the per-episode identity so a per-failure-mode
     # recurrence question can be answered downstream. They feed a separate
     # parquet artifact and never touch the metrics JSON.
+    from phoenix.training.episode_outcomes import (
+        EpisodeOutcome,
+        PreResetCapture,
+        snapshot_manager_state,
+        write_outcomes,
+    )
     from phoenix.training.episode_records import (
         EpisodeRecord,
         build_episode_record,
@@ -382,16 +405,39 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         write_episode_records,
     )
 
+    outcome_path = getattr(args, "episode_outcomes_out", None)
+    if outcome_path is None:
+        outcome_path = (
+            args.metrics_out.with_suffix(".episodes.jsonl")
+            if args.metrics_out
+            else args.checkpoint.with_suffix(".episodes.jsonl")
+        )
+    terminal_capture = PreResetCapture(
+        env.unwrapped, lambda: snapshot_manager_state(env.unwrapped, _to_numpy)
+    )
+    from phoenix.real_world.failure_detector import FailureDetector
+
+    analyzer_factory = FailureDetector
+    extended_analysis = getattr(args, "failure_analyzer_factory", None)
+    if extended_analysis:
+        from importlib import import_module
+
+        module, name = extended_analysis.split(":", 1)
+        analyzer_factory = getattr(import_module(module), name)
+    analyzers = [analyzer_factory() for _ in range(args.num_envs)]
+    ep_failure_events: list[list[dict]] = [[] for _ in range(args.num_envs)]
+    outcomes: list[EpisodeOutcome] = []
+    ep_command_sum = np.zeros((args.num_envs, 3))
+    ep_lin_err_squared_sum = np.zeros(args.num_envs)
+    ep_termination_reasons: list[list[str]] = [[] for _ in range(args.num_envs)]
+    environment_parameters = env_cfg_loaded.to_container()
     episode_records: list[EpisodeRecord] = []
     ep_lin_err_sum = np.zeros(args.num_envs, dtype=np.float64)
     ep_lin_err_max = np.zeros(args.num_envs, dtype=np.float64)
     ep_ang_err_sum = np.zeros(args.num_envs, dtype=np.float64)
     ep_ang_err_max = np.zeros(args.num_envs, dtype=np.float64)
     ep_track_steps = np.zeros(args.num_envs, dtype=np.int64)
-    if args.episode_records_out is not None:
-        policy_sha = sha256_file(args.checkpoint)
-    else:
-        policy_sha = ""
+    policy_sha = sha256_file(args.checkpoint)
     run_id = args.run_id or (
         args.metrics_out.stem if args.metrics_out is not None else args.checkpoint.stem
     )
@@ -415,8 +461,6 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # One pending list per env, each holding that env's steps since its last
     # reset. Cleared on done, so a row is never attributed to two episodes.
     ep_tel_pending: list[list[dict]] = [[] for _ in range(args.num_envs)]
-    foot_body_ids: list[int] | None = None
-    contact_warned = False
 
     print("[eval] rollout started", flush=True)
     with torch.inference_mode():
@@ -432,10 +476,56 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             # the policy sees the default stand obs again, acceptable noise at
             # thousands of steps; no per-env reset bookkeeping needed.
             prev_actions_np = actions_np
+            applied_command = _to_numpy(
+                env.unwrapped.command_manager.get_command("base_velocity")
+            ).copy()
+            terminal_capture.begin_step()
             obs, reward, dones, extras = env.step(actions)
+            # ManagerBasedRLEnv auto-resets done environments inside step().
+            # Overlay copied terminal signals so no reset state enters outcomes.
+            state = terminal_capture.overlay(snapshot_manager_state(env.unwrapped, _to_numpy))
+            state["command"] = applied_command
+            done_slots = dones.nonzero(as_tuple=False).flatten().tolist()
+            if any(index not in terminal_capture.terminal for index in done_slots):
+                raise RuntimeError("done environment missing pre-reset terminal telemetry")
+            for index in done_slots:
+                ep_termination_reasons[index] = [
+                    key.split(":", 1)[1]
+                    for key, values in state.items()
+                    if key.startswith("termination:") and bool(values[index])
+                ]
             episode_return += reward
             episode_length += 1
             n_steps += 1
+
+            for index in range(args.num_envs):
+                roll, pitch, _ = quat_wxyz_to_euler(state["quaternion"][index])
+                signals = dict(
+                    timestamp_s=(float(episode_length[index].item()) - 1) * dt_ctrl,
+                    pitch_rad=pitch,
+                    roll_rad=roll,
+                    base_height_m=float(state["position"][index, 2]),
+                    cmd_lin_vel=state["command"][index, :2],
+                    actual_lin_vel=state["linear"][index, :2],
+                )
+                if extended_analysis:
+                    contacts = state["contacts"][index]
+                    signals.update(
+                        joint_vel=state["joint_velocity"][index],
+                        contact_forces=contacts if np.isfinite(contacts).all() else None,
+                        done=index in done_slots,
+                    )
+                emitted = analyzers[index].step(**signals)
+                for event in emitted if isinstance(emitted, list) else [emitted]:
+                    if event is not None:
+                        ep_failure_events[index].append(
+                            {
+                                "mode": event.mode.value,
+                                "timestamp_s": event.timestamp_s,
+                                "detail": event.detail,
+                                "detector": extended_analysis or "phoenix.failure_detector.v1",
+                            }
+                        )
 
             # Follow-cam: keep the GO2 framed as the velocity-tracking policy
             # walks it away from spawn. Active for GUI (screen-recorded demos)
@@ -462,10 +552,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             unwrapped = env.unwrapped
             if hasattr(unwrapped, "command_manager"):
                 try:
-                    cmd_np = _to_numpy(unwrapped.command_manager.get_command("base_velocity"))
-                    root = unwrapped.scene["robot"].data
-                    lin_b_np = _to_numpy(root.root_lin_vel_b)
-                    ang_b_np = _to_numpy(root.root_ang_vel_b)
+                    cmd_np = state["command"]
+                    lin_b_np = state["linear"]
+                    ang_b_np = state["angular"]
                     if cmd_np.ndim >= 2 and lin_b_np.ndim >= 2:
                         lin_err_per_env = np.linalg.norm(cmd_np[:, :2] - lin_b_np[:, :2], axis=-1)
                         ang_err_per_env = np.abs(cmd_np[:, 2] - ang_b_np[:, 2])
@@ -475,6 +564,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                         # Per-episode accumulation, additive and independent of
                         # the aggregate accumulators above.
                         n_env = min(args.num_envs, lin_err_per_env.shape[0])
+                        ep_command_sum[:n_env] += cmd_np[:n_env, :3]
+                        ep_lin_err_squared_sum[:n_env] += lin_err_per_env[:n_env] ** 2
                         ep_lin_err_sum[:n_env] += lin_err_per_env[:n_env]
                         ep_ang_err_sum[:n_env] += ang_err_per_env[:n_env]
                         np.maximum(
@@ -492,33 +583,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                             # Attitude and height come from the same root data
                             # handle the tracking error above already read, so
                             # this adds no extra sim query per step.
-                            quat_np = _to_numpy(root.root_quat_w)
-                            pos_np = _to_numpy(root.root_pos_w)
-                            jvel_np = _to_numpy(root.joint_vel)
-                            contact_np = None
-                            try:
-                                sensor = unwrapped.scene["contact_forces"]
-                                if foot_body_ids is None:
-                                    names = list(sensor.body_names)
-                                    foot_body_ids = [
-                                        idx
-                                        for idx, nm in enumerate(names)
-                                        if nm.lower().endswith("foot")
-                                    ]
-                                if foot_body_ids:
-                                    forces = _to_numpy(sensor.data.net_forces_w)
-                                    contact_np = np.linalg.norm(
-                                        forces[:, foot_body_ids, :], axis=-1
-                                    )
-                            except Exception as contact_err:  # noqa: BLE001
-                                if not contact_warned:
-                                    logger.warning(
-                                        "contact forces unavailable, writing zeros "
-                                        "(disables stumble and contact-loss "
-                                        "detection downstream): %r",
-                                        contact_err,
-                                    )
-                                    contact_warned = True
+                            quat_np = state["quaternion"]
+                            pos_np = state["position"]
+                            jvel_np = state["joint_velocity"]
+                            contact_np = state["contacts"]
                             for i_env in range(n_env):
                                 roll_i, pitch_i, yaw_i = quat_wxyz_to_euler(quat_np[i_env])
                                 ep_tel_pending[i_env].append(
@@ -545,7 +613,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                                         ),
                                         "contact_forces_n": (
                                             np.zeros(4, dtype=np.float32)
-                                            if contact_np is None
+                                            if not np.isfinite(contact_np[i_env]).all()
                                             else np.asarray(contact_np[i_env], dtype=np.float32)
                                         ),
                                     }
@@ -570,9 +638,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                                 cmd_np.ndim,
                                 lin_b_np.ndim,
                             )
-                except Exception as err:  # noqa: BLE001
-                    if n_steps <= 1:
-                        logger.warning("tracking-error exception step=%d: %r", n_steps, err)
+                except Exception as err:
+                    raise RuntimeError("episode tracking telemetry capture failed") from err
 
             # Per-reward-term accumulation. reward_manager._step_reward is
             # [num_envs, num_terms] with each column being that term's
@@ -595,6 +662,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             done_idx = dones.nonzero(as_tuple=False).flatten()
             if len(done_idx) > 0:
                 for i in done_idx.tolist():
+                    if len(returns) >= args.num_episodes:
+                        break
                     returns.append(float(episode_return[i].item()))
                     ep_len = float(episode_length[i].item())
                     lengths.append(ep_len * dt_ctrl)
@@ -604,6 +673,59 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                         successes += 1
                     else:
                         failures += 1
+                    track_count = int(ep_track_steps[i])
+                    failure_events = ep_failure_events[i]
+                    analysis = analyzers[i].compute() if extended_analysis else None
+                    intervention = (
+                        bool(analysis.intervention_count)
+                        if analysis is not None
+                        else any(
+                            event["mode"] in {"attitude", "collapse"} for event in failure_events
+                        )
+                    )
+                    outcomes.append(
+                        EpisodeOutcome(
+                            policy_id=policy_sha,
+                            evaluation_seed=args.seed,
+                            training_seed=getattr(args, "training_seed", None),
+                            episode_id=len(returns) - 1,
+                            success=time_out and not bool(state["terminated"][i]),
+                            termination_reason="|".join(ep_termination_reasons[i])
+                            or ("time_out" if time_out else "unknown_termination"),
+                            episode_length_steps=int(ep_len),
+                            control_dt_s=dt_ctrl,
+                            episode_return=float(episode_return[i].item()),
+                            command=(ep_command_sum[i] / track_count).tolist()
+                            if track_count
+                            else None,
+                            tracking_error=float(np.sqrt(ep_lin_err_squared_sum[i] / track_count))
+                            if track_count
+                            else None,
+                            angular_tracking_error=float(ep_ang_err_sum[i] / track_count)
+                            if track_count
+                            else None,
+                            environment_parameters=environment_parameters,
+                            failure_events=failure_events,
+                            failure_modes=sorted({event["mode"] for event in failure_events}),
+                            failure_onset_s=min(
+                                (event["timestamp_s"] for event in failure_events), default=None
+                            ),
+                            intervention_required=intervention,
+                            intervention_criterion="detected_attitude_or_collapse",
+                            recovery_outcome=(
+                                "unrecovered"
+                                if analysis.unrecovered_events
+                                else "recovered"
+                                if analysis.recovered_events
+                                else "no_detected_failure"
+                            )
+                            if analysis is not None
+                            else None,
+                            recovery_time_s=analysis.mean_recovery_time_s
+                            if analysis is not None
+                            else None,
+                        )
+                    )
                     episode_records.append(
                         build_episode_record(
                             run_id=run_id,
@@ -640,6 +762,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                                 )
                             )
                         ep_tel_pending[i] = []
+                    ep_failure_events[i] = []
+                    analyzers[i] = analyzer_factory()
+                    ep_command_sum[i] = 0.0
+                    ep_lin_err_squared_sum[i] = 0.0
                     ep_lin_err_sum[i] = 0.0
                     ep_lin_err_max[i] = 0.0
                     ep_ang_err_sum[i] = 0.0
@@ -663,6 +789,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     )
     logger.info("Metrics: %s", metrics)
 
+    write_outcomes(outcome_path, outcomes)
+    terminal_capture.close()
     if args.slew_saturation_max is not None and slew_pct > args.slew_saturation_max:
         logger.error(
             "slew_saturation_pct=%.4f exceeds --slew-saturation-max=%.4f",

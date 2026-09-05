@@ -169,6 +169,14 @@ def audit_replicate(out_dir: str | Path) -> dict:
         "propagation_delay_bracket_ticks": delay_bracket,
         "log10_probability_of_separation_by_chance": float(log10(chance)),
         "pre_onset_fall_difference_environments": int(np.abs(pre_onset_difference).sum()),
+        # Restricted to the disturbed blocks, i.e. the analysis set the registered
+        # primary estimand is actually computed on. The all-blocks count above
+        # includes nominal blocks the estimand never touches, so quoting it as the
+        # residual's reach overstates the denominator and understates nothing;
+        # the paper quotes THIS number, so it is derived here rather than by hand.
+        "pre_onset_fall_difference_environments_disturbed": int(
+            np.abs(pre_onset_difference[pair["disturbed"]]).sum()
+        ),
         "pre_onset_fall_difference_blocks": int((pre_onset_difference != 0).any(axis=1).sum()),
         "block_effects_all": _block_effects(pair).tolist(),
         "block_effects_contamination_free": _block_effects(pair)[
@@ -259,6 +267,12 @@ def audit_registry(
             ),
             "pre_onset_fall_difference_environments": int(
                 sum(item["pre_onset_fall_difference_environments"] for item in replicates)
+            ),
+            "pre_onset_fall_difference_environments_disturbed": int(
+                sum(
+                    item["pre_onset_fall_difference_environments_disturbed"]
+                    for item in replicates
+                )
             ),
             "all_cells_reproduce_contamination_free": all(
                 cell["sign_agrees"] and cell["contamination_free_interval_excludes_zero"]
