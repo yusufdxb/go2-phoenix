@@ -29,9 +29,9 @@ def sim_app():
     # setup ERRORS on any machine that lacks Isaac Lab, which is noise that
     # hides real failures in the summary line.
     app_module = pytest.importorskip("isaaclab.app")
-    AppLauncher = app_module.AppLauncher
+    app_launcher = app_module.AppLauncher
 
-    app = AppLauncher(headless=True).app
+    app = app_launcher(headless=True).app
     yield app
     app.close()
 

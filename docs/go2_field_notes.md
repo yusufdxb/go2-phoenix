@@ -149,20 +149,27 @@ rather than an interface Phoenix uses. Two rules from it still bind:
 - The Sport service must be released before low-level control is taken, per the standard
   EDU procedure in `docs/deploy_mode_switch_runbook.md`.
 
-### Deployment gap, unclosed
+### Deployment gap, workstation side closed, payload side open
 
-The payload's Phoenix checkpoints stop at **`phoenix-stand-v3`**. The current deliverable
-is **`phoenix-stand-h25-lat-noise/model_799`**. Because the lab network has no internet
-egress (section 7), the export has to be staged *before* the session:
+The payload's Phoenix checkpoints stop at **`phoenix-stand-v3`** and its repo checkout is
+from the same era. The current deliverable is **`phoenix-stand-h25-lat-noise/model_799`**.
+Because the lab network has no internet egress (section 7), everything has to be staged
+*before* the session and pushed over the cable on arrival:
 
-1. Export the policy to ONNX on the workstation.
-2. Parity-gate it (max-abs-diff and per-output cosine against the PyTorch module on a real
-   input batch); confirm `export_report.txt` parity < 1e-5.
-3. Copy **both** `policy.onnx` and `policy.onnx.data` to the payload and verify the
-   sha256 against `export_report.txt`.
+1. Export the policy to ONNX on the workstation. **Done** (2026-06-23, `export_report.txt`).
+2. Parity-gate it against real observations (`scripts/parity_gate.py`, max-abs and
+   per-output cosine, 3,991 logged obs). **Done** 2026-09-04, `parity_gate.json`
+   `passed: true`, max abs 1.7e-6 against a 1e-5 gate.
+3. Stage the bundle (`policy.onnx` + `policy.onnx.data` + pinned config + `activation.py` +
+   `SHA256SUMS`) with `scripts/stage_payload_bundle.sh`. **Done locally** 2026-09-08 into
+   `deploy_staging/`; the push to the payload and the on-payload verify happen at the lab.
+4. Sync the repo code the payload executes with `scripts/stage_payload_repo.sh` (the
+   payload cannot `git fetch`). **Not done**: needs the cable.
+5. Run `docs/36-phoenix-jetson-activation-lab-card.md` on the payload (no motion) and
+   record the resolved ONNX path. **Not done**: needs the payload.
 
-None of these three steps has been done for `model_799`. Until they are, a lab session
-would be running the older `phoenix-stand-v3` policy while the lab card claims otherwise.
+Until 4 and 5 have been executed on the payload and their output recorded, a lab session
+must assume it is running the older `phoenix-stand-v3` policy on the older node code.
 
 ### Sensor timing on hardware
 
