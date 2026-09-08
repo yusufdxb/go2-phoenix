@@ -2,6 +2,14 @@
 # harness_preflight.sh
 # Single-command preflight wrapping P1 through P7.
 #
+# NOTE (2026-09-08): P1 (T7 rsync) and P2 (git fetch origin) are T7-era and do
+# not work at CaresLab any more: the T7 is dropped and the lab has no egress.
+# Their replacements run from the workstation over the cable BEFORE this script:
+#   scripts/stage_payload_repo.sh    jetson-cable:<payload repo root>
+#   scripts/stage_payload_bundle.sh  <ckpt-dir> <deploy-cfg> jetson-cable:<bundle dir>
+# then docs/36-phoenix-jetson-activation-lab-card.md (no motion) before any stand card.
+# P3..P7 still apply on the payload.
+#
 # Usage (Jetson-side, real run):
 #   bash scripts/harness_preflight.sh
 #
@@ -12,8 +20,8 @@
 #   T7_MOUNT          path to the T7 checkpoint root (default: /media/yusuf/T7 Storage/go2-phoenix)
 #   JETSON_REPO       repo root on Jetson (default: $HOME/workspace/go2-phoenix)
 #   PHOENIX_BRANCH    branch to ff-only (default: main)
-#   DEPLOY_CFG        deploy yaml (default: configs/sim2real/deploy_stand_v3.yaml)
-#   CKPT_DIR          checkpoint dir to rsync (default: checkpoints/phoenix-stand-v3)
+#   DEPLOY_CFG        deploy yaml (default: configs/sim2real/deploy_stand_h25.yaml)
+#   CKPT_DIR          checkpoint dir to rsync (default: checkpoints/phoenix-stand-h25-lat-noise)
 #
 # Exits non-zero on any halt condition (P3 P4 P5 P6 failures).
 
@@ -28,8 +36,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 T7_MOUNT="${T7_MOUNT:-/media/yusuf/T7 Storage/go2-phoenix}"
 JETSON_REPO="${JETSON_REPO:-$HOME/workspace/go2-phoenix}"
 PHOENIX_BRANCH="${PHOENIX_BRANCH:-main}"
-DEPLOY_CFG="${DEPLOY_CFG:-configs/sim2real/deploy_stand_v3.yaml}"
-CKPT_DIR="${CKPT_DIR:-checkpoints/phoenix-stand-v3}"
+DEPLOY_CFG="${DEPLOY_CFG:-configs/sim2real/deploy_stand_h25.yaml}"
+CKPT_DIR="${CKPT_DIR:-checkpoints/phoenix-stand-h25-lat-noise}"
 
 LOG_DIR="/tmp/harness_preflight_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"

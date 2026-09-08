@@ -17,8 +17,8 @@ from typing import TypedDict
 
 import numpy as np
 
-from .trajectory_reader import InitialState
 from .state_adapter import body_to_world
+from .trajectory_reader import InitialState
 from .variations import VariationSample
 
 
