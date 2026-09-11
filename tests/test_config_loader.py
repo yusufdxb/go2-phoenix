@@ -67,7 +67,10 @@ def test_circular_defaults_raise(tmp_path: Path) -> None:
 # `build_env_cfg` and emits a log warning on every unwired section, so a
 # future silent-drop regression would surface during any eval or retrain.
 
-from phoenix.sim_env.go2_env_cfg import _unwired_sections_present  # noqa: E402
+from phoenix.sim_env.go2_env_cfg import (  # noqa: E402
+    _unwired_sections_present,
+    _warn_dropped_terrain,
+)
 
 
 def test_unwired_detects_reward_section() -> None:
@@ -159,3 +162,91 @@ def test_unwired_flags_base_yaml_current_state() -> None:
     assert "observation.noise" not in unwired
     assert "domain_randomization.motor_strength_scale" not in unwired
     assert "domain_randomization.actuator_latency_steps" not in unwired
+    # base.yaml declares perturbation.push_interval_s, which nothing consumes.
+    assert "perturbation.push_interval_s" in unwired
+    # The three keys _apply_perturbation does consume stay unflagged.
+    assert "perturbation.enabled" not in unwired
+    assert "perturbation.push_velocity_xy" not in unwired
+    assert "perturbation.push_velocity_yaw" not in unwired
+
+
+# --- terrain: declared-but-dropped, on the REAL configs --------------------
+# rough.yaml, slippery.yaml, flat.yaml, stand.yaml and flat_v4.yaml each ship a
+# ``terrain`` block that no code reads; terrain is fixed by env.task_name alone.
+# These tests pin that against the files on disk, so a future overlay that adds
+# a terrain block cannot quietly reintroduce the silent drop.
+
+TERRAIN_DECLARING_CONFIGS = ("rough", "slippery", "flat", "stand", "flat_v4")
+
+
+@pytest.mark.parametrize("name", TERRAIN_DECLARING_CONFIGS)
+def test_unwired_flags_terrain_in_overlay_configs(name: str) -> None:
+    cfg = load_layered_config(CONFIGS / "env" / f"{name}.yaml").to_container()
+    assert "terrain" in cfg, f"{name}.yaml no longer declares terrain, update this list"
+    assert "terrain" in _unwired_sections_present(cfg)
+
+
+@pytest.mark.parametrize("name", TERRAIN_DECLARING_CONFIGS)
+def test_warn_dropped_terrain_fires_on_overlay_configs(name: str) -> None:
+    cfg = load_layered_config(CONFIGS / "env" / f"{name}.yaml").to_container()
+    message = _warn_dropped_terrain(cfg)
+    assert message is not None
+    # The warning must name the task, which is the thing that really picks terrain.
+    assert cfg["env"]["task_name"] in message
+
+
+def test_rough_versus_slippery_is_a_friction_contrast_not_a_terrain_one() -> None:
+    """The documented consequence of the silent terrain drop, pinned.
+
+    Both overlays inherit base.yaml's Rough-v0 task and neither can change the
+    terrain from YAML, so the ONLY thing that differs between them is the
+    domain-randomization envelope. If terrain is ever really wired, this test
+    should fail and force the experiment claims to be revisited."""
+    rough = load_layered_config(CONFIGS / "env" / "rough.yaml").to_container()
+    slippery = load_layered_config(CONFIGS / "env" / "slippery.yaml").to_container()
+
+    assert rough["env"]["task_name"] == slippery["env"]["task_name"]
+    assert "terrain" in _unwired_sections_present(rough)
+    assert "terrain" in _unwired_sections_present(slippery)
+
+    differing = {k for k in set(rough) | set(slippery) if rough.get(k) != slippery.get(k)}
+    assert differing == {"domain_randomization", "terrain"}, (
+        "rough vs slippery differs in more than DR and the (ignored) terrain block; "
+        f"got {sorted(differing)}"
+    )
+
+
+def test_base_yaml_init_state_states_the_real_training_pose() -> None:
+    """robot.init_state is unwired, so it is documentation, and documentation
+    that lies is how five deploy configs got hips of 0.0. Training uses Isaac
+    Lab's UNITREE_GO2_CFG pose: left hips +0.1, right hips -0.1. Keep the YAML
+    equal to that, so a future wiring PR wires the truth."""
+    cfg = load_layered_config(CONFIGS / "env" / "base.yaml").to_container()
+    joint_pos = cfg["robot"]["init_state"]["joint_pos"]
+
+    assert ".*_hip_joint" not in joint_pos, "a single hip value cannot express +0.1 / -0.1"
+    assert joint_pos[".*L_hip_joint"] == pytest.approx(0.1)
+    assert joint_pos[".*R_hip_joint"] == pytest.approx(-0.1)
+    # Thighs and calves already matched upstream; pin them so they stay matched.
+    assert joint_pos["FL_thigh_joint"] == pytest.approx(0.8)
+    assert joint_pos["FR_thigh_joint"] == pytest.approx(0.8)
+    assert joint_pos["RL_thigh_joint"] == pytest.approx(1.0)
+    assert joint_pos["RR_thigh_joint"] == pytest.approx(1.0)
+    assert joint_pos[".*_calf_joint"] == pytest.approx(-1.5)
+
+
+@pytest.mark.parametrize("name", ("perturbation", "flat_perturb"))
+def test_unwired_flags_the_perturbation_schedule_keys(name: str) -> None:
+    """push_interval_s / push_warmup_s / push_probability read like a periodic
+    shove, but _apply_perturbation drives a reset-mode event and consumes none
+    of them. They must be flagged, not dropped in silence."""
+    cfg = load_layered_config(CONFIGS / "env" / f"{name}.yaml").to_container()
+    unwired = set(_unwired_sections_present(cfg))
+    assert {
+        "perturbation.push_interval_s",
+        "perturbation.push_warmup_s",
+        "perturbation.push_probability",
+    }.issubset(unwired)
+    assert cfg["perturbation"]["enabled"] is True
+    assert "perturbation.push_velocity_xy" not in unwired
+    assert "perturbation.push_velocity_yaw" not in unwired

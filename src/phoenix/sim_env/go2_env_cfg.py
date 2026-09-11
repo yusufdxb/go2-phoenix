@@ -7,7 +7,8 @@ upstream ``UnitreeGo2RoughEnvCfg``, then applies failure-oriented overrides:
 * motor-strength scale DR (scales actuator stiffness and damping uniformly)
 * actuator latency DR (action delay steps stored as event attribute)
 * slippery terrain overlay (narrowed friction range)
-* base push perturbations via ``base_external_force_torque``
+* base push perturbations via ``base_external_force_torque`` (a reset-mode
+  event: one force/torque draw per episode, not a periodic shove)
 * velocity-command ranges + ``rel_standing_envs``
 
 **Which YAML sections are wired, which are not** (2026-04-17 audit,
@@ -16,10 +17,25 @@ updated 2026-06-07 wiring PR):
 Wired (override upstream defaults):
     env, command, domain_randomization (friction / restitution / mass /
     motor_strength_scale / actuator_latency_steps via DelayedDCMotor),
-    perturbation, reward, observation.noise (enable_corruption), action.rate_limit, seed
+    perturbation (only ``enabled`` / ``push_velocity_xy`` / ``push_velocity_yaw``,
+    applied once at episode reset), reward, observation.noise (enable_corruption),
+    action.rate_limit, seed
 
 Present in ``base.yaml`` but NOT wired (upstream Go2 defaults win):
-    observation.include, termination, robot.init_state, robot.actuator
+    observation.include, termination, robot.init_state, robot.actuator,
+    perturbation.push_interval_s / push_warmup_s / push_probability (there is no
+    interval push event in this env, see ``_apply_perturbation``)
+
+Present in the overlays (``rough.yaml``, ``slippery.yaml``, ``flat.yaml``,
+``stand.yaml``, ``flat_v4.yaml``) but NOT wired: ``terrain``. Terrain is fixed
+entirely by the upstream task named in ``env.task_name``; nothing in this module
+reads the YAML ``terrain`` block. Flagged 2026-09-11, before that the block was
+dropped in silence, and the cost was real: ``rough.yaml`` and ``slippery.yaml``
+both inherit ``base.yaml``'s Rough-v0 task, so every "rough versus slippery"
+comparison this repo has run used the SAME upstream generated terrain and
+differed only in ``domain_randomization`` friction / restitution, even though
+``slippery.yaml`` declares flat terrain with friction patches. Wiring terrain is
+a separate, sim-validated PR (see ``_warn_dropped_terrain``).
 
 Reward wiring added 2026-04-19 (retrain spec Phase 0); prior to this,
 YAML reward.* overrides were silent no-ops. This change invalidates
@@ -61,7 +77,8 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
 
 logger = logging.getLogger("phoenix.sim_env.go2_env_cfg")
 
-_UNWIRED_TOP_LEVEL = ("termination",)
+# ``terrain`` added 2026-09-11: declared in five env overlays, read by nothing.
+_UNWIRED_TOP_LEVEL = ("termination", "terrain")
 _UNWIRED_ROBOT_SUB = ("init_state", "actuator")
 
 # Keys inside the (wired) ``domain_randomization`` block that
@@ -75,6 +92,19 @@ _APPLIED_DR_KEYS = (
     "mass_offset_kg",
     "motor_strength_scale",
     "actuator_latency_steps",
+)
+
+# Keys inside the (wired) ``perturbation`` block that ``_apply_perturbation``
+# actually consumes. The other keys the overlays declare (``push_interval_s``,
+# ``push_warmup_s``, ``push_probability``) are dropped, and dropping them is not
+# a detail: they describe a periodic mid-episode shove, while what is actually
+# applied is a one-shot force/torque at episode RESET (see _apply_perturbation).
+# ``_unwired_sections_present`` flags them so no one reads "pushed every 5 s"
+# into a config that does nothing of the kind. Added 2026-09-11.
+_APPLIED_PERTURBATION_KEYS = (
+    "enabled",
+    "push_velocity_xy",
+    "push_velocity_yaw",
 )
 
 # YAML reward key -> upstream Isaac Lab RewardsCfg term attribute name.
@@ -116,7 +146,8 @@ def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
     """Return config-path names of sections present in ``data`` but not applied.
 
     Covers both fully unwired sections and unapplied keys inside an otherwise
-    wired section (any ``domain_randomization`` key outside ``_APPLIED_DR_KEYS``).
+    wired section (any ``domain_randomization`` key outside ``_APPLIED_DR_KEYS``,
+    any ``perturbation`` key outside ``_APPLIED_PERTURBATION_KEYS``).
     Used by ``build_env_cfg`` to warn loudly at construction time when the YAML
     contains overrides we don't actually plumb into the env cfg. Pure function
     (no Isaac Lab imports) so it can be unit-tested without a sim app.
@@ -140,7 +171,56 @@ def _unwired_sections_present(data: dict[str, Any]) -> list[str]:
         for sub in dr:
             if sub not in _APPLIED_DR_KEYS:
                 unwired.append(f"domain_randomization.{sub}")
+    pert = data.get("perturbation")
+    if isinstance(pert, dict):
+        for sub in pert:
+            if sub not in _APPLIED_PERTURBATION_KEYS:
+                unwired.append(f"perturbation.{sub}")
     return unwired
+
+
+def _warn_dropped_terrain(data: dict[str, Any]) -> str | None:
+    """Warn that a declared ``terrain`` block is ignored, and name what wins instead.
+
+    Terrain comes from the upstream task selected by ``env.task_name``, never from
+    YAML: the Isaac Lab Rough-v0 GO2 task builds a generated rough terrain
+    (``ROUGH_TERRAINS_CFG``, see ``velocity_env_cfg.py``) and the Flat-v0 task
+    overrides ``scene.terrain.terrain_type = "plane"`` (see ``flat_env_cfg.py``).
+
+    Called out separately from the generic ``_unwired_sections_present`` warning
+    because of what this particular silent drop did: ``rough.yaml`` and
+    ``slippery.yaml`` both inherit ``base.yaml``'s Rough-v0 task, so their contrast
+    was never a terrain contrast, only a friction / restitution one, and a
+    multi-seed study read it as terrain.
+
+    NOT wired on purpose: ``slippery.yaml``'s ``friction_patches`` has no upstream
+    Isaac Lab equivalent (per-patch spatially varying friction is not a
+    ``TerrainImporterCfg`` feature), and building real terrain cfgs cannot be
+    executed or checked in the no-sim CI environment. Half-wiring it would swap one
+    silent lie for another, so it warns until a sim-validated PR wires it.
+
+    Returns the emitted message, or ``None`` when no ``terrain`` block is present,
+    so the no-sim tests can assert on the text. No Isaac Lab import, so it is
+    unit-testable without a sim app.
+    """
+    terrain = data.get("terrain")
+    if terrain is None:
+        return None
+    if isinstance(terrain, dict):
+        declared = terrain.get("type", "<no type key>")
+    else:
+        declared = terrain
+    env_blk = data.get("env")
+    task = env_blk.get("task_name", "<unset>") if isinstance(env_blk, dict) else "<unset>"
+    message = (
+        f"phoenix env cfg: terrain block DECLARED BUT IGNORED (terrain.type={declared!r}). "
+        f"The terrain actually used is fixed by env.task_name={task!r} (Rough-v0 -> "
+        "upstream generated rough terrain, Flat-v0 -> plane). Two configs that differ "
+        "only in this block are NOT a terrain contrast: rough.yaml vs slippery.yaml "
+        "differ only in domain_randomization friction / restitution."
+    )
+    logger.warning("%s", message)
+    return message
 
 
 def _events_root(env_cfg: Any) -> Any:
@@ -224,6 +304,21 @@ def _apply_perturbation(env_cfg: Any, pert: dict[str, Any]) -> None:
     instead modulate the reset-mode external force/torque applied to the
     base, which the upstream cfg retains. When the overlay is disabled
     we zero the ranges so behaviour matches the base config.
+
+    RESET, NOT INTERVAL. ``base_external_force_torque`` is an upstream
+    ``EventTerm(mode="reset")``, so the force/torque is drawn and applied ONCE per
+    episode, at reset, and then held; the robot is NOT shoved periodically while
+    walking. Isaac Lab's periodic pusher is ``push_robot``
+    (``mode="interval"``), and the GO2 events cfg sets it to ``None``, so there is
+    no interval push in this env at all.
+
+    Consequently ``push_interval_s``, ``push_warmup_s`` and ``push_probability``,
+    which the overlays declare and which read like a periodic-shove schedule, are
+    NOT consumed here and cannot be: there is no interval term to hang them on.
+    They are flagged by ``_unwired_sections_present`` via
+    ``_APPLIED_PERTURBATION_KEYS`` instead of being dropped in silence. Only
+    ``enabled``, ``push_velocity_xy`` and ``push_velocity_yaw`` do anything.
+    Implementing real interval pushes is a behaviour change and a separate PR.
     """
     events = _events_root(env_cfg)
     efx = getattr(events, "base_external_force_torque", None)
@@ -583,6 +678,7 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
             "upstream Go2 defaults win: %s. See go2_env_cfg.py module docstring.",
             ", ".join(unwired),
         )
+    _warn_dropped_terrain(data)
 
     task_name = env_blk["task_name"]
     env_cfg_entry = gym.spec(task_name).kwargs["env_cfg_entry_point"]
