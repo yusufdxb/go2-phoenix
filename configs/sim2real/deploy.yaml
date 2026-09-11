@@ -27,11 +27,17 @@ policy:
 control:
   rate_hz: 50                    # matches sim decimation
   action_scale: 0.25             # policy output → joint delta
+  # The hips are +0.1 (L) / -0.1 (R), not 0.0. These twelve numbers are the
+  # training pose, IsaacLab UNITREE_GO2_CFG.init_state in
+  # isaaclab_assets/robots/unitree.py, and that file is the authority. The
+  # action term sets use_default_offset=True, which makes this block the
+  # action offset AND the joint-position observation reference at the same
+  # time, so a value that disagrees with training costs both at once.
   default_joint_pos:
-    FL_hip_joint: 0.0
-    FR_hip_joint: 0.0
-    RL_hip_joint: 0.0
-    RR_hip_joint: 0.0
+    FL_hip_joint: 0.1
+    FR_hip_joint: -0.1
+    RL_hip_joint: 0.1
+    RR_hip_joint: -0.1
     FL_thigh_joint: 0.8
     FR_thigh_joint: 0.8
     RL_thigh_joint: 1.0

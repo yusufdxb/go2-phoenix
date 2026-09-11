@@ -39,11 +39,17 @@ reliability:
 control:
   rate_hz: 50
   action_scale: 0.25
+  # Same pose as the unshielded config, and for the same reason: it is the
+  # training default from IsaacLab UNITREE_GO2_CFG.init_state in
+  # isaaclab_assets/robots/unitree.py, and use_default_offset=True makes it the
+  # action offset and the observation reference. It matters twice over here,
+  # because the shield blends the learned target toward this same vector, so a
+  # wrong pose is also a wrong fallback target.
   default_joint_pos:
-    FL_hip_joint: 0.0
-    FR_hip_joint: 0.0
-    RL_hip_joint: 0.0
-    RR_hip_joint: 0.0
+    FL_hip_joint: 0.1
+    FR_hip_joint: -0.1
+    RL_hip_joint: 0.1
+    RR_hip_joint: -0.1
     FL_thigh_joint: 0.8
     FR_thigh_joint: 0.8
     RL_thigh_joint: 1.0
