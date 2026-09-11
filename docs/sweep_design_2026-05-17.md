@@ -75,7 +75,7 @@ All metrics produced per cell, collected into `logs/sweeps/<ts>/leaderboard.csv`
 |---|---|---|
 | survival_rate | `phoenix.training.evaluate.RolloutMetrics.success_rate` | >= 0.95 |
 | mean_episode_len_s | `RolloutMetrics.mean_episode_length_s` | >= 18.0 (of 20 s episodes) |
-| slew_saturation_pct | `RolloutMetrics.slew_saturation_pct` (`phoenix.training.slew.slew_saturation_rate`) | < 0.05 (Gate 7 bar) |
+| slew_saturation_pct | `RolloutMetrics.slew_saturation_pct` (`phoenix.training.slew.slew_clip_activation_rate`) | < 0.05 (Gate 7 bar) |
 | mean_ang_vel_err | `RolloutMetrics.mean_ang_vel_error` | < 0.05 rad/s |
 | fall_count | num_episodes - successes (derived in runner) | <= 5% of num_episodes |
 
@@ -138,5 +138,8 @@ ship to the lab.
 
 * env wiring : `src/phoenix/sim_env/go2_env_cfg.py` (`_apply_rewards`, `_apply_domain_randomization`, `_apply_perturbation`)
 * evaluate.py metrics : `src/phoenix/training/evaluate.py` (`RolloutMetrics`)
-* slew metric : `src/phoenix/training/slew.py` (`slew_saturation_rate`)
+* slew metric : `src/phoenix/training/slew.py` (`slew_clip_activation_rate`, deploy-equivalent
+  since 2026-09-11). Every `slew_saturation_pct` recorded before that date came from
+  `legacy_raw_action_delta_saturation_rate`, a raw-action-delta rate that is NOT
+  deploy-equivalent; see `docs/CORRECTIVE_PASS_2026-09-11.md` section 2.
 * failure curriculum (out of scope here, axis available) : `src/phoenix/adaptation/curriculum.py`

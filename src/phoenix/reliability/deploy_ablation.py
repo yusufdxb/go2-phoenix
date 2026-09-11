@@ -137,26 +137,30 @@ def deploy_slew_saturation(
 ) -> float:
     """Fraction of motor-steps the DEPLOY limiter would actually clip.
 
-    This is the deploy-equivalent definition, not the raw action delta. Deploy
-    builds ``target = default_q + action_scale * action`` and then clips that
-    target against MEASURED joint position, so saturation is
-    ``|target - measured_q| > max_delta``. Comparing successive raw policy
-    outputs to the same threshold measures a different quantity entirely and is
-    not comparable to a hardware slew number.
+    This is a thin positional adapter over
+    ``phoenix.training.slew.slew_clip_activation_rate``, which is the single
+    implementation of the deploy-equivalent definition and which calls the same
+    ``per_step_clip_array`` the policy node and the low-command bridge use. A
+    second open-coded copy of this arithmetic is exactly how the legacy metric
+    drifted away from what deployment does, so this function deliberately owns
+    no arithmetic of its own.
 
-    Shapes are ``(n_steps, n_envs, 12)`` or ``(n, 12)``.
+    Deploy builds ``target = default_q + action_scale * action`` and clips it
+    against MEASURED joint position. Comparing successive raw policy outputs to
+    the same threshold measures a different quantity and is not comparable to a
+    hardware slew number.
+
+    Shapes are ``(n, 12)``.
     """
-    if max_delta <= 0:
-        raise ValueError("max_delta must be positive")
-    a = np.asarray(actions, dtype=np.float64)
-    q = np.asarray(measured_q, dtype=np.float64)
-    if a.shape != q.shape:
-        raise ValueError(f"shape mismatch: actions={a.shape} measured_q={q.shape}")
-    d = np.asarray(default_q, dtype=np.float64)
-    if d.shape != (N_JOINTS,):
-        raise ValueError(f"default_q must have {N_JOINTS} entries, got {d.shape}")
-    target = d + action_scale * a
-    return float(np.mean(np.abs(target - q) > max_delta))
+    from phoenix.training.slew import slew_clip_activation_rate
+
+    return slew_clip_activation_rate(
+        actions=actions,
+        measured_q=measured_q,
+        default_q=default_q,
+        action_scale=action_scale,
+        max_delta=max_delta,
+    )
 
 
 @dataclass(frozen=True)

@@ -51,8 +51,20 @@ ACTION deltas against 0.175. Deployment builds
 `target = default_q + action_scale * action` and clips that target against
 MEASURED joint position. Those are different quantities.
 
-`docs/sweep_design_2026-05-17.md` names `slew_saturation_rate` as the source of
-the gate metric, so every sim slew figure in this repository, including the
+Fixed. `slew_saturation_rate` no longer exists. `slew_clip_activation_rate`
+replaces it and calls the shared deploy helper
+`phoenix.sim2real.safety.per_step_clip_array`, so the metric and the limiter
+cannot drift apart. The old definition survives under the unambiguous name
+`legacy_raw_action_delta_saturation_rate`, purely to reproduce the figures
+below; `phoenix.training.evaluate` reports it as `legacy_raw_action_delta_pct`
+alongside the corrected `slew_saturation_pct`, and stamps
+`slew_metric_definition: "deploy_clip_activation_v2"` into every new metrics
+JSON. A metrics JSON with no `slew_metric_definition` field is a legacy-metric
+file.
+
+`docs/sweep_design_2026-05-17.md` named `slew_saturation_rate` as the source of
+the gate metric (it now names the corrected one), so every sim slew figure
+recorded in this repository before this pass, including the
 0.33%, 3.30%, 2.91%, 3.65% and 4.23% numbers, is a LEGACY-definition figure. The
 recorded values are not edited. They must not be compared against a hardware
 slew number or against the corrected metric without restating both.

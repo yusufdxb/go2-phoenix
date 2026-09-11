@@ -19,6 +19,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger("phoenix.training.evaluate")
 
@@ -36,10 +37,21 @@ class RolloutMetrics:
     # Keyed by Isaac Lab reward_manager term name (e.g. "track_lin_vel_xy_exp").
     # Empty dict if reward_manager is unavailable on the env (older Isaac Lab).
     per_term_rewards: dict[str, float]
-    # Fraction of per-(env, step, motor) action-delta samples whose absolute
-    # value >= MAX_DELTA_PER_STEP_RAD (0.175 rad). Matches the Jetson
-    # dryrun definition so sim and hardware can be compared 1:1.
+    # Fraction of per-(env, step, motor) samples on which the DEPLOY slew clip
+    # would actually fire: target = default_q + action_scale * action, clipped
+    # against the MEASURED joint position by
+    # phoenix.sim2real.safety.per_step_clip_array at MAX_DELTA_PER_STEP_RAD.
+    # That is the quantity the Jetson bridge limits, so sim and hardware
+    # compare 1:1.
     slew_saturation_pct: float
+    # Names the definition behind slew_saturation_pct. Metrics JSON written
+    # before 2026-09-11 carries no such field and holds the LEGACY INCORRECT
+    # raw-action-delta number instead; the two are NOT comparable.
+    slew_metric_definition: str = "deploy_clip_activation_v2"
+    # The legacy raw-action-delta rate (|action[t] - action[t-1]| >= 0.175).
+    # NOT deploy-equivalent, reported only so a new run can be lined up
+    # against the pre-2026-09-11 record.
+    legacy_raw_action_delta_pct: float = 0.0
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -380,11 +392,20 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     dt_ctrl = env_cfg.decimation * env_cfg.sim.dt  # seconds per env step
 
     from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
-    from phoenix.training.slew import slew_saturation_rate
+    from phoenix.training.slew import (
+        legacy_raw_action_delta_saturation_rate,
+        slew_clip_activation_rate,
+    )
 
+    # Deploy equivalence: the Jetson clips joint TARGETS against measured q, so
+    # the metric needs the same affine map (default_q, action_scale) the action
+    # term applies. Resolved once, loudly, before the rollout starts.
+    slew_ref = _resolve_slew_reference(env, _to_numpy)
     prev_actions_np: np.ndarray | None = None
     slew_sat_acc = 0.0
     slew_sat_steps = 0
+    legacy_slew_acc = 0.0
+    legacy_slew_steps = 0
     telemetry_rows: list | None = [] if args.telemetry_out else None
 
     # ---- Per-episode records (additive) ------------------------------------
@@ -467,14 +488,27 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         while len(returns) < args.num_episodes:
             actions = policy(obs)
             actions_np = _to_numpy(actions)
+            # Read q BEFORE the step: that is the joint position both the deploy
+            # node and the sim rate limiter reference their clip against.
+            measured_q = _to_numpy(slew_ref.asset.data.joint_pos)[:, slew_ref.joint_ids]
+            slew_sat_acc += slew_clip_activation_rate(
+                actions=actions_np,
+                measured_q=measured_q,
+                default_q=slew_ref.default_q,
+                action_scale=slew_ref.action_scale,
+                max_delta=MAX_DELTA_PER_STEP_RAD,
+            )
+            slew_sat_steps += 1
+            # Legacy raw-action-delta rate, kept only for comparison against
+            # results recorded before the metric was corrected. The first step
+            # after an env reset contributes a small delta because the policy
+            # sees the default stand obs again, acceptable noise at thousands
+            # of steps; no per-env reset bookkeeping needed.
             if prev_actions_np is not None and actions_np.shape == prev_actions_np.shape:
-                slew_sat_acc += slew_saturation_rate(
+                legacy_slew_acc += legacy_raw_action_delta_saturation_rate(
                     prev_actions_np, actions_np, threshold=MAX_DELTA_PER_STEP_RAD
                 )
-                slew_sat_steps += 1
-            # First step after an env reset will contribute a small delta because
-            # the policy sees the default stand obs again, acceptable noise at
-            # thousands of steps; no per-env reset bookkeeping needed.
+                legacy_slew_steps += 1
             prev_actions_np = actions_np
             applied_command = _to_numpy(
                 env.unwrapped.command_manager.get_command("base_velocity")
@@ -776,6 +810,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     n_eps = max(len(returns), 1)
     slew_pct = slew_sat_acc / max(slew_sat_steps, 1)
+    legacy_slew_pct = legacy_slew_acc / max(legacy_slew_steps, 1)
     metrics = RolloutMetrics(
         num_episodes=n_eps,
         mean_episode_return=float(np.mean(returns)),
@@ -786,6 +821,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         mean_ang_vel_error=ang_err_acc / max(tracking_steps, 1),
         per_term_rewards={k: v / max(n_steps, 1) for k, v in term_acc.items()},
         slew_saturation_pct=slew_pct,
+        legacy_raw_action_delta_pct=legacy_slew_pct,
     )
     logger.info("Metrics: %s", metrics)
 
@@ -874,6 +910,79 @@ def _to_numpy(x):
     if hasattr(x, "numpy") and not isinstance(x, np.ndarray):
         return x.numpy()
     return np.asarray(x)
+
+
+@dataclass
+class _SlewReference:
+    """The pieces of the env the deploy-equivalent slew metric needs.
+
+    ``default_q`` and ``action_scale`` are the affine map the Isaac Lab
+    ``joint_pos`` action term applies (``target = offset + scale * action``),
+    which is the same map ``ros2_policy_node`` applies on the Jetson. Reading
+    them off the live action term is what stops the sim metric and the deploy
+    limiter from drifting apart.
+    """
+
+    asset: Any
+    joint_ids: Any
+    default_q: Any
+    action_scale: Any
+
+
+def _resolve_slew_reference(env, to_numpy) -> _SlewReference:
+    """Read the joint-position action term's offset / scale, or fail loudly.
+
+    There is no fallback: an eval that cannot reconstruct the deploy joint
+    target cannot report a deploy-equivalent slew number, and reporting the
+    old raw-action-delta rate in its place is exactly the defect this
+    replaced.
+    """
+    import numpy as np
+
+    manager = getattr(env.unwrapped, "action_manager", None)
+    if manager is None:
+        raise RuntimeError(
+            "env exposes no action_manager; cannot reconstruct the deploy joint target "
+            "for slew_saturation_pct"
+        )
+    try:
+        term = manager.get_term("joint_pos")
+    except Exception as err:  # noqa: BLE001
+        raise RuntimeError(
+            "no 'joint_pos' action term (active terms: "
+            f"{getattr(manager, 'active_terms', None)}); cannot reconstruct the deploy "
+            "joint target for slew_saturation_pct"
+        ) from err
+    for attr in ("_asset", "_joint_ids", "_offset", "_scale"):
+        if not hasattr(term, attr):
+            raise RuntimeError(
+                f"action term {type(term).__name__} exposes no {attr}; "
+                "slew_saturation_pct needs target = default_q + action_scale * action"
+            )
+    offset = term._offset
+    if isinstance(offset, (int, float)):
+        n_motors = int(getattr(term, "action_dim", 0))
+        if n_motors <= 0:
+            raise RuntimeError("scalar action offset with unknown action_dim")
+        default_q = np.full(n_motors, float(offset), dtype=np.float32)
+    else:
+        default_q = np.asarray(to_numpy(offset), dtype=np.float32)
+    scale = term._scale
+    if isinstance(scale, (int, float)):
+        action_scale: Any = float(scale)
+    else:
+        action_scale = np.asarray(to_numpy(scale), dtype=np.float32)
+    logger.info(
+        "slew metric: deploy-equivalent (default_q shape %s, action_scale %s)",
+        default_q.shape,
+        action_scale if isinstance(action_scale, float) else action_scale.shape,
+    )
+    return _SlewReference(
+        asset=term._asset,
+        joint_ids=term._joint_ids,
+        default_q=default_q,
+        action_scale=action_scale,
+    )
 
 
 def _as_torch(x):

@@ -14,12 +14,41 @@ the physics rather than by a generator, every field the replay pipeline needs is
 observable, the pre-onset window is as long as the episode was, and the state
 distribution is by construction the one the policy actually visits.
 
-The same ``FailureDetector`` that labels real robot telemetry labels these, so a
-simulator failure and a hardware failure enter the curriculum through one code
-path and one threshold set.
+The simulator is the ground truth for whether an episode failed. Isaac's
+termination manager separates ``terminated`` from ``time_out``, and every
+non-timeout termination is a genuine failure whether or not the rule-based
+``FailureDetector`` can see it. This script harvests ALL of them and runs the
+detector as a MEASUREMENT against that ground truth, never as an inclusion
+rule.
+
+That distinction is not cosmetic. A measured run produced 148 terminations, 3
+harvested trajectories, and 74 discards whose only defect was that the detector
+did not fire. Detector success as a data-inclusion rule biases the pool toward
+the failures the detector already understands and throws away the ones most
+worth training on.
+
+The single remaining rejection criterion is structural, not detector-driven: a
+window whose onset sits closer to the start than ``--min-pre-onset-rows`` has no
+usable pre-onset interval, so no seeding strategy and no reset bridge can place
+the robot BEFORE the failure. Those are counted and reported separately.
 
 Output is the standard ``phoenix.real_world.trajectory_logger`` Parquet schema,
-one file per harvested failure, directly consumable by ``TrajectoryPool``.
+one file per harvested failure, directly consumable by ``TrajectoryPool``, plus:
+
+* ``<name>.meta.json`` beside each Parquet, holding the SIMULATOR termination
+  terms and time separately from the detector's verdict, so the two can never
+  be read as one another. The Parquet schema has no column for simulator
+  provenance yet (see ``phoenix.real_world.trajectory_logger``), which is the
+  only reason this lives in a sidecar.
+* ``harvest_report.json`` in the output directory, holding the run-level
+  counts and the measured detector recall.
+
+``failure_flag`` in the Parquet marks rows at or after the onset used for
+seeding: the detector's onset when it fired, otherwise the simulator's
+termination row. ``failure_mode`` stays strictly the detector's label and is
+null for a trajectory the detector missed, so a mode-subset filter cannot
+silently pick up an unlabelled trajectory. ``onset_source`` in the sidecar says
+which of the two was used.
 
 Usage:
     python scripts/harvest_sim_failures.py \
@@ -31,12 +60,22 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
+
+# Provenance labels for the rows this script writes. Imported rather than
+# spelled out so a sim capture cannot drift from the canonical vocabulary in
+# the logger and the observation builder.
+from phoenix.real_world.trajectory_logger import CAPTURE_SOURCE_SIM  # noqa: E402
+from phoenix.sim2real.observation import BASE_LIN_VEL_SOURCE_SIM  # noqa: E402
 
 logger = logging.getLogger("phoenix.harvest")
 
@@ -45,13 +84,28 @@ logger = logging.getLogger("phoenix.harvest")
 # terms. Harvest only terminated episodes, and record which term fired.
 TIME_OUT_TERMS = ("time_out",)
 
+# Written into every sidecar and into harvest_report.json so a consumer can
+# tell which layout it is reading.
+HARVEST_SCHEMA_VERSION = "1.0"
+
+# What the detector is asked about. Recorded with the measurement so a later
+# threshold change is visible in the artifact rather than inferred.
+DETECTOR_ID = "phoenix.real_world.failure_detector.FailureDetector"
+
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--checkpoint", type=Path, required=True)
     p.add_argument("--env-config", type=Path, required=True)
     p.add_argument("--num-envs", type=int, default=64)
-    p.add_argument("--num-failures", type=int, default=24)
+    p.add_argument(
+        "--num-failures",
+        type=int,
+        default=24,
+        help="Stop once this many trajectories have been WRITTEN. Terminations "
+        "the structural window guard rejects do not count toward it; they are "
+        "still measured and reported.",
+    )
     p.add_argument(
         "--pre-onset-steps",
         type=int,
@@ -74,8 +128,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--min-pre-onset-rows",
         type=int,
         default=100,
-        help="Reject a harvested window whose failure onset is closer than this "
-        "to the start. 100 rows at 50 Hz is 2 s of clean pre-failure behaviour.",
+        help="Reject a harvested window whose onset is closer than this to the "
+        "start. 100 rows at 50 Hz is 2 s of clean pre-failure behaviour. This is "
+        "a STRUCTURAL criterion about the window (no pre-onset interval means no "
+        "seeding strategy can use it), not a judgement about the detector; "
+        "rejections are counted under their own reason in harvest_report.json.",
     )
     p.add_argument("--out-dir", type=Path, default=None)
     p.add_argument("--device", default="cuda:0")
@@ -242,9 +299,10 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
     window = args.pre_onset_steps
     history: list[deque] = [deque(maxlen=window) for _ in range(n_env)]
     harvested = 0
-    falls_seen = 0
-    detector_missed = 0
-    short_prefix = 0
+    terminations_seen = 0
+    timeouts_seen = 0
+    unattributed_seen = 0
+    records: list[TerminationRecord] = []
     contacts_missing_warned = False
     # rsl_rl's wrapper returns either a tensor, a (obs, extras) tuple, or a
     # {group: tensor} dict depending on version. Normalize in one place so the
@@ -311,6 +369,12 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
                             if not np.isfinite(contacts[i]).all()
                             else np.asarray(contacts[i], dtype=np.float32)
                         ),
+                        # Isaac's contact sensor reports true Newtons; a row
+                        # that fell back to zeros says so rather than passing
+                        # a structural zero off as a measurement.
+                        "contact_forces_units": (
+                            "unmeasured" if not np.isfinite(contacts[i]).all() else "newtons"
+                        ),
                     }
                 )
 
@@ -324,11 +388,25 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
             for i in range(n_env):
                 if not terminated[i]:
                     continue
-                falls_seen += 1
+                terminations_seen += 1
                 fired = [term for term, mask in reasons.items() if mask[i]]
-                if all(term in TIME_OUT_TERMS for term in fired):
+                if fired and all(term in TIME_OUT_TERMS for term in fired):
+                    timeouts_seen += 1
                     continue
-                written = _write_failure(
+                if not fired:
+                    # `terminated` already excludes time-outs, so a termination
+                    # with no named term is a genuine failure the manager did
+                    # not attribute. Keep it, loudly. Dropping it would be the
+                    # same class of defect as dropping a detector miss.
+                    unattributed_seen += 1
+                    logger.warning(
+                        "env %d terminated at step %d with no termination term set; "
+                        "retained as an unattributed failure",
+                        i,
+                        step_idx,
+                    )
+                    fired = ["unattributed_termination"]
+                record = harvest_termination(
                     rows=list(history[i]),
                     dt_ctrl=dt_ctrl,
                     out_dir=out_dir,
@@ -339,18 +417,20 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
                     detector=FailureDetector(),
                     logger_cls=TrajectoryLogger,
                     step_cls=TrajectoryStep,
-                    np=np,
                     min_pre_onset_rows=args.min_pre_onset_rows,
                 )
-                if written is None:
-                    detector_missed += 1
-                elif written == "SHORT_PREFIX":
-                    short_prefix += 1
-                else:
+                records.append(record)
+                if record.status == "written":
                     harvested += 1
+                    verdict = (
+                        f"detector={record.detector_mode}@{record.detector_onset_index}"
+                        if record.detector_fired
+                        else "detector=MISS"
+                    )
                     print(
                         f"[harvest] {harvested}/{args.num_failures} "
-                        f"env={i} step={step_idx} terms={fired} -> {written.name}",
+                        f"env={i} step={step_idx} terms={fired} {verdict} "
+                        f"-> {Path(record.path).name}",
                         flush=True,
                     )
                 history[i].clear()
@@ -366,49 +446,88 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
 
     capture.close()
     env.close()
-    print(
-        f"\n[harvest] terminations seen: {falls_seen}\n"
-        f"[harvest] harvested: {harvested}\n"
-        f"[harvest] rejected, onset too close to episode start: {short_prefix}\n"
-        f"[harvest] detector did not fire on: {detector_missed} "
-        f"(these are real falls the rule-based detector missed; that is a "
-        f"measurement of detector recall, not a harvest bug)\n"
-        f"[harvest] out: {out_dir}",
-        flush=True,
+    report = build_report(
+        records,
+        dt_ctrl=dt_ctrl,
+        min_pre_onset_rows=args.min_pre_onset_rows,
+        terminations_seen=terminations_seen,
+        timeouts_seen=timeouts_seen,
+        unattributed_seen=unattributed_seen,
     )
+    report_path = out_dir / "harvest_report.json"
+    report_path.write_text(json.dumps(report, indent=2))
+    print(format_report(report) + f"\n[harvest] report: {report_path}\n[harvest] out: {out_dir}",
+          flush=True)
     return 0 if harvested else 1
 
 
-def _write_failure(
-    *,
-    rows,
-    dt_ctrl,
-    out_dir,
-    index,
-    env_index,
-    step_index,
-    terms,
-    detector,
-    logger_cls,
-    step_cls,
-    np,
-    min_pre_onset_rows,
-):
-    """Label a window with the shared detector and write it, or return None.
+@dataclass
+class DetectorEvaluation:
+    """What the rule-based detector said about one window.
 
-    A window is only written when the same rule-based detector used on real
-    robot telemetry fires on it. A terminated episode the detector cannot see
-    is reported rather than written, because writing an unlabelled trajectory
-    would reintroduce exactly the defect that makes the current real hardware
-    captures unusable.
+    A measurement, never a filter. ``fired=False`` is a false negative against
+    the simulator's ground truth, not a reason to drop the trajectory.
     """
-    if len(rows) < 2:
-        return None
 
+    fired: bool
+    mode: str | None = None
+    onset_index: int | None = None
+    onset_time_s: float | None = None
+
+
+@dataclass
+class TerminationRecord:
+    """One genuine simulator termination, and what the detector made of it.
+
+    The first block is simulator ground truth. The second block is detector
+    output evaluated against it. They are kept apart on purpose: conflating
+    them is what turned detector success into a data-inclusion rule.
+    """
+
+    env_index: int
+    step_index: int
+    window_rows: int
+    # --- simulator ground truth -------------------------------------------
+    sim_termination_terms: list[str]
+    sim_termination_index: int
+    sim_termination_time_s: float
+    # --- detector output, measured AGAINST the ground truth above ----------
+    detector_id: str = DETECTOR_ID
+    detector_fired: bool = False
+    detector_mode: str | None = None
+    detector_onset_index: int | None = None
+    detector_onset_time_s: float | None = None
+    # detector_onset_time_s - sim_termination_time_s. Negative means the
+    # detector fired BEFORE the simulator ended the episode (the useful case);
+    # None when the detector never fired.
+    detector_latency_s: float | None = None
+    detector_false_negative: bool = True
+    # --- what was written --------------------------------------------------
+    onset_index: int = 0
+    onset_source: str = "simulator_termination"
+    status: str = "written"
+    rejected_reason: str | None = None
+    path: str | None = None
+    schema_version: str = HARVEST_SCHEMA_VERSION
+    field_notes: dict = field(
+        default_factory=lambda: {
+            "sim_*": "simulator ground truth, from the Isaac termination manager",
+            "detector_*": "rule-based FailureDetector output, a measurement only",
+            "onset_index": "row the Parquet failure_flag turns True on",
+            "onset_source": "detector | simulator_termination",
+        }
+    )
+
+
+def evaluate_detector(rows, dt_ctrl, detector) -> DetectorEvaluation:
+    """Run the shared rule-based detector over a window and report what it saw.
+
+    This never decides whether the window is kept. It answers one question:
+    would the detector that labels real robot telemetry have seen this
+    simulator failure, and if so, when and as what.
+    """
     from phoenix.training.episode_telemetry import quat_wxyz_to_euler
 
-    onset = None
-    mode = None
     for row_index, row in enumerate(rows):
         quat = row["base_quat"]
         # quat_wxyz_to_euler takes wxyz; the Parquet rows carry xyzw.
@@ -424,32 +543,187 @@ def _write_failure(
             actual_lin_vel=np.asarray(row["base_lin_vel_body"], dtype=float)[:2],
         )
         if event is not None:
-            onset = row_index
-            mode = event.mode.value
-            break
+            return DetectorEvaluation(
+                fired=True,
+                mode=event.mode.value,
+                onset_index=row_index,
+                onset_time_s=row_index * dt_ctrl,
+            )
+    return DetectorEvaluation(fired=False)
 
-    if onset is None:
-        return None
-    # A window whose onset sits at the very start has no pre-onset interval, so
-    # no seeding strategy can place the robot BEFORE the failure. That is the
-    # precise defect that makes the synthetic pool unusable; refuse to
-    # reproduce it here rather than write a trajectory the bridge will reject.
-    if onset < min_pre_onset_rows:
-        return "SHORT_PREFIX"
+
+def harvest_termination(
+    *,
+    rows,
+    dt_ctrl,
+    out_dir,
+    index,
+    env_index,
+    step_index,
+    terms,
+    detector,
+    logger_cls,
+    step_cls,
+    min_pre_onset_rows,
+) -> TerminationRecord:
+    """Record one genuine simulator termination, and write it unless unusable.
+
+    The simulator decided this episode failed; that decision is kept whatever
+    the detector says. The detector is evaluated against it and the result is
+    stored separately.
+
+    The one rejection left is structural: a window whose onset sits closer to
+    the start than ``min_pre_onset_rows`` has no pre-onset interval, so no
+    seeding strategy can place the robot BEFORE the failure and the reset
+    bridge would refuse it. That is a property of the window, not of the
+    detector, and it is counted under its own reason.
+    """
+    rows = list(rows)
+    sim_index = len(rows) - 1
+    record = TerminationRecord(
+        env_index=env_index,
+        step_index=step_index,
+        window_rows=len(rows),
+        sim_termination_terms=list(terms),
+        sim_termination_index=sim_index,
+        sim_termination_time_s=sim_index * dt_ctrl,
+    )
+    if len(rows) < 2:
+        record.status = "rejected"
+        record.rejected_reason = "window_shorter_than_two_rows"
+        return record
+
+    evaluation = evaluate_detector(rows, dt_ctrl, detector)
+    record.detector_fired = evaluation.fired
+    record.detector_mode = evaluation.mode
+    record.detector_onset_index = evaluation.onset_index
+    record.detector_onset_time_s = evaluation.onset_time_s
+    record.detector_false_negative = not evaluation.fired
+    if evaluation.fired:
+        record.detector_latency_s = evaluation.onset_time_s - record.sim_termination_time_s
+        record.onset_index = evaluation.onset_index
+        record.onset_source = "detector"
+    else:
+        record.onset_index = sim_index
+        record.onset_source = "simulator_termination"
+
+    if record.onset_index < min_pre_onset_rows:
+        record.status = "rejected"
+        record.rejected_reason = "no_usable_pre_onset_window"
+        return record
 
     path = out_dir / f"sim_fall_{index:04d}_env{env_index:03d}_step{step_index:06d}.parquet"
     with logger_cls(path) as writer:
         for row_index, row in enumerate(rows):
+            failed = row_index >= record.onset_index
             writer.append(
                 step_cls(
                     step=row_index,
                     timestamp_s=row_index * dt_ctrl,
-                    failure_flag=row_index >= onset,
-                    failure_mode=mode if row_index >= onset else None,
+                    failure_flag=failed,
+                    # Strictly the detector's label. A trajectory the detector
+                    # missed stays unlabelled rather than borrowing the
+                    # simulator's termination term as if it were a mode.
+                    failure_mode=record.detector_mode if failed else None,
+                    capture_source=CAPTURE_SOURCE_SIM,
+                    base_lin_vel_source=BASE_LIN_VEL_SOURCE_SIM,
                     **{k: v for k, v in row.items()},
                 )
             )
-    return path
+    record.path = str(path)
+    meta_path = path.with_suffix(".meta.json")
+    meta_path.write_text(json.dumps(asdict(record), indent=2))
+    return record
+
+
+def build_report(
+    records,
+    *,
+    dt_ctrl,
+    min_pre_onset_rows,
+    terminations_seen,
+    timeouts_seen,
+    unattributed_seen,
+) -> dict:
+    """Summarize the run, including detector recall as a measured quantity."""
+    records = list(records)
+    genuine = len(records)
+    fired = [r for r in records if r.detector_fired]
+    written = [r for r in records if r.status == "written"]
+    by_mode: dict[str, int] = {}
+    for r in fired:
+        by_mode[r.detector_mode] = by_mode.get(r.detector_mode, 0) + 1
+    rejected: dict[str, int] = {}
+    for r in records:
+        if r.status != "written":
+            key = r.rejected_reason or "unspecified"
+            rejected[key] = rejected.get(key, 0) + 1
+    leads = [-r.detector_latency_s for r in fired if r.detector_latency_s is not None]
+    return {
+        "schema_version": HARVEST_SCHEMA_VERSION,
+        "generated_by": "scripts/harvest_sim_failures.py",
+        "control_dt_s": dt_ctrl,
+        "min_pre_onset_rows": min_pre_onset_rows,
+        "counts": {
+            "terminations_seen": terminations_seen,
+            "time_out_terminations": timeouts_seen,
+            "genuine_failures": genuine,
+            "unattributed_terminations_retained": unattributed_seen,
+            "written": len(written),
+            "rejected": rejected,
+        },
+        "detector": {
+            "id": DETECTOR_ID,
+            "genuine_failures": genuine,
+            "fired": len(fired),
+            # Recall over simulator ground truth. Reported, never acted on.
+            "recall": (len(fired) / genuine) if genuine else None,
+            "false_negatives": genuine - len(fired),
+            "fired_by_mode": by_mode,
+            "mean_lead_s": (sum(leads) / len(leads)) if leads else None,
+            "note": (
+                "Detector success is NOT a data-inclusion rule. Every genuine "
+                "simulator termination above is retained; recall is a property "
+                "of the detector, measured here against simulator ground truth."
+            ),
+        },
+        "trajectories": [asdict(r) for r in records],
+    }
+
+
+def format_report(report: dict) -> str:
+    counts = report["counts"]
+    detector = report["detector"]
+    recall = detector["recall"]
+    rejected = counts["rejected"]
+    lines = [
+        "",
+        f"[harvest] terminations seen: {counts['terminations_seen']}",
+        f"[harvest]   of which time-out (not failures): {counts['time_out_terminations']}",
+        f"[harvest]   genuine failures retained: {counts['genuine_failures']}",
+        f"[harvest]   unattributed terminations kept: "
+        f"{counts['unattributed_terminations_retained']}",
+        f"[harvest] trajectories written: {counts['written']}",
+    ]
+    for reason, n in sorted(rejected.items()):
+        lines.append(f"[harvest]   rejected, {reason}: {n} (structural, not detector-driven)")
+    lines.append(
+        f"[harvest] detector recall vs simulator ground truth: "
+        f"{'n/a' if recall is None else f'{recall:.3f}'} "
+        f"({detector['fired']}/{detector['genuine_failures']}), "
+        f"false negatives: {detector['false_negatives']}"
+    )
+    lines.append(f"[harvest]   fired by mode: {detector['fired_by_mode'] or 'none'}")
+    if detector["mean_lead_s"] is not None:
+        lines.append(
+            f"[harvest]   mean lead before simulator termination: "
+            f"{detector['mean_lead_s']:.3f} s"
+        )
+    lines.append(
+        "[harvest] detector recall is a MEASUREMENT. A missed failure is kept, "
+        "not discarded."
+    )
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":
