@@ -3,13 +3,12 @@
   "production_offset_seconds": 0.5,
   "nominal_height_m": 0.4,
   "pools": [
-    "/home/yusuf/Projects/ashfall/data/failures",
-    "/home/yusuf/workspace/go2-phoenix/data/failures"
+    "failures",
+    "failures"
   ],
   "records": [
     {
       "trajectory": "synth_attitude_000.parquet",
-      "pool": "ashfall",
       "rows": 80,
       "failure_mode": "attitude",
       "onset_row": 69,
@@ -64,7 +63,6 @@
     },
     {
       "trajectory": "synth_attitude_001.parquet",
-      "pool": "ashfall",
       "rows": 80,
       "failure_mode": "attitude",
       "onset_row": 69,
@@ -119,7 +117,6 @@
     },
     {
       "trajectory": "synth_attitude_002.parquet",
-      "pool": "ashfall",
       "rows": 80,
       "failure_mode": "attitude",
       "onset_row": 69,
@@ -174,7 +171,6 @@
     },
     {
       "trajectory": "synth_collapse_000.parquet",
-      "pool": "ashfall",
       "rows": 70,
       "failure_mode": "collapse",
       "onset_row": 62,
@@ -229,7 +225,6 @@
     },
     {
       "trajectory": "synth_collapse_001.parquet",
-      "pool": "ashfall",
       "rows": 70,
       "failure_mode": "collapse",
       "onset_row": 62,
@@ -284,7 +279,6 @@
     },
     {
       "trajectory": "synth_collapse_002.parquet",
-      "pool": "ashfall",
       "rows": 70,
       "failure_mode": "collapse",
       "onset_row": 62,
@@ -339,7 +333,6 @@
     },
     {
       "trajectory": "synth_command_mismatch_000.parquet",
-      "pool": "ashfall",
       "rows": 110,
       "failure_mode": "command_mismatch",
       "onset_row": 80,
@@ -394,7 +387,6 @@
     },
     {
       "trajectory": "synth_command_mismatch_001.parquet",
-      "pool": "ashfall",
       "rows": 110,
       "failure_mode": "command_mismatch",
       "onset_row": 80,
@@ -449,7 +441,6 @@
     },
     {
       "trajectory": "synth_command_mismatch_002.parquet",
-      "pool": "ashfall",
       "rows": 110,
       "failure_mode": "command_mismatch",
       "onset_row": 80,
@@ -504,7 +495,6 @@
     },
     {
       "trajectory": "synth_contact_loss_000.parquet",
-      "pool": "ashfall",
       "rows": 65,
       "failure_mode": "contact_loss",
       "onset_row": 55,
@@ -559,7 +549,6 @@
     },
     {
       "trajectory": "synth_contact_loss_001.parquet",
-      "pool": "ashfall",
       "rows": 65,
       "failure_mode": "contact_loss",
       "onset_row": 55,
@@ -614,7 +603,6 @@
     },
     {
       "trajectory": "synth_contact_loss_002.parquet",
-      "pool": "ashfall",
       "rows": 65,
       "failure_mode": "contact_loss",
       "onset_row": 55,
@@ -669,7 +657,6 @@
     },
     {
       "trajectory": "synth_slip_000.parquet",
-      "pool": "ashfall",
       "rows": 90,
       "failure_mode": "slip",
       "onset_row": 70,
@@ -724,7 +711,6 @@
     },
     {
       "trajectory": "synth_slip_001.parquet",
-      "pool": "ashfall",
       "rows": 90,
       "failure_mode": "slip",
       "onset_row": 70,
@@ -779,7 +765,6 @@
     },
     {
       "trajectory": "synth_slip_002.parquet",
-      "pool": "ashfall",
       "rows": 90,
       "failure_mode": "slip",
       "onset_row": 70,
@@ -834,7 +819,6 @@
     },
     {
       "trajectory": "synth_stumble_000.parquet",
-      "pool": "ashfall",
       "rows": 60,
       "failure_mode": "stumble",
       "onset_row": 50,
@@ -889,7 +873,6 @@
     },
     {
       "trajectory": "synth_stumble_001.parquet",
-      "pool": "ashfall",
       "rows": 60,
       "failure_mode": "stumble",
       "onset_row": 50,
@@ -944,7 +927,6 @@
     },
     {
       "trajectory": "synth_stumble_002.parquet",
-      "pool": "ashfall",
       "rows": 60,
       "failure_mode": "stumble",
       "onset_row": 50,
@@ -999,42 +981,36 @@
     },
     {
       "trajectory": "gate7_live_2026-04-21_18-19-45.parquet",
-      "pool": "go2-phoenix",
       "rows": 512,
       "failure_mode": null,
       "error": "no failure_flag=True row; trajectory carries no onset"
     },
     {
       "trajectory": "gate7_live_2026-04-21_18-33-17.parquet",
-      "pool": "go2-phoenix",
       "rows": 5961,
       "failure_mode": null,
       "error": "no failure_flag=True row; trajectory carries no onset"
     },
     {
       "trajectory": "stand_v2_dryrun_2026-04-20_17-59-55.parquet",
-      "pool": "go2-phoenix",
       "rows": 512,
       "failure_mode": null,
       "error": "no failure_flag=True row; trajectory carries no onset"
     },
     {
       "trajectory": "stand_v2_dryrun_2026-04-20_18-00-54.parquet",
-      "pool": "go2-phoenix",
       "rows": 1024,
       "failure_mode": null,
       "error": "no failure_flag=True row; trajectory carries no onset"
     },
     {
       "trajectory": "stand_v2_dryrun_2026-04-20_18-02-42.parquet",
-      "pool": "go2-phoenix",
       "rows": 1223,
       "failure_mode": null,
       "error": "no failure_flag=True row; trajectory carries no onset"
     },
     {
       "trajectory": "synth_slippery_001.parquet",
-      "pool": "go2-phoenix",
       "rows": 200,
       "failure_mode": "attitude",
       "onset_row": 0,
@@ -1070,7 +1046,6 @@
     },
     {
       "trajectory": "synth_slippery_trained.parquet",
-      "pool": "go2-phoenix",
       "rows": 500,
       "failure_mode": "attitude",
       "onset_row": 0,
