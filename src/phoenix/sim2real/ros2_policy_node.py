@@ -6,6 +6,14 @@ Reads:
 * ``/imu/data``, sensor_msgs/Imu (orientation, angular velocity, linear accel)
 * ``/joint_states``, sensor_msgs/JointState (positions + velocities)
 * ``/cmd_vel``, geometry_msgs/Twist (teleop / higher-level policy command)
+* ``/utlidar/robot_odom``, nav_msgs/Odometry, OPTIONAL, logging only. Never
+  gates control or safety: if it never publishes (LiDAR stack absent/down)
+  the node behaves exactly as before. Feeds ``base_pos`` /
+  ``base_lin_vel_body`` in the parquet log; see ``_log_step``.
+* ``/phoenix/foot_force``, std_msgs/Float32MultiArray, OPTIONAL, logging
+  only. Published by ``lowstate_bridge_node`` from
+  ``unitree_go/msg/LowState.foot_force``. Feeds ``contact_forces`` in the
+  parquet log; see ``phoenix.sim2real.telemetry``.
 
 Publishes:
 
@@ -41,7 +49,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from phoenix.real_world.failure_detector import FailureThresholds
+from phoenix.real_world.failure_detector import FailureDetector, FailureThresholds
 from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
 
 from .gate import GateConfig, Outcome, SensorSnapshot, evaluate_gates
@@ -49,6 +57,7 @@ from .mode_switch import ModeSwitchCfg, State, initial_state
 from .mode_switch import step as mode_step
 from .observation import JointOrder, ObservationBuilder
 from .safety import MAX_DELTA_PER_STEP_RAD, per_step_clip_array
+from .telemetry import rotate_world_to_body
 
 logger = logging.getLogger("phoenix.sim2real.ros2_policy_node")
 
@@ -106,10 +115,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
     def __init__(self, cfg: dict, onnx_path: Path, log_parquet: Path | None = None):
         import onnxruntime as ort
         from geometry_msgs.msg import Twist
+        from nav_msgs.msg import Odometry
         from rclpy.node import Node
         from rclpy.qos import QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Imu, JointState
-        from std_msgs.msg import Bool, Float64MultiArray
+        from std_msgs.msg import Bool, Float32MultiArray, Float64MultiArray
 
         self._float_msg = Float64MultiArray
 
@@ -130,6 +140,14 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         safety_cfg = cfg.get("safety", {})
         self.estop_timeout_s = float(safety_cfg.get("estop_timeout_s", 0.5))
         self.sensor_timeout_s = float(safety_cfg.get("sensor_timeout_s", 0.2))
+        # Freshness window for the two OPTIONAL, logging-only telemetry
+        # sources (odom, foot force). Unlike estop_timeout_s / sensor_timeout_s
+        # this never gates control: it only decides whether _log_step trusts
+        # the last message or falls back to the documented zero + invalid
+        # marker. Deliberately independent of sensor_timeout_s so tightening
+        # the control-path watchdog can never accidentally change what gets
+        # logged.
+        self.telemetry_timeout_s = float(safety_cfg.get("telemetry_timeout_s", 0.5))
         # New contract: gate startup on per-topic first-message receipt
         # rather than wallclock grace. DDS discovery regularly takes >3s
         # on the Jetson; the old wallclock gate (startup_grace_s) raced
@@ -290,6 +308,14 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # on-robot abort and the sim replay flag the same regimes.
         self.thresholds = FailureThresholds()
 
+        # Stateful failure classifier, run on the LOGGING path only (inside
+        # _log_step, called only when --log-parquet is set). It is never
+        # called from _control_step and its output never feeds target
+        # computation, so a bug here cannot affect actuation, timing, or the
+        # gate ladder above. See _log_step for the try/except that also
+        # keeps a raised exception from propagating.
+        self._failure_detector = FailureDetector(self.thresholds)
+
         # Every threshold the gate ladder consults, bound once. Collecting
         # them here is what lets the ladder be a pure function; note that
         # pitch and roll are deliberately asymmetric (0.8 vs 0.6 rad).
@@ -318,6 +344,17 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._latest_estop_ns: int | None = None
         self._latest_estop_value: bool | None = None
 
+        # Optional, logging-only telemetry. Absence is the expected steady
+        # state on any bringup without the LiDAR stack / bridge running;
+        # _seen_* stays False forever and _log_step falls back to zeros with
+        # odom_valid=False, exactly as before this feature existed.
+        self._latest_odom = None
+        self._latest_odom_ns: int | None = None
+        self._seen_odom = False
+        self._latest_foot_force = np.zeros(4, dtype=np.float32)
+        self._latest_foot_force_ns: int | None = None
+        self._seen_foot_force = False
+
         self._logger: TrajectoryLogger | None = None
         if log_parquet is not None:
             self._logger = TrajectoryLogger(log_parquet)
@@ -331,6 +368,18 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.node.create_subscription(Twist, topics["cmd_vel"], self._on_cmd_vel, qos)
         self.node.create_subscription(
             Bool, cfg["safety"]["emergency_stop_topic"], self._on_estop, qos
+        )
+        # Optional telemetry, logging-only (see class docstring). Both
+        # topics default rather than requiring a deploy.yaml edit, so every
+        # existing config keeps working unchanged.
+        self.node.create_subscription(
+            Odometry, topics.get("odom", "/utlidar/robot_odom"), self._on_odom, qos
+        )
+        self.node.create_subscription(
+            Float32MultiArray,
+            topics.get("foot_force", "/phoenix/foot_force"),
+            self._on_foot_force,
+            qos,
         )
         self.cmd_pub = self.node.create_publisher(Float64MultiArray, topics["joint_command"], qos)
         self.shield_pub = None
@@ -350,6 +399,18 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._latest_joint_state = msg
         self._latest_joint_state_ns = time.monotonic_ns()
         self._seen_joint_state = True
+
+    def _on_odom(self, msg):
+        # Logging-only: never read by _control_step / the gate ladder.
+        self._latest_odom = msg
+        self._latest_odom_ns = time.monotonic_ns()
+        self._seen_odom = True
+
+    def _on_foot_force(self, msg):
+        # Logging-only: never read by _control_step / the gate ladder.
+        self._latest_foot_force = np.asarray(msg.data, dtype=np.float32)
+        self._latest_foot_force_ns = time.monotonic_ns()
+        self._seen_foot_force = True
 
     def _on_cmd_vel(self, msg):
         self._velocity_command = np.asarray(
@@ -507,26 +568,111 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._step_idx += 1
 
     def _log_step(self, *, q, qd, action, quat_xyzw, ang_vel) -> None:
-        # base_pos and contact_forces aren't observable on stock GO2 without
-        # odometry / foot sensors, emit zeros so the parquet schema matches
-        # what the replay pipeline expects.
+        # base_pos / base_lin_vel_body / contact_forces ARE observable on
+        # stock GO2: /utlidar/robot_odom (LiDAR stack) gives position + twist
+        # and LowState.foot_force (already flowing through lowstate_bridge_node
+        # to /phoenix/foot_force) gives per-foot contact. Both are OPTIONAL
+        # topics, though: the LiDAR stack in particular may not be running.
+        # When a source hasn't published (or has gone stale) within
+        # telemetry_timeout_s we fall back to zeros, exactly as this method
+        # always did, but odom_valid records which case produced the row
+        # instead of leaving a real zero indistinguishable from a missing one.
+        now_ns = time.monotonic_ns()
+
+        odom_valid = (
+            self._seen_odom
+            and self._latest_odom_ns is not None
+            and (now_ns - self._latest_odom_ns) <= self.telemetry_timeout_s * 1e9
+        )
+        if odom_valid:
+            p = self._latest_odom.pose.pose.position
+            base_pos = np.asarray([p.x, p.y, p.z], dtype=np.float32)
+            lv = self._latest_odom.twist.twist.linear
+            # /utlidar/robot_odom's twist frame is not trusted at face value
+            # even though child_frame_id == base_link; rotate explicitly with
+            # the IMU orientation. See telemetry.rotate_world_to_body for why
+            # (HARDWARE-UNVERIFIED, the riskiest assumption in this path).
+            base_lin_vel_body = rotate_world_to_body(
+                np.asarray([lv.x, lv.y, lv.z], dtype=np.float64), quat_xyzw
+            )
+        else:
+            base_pos = np.zeros(3, dtype=np.float32)
+            base_lin_vel_body = np.zeros(3, dtype=np.float32)
+
+        foot_force_fresh = (
+            self._seen_foot_force
+            and self._latest_foot_force_ns is not None
+            and (now_ns - self._latest_foot_force_ns) <= self.telemetry_timeout_s * 1e9
+        )
+        contact_forces = (
+            self._latest_foot_force if foot_force_fresh else np.zeros(4, dtype=np.float32)
+        )
+
+        failure_flag, failure_mode = _PhoenixPolicyNode._evaluate_failure(
+            self,
+            quat_xyzw=quat_xyzw,
+            odom_valid=odom_valid,
+            base_pos=base_pos,
+            base_lin_vel_body=base_lin_vel_body,
+        )
+
         self._logger.append(
             TrajectoryStep(
                 step=self._step_idx,
                 timestamp_s=time.monotonic() - self._started_at,
-                base_pos=np.zeros(3, dtype=np.float32),
+                base_pos=base_pos,
                 base_quat=np.asarray(quat_xyzw, dtype=np.float32),
-                base_lin_vel_body=np.zeros(3, dtype=np.float32),
+                base_lin_vel_body=base_lin_vel_body,
                 base_ang_vel_body=ang_vel.astype(np.float32),
                 joint_pos=q.astype(np.float32),
                 joint_vel=qd.astype(np.float32),
                 command_vel=self._velocity_command.astype(np.float32),
                 action=action.astype(np.float32),
-                contact_forces=np.zeros(4, dtype=np.float32),
-                failure_flag=False,
-                failure_mode=None,
+                contact_forces=contact_forces.astype(np.float32),
+                failure_flag=failure_flag,
+                failure_mode=failure_mode,
+                odom_valid=odom_valid,
             )
         )
+
+    def _evaluate_failure(
+        self, *, quat_xyzw, odom_valid: bool, base_pos: np.ndarray, base_lin_vel_body: np.ndarray
+    ) -> tuple[bool, str | None]:
+        """Run the stateful FailureDetector for exactly this log row.
+
+        Called only from ``_log_step`` (i.e. only when ``--log-parquet`` is
+        set), never from ``_control_step`` directly, and never touches
+        ``target`` / the published command. Any exception here is caught and
+        turned into ``failure_flag=False`` rather than propagating, so a bug
+        in the detector cannot stall or crash the 50 Hz control loop above.
+        """
+        try:
+            roll, pitch, _yaw = _rpy_from_quat_xyzw(*quat_xyzw)
+            if odom_valid:
+                base_height_m = float(base_pos[2])
+                actual_lin_vel = base_lin_vel_body[:2].astype(np.float64)
+            else:
+                # No odom this step: never claim a collapse we can't
+                # measure (height at +inf can't trip base_height_min_m), and
+                # never claim slip from a synthetic zero that would look
+                # identical to a real stall (actual := commanded, so the
+                # slip condition cmd_speed>>actual_speed can't fire).
+                base_height_m = float("inf")
+                actual_lin_vel = self._velocity_command[:2].astype(np.float64)
+            event = self._failure_detector.step(
+                timestamp_s=time.monotonic() - self._started_at,
+                pitch_rad=pitch,
+                roll_rad=roll,
+                base_height_m=base_height_m,
+                cmd_lin_vel=self._velocity_command[:2].astype(np.float64),
+                actual_lin_vel=actual_lin_vel,
+            )
+        except Exception as exc:  # noqa: BLE001 - logging path must never raise
+            logger.warning("failure detector raised, logging failure_flag=False: %s", exc)
+            return False, None
+        if event is None:
+            return False, None
+        return True, event.mode.value
 
     def _compute_mode_switch_target(
         self,

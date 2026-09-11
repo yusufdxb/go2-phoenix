@@ -18,6 +18,23 @@ stable: the :mod:`phoenix.replay` module reads it back into Isaac Sim.
     contact_forces (list<float32>[4])      # per-foot normal force
     failure_flag (bool)
     failure_mode (str, nullable)
+    odom_valid (bool)                      # see note below
+
+Unit note on ``contact_forces``: sim captures (Isaac Lab contact sensor) are
+true Newtons. Real-robot captures written by
+``phoenix.sim2real.ros2_policy_node`` are ``unitree_go/msg/LowState.foot_force``
+passed through by :func:`phoenix.sim2real.telemetry.foot_force_to_array`,
+raw int16 sensor counts, UNITS UNVERIFIED, NOT calibrated Newtons. Don't
+mix the two without accounting for that.
+
+``odom_valid`` note: real-robot captures set this True only when
+``/utlidar/robot_odom`` had published a fresh message this step; when False,
+``base_pos`` and ``base_lin_vel_body`` are the zero fallback rather than a
+real zero reading (that topic is optional/LiDAR-stack-dependent and may be
+absent). Sim captures don't set this field (defaults to the dataclass
+default, ``False``, even though their base_pos/vel are real); consumers that
+care about real-vs-sim provenance should key off the file/run, not this
+flag alone.
 
 Writer uses row-group buffering to keep memory bounded on long rollouts.
 """
@@ -53,6 +70,12 @@ class TrajectoryStep:
     contact_forces: np.ndarray  # (4,)
     failure_flag: bool = False
     failure_mode: str | None = None
+    # True unless a capture path explicitly marks base_pos/base_lin_vel_body
+    # as an unmeasured fallback (real-robot odometry absent/stale). Defaults
+    # True because every pre-existing call site (sim captures) already has
+    # ground-truth position data, only ros2_policy_node's real-robot path
+    # sets this False.
+    odom_valid: bool = True
 
 
 _SCHEMA = pa.schema(
@@ -70,6 +93,7 @@ _SCHEMA = pa.schema(
         ("contact_forces", pa.list_(pa.float32(), 4)),
         ("failure_flag", pa.bool_()),
         ("failure_mode", pa.string()),
+        ("odom_valid", pa.bool_()),
     ]
 )
 
