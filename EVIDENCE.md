@@ -40,7 +40,12 @@ Claims with a reproducible artifact in this repo or a captured log.
   `stand_nodr.yaml` / `stand_v3_h25.yaml`. ONNX-torch parity **4.77e-06**.
   The 800-iter checkpoint is the deliverable; a 1500-iter run of the same
   config regressed slew to 5.31% (return traded up), so training is
-  early-stopped at 800. Deliverable at
+  early-stopped at 800. **Every slew percentage in this entry (3.30, 2.91,
+  5.31) was produced by the LEGACY INCORRECT metric** (raw action deltas vs
+  0.175, `legacy_raw_action_delta_saturation_rate`), not by the
+  deploy-equivalent clip-activation metric that replaced it on 2026-09-11.
+  They are not comparable to a hardware slew number or to any figure produced
+  after that date; see `docs/CORRECTIVE_PASS_2026-09-11.md` section 2. Deliverable at
   `checkpoints/phoenix-stand-v3-h25-final/` (weights gitignored, local only).
 - **v3b flat-velocity sim eval**: 0.091 m/s lin_err, 0.087 rad/s ang_err,
   32 / 32 success on `Isaac-Velocity-Flat-Unitree-Go2-v0`, 16 envs × 32
@@ -92,7 +97,9 @@ true**.
 
 - **Gate 7**: 10 s live stand x3 on real GO2 in low-level mode. Pending hardware.
   The sim-side blocker is now resolved: the stand-v3-h25 deliverable clears the
-  <5% slew gate in sim (3.30% / 2.91%) after the actuator-gain DR fix. Live
+  <5% slew gate in sim (3.30% / 2.91%) after the actuator-gain DR fix. That
+  gate was scored with the LEGACY INCORRECT slew definition, so it has to be
+  re-scored with the deploy-equivalent metric before it counts as cleared. Live
   hardware retry still owed (the workstation now goes to the lab; no T7 staging).
 - **Gate 8**: flat walking on real GO2 with v3b. Not attempted.
 - **Failure-curriculum adaptation against real-robot parquets.**
@@ -108,7 +115,8 @@ true**.
   mass/friction/init-velocity hand-off in `replay/reconstruct.py` has been
   exercised locally but has no hardware-rollout comparison.
 - **Cross-terrain transfer of v3b.** Trained and evaluated on flat-v0 only.
-  Rough-v0 was retired after the 2026-04-14 dryrun showed 99.5% slew sat.
+  Rough-v0 was retired after the 2026-04-14 dryrun showed 99.5% slew sat
+  (LEGACY INCORRECT definition).
 
 ## Artifacts
 

@@ -19,7 +19,7 @@ read-only introspection of `deploy/*.onnx` and `deploy/*.npz`. No training, no G
 | Eval harness | `src/phoenix/training/evaluate.py:161` | same `clip_actions=1.0` |
 | Checkpoint load | `src/phoenix/training/checkpoint.py` | `load_runner_checkpoint`, used by every harness |
 | Agent cfg | `src/phoenix/training/agent_cfg.py` | `build_runner_cfg`; `empirical_normalization` flag lives here |
-| Slew metric | `src/phoenix/training/slew.py:19-36` | `slew_saturation_rate`, offline metric only |
+| Slew metric | `src/phoenix/training/slew.py` | `slew_clip_activation_rate`, offline metric, calls the shared deploy helper `per_step_clip_array` |
 | Env cfg builder | `src/phoenix/sim_env/go2_env_cfg.py:568-612` | layers YAML onto the upstream Isaac Lab task |
 | In-MDP rate limiter | `src/phoenix/sim_env/rate_limited_action.py:29-101` | Isaac Lab `JointPositionAction` subclass |
 | Pure clamp | `src/phoenix/sim_env/rate_limit.py:31-54` | imports `MAX_DELTA_PER_STEP_RAD` **from the deploy side** (`rate_limit.py:26`) |
@@ -347,7 +347,12 @@ parity risk R11. Training also supports `clip_mode: "prev_command"` (`rate_limit
 which **does not** match the deploy bridge; `measured_q` is the default and the documented winner
 (`docs/lab_card_stand_feet_on_ground.md:62-70`).
 
-`slew_saturation_rate` (`training/slew.py:19-36`) is the offline metric on the same threshold.
+`slew_clip_activation_rate` (`training/slew.py`) is the offline metric. Since 2026-09-11 it calls
+`phoenix.sim2real.safety.per_step_clip_array` on `default_q + action_scale * action` against the
+measured joint position, so the offline metric and the deploy limiter cannot drift. The previous
+definition, `legacy_raw_action_delta_saturation_rate`, compared raw action deltas against the same
+number and was NOT deploy-equivalent; every sim slew percentage recorded before that date came from
+it (`docs/CORRECTIVE_PASS_2026-09-11.md` section 2).
 
 ### Estop chain
 
