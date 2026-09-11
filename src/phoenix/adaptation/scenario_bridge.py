@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import math
 
-from phoenix.replay.state_adapter import VelocityCommandAdapter, restore_state
+from phoenix.replay.state_adapter import (
+    VelocityCommandAdapter,
+    resolve_command_hold,
+    restore_state,
+)
 
 
 class FrictionScenarioAdapter:
@@ -90,6 +94,9 @@ def install_scenario_reset(
     *,
     reset_parameters,
     command_name="base_velocity",
+    command_policy="match_control_process",
+    command_hold_seconds=None,
+    require_exact_replay=False,
     on_reset=None,
 ):
     """Install callbacks without importing any Ashfall research abstractions.
@@ -99,9 +106,19 @@ def install_scenario_reset(
     scenarios must be marked split='train'; heldout and validation fail closed.
     Parameter restoration runs BEFORE the normal reset's domain randomization.
     The returned control's iteration is updated by the training orchestration.
+
+    ``command_policy`` defaults to ``match_control_process``: the scenario's
+    command VALUE is written but the reset's own resample clock is left alone,
+    so a scenario env and a nominal env run the same velocity-command process
+    and differ only in the thing under study. Controller history travels with
+    the resolved state when the source carries it, and the per-reset telemetry
+    reports the replay fidelity that was actually achieved.
     """
     target = getattr(env, "unwrapped", env)
     adapter = VelocityCommandAdapter(target, command_name)
+    hold, command_telemetry = resolve_command_hold(
+        command_policy, time_before_onset_seconds=None, hold_seconds=command_hold_seconds
+    )
     original = target._reset_idx
     control = {"iteration": 0, "policy_id": None, "scenario_by_env": {}}
 
@@ -124,7 +141,16 @@ def install_scenario_reset(
                 )
             state, metadata = resolve_state(scenario)
             applied = apply_parameters(env_id, scenario.parameters)
-            restored = restore_state(target, state, env_id, command_adapter=adapter)
+            restored = restore_state(
+                target,
+                state,
+                env_id,
+                command_adapter=adapter,
+                command_hold_seconds=hold,
+                command_telemetry=command_telemetry,
+                controller_history=getattr(state, "controller_history", None),
+                require_exact_replay=require_exact_replay,
+            )
             control["scenario_by_env"][env_id] = scenario.scenario_id
             if on_reset is not None:
                 on_reset(

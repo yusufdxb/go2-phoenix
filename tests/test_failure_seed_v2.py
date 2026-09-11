@@ -44,7 +44,8 @@ def test_world_velocity_90_degree_yaw():
         body_to_world([1, 0, 0], [0, 0, 0, 0])
 
 
-def capsule(tmp_path):
+def capsule(tmp_path, **overrides):
+    """A schema 1.1 FailureCapsule: declared frame, actions, episode start."""
     frame = dict(
         base_pos=[0, 0, 0.3],
         base_quat=[0, 0, 2**-0.5, 2**-0.5],
@@ -53,16 +54,21 @@ def capsule(tmp_path):
         joint_pos=[0] * 12,
         joint_vel=[1] * 12,
         command_vel=[0.6, 0.1, 0.2],
+        action=[0.25] * 12,
     )
     data = dict(
-        schema_version="1.0",
+        schema_version="1.1",
         capsule_id="capsule-fixture",
         control_dt=0.02,
         failure_onset_index=50,
         pre_failure_start_index=0,
+        position_frame="env_local",
+        episode_start_index=0,
         frames=[frame] * 60,
     )
-    path = tmp_path / "capsule.json"
+    filename = overrides.pop("filename", "capsule.json")
+    data.update(overrides)
+    path = tmp_path / filename
     path.write_text(json.dumps(data))
     return path
 
@@ -89,11 +95,19 @@ def test_capsule_reset_restores_world_velocities_command_and_telemetry(tmp_path)
     term = target.command_manager.get_term("base_velocity")
     assert term.command[0].tolist() == pytest.approx([0.6, 0.1, 0.2])
     assert not term.is_heading_env[0] and not term.is_standing_env[0]
-    assert torch.isinf(term.time_left[0])
+    # Item 11: the command is replayed for the interval that was replayed
+    # (10 rows x 0.02 s), then the normal command process resumes. A forever
+    # hold would make treatment and control differ in the command process too.
+    assert not torch.isinf(term.time_left[0])
+    assert term.time_left[0].item() == pytest.approx(0.2)
     record = json.loads(log.read_text())
     assert record["capsule_id"] == "capsule-fixture"
     assert record["resolved_row"] == 40
     assert record["restored_command"] == pytest.approx([0.6, 0.1, 0.2])
+    assert record["command_policy"] == "source_hold_to_onset"
+    assert record["command_hold_seconds"] == pytest.approx(0.2)
+    assert record["position_frame"] == "env_local"
+    assert record["position_frame_source"] == "declared_by_source"
 
 
 def test_missing_command_not_generic_fallback(tmp_path):
