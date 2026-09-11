@@ -12,10 +12,13 @@ import pytest
 
 from phoenix.sim_env.go2_env_cfg import (
     _APPLIED_DR_KEYS,
+    _APPLIED_PERTURBATION_KEYS,
     _REWARD_TERM_MAP,
     _apply_domain_randomization,
+    _apply_perturbation,
     _apply_rewards,
     _unwired_sections_present,
+    _warn_dropped_terrain,
 )
 
 
@@ -375,3 +378,140 @@ def test_unwired_base_yaml_no_longer_flags_motor_and_latency() -> None:
     unwired = _unwired_sections_present(dr_only)
     # No DR sub-key should be flagged.
     assert not any(u.startswith("domain_randomization.") for u in unwired)
+
+
+# ---------------------------------------------------------------------------
+# terrain: declared-but-dropped guard (2026-09-11)
+# ``terrain`` was declared in five env overlays and read by nothing, so
+# rough.yaml vs slippery.yaml was never a terrain contrast. It is NOT wired
+# (that needs a simulator to validate and changes training semantics); it is
+# flagged through the same _UNWIRED_TOP_LEVEL machinery as ``termination``,
+# plus a dedicated warning that names the real terrain source.
+# ---------------------------------------------------------------------------
+
+
+def test_terrain_is_in_unwired_top_level() -> None:
+    """Regression guard: dropping ``terrain`` from _UNWIRED_TOP_LEVEL would
+    make the silent drop silent again."""
+    from phoenix.sim_env.go2_env_cfg import _UNWIRED_TOP_LEVEL
+
+    assert "terrain" in _UNWIRED_TOP_LEVEL
+
+
+def test_unwired_sections_flags_terrain() -> None:
+    unwired = _unwired_sections_present({"terrain": {"type": "generator"}})
+    assert unwired == ["terrain"]
+
+
+def test_unwired_sections_flags_terrain_alongside_other_sections() -> None:
+    unwired = _unwired_sections_present(
+        {
+            "env": {"task_name": "Isaac-Velocity-Rough-Unitree-Go2-v0"},
+            "terrain": {"type": "flat", "friction_patches": {"enabled": True}},
+            "termination": {"pitch_threshold_rad": 0.8},
+        }
+    )
+    assert "terrain" in unwired
+    assert "termination" in unwired
+
+
+def test_warn_dropped_terrain_returns_none_without_terrain_block() -> None:
+    assert _warn_dropped_terrain({"env": {"task_name": "x"}}) is None
+
+
+def test_warn_dropped_terrain_names_declared_type_and_real_source(caplog) -> None:
+    """The warning must name both the lie (declared terrain.type) and the truth
+    (env.task_name is what picks the terrain), at WARNING level."""
+    data = {
+        "env": {"task_name": "Isaac-Velocity-Rough-Unitree-Go2-v0"},
+        "terrain": {"type": "flat", "friction_patches": {"enabled": True}},
+    }
+    with caplog.at_level("WARNING", logger="phoenix.sim_env.go2_env_cfg"):
+        message = _warn_dropped_terrain(data)
+
+    assert message is not None
+    assert "flat" in message
+    assert "Isaac-Velocity-Rough-Unitree-Go2-v0" in message
+    assert "env.task_name" in message
+    assert any(r.levelname == "WARNING" and "terrain" in r.getMessage() for r in caplog.records)
+
+
+def test_warn_dropped_terrain_tolerates_odd_blocks() -> None:
+    """A terrain block with no ``type`` key, or a scalar instead of a mapping,
+    must still warn rather than raise: the whole point is that nothing here
+    validates terrain, so it must not crash env construction either."""
+    assert _warn_dropped_terrain({"terrain": {}}) is not None
+    assert _warn_dropped_terrain({"terrain": "plane"}) is not None
+    # No env block at all: the task is unknown but the warning still fires.
+    assert "<unset>" in _warn_dropped_terrain({"terrain": {"type": "plane"}})
+
+
+# ---------------------------------------------------------------------------
+# perturbation: partially-wired block (2026-09-11)
+# _apply_perturbation consumes only enabled / push_velocity_xy /
+# push_velocity_yaw and drives a RESET-mode event term. push_interval_s,
+# push_warmup_s and push_probability read like a periodic-shove schedule but
+# are dropped, so they are flagged per-key, like the domain_randomization case.
+# ---------------------------------------------------------------------------
+
+
+def test_applied_perturbation_keys_are_exactly_what_apply_perturbation_reads() -> None:
+    assert set(_APPLIED_PERTURBATION_KEYS) == {
+        "enabled",
+        "push_velocity_xy",
+        "push_velocity_yaw",
+    }
+
+
+def test_unwired_sections_flags_unapplied_perturbation_keys() -> None:
+    pert = {
+        "enabled": True,
+        "push_interval_s": 5.0,
+        "push_velocity_xy": 1.5,
+        "push_velocity_yaw": 0.75,
+        "push_warmup_s": 3.0,
+        "push_probability": 0.8,
+    }
+    unwired = _unwired_sections_present({"perturbation": pert})
+    assert set(unwired) == {
+        "perturbation.push_interval_s",
+        "perturbation.push_warmup_s",
+        "perturbation.push_probability",
+    }
+
+
+def test_unwired_sections_does_not_flag_applied_perturbation_keys() -> None:
+    """The check must stay quiet on a perturbation block that only uses the
+    three keys the code actually consumes."""
+    pert = {"enabled": True, "push_velocity_xy": 1.0, "push_velocity_yaw": 0.5}
+    assert _unwired_sections_present({"perturbation": pert}) == []
+
+
+def test_apply_perturbation_ignores_the_schedule_keys() -> None:
+    """Locks the reset-versus-interval semantics: the applied force/torque is a
+    function of push_velocity_xy / push_velocity_yaw only. Adding an interval, a
+    warmup or a probability changes nothing, because the term being modulated
+    (``base_external_force_torque``) is mode="reset", fired once per episode."""
+    bare = _FakeEventTerm(force_range=(0.0, 0.0), torque_range=(0.0, 0.0))
+    _apply_perturbation(
+        _FakeEventEnvCfg(_FakeEvents(base_external_force_torque=bare)),
+        {"enabled": True, "push_velocity_xy": 1.5, "push_velocity_yaw": 0.75},
+    )
+
+    scheduled = _FakeEventTerm(force_range=(0.0, 0.0), torque_range=(0.0, 0.0))
+    _apply_perturbation(
+        _FakeEventEnvCfg(_FakeEvents(base_external_force_torque=scheduled)),
+        {
+            "enabled": True,
+            "push_velocity_xy": 1.5,
+            "push_velocity_yaw": 0.75,
+            "push_interval_s": 0.1,
+            "push_warmup_s": 30.0,
+            "push_probability": 0.0,
+        },
+    )
+
+    assert scheduled.params["force_range"] == bare.params["force_range"]
+    assert scheduled.params["torque_range"] == bare.params["torque_range"]
+    # push_probability 0.0 would mean "never push" if it were wired; it is not.
+    assert scheduled.params["force_range"] != (0.0, 0.0)

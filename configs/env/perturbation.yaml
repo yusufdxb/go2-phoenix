@@ -1,13 +1,22 @@
 # Perturbation overlay. Inherits env/base.yaml.
-# Adds random base pushes during rollout.
+# Adds ONE randomized base force/torque per episode, applied at RESET.
+#
+# Read this before using the numbers below: go2_env_cfg._apply_perturbation
+# maps push_velocity_xy / push_velocity_yaw onto the upstream reset-mode
+# ``base_external_force_torque`` event. That event fires once per episode, at
+# reset. The robot is NOT shoved every push_interval_s seconds while walking;
+# Isaac Lab's interval pusher (``push_robot``) is disabled by the Go2 events cfg.
 
 defaults:
   - base
 
 perturbation:
   enabled: true
-  push_interval_s: 5.0
-  push_velocity_xy: 1.5          # m/s impulse applied to base
+  push_velocity_xy: 1.5          # m/s impulse intent, converted to a reset force
   push_velocity_yaw: 0.75
-  push_warmup_s: 3.0             # no pushes for first 3s of episode
-  push_probability: 0.8          # chance a push fires at interval
+  # UNWIRED AND IGNORED, kept only to record the intent of the original design.
+  # _unwired_sections_present flags all three; wiring them means adding a real
+  # interval event, which is a behaviour change and a separate PR.
+  push_interval_s: 5.0           # IGNORED: no interval event exists
+  push_warmup_s: 3.0             # IGNORED: nothing schedules pushes
+  push_probability: 0.8          # IGNORED: the reset push always fires

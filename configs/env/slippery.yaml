@@ -1,5 +1,11 @@
 # Slippery surface overlay. Inherits env/base.yaml.
 # Shifts friction distribution toward low values.
+#
+# WHAT THIS FILE ACTUALLY CHANGES: domain_randomization only. The terrain block
+# below is DECLARED BUT IGNORED, so this overlay does NOT flatten the ground and
+# does NOT create friction patches. It inherits base.yaml's Rough-v0 task and
+# runs on exactly the same upstream generated terrain as rough.yaml. Treat any
+# rough-vs-slippery comparison as a friction contrast, never a terrain one.
 
 defaults:
   - base
@@ -9,6 +15,12 @@ domain_randomization:
   friction_range: [0.05, 0.4]        # much lower than base
   restitution_range: [0.0, 0.2]
 
+# UNWIRED AND IGNORED. Nothing reads this block: go2_env_cfg.py lists
+# ``terrain`` in _UNWIRED_TOP_LEVEL and build_env_cfg only warns about it.
+# Terrain is chosen entirely by env.task_name. Two extra reasons this block is
+# not wired: the task, not the YAML, decides flat vs rough, and
+# ``friction_patches`` (spatially varying per-patch friction) has no upstream
+# Isaac Lab equivalent, so it needs new Phoenix terrain code plus sim validation.
 terrain:
   type: "flat"
   friction_patches:

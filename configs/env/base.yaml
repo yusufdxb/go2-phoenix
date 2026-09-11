@@ -1,18 +1,26 @@
 # Base GO2 locomotion environment config.
 # Layer specific overlays (rough.yaml, slippery.yaml, perturbation.yaml) on top.
 #
-# NOT ALL SECTIONS ARE WIRED (2026-04-17 audit, see go2_env_cfg.py).
+# NOT ALL SECTIONS ARE WIRED (2026-04-17 audit, list refreshed 2026-09-11).
+# go2_env_cfg.py's module docstring is authoritative; this header tracks it.
 # Currently applied to the Isaac Lab env cfg:
-#   env, command, domain_randomization (friction/restitution/mass only),
-#   perturbation, reward, seed
+#   env, command, domain_randomization (friction / restitution / mass /
+#   motor_strength_scale / actuator_latency_steps), reward, observation.noise,
+#   action.rate_limit, seed, and perturbation.enabled / push_velocity_xy /
+#   push_velocity_yaw only.
 # Present below but NOT applied (upstream UnitreeGo2RoughEnvCfg defaults win):
-#   observation.noise, termination, robot.init_state, robot.actuator,
-#   domain_randomization.motor_strength_scale,
-#   domain_randomization.actuator_latency_steps
+#   observation.include, termination, robot.init_state, robot.actuator,
+#   perturbation.push_interval_s / push_warmup_s / push_probability
+# Declared by the overlays but NOT applied: terrain. Terrain is chosen solely
+#   by env.task_name (Rough-v0 -> generated rough terrain, Flat-v0 -> plane);
+#   see _warn_dropped_terrain in go2_env_cfg.py.
 # ``build_env_cfg`` logs a warning when it sees an unwired section, or an
-# unapplied key inside a wired section, in a loaded config. Values in unwired
-# sections are aspirational / documentation-only until the wiring is added
-# (deliberate PR: changing any of these invalidates v3b reproducibility).
+# unapplied key inside a wired section, in a loaded config. Unwired values are
+# documentation-only until the wiring is added (deliberate PR: changing any of
+# these invalidates v3b reproducibility), so they must still state the values
+# training REALLY uses. A number nothing runs still gets copied: the hip pose
+# below claimed 0.0, and the deploy configs were written against it until
+# commit 72d0457 had to correct every one of them.
 
 env:
   # Task: command-conditioned velocity tracking.
@@ -25,17 +33,36 @@ env:
 robot:
   name: "unitree_go2"
   usd_path: "{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd"
+
+  # UNWIRED AND IGNORED. go2_env_cfg.py lists robot.init_state in
+  # _UNWIRED_ROBOT_SUB, so nothing below is ever pushed into the env cfg;
+  # training uses IsaacLab's UNITREE_GO2_CFG.init_state verbatim
+  # (isaaclab_assets/robots/unitree.py, ArticulationCfg.init_state).
+  # The values below are therefore kept IDENTICAL to that upstream pose, so
+  # that reading this file tells the truth and a future wiring PR would wire
+  # to the pose the policies were actually trained on.
+  # Corrected 2026-09-11: this block used to claim ".*_hip_joint": 0.0, a pose
+  # training has never used, and the deploy configs copied that 0.0 until commit
+  # 72d0457 corrected them.
   init_state:
     base_pos: [0.0, 0.0, 0.4]
     base_rot: [1.0, 0.0, 0.0, 0.0]   # quat (w,x,y,z)
     joint_pos:
-      # Fold positions ~ default standing pose
-      ".*_hip_joint": 0.0
+      # Upstream nominal standing pose. Hips are NOT zero: left +0.1, right -0.1
+      # (regex keys mirror UNITREE_GO2_CFG, ".*L" = FL and RL, ".*R" = FR and RR).
+      ".*L_hip_joint": 0.1
+      ".*R_hip_joint": -0.1
       "FL_thigh_joint": 0.8
       "FR_thigh_joint": 0.8
       "RL_thigh_joint": 1.0
       "RR_thigh_joint": 1.0
       ".*_calf_joint": -1.5
+
+  # UNWIRED AND IGNORED (robot.actuator is in _UNWIRED_ROBOT_SUB). Training uses
+  # UNITREE_GO2_CFG's DCMotorCfg: stiffness 25.0, damping 0.5, effort_limit 23.5,
+  # saturation_effort 23.5, velocity_limit 30.0. velocity_limit below is the Go2
+  # datasheet figure, NOT the value the sim runs; it is left as-is because no
+  # trained policy depends on it, but do not copy it into a deploy config.
   actuator:
     stiffness: 25.0
     damping: 0.5
@@ -85,10 +112,16 @@ domain_randomization:
   actuator_latency_steps: [1, 5]   # at 200 Hz, 5-25 ms
 
 perturbation:
+  # Applied at episode RESET, not on an interval: go2_env_cfg._apply_perturbation
+  # modulates the upstream reset-mode ``base_external_force_torque`` event. The
+  # interval pusher (``push_robot``) is set to None by the Go2 events cfg, so
+  # nothing shoves the robot mid-episode.
   enabled: false      # overlay enables this
-  push_interval_s: 7.0
   push_velocity_xy: 1.0
   push_velocity_yaw: 0.5
+  # UNWIRED AND IGNORED (flagged as perturbation.push_interval_s by
+  # _unwired_sections_present): there is no interval event to attach it to.
+  push_interval_s: 7.0
 
 reward:
   # Applied via go2_env_cfg._apply_rewards. Only upstream

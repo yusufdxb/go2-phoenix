@@ -5,15 +5,21 @@
 # which uses the rough task (obs_dim=235 including height scanner). The
 # flat policies are obs_dim=48, so loading them against perturbation.yaml
 # fails with a size_mismatch state_dict error. This overlay stacks:
-#   base → flat task + plane terrain → perturbation on.
+#   base → flat task (Flat-v0, plane terrain) → perturbation on.
+#
+# The disturbance is ONE force/torque applied at episode RESET, not a periodic
+# shove: _apply_perturbation drives the reset-mode ``base_external_force_torque``
+# event, and the Go2 events cfg disables the interval pusher. Falls harvested
+# from this config are reset-impulse falls, not mid-walk push recoveries.
 
 defaults:
   - flat
 
 perturbation:
   enabled: true
-  push_interval_s: 5.0
   push_velocity_xy: 1.5
   push_velocity_yaw: 0.75
-  push_warmup_s: 3.0
-  push_probability: 0.8
+  # UNWIRED AND IGNORED, flagged by _unwired_sections_present.
+  push_interval_s: 5.0           # IGNORED: no interval event exists
+  push_warmup_s: 3.0             # IGNORED: nothing schedules pushes
+  push_probability: 0.8          # IGNORED: the reset push always fires

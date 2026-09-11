@@ -9,5 +9,10 @@ defaults:
 env:
   task_name: "Isaac-Velocity-Flat-Unitree-Go2-v0"
 
+# UNWIRED AND IGNORED. Nothing reads this block: go2_env_cfg.py lists
+# ``terrain`` in _UNWIRED_TOP_LEVEL and build_env_cfg only warns about it.
+# Terrain is chosen entirely by env.task_name. The plane below is correct by
+# coincidence only: the Flat-v0 task set above is what forces
+# terrain_type="plane", not this block. Deleting the block changes nothing.
 terrain:
   type: "plane"

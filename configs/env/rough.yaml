@@ -1,9 +1,23 @@
 # Rough-terrain overlay. Inherits env/base.yaml.
 # Layer with: OmegaConf.merge(base, rough)
+#
+# WARNING: the terrain block below is DECLARED BUT IGNORED (see the note on it).
+# This file's only real effect today is inheriting base.yaml unchanged, so it is
+# byte-for-byte the upstream Rough-v0 task. In particular rough.yaml vs
+# slippery.yaml is NOT a terrain contrast: both run base.yaml's Rough-v0 task on
+# the same upstream generated terrain and differ only in
+# domain_randomization.friction_range / restitution_range. Any past result read
+# as "rough vs slippery terrain" was really "high friction vs low friction".
 
 defaults:
   - base
 
+# UNWIRED AND IGNORED. Nothing reads this block: go2_env_cfg.py lists
+# ``terrain`` in _UNWIRED_TOP_LEVEL and build_env_cfg only warns about it.
+# Terrain is chosen entirely by env.task_name. The stairs / slope / obstacle
+# mix below is NOT what runs: Rough-v0 builds Isaac Lab's ROUGH_TERRAINS_CFG
+# (5x5 grid, curriculum off) via velocity_env_cfg.py + go2/rough_env_cfg.py.
+# Kept as the spec a future sim-validated wiring PR should implement.
 terrain:
   type: "generator"
   size: [8.0, 8.0]
