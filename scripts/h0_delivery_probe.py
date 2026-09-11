@@ -6,7 +6,7 @@ That null is uninformative: ``fine_tune`` installed the reset bridge with
 and row 0 of every shipped trajectory is a nominal gait state. The treatment was
 never delivered.
 
-This probe is the H0 gate from ``ashfall/docs/phase2/HYPOTHESIS.md``. It measures
+This probe is the H0 delivery gate defined in the phase-II preregistration. It measures
 the seeded initial states directly rather than inferring delivery from any
 downstream outcome. It runs on CPU and needs no simulator: the nominal reset
 distribution is reproduced analytically from the IsaacLab source that defines it.
@@ -37,7 +37,7 @@ which the schema does not pin:
 * ``min_contact_force``  diagnostic only; NOT part of the delivered state
 
 Mode -> predicted direction. Taken from the generator source
-(ashfall/src/ashfall/synth/generator.py), not guessed:
+(the synthetic pool generator), not guessed:
 
 * ATTITUDE          tilt_deg increases       (quat ramped, height dropped)
 * COLLAPSE          base_height_m decreases  (height ramped to ~0.05 m)
@@ -207,7 +207,6 @@ def probe(path: Path, reference: dict) -> dict:
     mode = infer_mode(path, reader)
     record: dict = {
         "trajectory": path.name,
-        "pool": path.parent.parent.parent.name,
         "rows": len(reader),
         "failure_mode": mode,
     }
@@ -317,10 +316,10 @@ def main() -> int:
     parser.add_argument("--out", default="reliability_eval/h0_delivery")
     args = parser.parse_args()
 
-    pools = args.pool or [
-        str(Path.home() / "Projects/ashfall/data/failures"),
-        str(REPO_ROOT / "data/failures"),
-    ]
+    # Defaults to this repo's own pool only. The synthetic mode-taxonomy pool
+    # lives in a separate private repo and must be passed explicitly with
+    # --pool, so no path outside this repository is baked into a public file.
+    pools = args.pool or [str(REPO_ROOT / "data/failures")]
     paths: list[Path] = []
     for pool in pools:
         paths.extend(sorted(Path(pool).glob("*.parquet")))
@@ -337,7 +336,9 @@ def main() -> int:
         "production_strategy": PRODUCTION_STRATEGY,
         "production_offset_seconds": PRODUCTION_OFFSET_SECONDS,
         "nominal_height_m": NOMINAL_HEIGHT_M,
-        "pools": pools,
+        # Names only. Absolute paths leak the author's filesystem layout and
+        # the names of unpublished sibling repositories into a public artifact.
+        "pools": [Path(pool).name for pool in pools],
         "records": records,
     }
     (out_dir / "h0_delivery.json").write_text(json.dumps(payload, indent=2, default=str))

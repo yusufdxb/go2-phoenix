@@ -39,8 +39,8 @@ start until this is closed, for exactly the reason Phase I exists as a warning.
 ## Why it fails: the offset overshoots the failure
 
 Every synthetic trajectory is built as exactly 50 stable rows followed by a
-failure segment (`ashfall/src/ashfall/synth/generator.py`, `n_stable=50` in all
-six generators). The control period is 0.02 s, so the production 0.5 s offset
+failure segment (the synthetic pool's generator, `n_stable=50` in all six
+generators). The control period is 0.02 s, so the production 0.5 s offset
 steps back **25 rows** from onset. For five of six modes that lands back inside
 the stable prefix:
 
