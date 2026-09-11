@@ -53,6 +53,21 @@ ACCEPTANCE CRITERION, fixed before the run:
   descriptor that ``restore_state`` actually writes, and (b) moves in the
   predicted direction for that trajectory's failure mode.
 
+  Operationalized after a robustness re-analysis on 2026-09-11 (the criterion
+  above is unchanged; only the estimator is): distinctness is |z| > 2 where z
+  scores the seeded value against the trajectory's OWN history strictly before
+  the seeded row. The first cut of this probe anchored on the single row 0,
+  which is one noisy draw; at these effect sizes that made both the direction
+  test and the excursion fraction unstable, and the fraction's sign flipped
+  under the more robust anchor. The z-test is the reported statistic. The
+  excursion fraction is retained as a descriptive figure only and its SIGN
+  must not be interpreted near zero.
+
+  Direction is scored only where the state is distinct. Direction agreement at
+  a near-zero effect is a coin flip and carries no information: 4 of 12 under
+  the original anchor has binomial P(X<=4 | n=12, p=0.5) = 0.19, which is
+  consistent with zero effect and is NOT evidence of anti-correlation.
+
   H0 PASSES OVERALL iff it passes for every failure mode that is deliverable in
   principle. A mode whose only signature is a quantity the bridge cannot write
   (contact forces) is reported as NOT DELIVERABLE rather than as a failure of
@@ -246,20 +261,42 @@ def probe(path: Path, reference: dict) -> dict:
         record["verdict"] = "DESCRIPTOR_MISSING"
         return record
 
-    moved = seeded - baseline
-    available = onset_value - baseline
+    # PRIMARY TEST. Baseline is the trajectory's own history strictly before the
+    # seeded row, not the single row 0: one row is a noisy draw and using it as
+    # the anchor makes both the direction and the excursion fraction unstable at
+    # small effect sizes. This window is causal (nothing after the seed row) and
+    # pool-agnostic (no hardcoded stable-prefix length). Where the seeded row
+    # sits inside the failure segment the window absorbs some failure rows,
+    # which inflates its spread and makes the test HARDER to pass, so the
+    # choice is conservative for the cases that pass.
+    seed_row = record["production"]["row"]
+    history = np.array([describe(path, i)[descriptor] for i in range(seed_row)])
+    prefix_mean = float(history.mean())
+    prefix_sd = float(history.std(ddof=1)) if len(history) > 1 else 0.0
+    record["prefix_rows"] = int(len(history))
+    record["prefix_mean"] = prefix_mean
+    record["prefix_sd"] = prefix_sd
+    record["z_vs_prefix"] = (
+        float((seeded - prefix_mean) / prefix_sd) if prefix_sd > 0 else None
+    )
+
+    moved = seeded - prefix_mean
+    available = onset_value - prefix_mean
     record["mode_descriptor_phase_i"] = baseline
     record["mode_descriptor_seeded"] = seeded
     record["mode_descriptor_at_onset"] = onset_value
     # What fraction of the nominal-to-failure excursion the seeded state covers.
     record["delivery_fraction"] = float(moved / available) if abs(available) > 1e-12 else None
-    record["direction_correct"] = bool(
-        (moved > 0) if direction == "increase" else (moved < 0)
-    )
+    record["direction_correct"] = bool((moved > 0) if direction == "increase" else (moved < 0))
     record["tail_probability_vs_nominal"] = tail_probability(reference, descriptor, seeded)
 
+    # A seeded state within the spread of its own pre-seed history is, by
+    # definition, not a delivered treatment. |z| > 2 is the distinctness bar.
+    z = record["z_vs_prefix"]
     if not record["deliverable"]:
         record["verdict"] = "NOT_DELIVERABLE"
+    elif z is None or abs(z) <= 2.0:
+        record["verdict"] = "FAIL_NOT_DISTINCT"
     elif not record["direction_correct"]:
         record["verdict"] = "FAIL_DIRECTION"
     elif record["delivery_fraction"] is not None and record["delivery_fraction"] < 0.05:
@@ -315,7 +352,8 @@ def main() -> int:
     print(f"verdicts: {verdicts}\n")
     header = (
         f"{'trajectory':<38} {'mode':<17} {'onset':>5} {'seed':>5} "
-        f"{'descriptor':<17} {'phase-I':>9} {'seeded':>9} {'onset':>9} {'deliv':>7}  verdict"
+        f"{'descriptor':<17} {'prefix_mu':>10} {'seeded':>9} {'onset':>9} "
+        f"{'z':>7} {'deliv':>7}  verdict"
     )
     print(header)
     print("-" * len(header))
@@ -325,13 +363,15 @@ def main() -> int:
             continue
         prod = r.get("production", {})
         frac = r.get("delivery_fraction")
+        z = r.get("z_vs_prefix")
         print(
             f"{r['trajectory']:<38} {str(r.get('failure_mode')):<17} "
             f"{r['onset_row']:>5} {str(prod.get('row', '-')):>5} "
             f"{str(r.get('mode_descriptor', '-')):<17} "
-            f"{_fmt(r.get('mode_descriptor_phase_i')):>9} "
+            f"{_fmt(r.get('prefix_mean')):>10} "
             f"{_fmt(r.get('mode_descriptor_seeded')):>9} "
             f"{_fmt(r.get('mode_descriptor_at_onset')):>9} "
+            f"{(f'{z:+7.2f}' if z is not None else '      -'):>7} "
             f"{(f'{frac:6.1%}' if frac is not None else '      -'):>7}  {r.get('verdict')}"
         )
     print(f"\nwrote {out_dir / 'h0_delivery.json'}")
