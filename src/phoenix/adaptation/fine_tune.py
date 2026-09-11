@@ -70,7 +70,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     from omegaconf import OmegaConf
     from rsl_rl.runners import OnPolicyRunner
 
-    from phoenix.adaptation.curriculum import FailureCurriculum, TrajectoryPool
+    from phoenix.adaptation.curriculum import DEFAULT_STRATA, FailureCurriculum, TrajectoryPool
     from phoenix.sim_env import build_env_cfg, load_layered_config
     from phoenix.training.agent_cfg import build_runner_cfg
 
@@ -112,6 +112,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         pool,
         failure_reset_fraction=resolve_failure_reset_fraction(cfg["curriculum"]),
         seed=curriculum_seed,
+        sampling=cfg["curriculum"].get("sampling", "uniform_legacy"),
+        strata=tuple(cfg["curriculum"].get("strata", DEFAULT_STRATA)),
     )
     if pool.empty() and curriculum.failure_reset_fraction > 0:
         raise ValueError("Active failure reset curriculum has no trajectories")
@@ -124,10 +126,12 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         )
     else:
         logger.info(
-            "Curriculum loaded %d failure trajectories from %s (modes=%s)",
+            "Curriculum loaded %d failure trajectories from %s (modes=%s, sampling=%s, strata=%s)",
             len(pool),
             traj_dir,
             failure_modes_cfg or "all",
+            curriculum.sampling,
+            curriculum.describe_strata(),
         )
 
     # ---- Logging / checkpoint dirs ---------------------------------------
@@ -189,6 +193,14 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     from phoenix.adaptation.reset_bridge import install as install_reset_bridge
 
     reset_cfg = cfg["curriculum"]
+    # A friction scenario adapter is only built when the pool declares friction
+    # to restore. Building it unconditionally would claim a causal continuation
+    # the sources do not carry.
+    scenario_adapter = None
+    if reset_cfg.get("restore_environment_parameters", False):
+        from phoenix.adaptation.scenario_bridge import FrictionScenarioAdapter
+
+        scenario_adapter = FrictionScenarioAdapter(env.unwrapped)
     install_reset_bridge(
         env,
         curriculum,
@@ -197,6 +209,13 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             "seed_row_offset_steps", reset_cfg.get("seed_row_offset_k", 0)
         ),
         seed_row_offset_seconds=float(reset_cfg.get("seed_row_offset_seconds", 0.5)),
+        command_policy=reset_cfg.get("command_policy", "source_hold_to_onset"),
+        command_hold_seconds=reset_cfg.get("command_hold_seconds"),
+        position_frame=reset_cfg.get("position_frame"),
+        history_rows=int(reset_cfg.get("history_rows", 2)),
+        require_exact_replay=bool(reset_cfg.get("require_exact_replay", False)),
+        scenario_adapter=scenario_adapter,
+        environment_policy=reset_cfg.get("environment_policy", "require_declared"),
         telemetry_path=log_dir / "failure_resets.jsonl",
     )
     # The wrapper constructed the runner before bridge installation. Reset once

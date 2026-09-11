@@ -12,12 +12,25 @@ The pure-python pieces (variation sampling, trajectory IO) are testable
 in CI; ``reconstruct.py`` itself needs Isaac Lab.
 """
 
+from .controller_history import (
+    REPLAY_APPROXIMATE,
+    REPLAY_EXACT,
+    REPLAY_STATE_ONLY,
+    ControllerHistory,
+)
+from .failure_capsule import CAPSULE_SCHEMA_VERSION, write_failure_capsule
 from .trajectory_reader import TrajectoryReader, load_initial_state
 from .variations import VariationSample, VariationSampler
 
 __all__ = [
+    "CAPSULE_SCHEMA_VERSION",
+    "ControllerHistory",
+    "REPLAY_APPROXIMATE",
+    "REPLAY_EXACT",
+    "REPLAY_STATE_ONLY",
     "TrajectoryReader",
     "load_initial_state",
     "VariationSample",
     "VariationSampler",
+    "write_failure_capsule",
 ]

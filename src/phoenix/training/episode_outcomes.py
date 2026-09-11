@@ -156,13 +156,28 @@ class PreResetCapture:
             self.env._reset_idx = self.original
 
 
+#: Frame of ``snapshot_manager_state``'s ``position``: measured from that
+#: environment's origin in ALL THREE axes. Subtracting only z (as this did
+#: until 2026-09-11) leaves world x and y in the record while
+#: :func:`phoenix.replay.state_adapter.restore_state` adds the full origin
+#: back, so a captured state restored into any environment whose origin has a
+#: nonzero x or y, which is every environment in the usual grid layout, comes
+#: back displaced by that origin. Capture and restore must be exact inverses.
+SNAPSHOT_POSITION_FRAME = "env_local"
+
+
 def snapshot_manager_state(env, to_numpy):
-    """Read copied, world-height corrected state using manager-based APIs."""
+    """Read copied, environment-local state using manager-based APIs.
+
+    ``position`` is in the :data:`SNAPSHOT_POSITION_FRAME` frame: the robot's
+    root position minus its environment's origin on x, y and z. Height
+    consumers read column 2, which is unchanged by making x and y local.
+    """
     import numpy as np
 
     root = env.scene["robot"].data
     position = to_numpy(root.root_pos_w).copy()
-    position[:, 2] -= to_numpy(env.scene.env_origins)[:, 2]
+    position -= to_numpy(env.scene.env_origins)[:, :3]
     state = {
         "command": to_numpy(env.command_manager.get_command("base_velocity")).copy(),
         "linear": to_numpy(root.root_lin_vel_b).copy(),

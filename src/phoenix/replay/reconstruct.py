@@ -126,15 +126,23 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     lin_vel = _t(per_env["base_lin_vel"])
     ang_vel = _t(per_env["base_ang_vel"])
 
-    # Add env_origins so spawn poses are inside each env's tile, not stacked.
-    if hasattr(unwrapped.scene, "env_origins"):
+    # Map the stored position into world coordinates using the frame the source
+    # declared, so spawn poses are inside each env's tile and never displaced by
+    # a partially-applied origin.
+    if initial.position_frame == "env_local" and hasattr(unwrapped.scene, "env_origins"):
         pos = pos + unwrapped.scene.env_origins[: pos.shape[0]]
 
     robot.write_root_pose_to_sim(torch.cat([pos, quat_wxyz], dim=-1))
     robot.write_root_velocity_to_sim(torch.cat([lin_vel, ang_vel], dim=-1))
     robot.write_joint_state_to_sim(jpos, jvel)
+    # This entry point is a fixed-horizon zero-action diagnostic, not a training
+    # env, so pinning the logged command for the whole rollout is the intent
+    # rather than a command-process confound. Declared explicitly.
     VelocityCommandAdapter(unwrapped).restore(
-        torch.arange(n_variations, device=device), initial.command_vel)
+        torch.arange(n_variations, device=device),
+        initial.command_vel,
+        hold_seconds=float("inf"),
+    )
 
     # Per-env mass perturbation on body[0] (trunk). Use root_physx_view if
     # the Isaac Lab build exposes it; otherwise log and skip.
@@ -158,6 +166,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         "seed": seed_record,
         "controller": "zero_action_diagnostic",
         "reproduction_evidence": False,
+        "position_frame": initial.position_frame,
+        "position_frame_source": initial.position_frame_source,
+        "replay_fidelity": "state_only_seed",
+        "command_hold": "episode",
         "n_variations": n_variations,
         "horizon_steps": n_steps,
         "friction_scale_mean": mean_friction_scale,
