@@ -129,6 +129,27 @@ discarded for being unlabelled. Those counts describe the old inclusion rule, no
 the failure population. The simulator termination is ground truth and the
 detector is now measured against it.
 
+### 6. The harvested sim-failure pool, and every gate result seeded from it
+
+`snapshot_manager_state` removed only the env origin's Z while `restore_state`
+added the full XYZ, so store and restore were not inverses. The three files in
+`data/failures/sim_harvest/` were captured through that broken path. Their
+recorded `base_pos` x/y are world-grid coordinates, measured at `[6.603, -8.670]`,
+`[-8.344, -4.417]` and `[1.353, 1.134]`, so a seeded robot would be placed up to
+about 10 m from its own tile.
+
+**Superseded: the pool itself, and the H0 verdicts and offset sweep computed from
+it earlier on 2026-09-11.** Those were the FAIL_NOT_DISTINCT and FAIL_DIRECTION
+results and the 0.0 to 2.0 s sweep.
+
+They are re-harvested rather than relabelled. Relabelling would require assuming
+the flat grid cloner sets origin z = 0, and nobody measured that. The data files
+are left on disk untouched.
+
+Note the synthetic pool was never affected: `synthesize_failure.py` already
+subtracted the full XYZ, so the two producers now agree. The conclusion about the
+synthetic pool in section 4 is unchanged by this.
+
 ## Hardware-unverified
 
 Nothing in this pass ran on hardware; no robot was connected at any point.
