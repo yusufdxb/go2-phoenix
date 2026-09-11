@@ -8,6 +8,12 @@
 # be a byte-copy of flat's export.
 #
 # Deploy identical to deploy.yaml except policy paths.
+#
+# PROVENANCE: the April 2026 Gate 7 hardware run was recorded under this
+# file while control.default_joint_pos still had all four hips at 0.0. That
+# was the wrong pose (see the note on the block below) and is corrected
+# here, so this file no longer describes what Gate 7 actually ran. The
+# recorded Gate 7 data under data/ is untouched and still reflects 0.0 hips.
 
 policy:
   onnx_path: "checkpoints/phoenix-stand-v2/policy.onnx"
@@ -18,11 +24,16 @@ policy:
 control:
   rate_hz: 50
   action_scale: 0.25
+  # Authority for this pose is the training asset, IsaacLab
+  # UNITREE_GO2_CFG.init_state in isaaclab_assets/robots/unitree.py: hips
+  # L +0.1 / R -0.1, front thighs 0.8, rear thighs 1.0, calves -1.5. It has to
+  # be copied from there rather than guessed, because use_default_offset=True
+  # makes it the action offset and the observation reference together.
   default_joint_pos:
-    FL_hip_joint: 0.0
-    FR_hip_joint: 0.0
-    RL_hip_joint: 0.0
-    RR_hip_joint: 0.0
+    FL_hip_joint: 0.1
+    FR_hip_joint: -0.1
+    RL_hip_joint: 0.1
+    RR_hip_joint: -0.1
     FL_thigh_joint: 0.8
     FR_thigh_joint: 0.8
     RL_thigh_joint: 1.0

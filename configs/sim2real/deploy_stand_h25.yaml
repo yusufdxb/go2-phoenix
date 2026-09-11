@@ -39,9 +39,11 @@ control:
   action_scale: 0.25
   # MUST equal the training default_joint_pos (IsaacLab unitree.py GO2 init_state),
   # because use_default_offset=True makes this the action offset AND the
-  # joint-relative observation reference. The previous deploy configs set all
-  # hips to 0.0, but training uses L=+0.1 / R=-0.1, a constant 0.1 rad hip
-  # offset the policy never saw (off-distribution obs + offset on all 4 hips).
+  # joint-relative observation reference. Every other deploy config used to set
+  # all hips to 0.0 while training uses L=+0.1 / R=-0.1, a constant 0.1 rad hip
+  # offset the policy never saw (off-distribution obs + offset on all 4 hips);
+  # they now carry the training pose too, guarded by
+  # tests/test_deploy_default_joint_pos.py.
   default_joint_pos:
     FL_hip_joint: 0.1
     FR_hip_joint: -0.1

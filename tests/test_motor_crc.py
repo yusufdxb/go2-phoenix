@@ -47,7 +47,7 @@ def test_all_zero_lowcmd_has_locked_crc() -> None:
 
 
 def test_unitree_stand_pose_matches_locked_crc() -> None:
-    # target_pos_2_ from go2_stand_example.cpp — the Unitree-order stand pose
+    # target_pos_2_ from go2_stand_example.cpp, the Unitree-order stand pose
     # with its example's kp=60, kd=5. Already in motor order (FR,FL,RR,RL).
     q = [0.0, 0.67, -1.3] * 4
     raw = build_raw_from_motor_values(q, [60.0] * 12, [5.0] * 12)
@@ -55,9 +55,13 @@ def test_unitree_stand_pose_matches_locked_crc() -> None:
 
 
 def test_phoenix_stand_pose_matches_locked_crc() -> None:
-    # deploy.yaml:default_joint_pos in Phoenix order, with conservative
-    # first-deploy gains kp=25 kd=0.5 — remapped to Unitree motor order
-    # before the CRC is computed.
+    # A FIXED regression vector in Phoenix joint order, with conservative
+    # first-deploy gains kp=25 kd=0.5, remapped to Unitree motor order before
+    # the CRC is computed. This pins the CRC implementation and the joint
+    # permutation; it is deliberately NOT read from deploy.yaml, so changing a
+    # deploy pose must not change this locked value. The hips here are 0.0 for
+    # that reason and no longer mirror any shipped config: the real deploy pose
+    # is asserted separately in tests/test_deploy_default_joint_pos.py.
     phoenix_vec = [
         0.0,
         0.0,

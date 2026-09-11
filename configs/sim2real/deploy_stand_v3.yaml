@@ -18,11 +18,16 @@ policy:
 control:
   rate_hz: 50
   action_scale: 0.25
+  # Copied from the training asset: IsaacLab UNITREE_GO2_CFG.init_state in
+  # isaaclab_assets/robots/unitree.py. The hips are not zero. Since the action
+  # term is configured with use_default_offset=True, this pose drives both the
+  # action offset and joint_pos_rel in the observation, so the policy sees any
+  # deviation from the training value on every single tick.
   default_joint_pos:
-    FL_hip_joint: 0.0
-    FR_hip_joint: 0.0
-    RL_hip_joint: 0.0
-    RR_hip_joint: 0.0
+    FL_hip_joint: 0.1
+    FR_hip_joint: -0.1
+    RL_hip_joint: 0.1
+    RR_hip_joint: -0.1
     FL_thigh_joint: 0.8
     FR_thigh_joint: 0.8
     RL_thigh_joint: 1.0
