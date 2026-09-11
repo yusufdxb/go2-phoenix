@@ -18,6 +18,12 @@ Design notes:
   into ``sensor_msgs/Imu.orientation`` which is ``(x, y, z, w)``.
 * **Gyro / accel frames.** The raw IMU is body-frame. Phoenix's
   observation_builder consumes them as such. No rotation applied here.
+* **Foot force.** ``LowState.foot_force`` (``int16[4]``) is republished
+  unscaled on ``/phoenix/foot_force`` (``std_msgs/Float32MultiArray``) so the
+  policy node can log it without a second ``/lowstate`` subscription. See
+  :func:`phoenix.sim2real.telemetry.foot_force_to_array` for the (unverified)
+  unit and ordering assumptions. This topic is new and optional: a consumer
+  that doesn't subscribe to it sees no behavior change.
 """
 
 from __future__ import annotations
@@ -28,7 +34,10 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu, JointState
+from std_msgs.msg import Float32MultiArray
 from unitree_go.msg import LowState
+
+from phoenix.sim2real.telemetry import foot_force_to_array
 
 # Unitree motor indices 0..11 map to these joint names. Matches the
 # convention used in the repo's URDF and ``deploy.yaml:joint_order``.
@@ -60,9 +69,12 @@ class LowStateBridge(Node):
 
         self._js_pub = self.create_publisher(JointState, "/joint_states", qos)
         self._imu_pub = self.create_publisher(Imu, "/imu/data", qos)
+        self._foot_pub = self.create_publisher(Float32MultiArray, "/phoenix/foot_force", qos)
         self._sub = self.create_subscription(LowState, "/lowstate", self._on_state, qos)
 
-        self.get_logger().info("lowstate bridge up: /lowstate → /joint_states + /imu/data")
+        self.get_logger().info(
+            "lowstate bridge up: /lowstate → /joint_states + /imu/data + /phoenix/foot_force"
+        )
 
     def _on_state(self, msg: LowState) -> None:
         now = self.get_clock().now().to_msg()
@@ -91,6 +103,10 @@ class LowStateBridge(Node):
         imu.linear_acceleration.y = float(msg.imu_state.accelerometer[1])
         imu.linear_acceleration.z = float(msg.imu_state.accelerometer[2])
         self._imu_pub.publish(imu)
+
+        foot = Float32MultiArray()
+        foot.data = foot_force_to_array(msg.foot_force).tolist()
+        self._foot_pub.publish(foot)
 
 
 def main(argv: list[str] | None = None) -> int:
