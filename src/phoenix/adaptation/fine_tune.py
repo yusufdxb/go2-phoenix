@@ -4,11 +4,33 @@ Invoked from ``scripts/adapt.sh`` inside Isaac Lab's Python context. The
 inner PPO training loop matches :mod:`phoenix.training.ppo_runner` so
 successes reproduce; what differs is the curriculum that seeds a fraction
 of environment resets from recorded real-world failure Parquets.
+
+Three seeds, three separate quantities, never conflated:
+
+``--seed``
+    The TRAINING seed. Sets ``env_cfg.seed`` and ``cfg["run"]["seed"]``,
+    overriding the YAML, so a multi-seed sweep is actually multiple runs. Until
+    this flag existed, ``scripts/loop_closure.sh`` looped over three seeds,
+    labelled three output directories, and passed none of them: all three runs
+    read ``cfg["run"]["seed"]`` and were one run reported three times.
+``--curriculum-seed``
+    The FailureCurriculum RNG seed, which decides WHICH envs get a failure seed
+    and which trajectory each draws. Defaults to ``--seed``. It must never fall
+    back to 0; this repo has already shipped a run where the curriculum RNG sat
+    at its 0 default while the caller believed it was varying.
+The EVALUATION seed
+    Belongs to ``phoenix.training.evaluate --seed`` and is deliberately not
+    settable here. A policy trained under one seed and evaluated under another
+    is the normal case, and folding them together hides it.
+
+Every run writes ``<run_dir>/seeds.json``. The artifact, not the caller's
+intent, is the record of what the run used.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import shutil
 import time
@@ -16,6 +38,17 @@ from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger("phoenix.adaptation.fine_tune")
+
+#: Filename of the per-run seed record, read back by multi-seed orchestration.
+SEEDS_ARTIFACT = "seeds.json"
+
+#: Exact key set of that artifact. Consumers assert against this shape.
+SEEDS_FIELDS = ("training_seed", "curriculum_seed", "config_seed", "resolved_from")
+
+#: Seed used when neither the CLI nor the config names one. Historical runs all
+#: used this value through ``cfg["run"].get("seed", 42)``, so it is recorded as
+#: the config seed rather than pretending the config declared something.
+DEFAULT_CONFIG_SEED = 42
 
 
 def resolve_failure_reset_fraction(config):
@@ -30,6 +63,54 @@ def resolve_failure_reset_fraction(config):
     return value
 
 
+def _checked_seed(value, name):
+    if isinstance(value, bool) or not isinstance(value, (int,)):
+        raise ValueError(f"{name} must be an integer, got {value!r}")
+    if value < 0:
+        raise ValueError(f"{name} must be nonnegative, got {value}")
+    return int(value)
+
+
+def resolve_seeds(config, *, seed=None, curriculum_seed=None):
+    """Resolve the training and curriculum RNG seeds as separate quantities.
+
+    Returns exactly the record written to :data:`SEEDS_ARTIFACT`.
+    ``curriculum_seed`` falls back to the TRAINING seed, never to 0, so a
+    caller that varies ``--seed`` alone still varies which environments are
+    failure-seeded. ``resolved_from`` is ``"cli"`` when either seed came from
+    the command line and ``"config"`` when the run was seeded entirely by the
+    YAML.
+    """
+    run = config.get("run") or {}
+    config_seed = _checked_seed(run.get("seed", DEFAULT_CONFIG_SEED), "run.seed")
+    training = config_seed if seed is None else _checked_seed(seed, "--seed")
+    curriculum = (
+        training if curriculum_seed is None else _checked_seed(curriculum_seed, "--curriculum-seed")
+    )
+    return {
+        "training_seed": training,
+        "curriculum_seed": curriculum,
+        "config_seed": config_seed,
+        "resolved_from": "config" if seed is None and curriculum_seed is None else "cli",
+    }
+
+
+def write_seeds(run_dir, seeds):
+    """Write the seed record for one run; refuse to disagree with an existing one."""
+    if tuple(sorted(seeds)) != tuple(sorted(SEEDS_FIELDS)):
+        raise ValueError(f"Seed record must hold exactly {sorted(SEEDS_FIELDS)}")
+    path = Path(run_dir) / SEEDS_ARTIFACT
+    payload = json.dumps(seeds, sort_keys=True, allow_nan=False) + "\n"
+    if path.exists():
+        if path.read_text() != payload:
+            raise FileExistsError(f"Refusing to overwrite a different seed record: {path}")
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x") as stream:
+        stream.write(payload)
+    return path
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Fine-tune a Phoenix policy with failure curriculum.")
     p.add_argument("--config", type=Path, required=True)
@@ -38,6 +119,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--num-envs", type=int, default=None)
     p.add_argument("--max-iterations", type=int, default=None)
     p.add_argument("--device", type=str, default=None)
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Training seed. Sets env_cfg.seed and cfg['run']['seed'], overriding the YAML.",
+    )
+    p.add_argument(
+        "--curriculum-seed",
+        type=int,
+        default=None,
+        help="FailureCurriculum RNG seed. Defaults to --seed, never to 0.",
+    )
     p.add_argument("--headless", action="store_true", default=True)
     return p.parse_args(argv)
 
@@ -82,13 +175,21 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     if args.device is not None:
         cfg["run"]["device"] = args.device
 
+    # Resolve the two seeds this entry point owns BEFORE anything consumes
+    # them, and write cfg["run"]["seed"] so every downstream reader
+    # (build_runner_cfg, the copied adapt.yaml's consumers) sees the effective
+    # training seed rather than the YAML's.
+    seeds = resolve_seeds(cfg, seed=args.seed, curriculum_seed=args.curriculum_seed)
+    cfg["run"]["seed"] = seeds["training_seed"]
+    print(f"[adapt] seeds: {seeds}", flush=True)
+
     env_cfg_path = Path(cfg["env"]["config"])
     env_cfg_loaded = load_layered_config(env_cfg_path)
     env_cfg = build_env_cfg(env_cfg_loaded)
     if args.num_envs is not None:
         env_cfg.scene.num_envs = args.num_envs
     env_cfg.sim.device = cfg["run"]["device"]
-    env_cfg.seed = int(cfg["run"].get("seed", 42))
+    env_cfg.seed = seeds["training_seed"]
 
     task_name = env_cfg_loaded.to_container()["env"]["task_name"]
 
@@ -103,15 +204,16 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     if failure_modes_cfg:
         failure_modes_cfg = list(failure_modes_cfg)
     pool = TrajectoryPool.from_directory(traj_dir, failure_modes=failure_modes_cfg)
-    # Couple the curriculum RNG to the training seed so multi-seed pilots
-    # vary the per-env failure-vs-clean reset assignment across cells.
-    # Without this the curriculum draws are identical between seeds (the
-    # RNG defaults to seed=0), holding one stochastic input constant.
-    curriculum_seed = int(cfg["run"].get("seed", 42))
+    # The curriculum RNG decides which envs are failure-seeded and which
+    # trajectory each draws. It is a SEPARATE quantity from the training seed
+    # and defaults to it, so a caller varying only --seed still varies this;
+    # it never falls back to FailureCurriculum's own seed=0 default, which is
+    # the failure mode that once held this stochastic input constant across a
+    # whole multi-seed pilot.
     curriculum = FailureCurriculum(
         pool,
         failure_reset_fraction=resolve_failure_reset_fraction(cfg["curriculum"]),
-        seed=curriculum_seed,
+        seed=seeds["curriculum_seed"],
         sampling=cfg["curriculum"].get("sampling", "uniform_legacy"),
         strata=tuple(cfg["curriculum"].get("strata", DEFAULT_STRATA)),
     )
@@ -142,6 +244,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     log_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(args.config, log_dir / "adapt.yaml")
     shutil.copy(env_cfg_path, log_dir / "env.yaml")
+    # The copied adapt.yaml still carries the config's own seed, so the seed
+    # record is what says which seeds this run actually used. Written before
+    # any GPU time is spent, so an interrupted run is still identifiable.
+    write_seeds(log_dir, seeds)
 
     # ---- Env + runner ----------------------------------------------------
     env = gym.make(task_name, cfg=env_cfg, render_mode=None)
