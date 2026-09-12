@@ -128,6 +128,13 @@ class PreResetCapture:
         self.snapshot = snapshot
         self.original = env._reset_idx
         self.terminal = {}
+        # Episode generation per environment: how many times this capture has
+        # seen that environment reset. Generation g is the episode that follows
+        # the g-th observed reset; resets before the capture was installed are
+        # not counted, so the first observed episode is generation 0.
+        self.generation: dict[int, int] = {}
+        # Environments reset during the current step, cleared by begin_step.
+        self.reset_this_step: set[int] = set()
         self.installed = self._reset
         env._reset_idx = self.installed
 
@@ -140,10 +147,13 @@ class PreResetCapture:
                     key: value[index].copy() if hasattr(value[index], "copy") else value[index]
                     for key, value in values.items()
                 }
+                self.generation[int(index)] = self.generation.get(int(index), 0) + 1
+                self.reset_this_step.add(int(index))
         return self.original(env_ids, *args, **kwargs)
 
     def begin_step(self):
         self.terminal.clear()
+        self.reset_this_step.clear()
 
     def overlay(self, values):
         for index, snapshot in self.terminal.items():

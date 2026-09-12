@@ -27,6 +27,12 @@ did not fire. Detector success as a data-inclusion rule biases the pool toward
 the failures the detector already understands and throws away the ones most
 worth training on.
 
+Correction under report schema 2.0: a count like that 148 is of termination
+TICKS. The recorded 2026-09-12 report of the same size is 74 physical falls plus
+74 post-reset artifacts, one per fall (see ``is_post_reset_artifact``). That the
+earlier run's 74 discards were the same artifacts is inferred, not recomputed:
+its report was not kept.
+
 The single remaining rejection criterion is structural, not detector-driven: a
 window whose onset sits closer to the start than ``--min-pre-onset-rows`` has no
 usable pre-onset interval, so no seeding strategy and no reset bridge can place
@@ -60,6 +66,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import sys
@@ -85,12 +92,176 @@ logger = logging.getLogger("phoenix.harvest")
 TIME_OUT_TERMS = ("time_out",)
 
 # Written into every sidecar and into harvest_report.json so a consumer can
-# tell which layout it is reading.
-HARVEST_SCHEMA_VERSION = "1.0"
+# tell which layout it is reading. 2.0 separates raw termination TICKS from
+# physical terminations (see is_post_reset_artifact) and renames the counts
+# accordingly; a 1.0 report counted every tick as a genuine failure.
+HARVEST_SCHEMA_VERSION = "2.0"
 
 # What the detector is asked about. Recorded with the measurement so a later
 # threshold change is visible in the artifact rather than inferred.
 DETECTOR_ID = "phoenix.real_world.failure_detector.FailureDetector"
+
+CLASS_GENUINE = "genuine_failure"
+CLASS_TIME_OUT = "time_out"
+CLASS_POST_RESET_ARTIFACT = "post_reset_artifact"
+
+# The one rule that decides whether a termination tick is a physical episode
+# termination. Stored verbatim in every v2 report so the counts can be re-derived.
+POST_RESET_ARTIFACT_RULE = (
+    "A termination tick T on environment i is a post_reset_artifact of the previous "
+    "termination tick P on the same environment iff all of: (1) T.step_index == "
+    "P.step_index + 1, so T is the first control step after the auto-reset Isaac "
+    "performed inside P's step; (2) T.terms == P.terms; (3) T.episode_length_steps == 1, "
+    "so the episode T ended is exactly one control step old; (4) when both are known, "
+    "T.episode_generation == P.episode_generation + 1. An artifact is counted and listed, "
+    "attributed to the physical termination that started its chain, and never becomes a "
+    "TerminationRecord: it is not shown to the detector, not written, and not a failure."
+)
+
+
+@dataclass(frozen=True)
+class TerminationTick:
+    """One control step on which Isaac's termination manager reported an env done.
+
+    A tick is not necessarily a physical episode termination; see
+    :func:`is_post_reset_artifact`.
+    """
+
+    env_index: int
+    step_index: int
+    terms: tuple[str, ...]
+    # Control steps in the episode that ended, from Isaac's episode_length_buf
+    # read before the reset. None when unknown.
+    episode_length_steps: int | None = None
+    # PreResetCapture.generation of the episode that ended. None when unknown.
+    episode_generation: int | None = None
+
+
+@dataclass(frozen=True)
+class TickClassification:
+    tick: TerminationTick
+    classification: str
+    # For a post_reset_artifact: step_index of the physical termination whose
+    # reset produced it. None otherwise.
+    artifact_of_step_index: int | None = None
+
+
+def is_post_reset_artifact(tick: TerminationTick, previous: TerminationTick | None) -> bool:
+    """Apply :data:`POST_RESET_ARTIFACT_RULE`. Pure; used by the live loop and the recompute.
+
+    Why the rule exists. Every physical fall in the 1.0 harvest was recorded
+    twice: once with its real window, and again one control step later on the
+    same environment with a one-row window and the same ``base_contact`` term.
+    The second tick is produced by the harvest's own instrumentation, not by the
+    robot: Isaac's contact sensor fills its history lazily from the last PhysX
+    step on the first ``.data`` read after it is marked outdated, ``_reset_idx``
+    marks it outdated without stepping physics, and the harvest's post-step
+    snapshot reads contact data exactly then. The pre-reset base contact force is
+    written into the fresh history and ``illegal_contact`` fires again on the next
+    tick. Measured with ``scripts/diag_post_reset_termination.py``
+    (``data/failures/sim_harvest/diagnostics/post_reset_termination_2026-09-12.json``):
+    reading contact data after every step produced 239 second terminations on
+    the first step after the environment's own reset, each with episode length 1,
+    base height at least 0.396 m and the stale force in history slot 1; reading
+    it and then re-resetting the sensor for the environments reset that step
+    produced none. The live loop now does the latter
+    (:func:`undo_post_reset_contact_read`), so this rule should classify nothing
+    in a new run. It stays as the accounting guard, and it is what recomputes the
+    1.0 report.
+
+    The rule is deliberately narrow. Every condition must hold, so a genuine
+    back-to-back fall, a tick with a different term, or a tick whose episode is
+    older than one control step is never merged away. When the episode length is
+    unknown the tick is NOT classified as an artifact: an unknown is counted as a
+    failure rather than discarded.
+    """
+    if previous is None or previous.env_index != tick.env_index:
+        return False
+    if tick.step_index != previous.step_index + 1:
+        return False
+    if tuple(tick.terms) != tuple(previous.terms):
+        return False
+    if tick.episode_length_steps != 1:
+        return False
+    if (
+        tick.episode_generation is not None
+        and previous.episode_generation is not None
+        and tick.episode_generation != previous.episode_generation + 1
+    ):
+        return False
+    return True
+
+
+class TerminationLedger:
+    """Classify termination ticks in step order, one environment history at a time.
+
+    The single classifier both the live harvest loop and
+    :func:`recompute_report_from_v1` go through, so the live counts and the
+    recomputed historical counts cannot be derived by two different rules.
+    """
+
+    def __init__(self, time_out_terms: tuple[str, ...] = TIME_OUT_TERMS) -> None:
+        self._time_out_terms = tuple(time_out_terms)
+        self._last: dict[int, TerminationTick] = {}
+        self._chain_root: dict[int, int] = {}
+        self.classified: list[TickClassification] = []
+
+    def observe(self, tick: TerminationTick) -> TickClassification:
+        env = tick.env_index
+        previous = self._last.get(env)
+        if previous is not None and tick.step_index <= previous.step_index:
+            raise ValueError(
+                f"termination ticks must arrive in step order per environment: env {env} "
+                f"step {tick.step_index} after step {previous.step_index}"
+            )
+        if is_post_reset_artifact(tick, previous):
+            verdict = TickClassification(
+                tick, CLASS_POST_RESET_ARTIFACT, artifact_of_step_index=self._chain_root[env]
+            )
+        else:
+            self._chain_root[env] = tick.step_index
+            if tick.terms and all(term in self._time_out_terms for term in tick.terms):
+                verdict = TickClassification(tick, CLASS_TIME_OUT)
+            else:
+                verdict = TickClassification(tick, CLASS_GENUINE)
+        self._last[env] = tick
+        self.classified.append(verdict)
+        return verdict
+
+    def count(self, classification: str) -> int:
+        return sum(1 for v in self.classified if v.classification == classification)
+
+
+def artifact_entry(verdict: TickClassification) -> dict:
+    """JSON form of a post_reset_artifact for the report."""
+    tick = verdict.tick
+    return {
+        "env_index": tick.env_index,
+        "step_index": tick.step_index,
+        "terms": list(tick.terms),
+        "episode_length_steps": tick.episode_length_steps,
+        "episode_generation": tick.episode_generation,
+        "artifact_of_step_index": verdict.artifact_of_step_index,
+        "classification": verdict.classification,
+    }
+
+
+def undo_post_reset_contact_read(env, env_ids) -> bool:
+    """Undo what a contact-data read does to an environment reset in the same step.
+
+    ``ContactSensor.data`` fills outdated history lazily from the last PhysX
+    step, and ``_reset_idx`` marks a reset environment outdated without
+    stepping physics, so a read between the reset and the next physics step
+    stores the pre-reset contact force in the new episode's history. Resetting
+    the sensor again for those environments restores the zeroed history Isaac's
+    own reset produced. Returns False when the scene has no contact sensor.
+    """
+    try:
+        sensor = env.scene["contact_forces"]
+    except KeyError:
+        return False
+    sensor.reset(list(env_ids))
+    return True
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -142,6 +313,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", force=True)
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if "--recompute-report" in argv:
+        # No simulator: re-derive a v2 report from a recorded v1 report.
+        return recompute_cli(argv)
     args = parse_args(argv)
     print(f"[harvest] args: {args}", flush=True)
 
@@ -299,11 +474,16 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
     window = args.pre_onset_steps
     history: list[deque] = [deque(maxlen=window) for _ in range(n_env)]
     harvested = 0
-    terminations_seen = 0
-    timeouts_seen = 0
+    termination_ticks_seen = 0
+    time_out_resets_seen = 0
     unattributed_seen = 0
     records: list[TerminationRecord] = []
+    # Every termination tick goes through this one classifier; see
+    # is_post_reset_artifact for why a tick is not always a failure.
+    ledger = TerminationLedger()
+    artifacts: list[TickClassification] = []
     contacts_missing_warned = False
+
     # rsl_rl's wrapper returns either a tensor, a (obs, extras) tuple, or a
     # {group: tensor} dict depending on version. Normalize in one place so the
     # rollout loop below cannot silently feed the policy the wrong group.
@@ -322,6 +502,9 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
         # the pre-reset overlay covers it too, otherwise a terminating
         # environment logs its post-reset joint pose.
         s["joint_position"] = to_numpy(env.unwrapped.scene["robot"].data.joint_pos).copy()
+        # Read inside _reset_idx this is the length of the episode that ENDED,
+        # before Isaac zeroes it; the overlay carries that value through.
+        s["episode_length"] = to_numpy(env.unwrapped.episode_length_buf).copy()
         return s
 
     # Isaac auto-resets a terminating environment INSIDE env.step(). Reading
@@ -339,9 +522,21 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
         for step_idx in range(args.max_steps):
             actions = policy(obs)
             actions_np = to_numpy(actions).copy()
+            # Generation of the episode each env is in BEFORE this step, i.e. the
+            # episode a termination on this step ends.
+            generation_before = dict(capture.generation)
             capture.begin_step()
             obs = policy_obs(env.step(actions))
+            reset_now = set(capture.reset_this_step)
             state = capture.overlay(snapshot())
+            # snapshot() just read contact-sensor data. For an env Isaac reset
+            # inside this step, that read wrote the PRE-reset PhysX contact
+            # force into its freshly zeroed history and made base_contact fire
+            # again on the next step (see is_post_reset_artifact). Re-reset the
+            # sensor for exactly those envs so the next step sees what Isaac
+            # intended.
+            if reset_now:
+                undo_post_reset_contact_read(env.unwrapped, sorted(reset_now))
             joint_pos = state["joint_position"]
             contacts = state["contacts"]
             if not np.isfinite(contacts).all() and not contacts_missing_warned:
@@ -385,19 +580,44 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
                 if name.startswith("termination:")
             }
 
+            # A reset with no termination tick is a time-out (truncation):
+            # `terminated` excludes time-out terms. It still starts a new
+            # episode, so it must clear that env's history below.
+            time_out_resets_seen += sum(1 for i in reset_now if not terminated[i])
+
             for i in range(n_env):
                 if not terminated[i]:
                     continue
-                terminations_seen += 1
+                termination_ticks_seen += 1
                 fired = [term for term, mask in reasons.items() if mask[i]]
-                if fired and all(term in TIME_OUT_TERMS for term in fired):
-                    timeouts_seen += 1
-                    continue
-                if not fired:
+                unattributed = not fired
+                if unattributed:
                     # `terminated` already excludes time-outs, so a termination
                     # with no named term is a genuine failure the manager did
                     # not attribute. Keep it, loudly. Dropping it would be the
                     # same class of defect as dropping a detector miss.
+                    fired = ["unattributed_termination"]
+                tick = TerminationTick(
+                    env_index=i,
+                    step_index=step_idx,
+                    terms=tuple(fired),
+                    episode_length_steps=int(state["episode_length"][i]),
+                    episode_generation=generation_before.get(i, 0),
+                )
+                verdict = ledger.observe(tick)
+                if verdict.classification == CLASS_POST_RESET_ARTIFACT:
+                    artifacts.append(verdict)
+                    logger.warning(
+                        "env %d step %d: termination on the first step after its reset, "
+                        "counted as a post-reset artifact of the termination at step %d",
+                        i,
+                        step_idx,
+                        verdict.artifact_of_step_index,
+                    )
+                    continue
+                if verdict.classification == CLASS_TIME_OUT:
+                    continue
+                if unattributed:
                     unattributed_seen += 1
                     logger.warning(
                         "env %d terminated at step %d with no termination term set; "
@@ -405,7 +625,6 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
                         i,
                         step_idx,
                     )
-                    fired = ["unattributed_termination"]
                 record = harvest_termination(
                     rows=list(history[i]),
                     dt_ctrl=dt_ctrl,
@@ -418,6 +637,11 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
                     logger_cls=TrajectoryLogger,
                     step_cls=TrajectoryStep,
                     min_pre_onset_rows=args.min_pre_onset_rows,
+                    episode_length_steps=tick.episode_length_steps,
+                    episode_generation=tick.episode_generation,
+                    # History is cleared on EVERY reset below, so a window can
+                    # no longer span one.
+                    window_spans_unobserved_reset=False,
                 )
                 records.append(record)
                 if record.status == "written":
@@ -437,9 +661,13 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
                 if harvested >= args.num_failures:
                     break
             # Environments Isaac auto-reset must not carry pre-reset history
-            # forward into the next episode's window.
+            # forward into the next episode's window. Clear on EVERY reset, not
+            # only on `terminated`: a time-out reset has terminated=False, and
+            # clearing only on termination spliced two episodes into one window
+            # (1.0 harvest, sim_fall_0001_env058_step001102: fallen at z=0.18 m
+            # until the time-out at row 496, fresh spawn at z=0.40 m on row 497).
             for i in range(n_env):
-                if terminated[i]:
+                if terminated[i] or i in reset_now:
                     history[i].clear()
             if harvested >= args.num_failures:
                 break
@@ -450,14 +678,18 @@ def _run(args: argparse.Namespace) -> int:  # noqa: ANN001
         records,
         dt_ctrl=dt_ctrl,
         min_pre_onset_rows=args.min_pre_onset_rows,
-        terminations_seen=terminations_seen,
-        timeouts_seen=timeouts_seen,
+        termination_ticks_seen=termination_ticks_seen,
+        time_out_ticks_seen=ledger.count(CLASS_TIME_OUT),
         unattributed_seen=unattributed_seen,
+        post_reset_artifacts=artifacts,
+        time_out_resets_seen=time_out_resets_seen,
     )
     report_path = out_dir / "harvest_report.json"
     report_path.write_text(json.dumps(report, indent=2))
-    print(format_report(report) + f"\n[harvest] report: {report_path}\n[harvest] out: {out_dir}",
-          flush=True)
+    print(
+        format_report(report) + f"\n[harvest] report: {report_path}\n[harvest] out: {out_dir}",
+        flush=True,
+    )
     return 0 if harvested else 1
 
 
@@ -491,6 +723,14 @@ class TerminationRecord:
     sim_termination_terms: list[str]
     sim_termination_index: int
     sim_termination_time_s: float
+    # --- episode identity (schema 2.0; None on records carried over from 1.0)
+    # Control steps in the episode that ended, from Isaac's episode_length_buf.
+    episode_length_steps: int | None = None
+    # PreResetCapture.generation of that episode.
+    episode_generation: int | None = None
+    # True when the window holds rows from before a reset other than the
+    # termination itself, so it is not one episode. None when not determined.
+    window_spans_unobserved_reset: bool | None = None
     # --- detector output, measured AGAINST the ground truth above ----------
     detector_id: str = DETECTOR_ID
     # Whether the detector was actually SHOWN this window. A window too short to
@@ -570,6 +810,9 @@ def harvest_termination(
     logger_cls,
     step_cls,
     min_pre_onset_rows,
+    episode_length_steps=None,
+    episode_generation=None,
+    window_spans_unobserved_reset=None,
 ) -> TerminationRecord:
     """Record one genuine simulator termination, and write it unless unusable.
 
@@ -592,6 +835,9 @@ def harvest_termination(
         sim_termination_terms=list(terms),
         sim_termination_index=sim_index,
         sim_termination_time_s=sim_index * dt_ctrl,
+        episode_length_steps=episode_length_steps,
+        episode_generation=episode_generation,
+        window_spans_unobserved_reset=window_spans_unobserved_reset,
     )
     if len(rows) < 2:
         record.status = "rejected"
@@ -647,13 +893,31 @@ def build_report(
     *,
     dt_ctrl,
     min_pre_onset_rows,
-    terminations_seen,
-    timeouts_seen,
+    termination_ticks_seen,
+    time_out_ticks_seen,
     unattributed_seen,
+    post_reset_artifacts=(),
+    time_out_resets_seen=None,
 ) -> dict:
-    """Summarize the run, including detector recall as a measured quantity."""
+    """Summarize the run, including detector recall as a measured quantity.
+
+    ``records`` are physical terminations only. The tick accounting must close:
+    every termination tick is exactly one of a time-out tick, a post-reset
+    artifact, or a physical termination, and a report that does not add up is
+    refused rather than written.
+    """
     records = list(records)
+    artifacts = [a if isinstance(a, dict) else artifact_entry(a) for a in post_reset_artifacts]
     genuine = len(records)
+    if termination_ticks_seen != time_out_ticks_seen + len(artifacts) + genuine:
+        raise ValueError(
+            f"termination accounting does not close: {termination_ticks_seen} ticks != "
+            f"{time_out_ticks_seen} time-out ticks + {len(artifacts)} post-reset artifacts + "
+            f"{genuine} physical terminations"
+        )
+    spliced_written = [
+        r.path for r in records if r.status == "written" and r.window_spans_unobserved_reset
+    ]
     evaluated = [r for r in records if r.detector_evaluated]
     not_evaluable = [r for r in records if not r.detector_evaluated]
     fired = [r for r in records if r.detector_fired]
@@ -672,17 +936,27 @@ def build_report(
         "generated_by": "scripts/harvest_sim_failures.py",
         "control_dt_s": dt_ctrl,
         "min_pre_onset_rows": min_pre_onset_rows,
+        "classification_rule": POST_RESET_ARTIFACT_RULE,
         "counts": {
-            "terminations_seen": terminations_seen,
-            "time_out_terminations": timeouts_seen,
-            "genuine_failures": genuine,
+            # Raw control steps on which the termination manager reported done.
+            "termination_ticks_seen": termination_ticks_seen,
+            "time_out_ticks": time_out_ticks_seen,
+            "post_reset_artifacts": len(artifacts),
+            # One per physical episode termination. The failure population.
+            "physical_terminations": genuine,
             "unattributed_terminations_retained": unattributed_seen,
+            # Resets with no termination tick (truncations). Not part of the
+            # tick accounting; None when the run did not observe resets.
+            "time_out_resets_observed": time_out_resets_seen,
             "written": len(written),
+            "written_with_spliced_window": len(spliced_written),
             "rejected": rejected,
         },
+        "written_with_spliced_window": spliced_written,
+        "post_reset_artifacts": artifacts,
         "detector": {
             "id": DETECTOR_ID,
-            "genuine_failures": genuine,
+            "physical_terminations": genuine,
             # Windows the detector was actually shown. Recall is over THESE, not
             # over every termination: a window too short to evaluate is not a
             # detector miss, and dividing by all of them reports the window
@@ -712,12 +986,15 @@ def format_report(report: dict) -> str:
     rejected = counts["rejected"]
     lines = [
         "",
-        f"[harvest] terminations seen: {counts['terminations_seen']}",
-        f"[harvest]   of which time-out (not failures): {counts['time_out_terminations']}",
-        f"[harvest]   genuine failures retained: {counts['genuine_failures']}",
+        f"[harvest] termination ticks seen: {counts['termination_ticks_seen']}",
+        f"[harvest]   time-out ticks (not failures): {counts['time_out_ticks']}",
+        f"[harvest]   post-reset artifacts (not failures): {counts['post_reset_artifacts']}",
+        f"[harvest]   physical terminations: {counts['physical_terminations']}",
         f"[harvest]   unattributed terminations kept: "
         f"{counts['unattributed_terminations_retained']}",
-        f"[harvest] trajectories written: {counts['written']}",
+        f"[harvest] time-out resets observed: {counts['time_out_resets_observed']}",
+        f"[harvest] trajectories written: {counts['written']} "
+        f"(of which spanning an unobserved reset: {counts['written_with_spliced_window']})",
     ]
     for reason, n in sorted(rejected.items()):
         lines.append(f"[harvest]   rejected, {reason}: {n} (structural, not detector-driven)")
@@ -729,7 +1006,7 @@ def format_report(report: dict) -> str:
     )
     lines.append(
         f"[harvest]   windows too short to evaluate (NOT counted as misses): "
-        f"{detector['not_evaluable']} of {detector['genuine_failures']}"
+        f"{detector['not_evaluable']} of {detector['physical_terminations']}"
     )
     lines.append(f"[harvest]   fired by mode: {detector['fired_by_mode'] or 'none'}")
     if detector["mean_lead_s"] is not None:
@@ -738,10 +1015,245 @@ def format_report(report: dict) -> str:
             f"{detector['mean_lead_s']:.3f} s"
         )
     lines.append(
-        "[harvest] detector recall is a MEASUREMENT. A missed failure is kept, "
-        "not discarded."
+        "[harvest] detector recall is a MEASUREMENT. A missed failure is kept, " "not discarded."
     )
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------ recompute
+#
+# Re-derives a 2.0 report from a recorded 1.0 report through the SAME
+# TerminationLedger the live loop uses. The 1.0 artifacts are read, never
+# written.
+
+V1_SCHEMA_VERSION = "1.0"
+
+# Fields a 1.0 record carries, copied verbatim onto the recomputed record.
+_V1_RECORD_FIELDS = (
+    "env_index",
+    "step_index",
+    "window_rows",
+    "sim_termination_terms",
+    "sim_termination_index",
+    "sim_termination_time_s",
+    "detector_id",
+    "detector_evaluated",
+    "detector_fired",
+    "detector_mode",
+    "detector_onset_index",
+    "detector_onset_time_s",
+    "detector_latency_s",
+    "detector_false_negative",
+    "onset_index",
+    "onset_source",
+    "status",
+    "rejected_reason",
+    "path",
+    "schema_version",
+    "field_notes",
+)
+
+
+def time_out_reset_steps(
+    episode_start_step: int, before_step: int, max_episode_length_steps: int
+) -> list[int]:
+    """Steps strictly before ``before_step`` at which a time-out reset occurs.
+
+    An episode that begins on control step ``e`` reaches ``episode_length_buf ==
+    L`` on step ``e + L - 1``, where Isaac truncates and resets it, and the next
+    episode begins on ``e + L``. Assumes every episode starts at length zero, which
+    holds for this harvest (no randomized initial episode length outside training).
+    """
+    if max_episode_length_steps < 1:
+        raise ValueError(f"max_episode_length_steps must be >= 1, got {max_episode_length_steps}")
+    steps: list[int] = []
+    t = episode_start_step + max_episode_length_steps - 1
+    while t < before_step:
+        steps.append(t)
+        t += max_episode_length_steps
+    return steps
+
+
+def window_spans_reset(step_index: int, window_rows: int, reset_steps: list[int]) -> bool:
+    """True when a window ending at ``step_index`` holds a row from before a reset.
+
+    A reset on step ``t`` leaves row ``t`` as the pre-reset state and row ``t + 1``
+    as the new episode, so the window ``[step_index - window_rows + 1, step_index]``
+    is spliced iff some ``t`` in ``reset_steps`` satisfies
+    ``window_start <= t < step_index``.
+    """
+    window_start = step_index - window_rows + 1
+    return any(window_start <= t < step_index for t in reset_steps)
+
+
+def _detector_summary(records: list[TerminationRecord]) -> dict:
+    evaluated = [r for r in records if r.detector_evaluated]
+    fired = [r for r in evaluated if r.detector_fired]
+    by_mode: dict[str, int] = {}
+    for r in fired:
+        by_mode[r.detector_mode] = by_mode.get(r.detector_mode, 0) + 1
+    leads = [-r.detector_latency_s for r in fired if r.detector_latency_s is not None]
+    return {
+        "evaluated": len(evaluated),
+        "fired": len(fired),
+        "recall": (len(fired) / len(evaluated)) if evaluated else None,
+        "false_negatives": len(evaluated) - len(fired),
+        "fired_by_mode": by_mode,
+        "mean_lead_s": (sum(leads) / len(leads)) if leads else None,
+    }
+
+
+def recompute_report_from_v1(
+    source: str | Path, *, max_episode_length_steps: int, repo_root: Path = REPO_ROOT
+) -> dict:
+    """Re-derive the corrected accounting of a recorded 1.0 harvest report.
+
+    What a 1.0 report does and does not carry, and how each gap is handled:
+
+    * No episode length. ``window_rows`` stands in for it in the artifact rule.
+      The harvest cleared a window on every termination tick, so after a
+      termination on step ``s`` a tick on ``s + 1`` has ``window_rows == 1`` exactly
+      when its episode is one control step old, which is the only question the
+      rule asks. Condition (4), the generation, is skipped: it was not recorded.
+    * No record of time-out resets, which did NOT clear the window. They are
+      reconstructed per environment from ``max_episode_length_steps`` with
+      :func:`time_out_reset_steps`, and every record whose window spans one is
+      marked ``window_spans_unobserved_reset``. Detector statistics are reported
+      both as recorded and over unspliced windows only, because a spliced window
+      can show the detector a fall from the PREVIOUS episode.
+    """
+    source = Path(source)
+    raw = source.read_bytes()
+    v1 = json.loads(raw)
+    if v1.get("schema_version") != V1_SCHEMA_VERSION:
+        raise ValueError(
+            f"{source} has schema_version {v1.get('schema_version')!r}, expected "
+            f"{V1_SCHEMA_VERSION!r}"
+        )
+    entries = sorted(v1["trajectories"], key=lambda e: (e["step_index"], e["env_index"]))
+
+    ledger = TerminationLedger()
+    records: list[TerminationRecord] = []
+    artifacts: list[TickClassification] = []
+    episode_start: dict[int, int] = {}
+    for entry in entries:
+        env = int(entry["env_index"])
+        step = int(entry["step_index"])
+        start = episode_start.get(env, 0)
+        time_outs = time_out_reset_steps(start, step, max_episode_length_steps)
+        if time_outs:
+            start = time_outs[-1] + 1
+        tick = TerminationTick(
+            env_index=env,
+            step_index=step,
+            terms=tuple(entry["sim_termination_terms"]),
+            episode_length_steps=int(entry["window_rows"]),
+            episode_generation=None,
+        )
+        verdict = ledger.observe(tick)
+        # Every tick, artifact or not, ended an episode with a reset.
+        episode_start[env] = step + 1
+        if verdict.classification == CLASS_POST_RESET_ARTIFACT:
+            artifacts.append(verdict)
+            continue
+        if verdict.classification == CLASS_TIME_OUT:
+            raise ValueError(f"1.0 trajectories never hold time-out ticks: {entry}")
+        record = TerminationRecord(**{key: entry[key] for key in _V1_RECORD_FIELDS})
+        # The reconstructed episode length is a derived value, not a recorded one.
+        record.episode_length_steps = None
+        record.window_spans_unobserved_reset = window_spans_reset(
+            step, int(entry["window_rows"]), time_outs
+        )
+        records.append(record)
+
+    v1_counts = v1["counts"]
+    v1_time_outs = int(v1_counts.get("time_out_terminations", 0))
+    report = build_report(
+        records,
+        dt_ctrl=v1["control_dt_s"],
+        min_pre_onset_rows=v1["min_pre_onset_rows"],
+        termination_ticks_seen=len(entries) + v1_time_outs,
+        time_out_ticks_seen=v1_time_outs,
+        unattributed_seen=sum(
+            1 for r in records if "unattributed_termination" in r.sim_termination_terms
+        ),
+        post_reset_artifacts=artifacts,
+        time_out_resets_seen=None,
+    )
+    clean = [r for r in records if not r.window_spans_unobserved_reset]
+    try:
+        source_label = str(source.resolve().relative_to(repo_root.resolve()))
+    except ValueError:
+        source_label = str(source)
+    report["generated_by"] = "scripts/harvest_sim_failures.py --recompute-report"
+    report["recomputed_from"] = {
+        "path": source_label,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "schema_version": V1_SCHEMA_VERSION,
+        "counts_as_recorded": v1_counts,
+        "detector_as_recorded": v1["detector"],
+    }
+    report["reconstruction"] = {
+        "max_episode_length_steps": max_episode_length_steps,
+        "records_with_window_spanning_a_time_out_reset": sum(
+            1 for r in records if r.window_spans_unobserved_reset
+        ),
+        "detector_over_unspliced_windows_only": _detector_summary(clean),
+        "notes": [
+            "episode_length_steps for the artifact rule is window_rows (exact for the "
+            "question 'is the episode one step old'); episode_generation was not "
+            "recorded in 1.0, so rule condition (4) is not applied.",
+            "Time-out resets are reconstructed, not recorded, assuming every episode "
+            "starts at length 0 on the step after its reset.",
+            "Records are copied verbatim from 1.0 (their schema_version stays 1.0); "
+            "window_spans_unobserved_reset is the only field computed here.",
+            "No 1.0 artifact (report, Parquet, sidecar) was modified.",
+        ],
+    }
+    return report
+
+
+def write_recomputed_report(
+    source: str | Path, out: str | Path, *, max_episode_length_steps: int
+) -> dict:
+    """Write the recomputed report to a NEW path; never over the source or other evidence."""
+    source, out = Path(source), Path(out)
+    if out.resolve() == source.resolve():
+        raise ValueError("refusing to overwrite the historical report it is recomputed from")
+    report = recompute_report_from_v1(source, max_episode_length_steps=max_episode_length_steps)
+    text = json.dumps(report, indent=2) + "\n"
+    if out.exists() and out.read_text() != text:
+        raise FileExistsError(f"refusing to overwrite differing evidence: {out}")
+    out.write_text(text)
+    return report
+
+
+def recompute_cli(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(description="Recompute a 1.0 harvest report under schema 2.0.")
+    p.add_argument("--recompute-report", type=Path, required=True, help="1.0 harvest_report.json")
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument(
+        "--max-episode-length-steps",
+        type=int,
+        required=True,
+        help="episode_length_s / control_dt_s of the harvested env, used to "
+        "reconstruct time-out resets (20.0 s / 0.02 s = 1000 for configs/env/base.yaml).",
+    )
+    args = p.parse_args(argv)
+    report = write_recomputed_report(
+        args.recompute_report, args.out, max_episode_length_steps=args.max_episode_length_steps
+    )
+    print(format_report(report), flush=True)
+    rec = report["reconstruction"]
+    print(
+        f"[recompute] records whose window spans a time-out reset: "
+        f"{rec['records_with_window_spanning_a_time_out_reset']}\n"
+        f"[recompute] detector over unspliced windows only: "
+        f"{rec['detector_over_unspliced_windows_only']}\n"
+        f"[recompute] wrote {args.out}",
+        flush=True,
+    )
+    return 0
 
 
 if __name__ == "__main__":

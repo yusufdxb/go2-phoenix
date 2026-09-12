@@ -150,6 +150,74 @@ Note the synthetic pool was never affected: `synthesize_failure.py` already
 subtracted the full XYZ, so the two producers now agree. The conclusion about the
 synthetic pool in section 4 is unchanged by this.
 
+### 7. The re-harvest's termination counts, and three of its windows' contents
+
+`data/failures/sim_harvest/harvest_report.json` (schema 1.0, commit 5783416,
+sha256 `46aec003...8d09c`) counts 148 genuine terminations. It is 74 physical
+falls, each recorded twice: the real window at step s, then a one-row window on
+the same environment at step s + 1 with the same `base_contact` term. All 74
+one-row records follow a long record in exactly that way.
+
+**Mechanism, measured.** `TerminationManager.compute` rebuilds its buffers every
+step and `ContactSensor.reset` zeroes the contact history, so neither survives a
+reset by itself (read in the Isaac Lab source). But the contact sensor fills its
+history lazily, on the first `.data` read after it is marked outdated, from
+whatever PhysX last simulated, and `_reset_idx` marks a reset environment
+outdated without stepping physics. The harvest's post-step snapshot read contact
+data in exactly that gap, writing the pre-reset base contact force into the new
+episode's history, and `illegal_contact`, a max over that history, fired again
+one step later. `scripts/diag_post_reset_termination.py`, recorded in
+`data/failures/sim_harvest/diagnostics/post_reset_termination_2026-09-12.json`
+(32 environments, 400 steps per phase, random actions plus the harvest's interval
+push, one process):
+
+| phase | terminations | on the first step after the env's own reset |
+|---|---|---|
+| read contact data after every step, as the harvest did | 479 | 239, all episode length 1, base height at least 0.396 m, stale force in history slot 1 |
+| never read it after a step | 247 | 0 caused in-phase (its one length-1 termination, at its first step, follows a reset on the last step of the previous phase) |
+| read it, then re-reset the sensor for envs reset that step | 222 | 0 |
+
+**A second defect in the same windows.** The harvest cleared a window only when
+`terminated` was set, and a time-out reset has `terminated=False`. With 20 s
+episodes (1000 control steps) and 600-row windows, 49 of the 74 physical windows
+span a reconstructed time-out reset. Checked on the one written window predicted
+to show it: `sim_fall_0001_env058_step001102` jumps from a fallen z of 0.183 m to
+a spawn height of 0.398 m, and 1.05 m in x/y, between rows 496 and 497, which is
+step 999. Its detector onset, row 239, is a fall from the previous episode.
+
+**Corrected accounting**, recomputed from the 1.0 report through the same
+classifier the live loop now uses, in
+`data/failures/sim_harvest/harvest_report.v2_recomputed.json` (schema 2.0):
+
+| quantity | 1.0 as recorded | 2.0 recomputed |
+|---|---|---|
+| termination ticks | 148, reported as terminations | 148 |
+| post-reset artifacts | not separated | 74 |
+| physical terminations | 148, reported as genuine failures | 74 |
+| written | 3 | 3, of which 1 spans a time-out reset |
+| rejected, no usable pre-onset window | 71 | 71 |
+| rejected, window under two rows | 74 | 0: these were the artifacts |
+| detector recall | 1.000, 74 of 74 | 1.000, 74 of 74; over the 25 unspliced windows, 25 of 25 |
+| detector mean lead | 10.178 s | 10.178 s over all; 6.974 s over the 25 unspliced windows |
+
+**Superseded:** 148 as a failure population; the explanation that 74 terminations
+had a window under two rows because most falls happen close to an episode reset;
+the 10.178 s mean lead and the per-mode split, since 49 of the windows behind them
+are spliced; and `sim_fall_0001_env058_step001102` as a single-episode failure
+trajectory, together with anything seeded from it. The 74 of 74 recall stands as
+a count. Section 5's 74 terminations discarded for being unlabelled were very
+likely the same artifacts, because a one-row window can never fire the detector
+and the figures are identical, but that run's report was not kept, so this is
+inferred rather than recomputed.
+
+**Fixed** in `scripts/harvest_sim_failures.py`: the contact sensor is re-reset for
+environments reset in the step, history is cleared on every reset, every
+termination tick goes through `is_post_reset_artifact` and `TerminationLedger` with
+an episode generation and length recorded per record, and a report whose tick
+accounting does not close is refused. No 1.0 artifact was modified. Nothing was
+re-harvested: the corrected loop has not been run in Isaac, only the diagnostic
+that confirms its contact fix.
+
 ## Hardware-unverified
 
 Nothing in this pass ran on hardware; no robot was connected at any point.
