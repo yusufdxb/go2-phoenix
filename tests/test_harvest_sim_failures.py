@@ -246,14 +246,14 @@ def test_report_counts_rejected_trajectories_in_the_recall_denominator(
         records,
         dt_ctrl=DT,
         min_pre_onset_rows=100,
-        terminations_seen=10,
-        timeouts_seen=7,
+        termination_ticks_seen=10,
+        time_out_ticks_seen=7,
         unattributed_seen=0,
     )
 
-    assert report["counts"]["terminations_seen"] == 10
-    assert report["counts"]["time_out_terminations"] == 7
-    assert report["counts"]["genuine_failures"] == 3
+    assert report["counts"]["termination_ticks_seen"] == 10
+    assert report["counts"]["time_out_ticks"] == 7
+    assert report["counts"]["physical_terminations"] == 3
     assert report["counts"]["written"] == 2
     assert report["counts"]["rejected"] == {"no_usable_pre_onset_window": 1}
     assert report["detector"]["fired"] == 2
@@ -269,8 +269,8 @@ def test_report_is_json_serializable_and_reads_as_a_measurement(harvest):
         [],
         dt_ctrl=DT,
         min_pre_onset_rows=100,
-        terminations_seen=0,
-        timeouts_seen=0,
+        termination_ticks_seen=0,
+        time_out_ticks_seen=0,
         unattributed_seen=0,
     )
     json.dumps(report)
@@ -310,12 +310,12 @@ def test_recall_denominator_excludes_windows_the_detector_never_saw(harvest):
         records,
         dt_ctrl=0.02,
         min_pre_onset_rows=100,
-        terminations_seen=8,
-        timeouts_seen=0,
+        termination_ticks_seen=8,
+        time_out_ticks_seen=0,
         unattributed_seen=0,
     )
     det = report["detector"]
-    assert det["genuine_failures"] == 8
+    assert det["physical_terminations"] == 8
     assert det["evaluated"] == 4
     assert det["not_evaluable"] == 4
     assert det["fired"] == 4
