@@ -1,0 +1,4475 @@
+{
+  "schema_version": "1.0",
+  "generated_by": "scripts/harvest_sim_failures.py",
+  "control_dt_s": 0.02,
+  "min_pre_onset_rows": 100,
+  "counts": {
+    "terminations_seen": 148,
+    "time_out_terminations": 0,
+    "genuine_failures": 148,
+    "unattributed_terminations_retained": 0,
+    "written": 3,
+    "rejected": {
+      "no_usable_pre_onset_window": 71,
+      "window_shorter_than_two_rows": 74
+    }
+  },
+  "detector": {
+    "id": "phoenix.real_world.failure_detector.FailureDetector",
+    "genuine_failures": 148,
+    "evaluated": 74,
+    "not_evaluable": 74,
+    "fired": 74,
+    "recall": 1.0,
+    "false_negatives": 0,
+    "fired_by_mode": {
+      "attitude": 64,
+      "slip": 7,
+      "collapse": 3
+    },
+    "mean_lead_s": 10.178108108108109,
+    "note": "Detector success is NOT a data-inclusion rule. Every genuine simulator termination above is retained; recall is a property of the detector, measured here against simulator ground truth."
+  },
+  "trajectories": [
+    {
+      "env_index": 13,
+      "step_index": 72,
+      "window_rows": 73,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 72,
+      "sim_termination_time_s": 1.44,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -1.44,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 13,
+      "step_index": 73,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 47,
+      "step_index": 136,
+      "window_rows": 137,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 136,
+      "sim_termination_time_s": 2.72,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -2.72,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 47,
+      "step_index": 137,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 377,
+      "window_rows": 378,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 377,
+      "sim_termination_time_s": 7.54,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -7.54,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 378,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 37,
+      "step_index": 530,
+      "window_rows": 531,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 530,
+      "sim_termination_time_s": 10.6,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -10.6,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 37,
+      "step_index": 531,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 8,
+      "step_index": 539,
+      "window_rows": 540,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 539,
+      "sim_termination_time_s": 10.78,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "slip",
+      "detector_onset_index": 172,
+      "detector_onset_time_s": 3.44,
+      "detector_latency_s": -7.34,
+      "detector_false_negative": false,
+      "onset_index": 172,
+      "onset_source": "detector",
+      "status": "written",
+      "rejected_reason": null,
+      "path": "data/failures/sim_harvest/sim_fall_0000_env008_step000539.parquet",
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 8,
+      "step_index": 540,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 6,
+      "step_index": 550,
+      "window_rows": 551,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 550,
+      "sim_termination_time_s": 11.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.0,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 6,
+      "step_index": 551,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 19,
+      "step_index": 572,
+      "window_rows": 573,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 572,
+      "sim_termination_time_s": 11.44,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.44,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 19,
+      "step_index": 573,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 45,
+      "step_index": 629,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 45,
+      "step_index": 630,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 8,
+      "step_index": 800,
+      "window_rows": 260,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 259,
+      "sim_termination_time_s": 5.18,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -5.18,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 8,
+      "step_index": 801,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 21,
+      "step_index": 1030,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 21,
+      "step_index": 1031,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 15,
+      "step_index": 1059,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "slip",
+      "detector_onset_index": 25,
+      "detector_onset_time_s": 0.5,
+      "detector_latency_s": -11.48,
+      "detector_false_negative": false,
+      "onset_index": 25,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 15,
+      "step_index": 1060,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 58,
+      "step_index": 1102,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "slip",
+      "detector_onset_index": 239,
+      "detector_onset_time_s": 4.78,
+      "detector_latency_s": -7.2,
+      "detector_false_negative": false,
+      "onset_index": 239,
+      "onset_source": "detector",
+      "status": "written",
+      "rejected_reason": null,
+      "path": "data/failures/sim_harvest/sim_fall_0001_env058_step001102.parquet",
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 26,
+      "step_index": 1103,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 58,
+      "step_index": 1103,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 26,
+      "step_index": 1104,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 10,
+      "step_index": 1130,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 10,
+      "step_index": 1131,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 24,
+      "step_index": 1136,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "slip",
+      "detector_onset_index": 25,
+      "detector_onset_time_s": 0.5,
+      "detector_latency_s": -11.48,
+      "detector_false_negative": false,
+      "onset_index": 25,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 24,
+      "step_index": 1137,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 29,
+      "step_index": 1154,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "slip",
+      "detector_onset_index": 25,
+      "detector_onset_time_s": 0.5,
+      "detector_latency_s": -11.48,
+      "detector_false_negative": false,
+      "onset_index": 25,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 29,
+      "step_index": 1155,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 10,
+      "step_index": 1173,
+      "window_rows": 42,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 41,
+      "sim_termination_time_s": 0.8200000000000001,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -0.8200000000000001,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 10,
+      "step_index": 1174,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 41,
+      "step_index": 1512,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 41,
+      "step_index": 1513,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 1560,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 1561,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 46,
+      "step_index": 1587,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 12,
+      "detector_onset_time_s": 0.24,
+      "detector_latency_s": -11.74,
+      "detector_false_negative": false,
+      "onset_index": 12,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 46,
+      "step_index": 1588,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 28,
+      "step_index": 1674,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "collapse",
+      "detector_onset_index": 588,
+      "detector_onset_time_s": 11.76,
+      "detector_latency_s": -0.22000000000000064,
+      "detector_false_negative": false,
+      "onset_index": 588,
+      "onset_source": "detector",
+      "status": "written",
+      "rejected_reason": null,
+      "path": "data/failures/sim_harvest/sim_fall_0002_env028_step001674.parquet",
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 28,
+      "step_index": 1675,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 46,
+      "step_index": 1683,
+      "window_rows": 95,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 94,
+      "sim_termination_time_s": 1.8800000000000001,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -1.8800000000000001,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 46,
+      "step_index": 1684,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 59,
+      "step_index": 2119,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 59,
+      "step_index": 2120,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 11,
+      "step_index": 2188,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 11,
+      "step_index": 2189,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 55,
+      "step_index": 2375,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 55,
+      "step_index": 2376,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 33,
+      "step_index": 2505,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "slip",
+      "detector_onset_index": 25,
+      "detector_onset_time_s": 0.5,
+      "detector_latency_s": -11.48,
+      "detector_false_negative": false,
+      "onset_index": 25,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 33,
+      "step_index": 2506,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 62,
+      "step_index": 2511,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 62,
+      "step_index": 2512,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 21,
+      "step_index": 2540,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 21,
+      "step_index": 2541,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 44,
+      "step_index": 2541,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 44,
+      "step_index": 2542,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 48,
+      "step_index": 2566,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 33,
+      "detector_onset_time_s": 0.66,
+      "detector_latency_s": -11.32,
+      "detector_false_negative": false,
+      "onset_index": 33,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 48,
+      "step_index": 2567,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 41,
+      "step_index": 2590,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 41,
+      "step_index": 2591,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 29,
+      "step_index": 2685,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 29,
+      "step_index": 2686,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 2769,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 2770,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 37,
+      "step_index": 2854,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 37,
+      "step_index": 2855,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 21,
+      "step_index": 2871,
+      "window_rows": 330,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 329,
+      "sim_termination_time_s": 6.58,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -6.58,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 21,
+      "step_index": 2872,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 19,
+      "step_index": 2912,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 19,
+      "step_index": 2913,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 37,
+      "step_index": 2916,
+      "window_rows": 61,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 60,
+      "sim_termination_time_s": 1.2,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -1.2,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 37,
+      "step_index": 2917,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 58,
+      "step_index": 2976,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 58,
+      "step_index": 2977,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 61,
+      "step_index": 3132,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 61,
+      "step_index": 3133,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 63,
+      "step_index": 3148,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "collapse",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 63,
+      "step_index": 3149,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 5,
+      "step_index": 3237,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 5,
+      "step_index": 3238,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 5,
+      "step_index": 3348,
+      "window_rows": 110,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 109,
+      "sim_termination_time_s": 2.18,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -2.18,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 5,
+      "step_index": 3349,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 3,
+      "step_index": 3494,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "collapse",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 3,
+      "step_index": 3495,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 1,
+      "step_index": 3511,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 1,
+      "step_index": 3512,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 33,
+      "step_index": 3629,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 33,
+      "step_index": 3630,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 47,
+      "step_index": 3677,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 47,
+      "step_index": 3678,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 35,
+      "step_index": 3695,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 35,
+      "step_index": 3696,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 1,
+      "step_index": 3734,
+      "window_rows": 222,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 221,
+      "sim_termination_time_s": 4.42,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -4.42,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 1,
+      "step_index": 3735,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 57,
+      "step_index": 3752,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 57,
+      "step_index": 3753,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 1,
+      "step_index": 3790,
+      "window_rows": 55,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 54,
+      "sim_termination_time_s": 1.08,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -1.08,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 1,
+      "step_index": 3791,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 38,
+      "step_index": 4067,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 38,
+      "step_index": 4068,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 60,
+      "step_index": 4082,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 60,
+      "step_index": 4083,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 34,
+      "step_index": 4102,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 34,
+      "step_index": 4103,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 41,
+      "step_index": 4118,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 41,
+      "step_index": 4119,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 20,
+      "step_index": 4120,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "slip",
+      "detector_onset_index": 25,
+      "detector_onset_time_s": 0.5,
+      "detector_latency_s": -11.48,
+      "detector_false_negative": false,
+      "onset_index": 25,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 20,
+      "step_index": 4121,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 52,
+      "step_index": 4123,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 52,
+      "step_index": 4124,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 54,
+      "step_index": 4125,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 54,
+      "step_index": 4126,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 18,
+      "step_index": 4130,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 18,
+      "step_index": 4131,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 20,
+      "step_index": 4265,
+      "window_rows": 144,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 143,
+      "sim_termination_time_s": 2.86,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -2.86,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 20,
+      "step_index": 4266,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 47,
+      "step_index": 4300,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 47,
+      "step_index": 4301,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 63,
+      "step_index": 4374,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 63,
+      "step_index": 4375,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 62,
+      "step_index": 4572,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 62,
+      "step_index": 4573,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 17,
+      "step_index": 4695,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 17,
+      "step_index": 4696,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 50,
+      "step_index": 4752,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 50,
+      "step_index": 4753,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 55,
+      "step_index": 4933,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 55,
+      "step_index": 4934,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 4936,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 32,
+      "step_index": 4937,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 19,
+      "step_index": 5127,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 19,
+      "step_index": 5128,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 15,
+      "step_index": 5158,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 15,
+      "step_index": 5159,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 54,
+      "step_index": 5326,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 54,
+      "step_index": 5327,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 18,
+      "step_index": 5475,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 18,
+      "step_index": 5476,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 61,
+      "step_index": 5568,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 61,
+      "step_index": 5569,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 38,
+      "step_index": 5584,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 38,
+      "step_index": 5585,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 52,
+      "step_index": 5632,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 52,
+      "step_index": 5633,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 25,
+      "step_index": 5980,
+      "window_rows": 600,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 599,
+      "sim_termination_time_s": 11.98,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": true,
+      "detector_fired": true,
+      "detector_mode": "attitude",
+      "detector_onset_index": 0,
+      "detector_onset_time_s": 0.0,
+      "detector_latency_s": -11.98,
+      "detector_false_negative": false,
+      "onset_index": 0,
+      "onset_source": "detector",
+      "status": "rejected",
+      "rejected_reason": "no_usable_pre_onset_window",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    },
+    {
+      "env_index": 25,
+      "step_index": 5981,
+      "window_rows": 1,
+      "sim_termination_terms": [
+        "base_contact"
+      ],
+      "sim_termination_index": 0,
+      "sim_termination_time_s": 0.0,
+      "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+      "detector_evaluated": false,
+      "detector_fired": false,
+      "detector_mode": null,
+      "detector_onset_index": null,
+      "detector_onset_time_s": null,
+      "detector_latency_s": null,
+      "detector_false_negative": true,
+      "onset_index": 0,
+      "onset_source": "simulator_termination",
+      "status": "rejected",
+      "rejected_reason": "window_shorter_than_two_rows",
+      "path": null,
+      "schema_version": "1.0",
+      "field_notes": {
+        "sim_*": "simulator ground truth, from the Isaac termination manager",
+        "detector_*": "rule-based FailureDetector output, a measurement only",
+        "onset_index": "row the Parquet failure_flag turns True on",
+        "onset_source": "detector | simulator_termination"
+      }
+    }
+  ]
+}
