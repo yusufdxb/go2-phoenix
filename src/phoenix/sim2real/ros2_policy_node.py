@@ -304,7 +304,9 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires R
     finally:
         node.shutdown()
         node.node.destroy_node()
-        rclpy.shutdown()
+        # SIGINT has usually shut the context down already; a second shutdown raises.
+        if rclpy.ok():
+            rclpy.shutdown()
     return 0
 
 

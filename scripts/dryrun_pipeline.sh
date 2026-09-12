@@ -84,7 +84,9 @@ all_alive() {
 
 teardown() {
     local name pid
-    for name in policy_node lowcmd_bridge lowstate_bridge estop_heartbeat; do
+    # The bridge goes first: it is the authority, it damps on the way out, and
+    # stopping the policy node first would leave it ticking command_stale holds.
+    for name in lowcmd_bridge policy_node lowstate_bridge estop_heartbeat; do
         pid="${PIDS[$name]:-}"
         [[ -n "$pid" ]] || continue
         if is_alive "$pid"; then

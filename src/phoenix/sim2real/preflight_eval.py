@@ -130,8 +130,6 @@ def ledger_status(
             state, why = "MISSING", "no evidence recorded"
         elif rec.get("schema") != STAGE_SCHEMA:
             state, why = "INVALID", f"schema {rec.get('schema')!r}"
-        elif rec.get("rehearsal"):
-            state, why = "REHEARSAL", "rehearsal evidence (no robot) never counts"
         elif (rec.get("code_identity") or {}).get("sha") != current_sha:
             state, why = "STALE", (
                 f"recorded at commit {(rec.get('code_identity') or {}).get('sha')}, "
@@ -145,6 +143,8 @@ def ledger_status(
                 for c in rec.get("checks", [])
                 if c.get("gating", True) and not c.get("ok")
             )
+        elif rec.get("rehearsal"):
+            state, why = "REHEARSAL", "rehearsal evidence (no robot) never counts"
         elif not all_prior_go:
             state, why = "BLOCKED", "an earlier stage does not count"
         elif str(rec.get("utc", "")) < prior_utc:
@@ -483,7 +483,9 @@ def dryrun_checks(
         _check(
             "hardware slew metric recorded (reported, not gating)",
             True,
-            f"bridge {summary.get('bridge_slew_clip_pct')}%, policy node {summary.get('policy_node_slew_clip_pct')}%",
+            f"end-to-end {summary.get('end_to_end_clip_pct')}%, bridge layer "
+            f"{summary.get('bridge_slew_clip_pct')}%, policy node "
+            f"{summary.get('policy_node_slew_clip_pct')}%",
             gating=False,
         )
     )
