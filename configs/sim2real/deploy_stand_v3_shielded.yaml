@@ -88,3 +88,13 @@ safety:
   estop_timeout_s: 0.5
   sensor_timeout_s: 0.2
   first_message_timeout_s: 15.0
+
+# Which source supplies the body linear velocity the POLICY consumes. There is
+# deliberately no default: base_lin_vel is a TRAINED observation term, and a
+# silent zero for a trained feature is the defect this key exists to prevent.
+#   zeros : feed zeros, as every run before 2026-09-11 did. Reproduces historical
+#           behaviour exactly and is the calibration the shield artifact was fit in.
+#   odom  : use validated /utlidar/robot_odom body twist. HARDWARE-UNVERIFIED and
+#           NOT the input distribution any shipped checkpoint was trained against.
+observation:
+  base_lin_vel_source: zeros

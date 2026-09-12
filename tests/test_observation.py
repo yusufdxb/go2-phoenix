@@ -1,11 +1,22 @@
-"""Tests for the policy observation builder."""
+"""Tests for the policy observation builder and the base_lin_vel contract."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from phoenix.sim2real.observation import JointOrder, ObservationBuilder
+from phoenix.sim2real.observation import (
+    BASE_LIN_VEL_SOURCE_ODOM,
+    BASE_LIN_VEL_SOURCE_ZEROS,
+    OBS_TERM_ORDER,
+    BaseLinVelUnavailableError,
+    JointOrder,
+    ObservationBuilder,
+    assemble_policy_observation,
+    projected_gravity_from_quat,
+    resolve_base_lin_vel,
+    term_slices,
+)
 
 JOINT_NAMES = (
     "FL_hip_joint", "FR_hip_joint", "RL_hip_joint", "RR_hip_joint",
@@ -74,3 +85,111 @@ def test_build_rejects_wrong_action_dim() -> None:
             joint_vel=np.zeros(12),
             last_action=np.zeros(11),  # wrong!
         )
+
+
+# ---------------------------------------------------------------------------
+# Term layout contract
+# ---------------------------------------------------------------------------
+
+
+def test_term_slices_cover_the_vector_in_training_order() -> None:
+    slices = term_slices(12)
+    assert list(slices) == list(OBS_TERM_ORDER)
+    assert slices["base_lin_vel"] == slice(0, 3)
+    assert slices["base_ang_vel"] == slice(3, 6)
+    assert slices["projected_gravity"] == slice(6, 9)
+    assert slices["velocity_command"] == slice(9, 12)
+    assert slices["joint_pos"] == slice(12, 24)
+    assert slices["joint_vel"] == slice(24, 36)
+    assert slices["last_action"] == slice(36, 48)
+    assert _builder().term_slices() == slices
+
+
+# ---------------------------------------------------------------------------
+# base_lin_vel resolution. The regression: the deploy node fed the policy
+# np.zeros(3) here with no config, no log, and no record in the capture.
+# ---------------------------------------------------------------------------
+
+
+def test_odom_source_returns_the_measurement() -> None:
+    sample = resolve_base_lin_vel(
+        BASE_LIN_VEL_SOURCE_ODOM,
+        odom_lin_vel_body=np.asarray([0.4, -0.1, 0.02]),
+        odom_valid=True,
+        odom_provenance="body_passthrough",
+    )
+    assert np.allclose(sample.value, [0.4, -0.1, 0.02])
+    assert sample.measured is True
+    assert sample.provenance == "odom:body_passthrough"
+
+
+def test_odom_source_raises_rather_than_zeroing() -> None:
+    with pytest.raises(BaseLinVelUnavailableError, match="Refusing to substitute zeros"):
+        resolve_base_lin_vel(BASE_LIN_VEL_SOURCE_ODOM, odom_lin_vel_body=None, odom_valid=False)
+
+
+def test_odom_source_rejects_non_finite_measurements() -> None:
+    with pytest.raises(BaseLinVelUnavailableError, match="not finite"):
+        resolve_base_lin_vel(
+            BASE_LIN_VEL_SOURCE_ODOM,
+            odom_lin_vel_body=np.asarray([0.1, float("nan"), 0.0]),
+            odom_valid=True,
+        )
+
+
+def test_odom_source_rejects_wrong_shape() -> None:
+    with pytest.raises(BaseLinVelUnavailableError, match=r"shape"):
+        resolve_base_lin_vel(
+            BASE_LIN_VEL_SOURCE_ODOM, odom_lin_vel_body=np.zeros(2), odom_valid=True
+        )
+
+
+def test_zeros_source_is_marked_unmeasured_and_operator_selected() -> None:
+    sample = resolve_base_lin_vel(BASE_LIN_VEL_SOURCE_ZEROS)
+    assert np.allclose(sample.value, 0.0)
+    assert sample.measured is False
+    assert sample.provenance == "zeros:operator_selected"
+
+
+def test_unknown_source_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unknown base_lin_vel source"):
+        resolve_base_lin_vel("imu_integration")
+
+
+# ---------------------------------------------------------------------------
+# Sensor -> policy assembly
+# ---------------------------------------------------------------------------
+
+
+def test_assemble_uses_quaternion_for_projected_gravity() -> None:
+    b = _builder()
+    quat = (0.0, float(np.sin(0.15)), 0.0, float(np.cos(0.15)))  # 0.3 rad pitch
+    obs = assemble_policy_observation(
+        b,
+        base_lin_vel=np.asarray([0.2, 0.0, 0.0]),
+        quat_xyzw=quat,
+        base_ang_vel=np.zeros(3),
+        velocity_command=np.zeros(3),
+        joint_pos=np.ones(12) * 0.5,
+        joint_vel=np.zeros(12),
+        last_action=None,
+    )
+    assert obs.shape == (48,)
+    assert np.allclose(obs[6:9], projected_gravity_from_quat(*quat))
+    assert np.allclose(obs[:3], [0.2, 0.0, 0.0])
+
+
+def test_assemble_appends_height_scan_padding() -> None:
+    b = _builder()
+    obs = assemble_policy_observation(
+        b,
+        base_lin_vel=np.zeros(3),
+        quat_xyzw=(0.0, 0.0, 0.0, 1.0),
+        base_ang_vel=np.zeros(3),
+        velocity_command=np.zeros(3),
+        joint_pos=np.ones(12) * 0.5,
+        joint_vel=np.zeros(12),
+        pad_zeros=187,
+    )
+    assert obs.shape == (235,)
+    assert np.allclose(obs[48:], 0.0)
