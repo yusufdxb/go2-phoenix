@@ -493,6 +493,11 @@ class TerminationRecord:
     sim_termination_time_s: float
     # --- detector output, measured AGAINST the ground truth above ----------
     detector_id: str = DETECTOR_ID
+    # Whether the detector was actually SHOWN this window. A window too short to
+    # evaluate is not a detector miss, and counting it as one silently deflates
+    # recall: it produced an exactly-0.500 figure that was an artifact of the
+    # window guard rather than a property of the detector.
+    detector_evaluated: bool = False
     detector_fired: bool = False
     detector_mode: str | None = None
     detector_onset_index: int | None = None
@@ -594,6 +599,7 @@ def harvest_termination(
         return record
 
     evaluation = evaluate_detector(rows, dt_ctrl, detector)
+    record.detector_evaluated = True
     record.detector_fired = evaluation.fired
     record.detector_mode = evaluation.mode
     record.detector_onset_index = evaluation.onset_index
@@ -648,6 +654,8 @@ def build_report(
     """Summarize the run, including detector recall as a measured quantity."""
     records = list(records)
     genuine = len(records)
+    evaluated = [r for r in records if r.detector_evaluated]
+    not_evaluable = [r for r in records if not r.detector_evaluated]
     fired = [r for r in records if r.detector_fired]
     written = [r for r in records if r.status == "written"]
     by_mode: dict[str, int] = {}
@@ -675,10 +683,16 @@ def build_report(
         "detector": {
             "id": DETECTOR_ID,
             "genuine_failures": genuine,
+            # Windows the detector was actually shown. Recall is over THESE, not
+            # over every termination: a window too short to evaluate is not a
+            # detector miss, and dividing by all of them reports the window
+            # guard's behaviour as if it were the detector's.
+            "evaluated": len(evaluated),
+            "not_evaluable": len(not_evaluable),
             "fired": len(fired),
-            # Recall over simulator ground truth. Reported, never acted on.
-            "recall": (len(fired) / genuine) if genuine else None,
-            "false_negatives": genuine - len(fired),
+            # Recall over the windows actually evaluated. Reported, never acted on.
+            "recall": (len(fired) / len(evaluated)) if evaluated else None,
+            "false_negatives": len(evaluated) - len(fired),
             "fired_by_mode": by_mode,
             "mean_lead_s": (sum(leads) / len(leads)) if leads else None,
             "note": (
@@ -710,8 +724,12 @@ def format_report(report: dict) -> str:
     lines.append(
         f"[harvest] detector recall vs simulator ground truth: "
         f"{'n/a' if recall is None else f'{recall:.3f}'} "
-        f"({detector['fired']}/{detector['genuine_failures']}), "
+        f"({detector['fired']}/{detector['evaluated']} windows evaluated), "
         f"false negatives: {detector['false_negatives']}"
+    )
+    lines.append(
+        f"[harvest]   windows too short to evaluate (NOT counted as misses): "
+        f"{detector['not_evaluable']} of {detector['genuine_failures']}"
     )
     lines.append(f"[harvest]   fired by mode: {detector['fired_by_mode'] or 'none'}")
     if detector["mean_lead_s"] is not None:
