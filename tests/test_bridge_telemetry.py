@@ -119,6 +119,7 @@ def test_slew_metric_counts_each_command_once_and_matches_hand_count(tmp_path) -
     assert s["bridge_slew_clip_pct"] == pytest.approx(100.0 * 2 / 24)
     assert s["bridge_slew_clip_pct_all_policy_ticks"] == pytest.approx(100.0 * 4 / 36)
     assert s["bridge_slew_clip_pct_per_joint"]["FL_hip_joint"] == pytest.approx(50.0)
+    assert s["end_to_end_clip_pct"] == pytest.approx(100.0 * 2 / 24)
     assert s["max_abs_pitch_rad"] == pytest.approx(0.02)
 
 
@@ -136,6 +137,9 @@ def test_policy_node_clip_is_recomputed_from_the_wire(tmp_path) -> None:
     s = summarize({"gate_params": {"max_delta": 0.175}}, [rec])
     assert s["policy_node_slew_clip_pct"] == pytest.approx(100.0 / 12)
     assert s["bridge_slew_clip_pct"] == pytest.approx(0.0)
+    # End-to-end sees the policy node's clip even though the bridge added none.
+    assert s["end_to_end_clip_pct"] == pytest.approx(100.0 / 12)
+    assert s["end_to_end_clip_pct_per_joint"]["RR_hip_joint"] == pytest.approx(100.0)
 
 
 def test_summary_reports_faults_and_policy_abort_reasons() -> None:

@@ -127,7 +127,7 @@ to DAMP (kp 0): the robot sinks onto the mat, so the spotter must be ready.
   authority for the whole window, no fault before its end, attitude inside the policy's
   abort thresholds, and the operator's confirmation that the robot stood.
 * The hardware slew clip percentage is REPORTED from the bridge telemetry
-  (`bridge_final_slew_clip_activation_v1`) and never gates. The old 3.65% / 4.23% and 5%
+  (`final_target_vs_policy_request_clip_activation_v1`) and never gates. The old 3.65% / 4.23% and 5%
   numbers are legacy figures of a different quantity; see the config header.
 * Passing H does not permit walking. The walking prerequisites are listed in
   `phoenix.sim2real.deploy_contract.WALKING_PREREQUISITES`, starting with validating

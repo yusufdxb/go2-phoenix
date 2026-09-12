@@ -83,6 +83,56 @@ def slew_clip_activation_rate(
     return float(np.mean(clipped != target))
 
 
+def clip_layer_audit(
+    *,
+    actions: np.ndarray,
+    measured_q: np.ndarray,
+    default_q: np.ndarray,
+    action_scale: float,
+    max_delta: float = MAX_DELTA_PER_STEP_RAD,
+    lag_steps: int = 1,
+) -> dict[str, float]:
+    """What a second slew clip, applied ``lag_steps`` later, does to a clipped command.
+
+    Deployment clips twice: the policy node clips ``default_q + action_scale *
+    action`` against the measured position at its own tick, and the LowCmd bridge
+    clips that result again against a fresher measurement on its own, unsynchronised
+    50 Hz timer. On a logged capture (``[T, J]`` actions and measured positions at
+    the policy rate) this rebuilds both layers, with the second layer seeing the
+    position ``lag_steps`` rows later as a worst case of one control period of lag.
+
+    Returns percentages of (row, joint) samples: ``policy_layer_pct`` (the first clip
+    altered the request), ``second_layer_pct`` (the second clip altered the first's
+    output), ``second_only_pct`` (the second altered a request the first left alone),
+    ``end_to_end_pct`` (the final target differs from the request), plus the mean size
+    of a second-layer adjustment and the median / p99 per-row joint motion that drives it.
+    """
+    actions = np.asarray(actions, dtype=np.float64)
+    q = np.asarray(measured_q, dtype=np.float64)
+    if actions.ndim != 2 or actions.shape != q.shape:
+        raise ValueError(f"shape mismatch: actions={actions.shape} measured_q={q.shape}")
+    if lag_steps < 1 or lag_steps >= actions.shape[0]:
+        raise ValueError(f"lag_steps must be in [1, {actions.shape[0] - 1}], got {lag_steps}")
+    requested = np.asarray(default_q, dtype=np.float64) + float(action_scale) * actions[:-lag_steps]
+    first = np.asarray(per_step_clip_array(requested, q[:-lag_steps], max_delta), dtype=np.float64)
+    second = np.asarray(per_step_clip_array(first, q[lag_steps:], max_delta), dtype=np.float64)
+    first_hit = first != requested
+    second_hit = second != first
+    steps = np.abs(np.diff(q, axis=0))
+    return {
+        "lag_steps": float(lag_steps),
+        "policy_layer_pct": 100.0 * float(first_hit.mean()),
+        "second_layer_pct": 100.0 * float(second_hit.mean()),
+        "second_only_pct": 100.0 * float((second_hit & ~first_hit).mean()),
+        "end_to_end_pct": 100.0 * float((second != requested).mean()),
+        "mean_second_adjust_rad": (
+            float(np.abs(second - first)[second_hit].mean()) if second_hit.any() else 0.0
+        ),
+        "median_joint_step_rad": float(np.median(steps)),
+        "p99_joint_step_rad": float(np.percentile(steps, 99)),
+    }
+
+
 def legacy_raw_action_delta_saturation_rate(
     prev_actions: np.ndarray,
     current_actions: np.ndarray,

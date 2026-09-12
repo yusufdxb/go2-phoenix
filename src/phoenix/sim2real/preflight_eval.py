@@ -800,7 +800,9 @@ def stand_checks(
         _check(
             "hardware slew clip activation (REPORTED, not a pass criterion)",
             True,
-            f"{summary.get('metric')}: bridge {summary.get('bridge_slew_clip_pct')}% "
+            f"{summary.get('metric')}: end-to-end {summary.get('end_to_end_clip_pct')}% "
+            f"(per joint {summary.get('end_to_end_clip_pct_per_joint')}); "
+            f"bridge layer {summary.get('bridge_slew_clip_pct')}% "
             f"(all policy ticks {summary.get('bridge_slew_clip_pct_all_policy_ticks')}%), "
             f"policy node {summary.get('policy_node_slew_clip_pct')}%, per joint "
             f"{summary.get('bridge_slew_clip_pct_per_joint')}",

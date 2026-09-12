@@ -79,6 +79,18 @@ is not verified. It is the single highest-value thing to resolve before that gap
 is cited again. Resolving it requires the original lab-findings artifact or a
 re-derivation from the Gate 7 parquet.
 
+**Resolved 2026-09-12, by re-derivation from the Gate 7 parquet.** With
+`scripts/slew_layer_audit.py`, `data/failures/gate7_live_2026-04-21_18-33-17.parquet`
+(5,961 rows at 49.7 Hz, stand-v2 policy) gives a deploy-equivalent clip activation of
+33.05% of joint-samples with the pose that run actually used (every hip 0.0, section 3)
+and 33.06% with the training pose, against a LEGACY raw-action-delta figure of 0.00%.
+The recorded 33.06% is therefore a clip-activation number, and the headline "0.33% in
+sim against 33% on hardware" compared a legacy-metric sim figure with a clip-activation
+hardware figure. How much physics gap remains is unmeasured until a corrected-metric
+sim figure exists for the same policy and pose. The other April captures agree in kind:
+`gate7_live_2026-04-21_18-19-45` 16.81% and `stand_v2_dryrun_2026-04-20_18-02-42`
+16.67% clip activation, both 0.00% legacy.
+
 ### 3. The Gate 7 root-cause attribution
 
 The 2026-04-21 run's slew blowup was attributed solely to the per-step rate
@@ -225,7 +237,7 @@ that confirms its contact fix.
   legacy raw-action-delta figures (section 2). The config now keeps them verbatim
   under an explicit LEGACY heading and no longer uses them, or the 5% threshold, as a
   pass criterion. Hardware slew evidence is now the final LowCmd bridge's per-joint
-  clip activation (`bridge_final_slew_clip_activation_v1`), reported by the stand
+  clip activation (`final_target_vs_policy_request_clip_activation_v1`), reported by the stand
   stages and not gated, because no corrected-metric simulator baseline exists for
   this checkpoint.
 * **The canonical-stand bench threshold of 0.3.** H25 measures 0.482 and would fail

@@ -368,7 +368,7 @@ def test_manifest_records_limits_orders_and_metric(bridge_module) -> None:
     _, manifest = bridge_module.startup_problems(cfg)
     assert manifest["joint_limits_rad"]["RL_thigh_joint"] == [-0.5236, 4.5379]
     assert manifest["motor_order_unitree"][0] == "FR_hip_joint"
-    assert manifest["hardware_slew_metric"] == "bridge_final_slew_clip_activation_v1"
+    assert manifest["hardware_slew_metric"] == "final_target_vs_policy_request_clip_activation_v1"
     assert manifest["code_identity"]["source"] in ("git", "payload_sync", "unknown")
 
 
