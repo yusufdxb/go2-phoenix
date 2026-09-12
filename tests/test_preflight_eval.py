@@ -200,6 +200,18 @@ def test_ledger_rehearsal_evidence_never_counts() -> None:
     assert not status["ready_for_live_hold_E"]
 
 
+def test_a_failed_rehearsal_stage_is_no_go_not_rehearsal() -> None:
+    records = {s: _rec(s, utc=f"2026-09-12T10:0{i}:00") for i, s in enumerate("ABC")}
+    records["B"] = {**_rec("B", verdict="NO-GO", utc="2026-09-12T10:01:00"), "rehearsal": True}
+    records["C"]["rehearsal"] = True
+    states = {
+        r["stage"]: r["state"]
+        for r in pe.ledger_status(records, current_sha=SHA, current_lock_sha256="L")["stages"]
+    }
+    assert states["B"] == "NO-GO"
+    assert states["C"] == "REHEARSAL"
+
+
 def test_verdict_needs_at_least_one_gating_check() -> None:
     assert pe.verdict([]) == "NO-GO"
     assert pe.verdict([pe.Check("info", True, "", gating=False)]) == "NO-GO"
