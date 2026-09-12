@@ -2,7 +2,7 @@
 exported policy and assert the action magnitude is small.
 
 Motivation: the 2026-04-15 training shipped an under-trained flat-v0 policy
-(error_vel_xy=0.76 m/s at final iter — ~8x the 0.1 m/s target). The tell at
+(error_vel_xy=0.76 m/s at final iter, ~8x the 0.1 m/s target). The tell at
 deploy-time is large raw action magnitudes on a zero-command, default-pose
 input: a converged Flat-v0 baseline should emit |action|_infinity well below
 one-third of the per-step slew clip. If that's not true, do not ship the
@@ -53,6 +53,11 @@ def build_canonical_stand_obs(
 
     Canonical stand: body at rest, standing upright, zero velocity command,
     joints at their default (sim reset) pose, no prior action.
+
+    The ``base_lin_vel=zeros`` here is a genuine value, not the deploy-path
+    substitution: a body at rest really does have zero linear velocity. See
+    ``observation.resolve_base_lin_vel`` for the substitution this must not be
+    confused with.
     """
     n = len(obs_builder.joint_order)
     proprio = obs_builder.build(

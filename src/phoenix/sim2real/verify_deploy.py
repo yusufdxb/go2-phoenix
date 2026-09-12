@@ -21,7 +21,12 @@ from pathlib import Path
 import numpy as np
 
 from phoenix.replay.trajectory_reader import TrajectoryReader
-from phoenix.sim2real.observation import JointOrder, ObservationBuilder
+from phoenix.sim2real.observation import (
+    JointOrder,
+    ObservationBuilder,
+    assemble_policy_observation,
+    projected_gravity_from_quat,
+)
 
 logger = logging.getLogger("phoenix.sim2real.verify_deploy")
 
@@ -80,12 +85,28 @@ def build_obs_from_parquet(
 ) -> Iterator[np.ndarray]:
     """Yield policy obs vectors reconstructed from a trajectory parquet.
 
-    Uses the same ObservationBuilder as the deploy node so this gate
-    catches obs-builder bugs too (not just model-export bugs).
+    Uses the same assembler as the deploy node
+    (:func:`phoenix.sim2real.observation.assemble_policy_observation`) so this
+    gate catches obs-assembly bugs too, not just model-export bugs.
+
+    It still cannot catch a term that is constant in the SOURCE CAPTURE: if
+    the capture was taken with ``base_lin_vel_source: zeros``, dims 0..2 are
+    zero in every row here too, and Torch and ONNX will agree on them
+    perfectly no matter what those input weights do. That blind spot is what
+    :mod:`phoenix.sim2real.obs_parity` covers, and it is why the degenerate
+    columns below are logged rather than passed over in silence.
     """
     reader = TrajectoryReader(parquet_path)
     n = len(reader) if max_steps is None else min(max_steps, len(reader))
     base_lin_vel = reader.column("base_lin_vel_body")
+    if n and not np.any(np.asarray(base_lin_vel[:n], dtype=np.float64)):
+        logger.warning(
+            "base_lin_vel_body is identically zero across %d rows of %s: this parity run "
+            "exercises no signal on observation dims 0..2. Capture with "
+            "observation.base_lin_vel_source=odom, or from sim, to cover them.",
+            n,
+            parquet_path,
+        )
     base_ang_vel = reader.column("base_ang_vel_body")
     joint_pos = reader.column("joint_pos")
     joint_vel = reader.column("joint_vel")
@@ -95,36 +116,31 @@ def build_obs_from_parquet(
 
     last_action = np.zeros(len(obs_builder.joint_order), dtype=np.float32)
     for i in range(n):
-        proprio = obs_builder.build(
+        yield assemble_policy_observation(
+            obs_builder,
             base_lin_vel=base_lin_vel[i].astype(np.float32),
+            quat_xyzw=tuple(float(v) for v in base_quat[i]),
             base_ang_vel=base_ang_vel[i].astype(np.float32),
-            projected_gravity=_projected_gravity_from_quat_xyzw(base_quat[i]),
             velocity_command=command_vel[i].astype(np.float32),
             joint_pos=joint_pos[i].astype(np.float32),
             joint_vel=joint_vel[i].astype(np.float32),
             last_action=last_action,
+            pad_zeros=pad_zeros,
         )
-        if pad_zeros > 0:
-            obs = np.concatenate([proprio, np.zeros(pad_zeros, dtype=np.float32)], axis=-1)
-        else:
-            obs = proprio
-        yield obs
         last_action = action[i].astype(np.float32)
 
 
 def _projected_gravity_from_quat_xyzw(quat_xyzw: np.ndarray) -> np.ndarray:
     """World-frame gravity (0, 0, -1) rotated into the body frame.
 
-    Matches Isaac Lab's ``mdp.projected_gravity`` observation term.
+    Matches Isaac Lab's ``mdp.projected_gravity`` observation term. Delegates
+    to :func:`phoenix.sim2real.observation.projected_gravity_from_quat` so the
+    parity gate and the deploy node cannot drift apart: they once did, with
+    gx/gy sign-flipped on the node side, and the gate could not see it because
+    it had its own copy of the math.
     """
     x, y, z, w = (float(v) for v in quat_xyzw)
-    # Rotate (0, 0, -1) by the inverse quaternion (== conjugate for unit quats).
-    # Inverse rotation of v by q is equivalent to rotating v by q_conj.
-    # Direct closed-form: g_body = R(q)^T @ g_world.
-    gx = 2.0 * (x * z - w * y) * -1.0
-    gy = 2.0 * (y * z + w * x) * -1.0
-    gz = (1.0 - 2.0 * (x * x + y * y)) * -1.0
-    return np.asarray([gx, gy, gz], dtype=np.float32)
+    return projected_gravity_from_quat(x, y, z, w)
 
 
 # -------------------- CLI plumbing ------------------------------------------

@@ -4,8 +4,10 @@ Runs a short rollout of a *deliberately under-trained* policy in a
 slippery / perturbed env, logs every step via
 :class:`phoenix.real_world.TrajectoryLogger`, and flags the steps that
 the :class:`phoenix.real_world.FailureDetector` flags. The output is a
-drop-in substitute for a parquet captured on the real robot — same
-schema, same reader, usable by ``replay`` and the failure curriculum.
+drop-in substitute for a parquet captured on the real robot: same
+schema, same reader, usable by ``replay`` and the failure curriculum. Every
+row it writes is labelled ``capture_source="sim"``, so a consumer can always
+tell it apart from a hardware capture.
 
 Use sparingly: a synthesized failure is still a *sim* failure. Real
 hardware parquets remain the ground truth, but this script lets the
@@ -64,7 +66,12 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     import torch
 
     from phoenix.real_world.failure_detector import FailureDetector
-    from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
+    from phoenix.real_world.trajectory_logger import (
+        CAPTURE_SOURCE_SIM,
+        TrajectoryLogger,
+        TrajectoryStep,
+    )
+    from phoenix.sim2real.observation import BASE_LIN_VEL_SOURCE_SIM
     from phoenix.sim_env import build_env_cfg, load_layered_config
 
     env_cfg_loaded = load_layered_config(args.env_config)
@@ -106,7 +113,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             obs, _reward, terminated, truncated, _info = env.step(action)
             done = terminated | truncated
 
-            # Some fields are warp arrays in Isaac Lab v3 — convert the whole
+            # Some fields are warp arrays in Isaac Lab v3, convert the whole
             # tensor first, then index, to avoid "Item indexing is not supported
             # on wp.array objects".
             # base_pos is stored *relative to the env origin* so replay can
@@ -124,6 +131,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             act = _to_numpy(action)[0]
 
             roll, pitch, _yaw = _rpy_from_quat_xyzw(base_quat)
+            # Valid ground-relative height: base_pos is env-origin-relative
+            # above, and the env origin sits on the (flat) ground plane. This
+            # is the one capture path that may feed the collapse detector a
+            # height; the real-robot path has no such source and passes None.
             height = float(base_pos[2])
 
             event = detector.step(
@@ -150,6 +161,22 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                     contact_forces=np.zeros(4, dtype=np.float32),
                     failure_flag=event is not None,
                     failure_mode=event.mode.value if event else None,
+                    capture_source=CAPTURE_SOURCE_SIM,
+                    base_lin_vel_source=BASE_LIN_VEL_SOURCE_SIM,
+                    # In sim the policy consumes the env's own base_lin_vel
+                    # term, so the logged value and the policy input agree.
+                    obs_base_lin_vel_source=BASE_LIN_VEL_SOURCE_SIM,
+                    # No contact sensor is read here, the column is a
+                    # structural zero rather than measured Newtons.
+                    contact_forces_units="unmeasured",
+                    # failure_flag here is the detector's verdict, so it can
+                    # disagree with the simulator's own termination. This
+                    # writer rolls several episodes into one file and resets
+                    # on ``done``, so a single per-trajectory terminal index
+                    # is not well defined; the sim_termination_* columns stay
+                    # null rather than naming one arbitrarily. Per-failure
+                    # capsules are the writer that fills them.
+                    failure_onset_source="detector",
                 )
             )
 

@@ -6,14 +6,38 @@ Reads:
 * ``/imu/data``, sensor_msgs/Imu (orientation, angular velocity, linear accel)
 * ``/joint_states``, sensor_msgs/JointState (positions + velocities)
 * ``/cmd_vel``, geometry_msgs/Twist (teleop / higher-level policy command)
-* ``/utlidar/robot_odom``, nav_msgs/Odometry, OPTIONAL, logging only. Never
-  gates control or safety: if it never publishes (LiDAR stack absent/down)
-  the node behaves exactly as before. Feeds ``base_pos`` /
-  ``base_lin_vel_body`` in the parquet log; see ``_log_step``.
+* ``/utlidar/robot_odom``, nav_msgs/Odometry. Always feeds ``base_pos`` /
+  ``base_lin_vel_body`` in the parquet log. Whether it also feeds the POLICY
+  depends on ``observation.base_lin_vel_source`` below.
 * ``/phoenix/foot_force``, std_msgs/Float32MultiArray, OPTIONAL, logging
   only. Published by ``lowstate_bridge_node`` from
   ``unitree_go/msg/LowState.foot_force``. Feeds ``contact_forces`` in the
-  parquet log; see ``phoenix.sim2real.telemetry``.
+  parquet log as RAW UNCALIBRATED COUNTS; see ``phoenix.sim2real.telemetry``.
+
+Required config, ``observation.base_lin_vel_source``:
+
+The trained observation vector's first three dims are ``base_lin_vel``, a
+real, noised term in training (Isaac Lab ``velocity_env_cfg.py``,
+``ObservationsCfg.PolicyCfg``; ``configs/env/base.yaml`` sets its noise to
+0.1). The GO2 has no onboard body-velocity estimate, and this node used to
+hardcode ``np.zeros(3)`` there with no record anywhere in the run. That is
+the defect this key removes: there is no default, the operator must choose.
+
+* ``zeros``: keep the historical substitution. Every Phoenix checkpoint and
+  every reliability-shield artifact to date was calibrated with it, so it is
+  the setting that reproduces past runs. It is a KNOWN distribution shift,
+  logged loudly at startup and recorded in every parquet row.
+* ``odom``: feed the validated body-frame ``/utlidar/robot_odom`` twist. The
+  policy then sees a real measurement, which is what it was trained on, but
+  it also invalidates bit-level comparison against every zeros-mode run and
+  against the shield's calibration. If odometry is missing, stale, or in an
+  unidentifiable frame, the node LATCHES ABORT rather than substituting
+  zeros. HARDWARE-UNVERIFIED: no robot has run in this mode.
+
+Safety note: selecting ``odom`` adds exactly one new abort cause
+(``base_lin_vel_unavailable``) and adds it outside the gate ladder in
+``phoenix.sim2real.gate``, which is unchanged. In ``zeros`` mode the control
+path is bit-identical to the pre-existing behaviour.
 
 Publishes:
 
@@ -50,16 +74,80 @@ import numpy as np
 import yaml
 
 from phoenix.real_world.failure_detector import FailureDetector, FailureThresholds
-from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
+from phoenix.real_world.trajectory_logger import (
+    CAPTURE_SOURCE_HARDWARE,
+    TrajectoryLogger,
+    TrajectoryStep,
+)
 
 from .gate import GateConfig, Outcome, SensorSnapshot, evaluate_gates
 from .mode_switch import ModeSwitchCfg, State, initial_state
 from .mode_switch import step as mode_step
-from .observation import JointOrder, ObservationBuilder
+from .observation import (
+    BASE_LIN_VEL_SOURCES,
+    BaseLinVelSample,
+    BaseLinVelUnavailableError,
+    JointOrder,
+    ObservationBuilder,
+    assemble_policy_observation,
+    projected_gravity_from_quat,
+    resolve_base_lin_vel,
+)
 from .safety import MAX_DELTA_PER_STEP_RAD, per_step_clip_array
-from .telemetry import rotate_world_to_body
+from .telemetry import (
+    CONTACT_FORCE_UNITS_RAW_COUNTS,
+    OdomSample,
+    foot_force_to_array,
+    sample_odom,
+)
 
 logger = logging.getLogger("phoenix.sim2real.ros2_policy_node")
+
+
+def _require_base_lin_vel_source(cfg: dict) -> str:
+    """Read and validate ``observation.base_lin_vel_source``, and say so loudly.
+
+    Deliberately has NO default. ``base_lin_vel`` is dims 0..2 of the trained
+    observation and the robot cannot measure it directly, so the deploy has to
+    either feed it real odometry or knowingly substitute zeros. Both are
+    defensible; picking one silently is not, and picking it silently is what
+    this node used to do (``np.zeros(3)``, no config, no log, no record in the
+    capture).
+
+    Pure and no-ROS so the no-ros CI suite covers it.
+    """
+    obs_cfg = cfg.get("observation") or {}
+    source = obs_cfg.get("base_lin_vel_source")
+    if source is None:
+        raise ValueError(
+            "deploy config must set observation.base_lin_vel_source to one of "
+            f"{list(BASE_LIN_VEL_SOURCES)}. There is no default: 'zeros' knowingly feeds the "
+            "policy a constant where training had a real, noised body velocity (this is what "
+            "every Phoenix checkpoint and shield artifact was calibrated with), and 'odom' "
+            "feeds the validated /utlidar/robot_odom twist instead and fails closed when it "
+            "is unavailable."
+        )
+    source = str(source)
+    if source not in BASE_LIN_VEL_SOURCES:
+        raise ValueError(
+            f"observation.base_lin_vel_source={source!r} is not one of {list(BASE_LIN_VEL_SOURCES)}"
+        )
+    if source == "zeros":
+        logger.warning(
+            "observation.base_lin_vel_source=zeros: obs dims 0..2 (base_lin_vel) are a CONSTANT "
+            "ZERO, not a measurement. Training used a real body velocity with +/-0.1 m/s noise, "
+            "so the policy is running off-distribution on those three dims by design. Every "
+            "parquet row from this run records base_lin_vel_source='zeros:operator_selected'."
+        )
+    else:
+        logger.warning(
+            "observation.base_lin_vel_source=odom: obs dims 0..2 come from /utlidar/robot_odom. "
+            "HARDWARE-UNVERIFIED mode: no GO2 has run the policy this way, and the resulting "
+            "input distribution is NOT the one the exported checkpoints and the reliability "
+            "shield were calibrated in. The node latches abort if odometry is missing, stale, "
+            "or in an unidentifiable frame."
+        )
+    return source
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -129,6 +217,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             dtype=np.float32,
         )
         self.obs_builder = ObservationBuilder(self.joint_order, cfg["control"]["default_joint_pos"])
+        self.base_lin_vel_source = _require_base_lin_vel_source(cfg)
         self.action_scale = float(cfg["control"]["action_scale"])
         self.rate_hz = float(cfg["control"]["rate_hz"])
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
@@ -408,7 +497,17 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
     def _on_foot_force(self, msg):
         # Logging-only: never read by _control_step / the gate ladder.
-        self._latest_foot_force = np.asarray(msg.data, dtype=np.float32)
+        # Goes through the validated helper rather than a bare asarray: the
+        # parquet column is a fixed-size list of 4, so a message of any other
+        # length used to reach the writer and blow up at flush time, losing
+        # the whole capture. A bad message is dropped loudly instead, and the
+        # freshness stamp is not advanced, so the row falls back to zeros with
+        # the staleness already recorded.
+        try:
+            self._latest_foot_force = foot_force_to_array(msg.data)
+        except ValueError as exc:
+            logger.warning("ignoring malformed /phoenix/foot_force message: %s", exc)
+            return
         self._latest_foot_force_ns = time.monotonic_ns()
         self._seen_foot_force = True
 
@@ -513,34 +612,43 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
         q = snap.joint_pos
         qd = snap.joint_vel
-        pg = _projected_gravity_from_quat(*snap.quat_xyzw)
         base_ang_vel = np.asarray(snap.ang_vel, dtype=np.float32)
-        base_lin_vel = np.zeros(3, dtype=np.float32)
+
+        # base_lin_vel is a trained observation term, not a free variable.
+        # Resolve it from the operator-selected source and fail closed rather
+        # than substitute a zero the policy cannot distinguish from a
+        # stationary robot. The odom sample is computed once here and handed
+        # to the logger, so the parquet records exactly the value the policy
+        # saw instead of a second, independently derived one.
+        odom = self._sample_odom(now_ns, snap.quat_xyzw)
+        base_lin_vel_sample = self._resolve_base_lin_vel_or_abort(odom)
+        if base_lin_vel_sample is None:
+            return
+        base_lin_vel = base_lin_vel_sample.value
 
         if self.mode_switch_enabled:
             target, action = self._compute_mode_switch_target(
                 q=q,
                 qd=qd,
-                pg=pg,
+                quat_xyzw=snap.quat_xyzw,
                 base_ang_vel=base_ang_vel,
                 base_lin_vel=base_lin_vel,
             )
         else:
-            proprio = self.obs_builder.build(
+            # Assembly goes through the one gated function; an inline
+            # concatenate here is invisible to phoenix.sim2real.obs_parity,
+            # which is how a zeroed term survived every parity run.
+            obs = assemble_policy_observation(
+                self.obs_builder,
                 base_lin_vel=base_lin_vel,
+                quat_xyzw=snap.quat_xyzw,
                 base_ang_vel=base_ang_vel,
-                projected_gravity=pg,
                 velocity_command=self._velocity_command,
                 joint_pos=q,
                 joint_vel=qd,
                 last_action=self._last_action,
-            )
-            if self.obs_pad_zeros > 0:
-                obs = np.concatenate(
-                    [proprio, np.zeros(self.obs_pad_zeros, dtype=np.float32)]
-                ).reshape(1, -1)
-            else:
-                obs = proprio.reshape(1, -1)
+                pad_zeros=self.obs_pad_zeros,
+            ).reshape(1, -1)
 
             outputs = self.session.run(self._shield_outputs, {"obs": obs})
             action = outputs[0][0]
@@ -564,40 +672,84 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 action=action,
                 quat_xyzw=snap.quat_xyzw,
                 ang_vel=base_ang_vel,
+                odom=odom,
+                base_lin_vel_sample=base_lin_vel_sample,
             )
         self._step_idx += 1
 
-    def _log_step(self, *, q, qd, action, quat_xyzw, ang_vel) -> None:
-        # base_pos / base_lin_vel_body / contact_forces ARE observable on
-        # stock GO2: /utlidar/robot_odom (LiDAR stack) gives position + twist
-        # and LowState.foot_force (already flowing through lowstate_bridge_node
-        # to /phoenix/foot_force) gives per-foot contact. Both are OPTIONAL
-        # topics, though: the LiDAR stack in particular may not be running.
-        # When a source hasn't published (or has gone stale) within
-        # telemetry_timeout_s we fall back to zeros, exactly as this method
-        # always did, but odom_valid records which case produced the row
-        # instead of leaving a real zero indistinguishable from a missing one.
-        now_ns = time.monotonic_ns()
+    def _resolve_base_lin_vel_or_abort(self, odom: OdomSample) -> BaseLinVelSample | None:
+        """Resolve obs dims 0..2, or latch abort and return ``None``.
 
-        odom_valid = (
+        Fail-closed half of the ``base_lin_vel_source`` contract. Returning
+        ``None`` tells ``_control_step`` to publish nothing further this tick;
+        the abort is latched through the same path as an external estop, so
+        the node holds the default pose and then goes silent.
+
+        Only ``base_lin_vel_source=odom`` can reach the abort: the ``zeros``
+        source always resolves, which is why that mode's control path is
+        bit-identical to the pre-existing behaviour. The gate ladder in
+        ``phoenix.sim2real.gate`` is not involved and not modified.
+        """
+        try:
+            return resolve_base_lin_vel(
+                self.base_lin_vel_source,
+                odom_lin_vel_body=odom.lin_vel_body,
+                odom_valid=odom.twist_valid,
+                odom_provenance=odom.provenance,
+            )
+        except BaseLinVelUnavailableError as exc:
+            self._latch_abort(f"base_lin_vel_unavailable: {exc}")
+            self._publish_default_pose()
+            return None
+
+    def _sample_odom(self, now_ns: int, quat_xyzw) -> OdomSample:
+        """Resolve the latest ``/utlidar/robot_odom`` message for this tick.
+
+        Freshness uses ``telemetry_timeout_s``, which is independent of the
+        control-path watchdogs on purpose. The frame contract (is the twist
+        already body-frame?) is decided from the message's own
+        ``child_frame_id``; see ``telemetry.odom_twist_to_body``.
+        """
+        fresh = (
             self._seen_odom
             and self._latest_odom_ns is not None
             and (now_ns - self._latest_odom_ns) <= self.telemetry_timeout_s * 1e9
         )
-        if odom_valid:
-            p = self._latest_odom.pose.pose.position
-            base_pos = np.asarray([p.x, p.y, p.z], dtype=np.float32)
-            lv = self._latest_odom.twist.twist.linear
-            # /utlidar/robot_odom's twist frame is not trusted at face value
-            # even though child_frame_id == base_link; rotate explicitly with
-            # the IMU orientation. See telemetry.rotate_world_to_body for why
-            # (HARDWARE-UNVERIFIED, the riskiest assumption in this path).
-            base_lin_vel_body = rotate_world_to_body(
-                np.asarray([lv.x, lv.y, lv.z], dtype=np.float64), quat_xyzw
-            )
-        else:
-            base_pos = np.zeros(3, dtype=np.float32)
-            base_lin_vel_body = np.zeros(3, dtype=np.float32)
+        return sample_odom(self._latest_odom, fresh=fresh, quat_xyzw=quat_xyzw)
+
+    def _log_step(
+        self,
+        *,
+        q,
+        qd,
+        action,
+        quat_xyzw,
+        ang_vel,
+        odom: OdomSample,
+        base_lin_vel_sample: BaseLinVelSample,
+    ) -> None:
+        # base_pos / base_lin_vel_body / contact_forces ARE observable on
+        # stock GO2: /utlidar/robot_odom (LiDAR stack) gives position + twist
+        # and LowState.foot_force (already flowing through lowstate_bridge_node
+        # to /phoenix/foot_force) gives per-foot contact. Both may be absent:
+        # the LiDAR stack in particular may not be running.
+        #
+        # ``odom`` and ``base_lin_vel_sample`` are computed once in
+        # _control_step and passed in, so the row records the SAME value the
+        # policy consumed. They used to be re-derived here, which is how the
+        # log came to hold a real body velocity while the policy was being fed
+        # zeros, with nothing in the capture showing the difference.
+        #
+        # base_pos is the RAW odom position. It is boot-pose relative, so
+        # base_pos[2] is not height above the floor and nothing here derives a
+        # height from it; odom_valid says whether the row is a measurement.
+        now_ns = time.monotonic_ns()
+
+        odom_valid = odom.fresh
+        base_pos = odom.position
+        base_lin_vel_body = (
+            odom.lin_vel_body if odom.twist_valid else np.zeros(3, dtype=np.float32)
+        )
 
         foot_force_fresh = (
             self._seen_foot_force
@@ -611,8 +763,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         failure_flag, failure_mode = _PhoenixPolicyNode._evaluate_failure(
             self,
             quat_xyzw=quat_xyzw,
-            odom_valid=odom_valid,
-            base_pos=base_pos,
+            odom_valid=odom.twist_valid,
             base_lin_vel_body=base_lin_vel_body,
         )
 
@@ -632,11 +783,26 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 failure_flag=failure_flag,
                 failure_mode=failure_mode,
                 odom_valid=odom_valid,
+                capture_source=CAPTURE_SOURCE_HARDWARE,
+                # Two different facts, kept apart on purpose: where the LOGGED
+                # velocity came from, and what the POLICY was actually fed. In
+                # zeros mode they disagree, and that disagreement is the thing
+                # the capture must not hide.
+                base_lin_vel_source=(
+                    f"odom:{odom.provenance}" if odom.twist_valid else odom.provenance
+                ),
+                obs_base_lin_vel_source=base_lin_vel_sample.provenance,
+                # failure_flag on this path is the detector's verdict and
+                # nothing else. The three sim_termination_* columns stay null:
+                # there is no simulator here, and a hardware capture must not
+                # fabricate ground truth it cannot observe.
+                failure_onset_source="detector",
+                contact_forces_units=CONTACT_FORCE_UNITS_RAW_COUNTS,
             )
         )
 
     def _evaluate_failure(
-        self, *, quat_xyzw, odom_valid: bool, base_pos: np.ndarray, base_lin_vel_body: np.ndarray
+        self, *, quat_xyzw, odom_valid: bool, base_lin_vel_body: np.ndarray
     ) -> tuple[bool, str | None]:
         """Run the stateful FailureDetector for exactly this log row.
 
@@ -645,25 +811,34 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         ``target`` / the published command. Any exception here is caught and
         turned into ``failure_flag=False`` rather than propagating, so a bug
         in the detector cannot stall or crash the 50 Hz control loop above.
+
+        COLLAPSE IS UNAVAILABLE ON HARDWARE and ``base_height_m=None`` says so
+        explicitly. The only height-like number the stock GO2 publishes is
+        ``/utlidar/robot_odom``'s ``pose.position.z``, whose origin is the
+        boot pose (docs/go2_field_notes.md section 3), so it measures
+        displacement since boot, not clearance above the floor. This method
+        used to pass it straight in as ``base_height_m``, which meant a robot
+        that booted on a table and stepped down would be labelled "collapse"
+        while standing, and a robot that booted lying down would never be.
+        Restoring collapse detection needs a real ground-relative height
+        source (a downward range sensor, or a validated kinematic estimate
+        from the stance feet), not a different threshold.
         """
         try:
             roll, pitch, _yaw = _rpy_from_quat_xyzw(*quat_xyzw)
             if odom_valid:
-                base_height_m = float(base_pos[2])
                 actual_lin_vel = base_lin_vel_body[:2].astype(np.float64)
             else:
-                # No odom this step: never claim a collapse we can't
-                # measure (height at +inf can't trip base_height_min_m), and
-                # never claim slip from a synthetic zero that would look
-                # identical to a real stall (actual := commanded, so the
-                # slip condition cmd_speed>>actual_speed can't fire).
-                base_height_m = float("inf")
+                # No usable odom twist this step: never claim a stall from a
+                # synthetic zero that would look identical to a real one
+                # (actual := commanded, so cmd_speed >> actual_speed cannot
+                # fire).
                 actual_lin_vel = self._velocity_command[:2].astype(np.float64)
             event = self._failure_detector.step(
                 timestamp_s=time.monotonic() - self._started_at,
                 pitch_rad=pitch,
                 roll_rad=roll,
-                base_height_m=base_height_m,
+                base_height_m=None,
                 cmd_lin_vel=self._velocity_command[:2].astype(np.float64),
                 actual_lin_vel=actual_lin_vel,
             )
@@ -679,7 +854,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         *,
         q: np.ndarray,
         qd: np.ndarray,
-        pg: np.ndarray,
+        quat_xyzw: tuple[float, float, float, float],
         base_ang_vel: np.ndarray,
         base_lin_vel: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
@@ -696,34 +871,24 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # Each policy receives its own last_action so observations stay
         # on-distribution relative to training. The inactive policy's
         # last_action is held at zero (set on state entry; see below).
-        proprio_stand = self.obs_builder.build(
-            base_lin_vel=base_lin_vel,
-            base_ang_vel=base_ang_vel,
-            projected_gravity=pg,
-            velocity_command=self._velocity_command,
-            joint_pos=q,
-            joint_vel=qd,
-            last_action=self._last_action_stand,
-        )
-        proprio_walk = self.obs_builder.build(
-            base_lin_vel=base_lin_vel,
-            base_ang_vel=base_ang_vel,
-            projected_gravity=pg,
-            velocity_command=self._velocity_command,
-            joint_pos=q,
-            joint_vel=qd,
-            last_action=self._last_action_walk,
-        )
+        # Both go through the gated assembler, same as the single-policy path.
+        def _obs(last_action: np.ndarray) -> np.ndarray:
+            return assemble_policy_observation(
+                self.obs_builder,
+                base_lin_vel=base_lin_vel,
+                quat_xyzw=quat_xyzw,
+                base_ang_vel=base_ang_vel,
+                velocity_command=self._velocity_command,
+                joint_pos=q,
+                joint_vel=qd,
+                last_action=last_action,
+                pad_zeros=self.obs_pad_zeros,
+            ).reshape(1, -1)
 
-        def _prepare(obs: np.ndarray) -> np.ndarray:
-            if self.obs_pad_zeros > 0:
-                return np.concatenate(
-                    [obs, np.zeros(self.obs_pad_zeros, dtype=np.float32)]
-                ).reshape(1, -1)
-            return obs.reshape(1, -1)
-
-        stand_action = self.stand_session.run(["action"], {"obs": _prepare(proprio_stand)})[0][0]
-        walk_action = self.walk_session.run(["action"], {"obs": _prepare(proprio_walk)})[0][0]
+        stand_action = self.stand_session.run(["action"], {"obs": _obs(self._last_action_stand)})[
+            0
+        ][0]
+        walk_action = self.walk_session.run(["action"], {"obs": _obs(self._last_action_walk)})[0][0]
         stand_target = self.default_q + self.action_scale * stand_action
         walk_target = self.default_q + self.action_scale * walk_action
 
@@ -850,16 +1015,17 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 def _projected_gravity_from_quat(x: float, y: float, z: float, w: float) -> np.ndarray:
     """Rotate world-frame gravity (0,0,-1) into the body frame using quat (x,y,z,w).
 
-    Matches Isaac Lab's ``mdp.projected_gravity`` and the parity-gate
-    helper in :func:`phoenix.sim2real.verify_deploy._projected_gravity_from_quat_xyzw`
-    byte-for-byte. The previous implementation had the gx/gy sign flipped
-    (mirror-image gravity in the policy's obs vector), see the
-    audit fixes in this branch. Tested in ``tests/test_projected_gravity.py``.
+    Thin alias for :func:`phoenix.sim2real.observation.projected_gravity_from_quat`,
+    which is the canonical implementation shared with the observation
+    assembler. Matches Isaac Lab's ``mdp.projected_gravity`` and the
+    parity-gate helper in
+    :func:`phoenix.sim2real.verify_deploy._projected_gravity_from_quat_xyzw`
+    byte-for-byte. The original implementation here had the gx/gy sign
+    flipped (mirror-image gravity in the policy's obs vector), which is why
+    there is now one implementation instead of three.
+    Tested in ``tests/test_projected_gravity.py``.
     """
-    gx = -2.0 * (x * z - w * y)
-    gy = -2.0 * (y * z + w * x)
-    gz = -(1.0 - 2.0 * (x * x + y * y))
-    return np.asarray([gx, gy, gz], dtype=np.float32)
+    return projected_gravity_from_quat(x, y, z, w)
 
 
 def _rpy_from_quat_xyzw(x: float, y: float, z: float, w: float) -> tuple[float, float, float]:
