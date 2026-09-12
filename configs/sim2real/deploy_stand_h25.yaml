@@ -1,5 +1,14 @@
 # Deployment config for the FULLY-HARDENED stand-v3-h25 deliverable on the real GO2.
 #
+# STAND-ONLY. This config runs the policy at a commanded-zero velocity and nothing
+# else. observation.base_lin_vel_source is zeros, so the policy has no body-velocity
+# observation, and safety.stand_only: true makes the deploy contract
+# (phoenix.sim2real.deploy_contract), the policy node and the LowCmd bridge all
+# refuse a nonzero velocity command. Walking needs a different config, and walking
+# configs are refused in code until deploy_contract.WALKING_PREREQUISITES have
+# hardware evidence. Hashes of everything this config reaches are pinned in
+# configs/sim2real/locks/deploy_stand_h25.lock.yaml.
+#
 # Transfer-hardened stand policy with all four sim-to-real layers active in
 # training: (1) per-step rate limiter inside the MDP (sim == the Jetson +/-0.175
 # rad/step cap vs measured q, no train/deploy mismatch), (2) motor-strength gain
@@ -8,19 +17,32 @@
 # disturbances the real robot actually has, which is the point, not the lowest
 # clean-sim number.
 #
-# Verified 2026-06-23 (checkpoints/phoenix-stand-h25-lat-noise/, model_799):
-#   nominal (stand_nodr):    32/32 stand, 20 s episodes, slew 3.65%
-#   full DR (stand_v3_h25):  32/32 stand, 20 s episodes, slew 4.23%   (gate <5%)
+# Recorded 2026-06-23 (checkpoints/phoenix-stand-h25-lat-noise/, model_799):
+#   nominal (stand_nodr):    32/32 stand, 20 s episodes
+#   full DR (stand_v3_h25):  32/32 stand, 20 s episodes
 #   ONNX parity: max torch<->onnx abs diff 5.722e-06   (gate <1e-5) PASS
 #
-# MARGIN NOTE: slew is higher than the limiter-only policy (2.40/3.47%) because
-# this one trains under latency+noise. 4.23% under DR is the honest worst case and
-# leaves less headroom to the 5% gate; if the live number is tight, dial back the
-# DR (actuator_latency_steps / observation.noise) rather than the limiter.
+# LEGACY, SUPERSEDED SLEW FIGURES, kept verbatim as history only. The same
+# 2026-06-23 eval reported "slew 3.65%" (nominal) and "slew 4.23%" (full DR)
+# against a "<5% gate", and an earlier limiter-only policy 2.40/3.47%. Every one
+# of those came from legacy_raw_action_delta_saturation_rate, which thresholds
+# consecutive RAW ACTION deltas at 0.175 and is not what the deploy limiter does
+# (it clips default_q + 0.25*action against MEASURED q; docs/superseded_results.md
+# section 2). They are NOT a current pass criterion. Neither is the 5% threshold:
+# it was defined on that legacy quantity and its meaning does not carry over to a
+# clip-activation rate.
+#
+# CURRENT HARDWARE SLEW EVIDENCE is the final LowCmd bridge's per-joint clip
+# activation, written every tick to the bridge telemetry file and summarised as
+# bridge_final_slew_clip_activation_v1 (phoenix.sim2real.bridge_telemetry). No
+# corrected-metric simulator baseline exists for this checkpoint, so the stand
+# stages REPORT that percentage and do not pass or fail on it
+# (docs/h25_stand_hardware_run_card.md).
 #
 # WATCH AT LAB: the limiter slows posture leveling (slightly slower settle than a
-# Sport-mode stand); never falls in sim. Test FEET-ON-GROUND, not on a fixture
-# (the fixture is a degenerate/OOD test, see the lab-card).
+# Sport-mode stand); never falls in sim. The live gate is FEET ON THE GROUND, on a
+# fall mat, tethered or spotted, with a real physical deadman. A suspended fixture
+# is an out-of-distribution diagnostic only and never counts as a hardware gate.
 #
 # Supersedes phoenix-stand-h25-ratelimit, phoenix-stand-v3-h25-final, deploy_stand_v3.yaml.
 #
@@ -79,6 +101,9 @@ topics:
   joint_command: "/joint_group_position_controller/command"
 
 safety:
+  # Explicit, never defaulted. true = commanded-zero stand only; any nonzero
+  # /cmd_vel latches an abort in the policy node and a hold in the bridge.
+  stand_only: true
   emergency_stop_topic: "/phoenix/estop"
   dead_mans_switch: true
   max_runtime_s: 120
