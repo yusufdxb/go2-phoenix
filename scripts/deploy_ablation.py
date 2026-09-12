@@ -218,7 +218,6 @@ def _run(args) -> int:  # noqa: ANN001
         # falling back, which is what the metric correction established.
         from phoenix.training.evaluate import _resolve_slew_reference
 
-        robot = env.unwrapped.scene["robot"]
         slew_ref = _resolve_slew_reference(env, to_numpy)
         default_q = np.asarray(slew_ref.default_q, dtype=np.float64)
         action_scale = slew_ref.action_scale
@@ -236,7 +235,15 @@ def _run(args) -> int:  # noqa: ANN001
                     action_np = to_numpy(action).astype(np.float64)
                     applied = apply_action_ablation(action_np, spec, action_scale)
 
-                    measured_q = to_numpy(robot.data.joint_pos).astype(np.float64)
+                    # Index by the ACTION TERM's joint ids and read from its own
+                    # asset. robot.data.joint_pos is in articulation order, which
+                    # is not the action term's order, and comparing a target in
+                    # one order against q in another is the silent joint-permutation
+                    # bug this repo's own audit calls out. It saturated the metric
+                    # at ~0.999 in every cell before this fix.
+                    measured_q = to_numpy(slew_ref.asset.data.joint_pos)[
+                        :, slew_ref.joint_ids
+                    ].astype(np.float64)
                     sat_num += deploy_slew_saturation(
                         applied, measured_q, default_q, action_scale, MAX_DELTA_PER_STEP_RAD
                     ) * measured_q.shape[0]
