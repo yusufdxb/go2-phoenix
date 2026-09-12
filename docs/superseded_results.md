@@ -218,6 +218,40 @@ accounting does not close is refused. No 1.0 artifact was modified. Nothing was
 re-harvested: the corrected loop has not been run in Isaac, only the diagnostic
 that confirms its contact fix.
 
+### 8. Hardware-readiness criteria in force before the 2026-09-12 readiness pass
+
+* **The H25 stand slew figures and their 5% gate.** `deploy_stand_h25.yaml` quoted
+  "slew 3.65%" (nominal) and "slew 4.23%" (full DR) against "gate <5%". Both are
+  legacy raw-action-delta figures (section 2). The config now keeps them verbatim
+  under an explicit LEGACY heading and no longer uses them, or the 5% threshold, as a
+  pass criterion. Hardware slew evidence is now the final LowCmd bridge's per-joint
+  clip activation (`bridge_final_slew_clip_activation_v1`), reported by the stand
+  stages and not gated, because no corrected-metric simulator baseline exists for
+  this checkpoint.
+* **The canonical-stand bench threshold of 0.3.** H25 measures 0.482 and would fail
+  it. The threshold compares action units against a radian slew clip (the same
+  confusion as section 2) and a static single observation is not evidence about a
+  feedback-stabilised stand. It is recorded as non-gating in the H25 lock; stage A
+  instead gates on the output reproducing the locked value on the running runtime
+  and on the first target step staying inside one slew cap.
+* **`scripts/harness_preflight.sh` P1..P7.** P1 (T7 rsync) and P2 (`git fetch` plus
+  fast-forward of `main`, mutating the payload) are gone; P4 picked the newest
+  parquet on disk as its parity reference; P5 wrapped the dryrun in `|| true` and
+  parsed `/tmp` files a previous run could have left; P7 asked for "feet unloaded
+  (suspended slightly...)", contradicting the feet-on-ground stand card. A green run
+  of that script is not evidence of anything. The staged gates A..H replace it.
+* **`scripts/dryrun_pipeline.sh` before this pass** hardcoded `deploy.yaml` whatever
+  the selected config, launched processes without checking they stayed alive, and
+  reported through fixed `/tmp` paths. No earlier dryrun "pass" was checked against
+  a specific config, lock or commit.
+* **The previous LowCmd bridge's behaviour**, recorded here because every earlier
+  bringup ran it: no absolute joint limits; clipping and holding against the last
+  LowState however old; the estop heartbeat timed with the ROS wall clock (a
+  backwards `date -s` on the payload made a dead publisher look fresh); NaN or
+  malformed commands dropped rather than failed closed; and the policy node's
+  default-pose messages (startup wait, abort) followed at up to 0.175 rad per tick.
+  See `phoenix.sim2real.actuator_gate` for what replaced each.
+
 ## Hardware-unverified
 
 Nothing in this pass ran on hardware; no robot was connected at any point.
@@ -233,3 +267,11 @@ Nothing in this pass ran on hardware; no robot was connected at any point.
   source.
 * Whether the corrected hip pose changes behaviour on the real robot.
 * Whether the deploy-equivalent slew metric reproduces the hardware figure.
+* The 2026-09-12 readiness pass (actuator gate, telemetry, staged gates): every
+  ROS-side path was exercised only against localhost rehearsal fakes, never a GO2.
+  Specifically unverified: what the GO2 motor firmware does when the LowCmd stream
+  stops after a damping command; that `/lowstate` reaches the payload at the rates
+  the field notes measured under the full bringup; that `wireless_estop_node` sees
+  L1 continuously while held; that the policy behaves from Unitree's folded pose,
+  which is not the training reset pose; and the low-level mode release procedure on
+  this payload.

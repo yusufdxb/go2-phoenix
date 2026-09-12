@@ -1,5 +1,13 @@
 # Mode-switch bringup runbook
 
+> **BLOCKED, HISTORICAL (2026-09-12).** This is a walking runbook and walking is refused
+> in code: `phoenix.sim2real.deploy_contract` rejects any config that is not
+> `safety.stand_only: true`, and the LowCmd bridge latches a hold on any nonzero velocity
+> command. Its T7 sync, bare estop heartbeat and `verify_deploy`-only gates are all
+> superseded. Walking needs the prerequisites in `deploy_contract.WALKING_PREREQUISITES`
+> first. The current hardware procedure is `docs/h25_stand_hardware_run_card.md`.
+
+
 Lab-day checklist for the two-policy runtime (stand-v2 @ cmd=0, v3b @ walking).
 Spec: `docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md`.
 
