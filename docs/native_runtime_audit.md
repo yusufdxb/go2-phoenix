@@ -352,7 +352,7 @@ which **does not** match the deploy bridge; `measured_q` is the default and the 
 measured joint position, so the offline metric and the deploy limiter cannot drift. The previous
 definition, `legacy_raw_action_delta_saturation_rate`, compared raw action deltas against the same
 number and was NOT deploy-equivalent; every sim slew percentage recorded before that date came from
-it (`docs/CORRECTIVE_PASS_2026-09-11.md` section 2).
+it (`docs/superseded_results.md` section 2).
 
 ### Estop chain
 

@@ -13,4 +13,4 @@ They are kept unmodified as a record of what the defect produced. They are not
 relabelled, because relabelling would require assuming the flat grid cloner sets
 origin z = 0 and nobody measured that.
 
-Fix: commit f4ccf08. Record: docs/CORRECTIVE_PASS_2026-09-11.md section 6.
+Fix: commit f4ccf08. Record: docs/superseded_results.md section 6.

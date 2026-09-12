@@ -44,7 +44,7 @@ layer) has run end-to-end on the real GO2; that live run surfaced a per-step
 slew-rate saturation (about 33% at `cmd_vel = 0`) that no on-robot stand has
 yet cleared. Note that every SIM slew percentage recorded before 2026-09-11 came
 from a metric that was not deploy-equivalent, so the sim-to-real slew gap cannot
-be quoted until it is re-measured; `docs/CORRECTIVE_PASS_2026-09-11.md` section 2
+be quoted until it is re-measured; `docs/superseded_results.md` section 2
 has the detail. On-robot locomotion validation (Gate 7) is the current front
 line. [`EVIDENCE.md`](EVIDENCE.md) is the verified / inferred / not-validated
 ledger for every claim below.
@@ -52,7 +52,7 @@ ledger for every claim below.
 | Stage | State | Detail |
 |---|:---:|---|
 | Simulation training (PPO, layered-YAML env) |  Done | rsl_rl, ~10 shell entry points |
-| Locomotion policy trained and sim-verified |  Done | stand-v3 sim eval: 32/32 success, 0.33% slew saturation (sim only, LEGACY slew definition, see `docs/CORRECTIVE_PASS_2026-09-11.md`) |
+| Locomotion policy trained and sim-verified |  Done | stand-v3 sim eval: 32/32 success, 0.33% slew saturation (sim only, LEGACY slew definition, see `docs/superseded_results.md`) |
 | ONNX export and torch / onnxruntime parity gate |  Done | `verify_deploy`, max drift 9.5e-7 |
 | ROS 2 deploy stack and fail-closed safety layer |  Done | 3 bridges, policy node, shared slew cap |
 | Deploy stack ran end-to-end on the GO2 |  Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |

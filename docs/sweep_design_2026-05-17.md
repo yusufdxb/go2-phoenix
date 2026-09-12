@@ -141,5 +141,5 @@ ship to the lab.
 * slew metric : `src/phoenix/training/slew.py` (`slew_clip_activation_rate`, deploy-equivalent
   since 2026-09-11). Every `slew_saturation_pct` recorded before that date came from
   `legacy_raw_action_delta_saturation_rate`, a raw-action-delta rate that is NOT
-  deploy-equivalent; see `docs/CORRECTIVE_PASS_2026-09-11.md` section 2.
+  deploy-equivalent; see `docs/superseded_results.md` section 2.
 * failure curriculum (out of scope here, axis available) : `src/phoenix/adaptation/curriculum.py`

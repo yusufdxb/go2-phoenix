@@ -45,7 +45,7 @@ Claims with a reproducible artifact in this repo or a captured log.
   0.175, `legacy_raw_action_delta_saturation_rate`), not by the
   deploy-equivalent clip-activation metric that replaced it on 2026-09-11.
   They are not comparable to a hardware slew number or to any figure produced
-  after that date; see `docs/CORRECTIVE_PASS_2026-09-11.md` section 2. Deliverable at
+  after that date; see `docs/superseded_results.md` section 2. Deliverable at
   `checkpoints/phoenix-stand-v3-h25-final/` (weights gitignored, local only).
 - **v3b flat-velocity sim eval**: 0.091 m/s lin_err, 0.087 rad/s ang_err,
   32 / 32 success on `Isaac-Velocity-Flat-Unitree-Go2-v0`, 16 envs × 32
