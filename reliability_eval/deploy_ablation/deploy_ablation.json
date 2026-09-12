@@ -1,0 +1,113 @@
+{
+  "checkpoint": "latest.pt",
+  "env_config": "flat_v4.yaml",
+  "seed": 0,
+  "max_delta_per_step_rad": 0.175,
+  "metric_definition": "deploy-equivalent: target = default_q + action_scale * action, clipped against measured q. NOT the legacy raw-action-delta definition; the two are not comparable.",
+  "cells": [
+    {
+      "name": "correct",
+      "zero_base_lin_vel": false,
+      "historical_hip_offset": false,
+      "enforce_deploy_limiter": false,
+      "deploy_slew_saturation": 0.9991744791666686,
+      "terminations": 3,
+      "episodes_ended": 3,
+      "fall_rate_per_episode": 1.0,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    },
+    {
+      "name": "zero_base_lin_vel",
+      "zero_base_lin_vel": true,
+      "historical_hip_offset": false,
+      "enforce_deploy_limiter": false,
+      "deploy_slew_saturation": 0.9988723958333352,
+      "terminations": 19,
+      "episodes_ended": 63,
+      "fall_rate_per_episode": 0.30158730158730157,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    },
+    {
+      "name": "historical_hip_offset",
+      "zero_base_lin_vel": false,
+      "historical_hip_offset": true,
+      "enforce_deploy_limiter": false,
+      "deploy_slew_saturation": 0.9992500000000015,
+      "terminations": 2,
+      "episodes_ended": 5,
+      "fall_rate_per_episode": 0.4,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    },
+    {
+      "name": "velocity_plus_hip",
+      "zero_base_lin_vel": true,
+      "historical_hip_offset": true,
+      "enforce_deploy_limiter": false,
+      "deploy_slew_saturation": 0.9987447916666685,
+      "terminations": 32,
+      "episodes_ended": 74,
+      "fall_rate_per_episode": 0.43243243243243246,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    },
+    {
+      "name": "deploy_limiter_only",
+      "zero_base_lin_vel": false,
+      "historical_hip_offset": false,
+      "enforce_deploy_limiter": true,
+      "deploy_slew_saturation": 0.9992864583333351,
+      "terminations": 3,
+      "episodes_ended": 3,
+      "fall_rate_per_episode": 1.0,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    },
+    {
+      "name": "hip_plus_limiter",
+      "zero_base_lin_vel": false,
+      "historical_hip_offset": true,
+      "enforce_deploy_limiter": true,
+      "deploy_slew_saturation": 0.9993593750000016,
+      "terminations": 3,
+      "episodes_ended": 61,
+      "fall_rate_per_episode": 0.04918032786885246,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    },
+    {
+      "name": "velocity_plus_limiter",
+      "zero_base_lin_vel": true,
+      "historical_hip_offset": false,
+      "enforce_deploy_limiter": true,
+      "deploy_slew_saturation": 0.9992786458333348,
+      "terminations": 5,
+      "episodes_ended": 8,
+      "fall_rate_per_episode": 0.625,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    },
+    {
+      "name": "all_three",
+      "zero_base_lin_vel": true,
+      "historical_hip_offset": true,
+      "enforce_deploy_limiter": true,
+      "deploy_slew_saturation": 0.9995546875000019,
+      "terminations": 4,
+      "episodes_ended": 58,
+      "fall_rate_per_episode": 0.06896551724137931,
+      "steps": 500,
+      "num_envs": 64,
+      "metric_definition": "deploy_equivalent_target_vs_measured_q"
+    }
+  ]
+}
