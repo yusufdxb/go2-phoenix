@@ -138,3 +138,16 @@ def test_rehearsal_may_advance_through_rehearsal_records_but_status_never_counts
     assert preflight.main(["require", "C", *_common(tmp_path)]) == 0
     monkeypatch.delenv("PHOENIX_REHEARSAL")
     assert preflight.main(["status", *_common(tmp_path)]) == 1
+
+
+def test_parity_gate_module_loads_and_compares_without_torch() -> None:
+    """Stage A loads scripts/parity_gate.py by path; its dataclasses must survive that."""
+    import numpy as np
+
+    pg = preflight._parity_gate_module()
+    ref = np.linspace(-1.0, 1.0, 24, dtype=np.float32).reshape(2, 12)
+    same = pg.compare("action", ref, ref.copy(), max_abs_tol=1e-5, cos_tol=0.9999)
+    assert same.passed and same.max_abs == 0.0
+    off = ref.copy()
+    off[1, 3] += 1e-3
+    assert not pg.compare("action", ref, off, max_abs_tol=1e-5, cos_tol=0.9999).passed

@@ -17,7 +17,9 @@ Publishes:
 * ``/wirelesscontroller`` (unitree_go/WirelessController) at 50 Hz while the
   deadman (L1, keys 0x02) is held, and NOTHING while released, mirroring the real
   remote, which publishes only while a button is pressed. ``--deadman`` is a
-  schedule such as ``hold`` or ``hold:3.5,release:3,hold``.
+  schedule such as ``hold`` or ``hold:3.5,release:3,hold``; ``--deadman-file``
+  instead reads ``hold`` or ``release`` from a file every tick, so a rehearsal
+  driver can follow the deadman prompts of ``scripts/harness_preflight.sh C``.
 """
 
 from __future__ import annotations
@@ -64,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--deadman", default="hold", help="schedule, e.g. hold or hold:3.5,release:3,hold"
     )
+    p.add_argument("--deadman-file", type=Path, default=None, help="file holding hold or release")
     p.add_argument("--no-lowstate", action="store_true")
     args = p.parse_args(argv)
 
@@ -116,8 +119,16 @@ def main(argv: list[str] | None = None) -> int:
         msg.imu_state.quaternion = [1.0, 0.0, 0.0, 0.0]  # Unitree order w, x, y, z
         lowstate_pub.publish(msg)
 
+    def deadman_held() -> bool:
+        if args.deadman_file is not None:
+            try:
+                return args.deadman_file.read_text().strip() == "hold"
+            except OSError:
+                return False
+        return held_at(schedule, time.monotonic() - started)
+
     def publish_remote() -> None:
-        if held_at(schedule, time.monotonic() - started):
+        if deadman_held():
             msg = WirelessController()
             msg.keys = 0x02
             remote_pub.publish(msg)

@@ -355,6 +355,10 @@ def _parity_gate_module():
     )
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
+    # dataclasses resolves string annotations through sys.modules[cls.__module__],
+    # so the module must be registered before it executes. Stage A crashed on
+    # exactly this ("'NoneType' object has no attribute '__dict__'").
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
