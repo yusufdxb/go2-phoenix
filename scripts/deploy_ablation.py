@@ -104,6 +104,7 @@ def _build(args, enforce_limiter: bool):
 
 
 def _run(args) -> int:  # noqa: ANN001
+    from collections.abc import Mapping
     from importlib import metadata
 
     import numpy as np
@@ -125,25 +126,45 @@ def _run(args) -> int:  # noqa: ANN001
     def policy_obs(raw):
         """Unwrap to the policy observation tensor, iteratively.
 
-        rsl_rl and the Isaac wrapper return a tensor, an (obs, extras) tuple, or
-        a {group: tensor} dict depending on version, and the dict can nest. A
-        single-pass unwrap silently handed a dict downstream, which only failed
-        later at .astype. Loop until something array-like appears, and raise
-        naming what was found rather than guessing.
+        rsl_rl and the Isaac wrapper return a tensor, an (obs, extras) tuple,
+        or a group mapping depending on version, and the mapping can nest.
+
+        The mapping is a tensordict.TensorDict, which is a Mapping but NOT a
+        dict subclass, so an isinstance(raw, dict) test skips it entirely. It
+        then reaches _to_numpy, which sees .cpu(), calls .numpy(), and gets back
+        a plain dict of arrays. Test against Mapping, not dict.
         """
         for _ in range(6):
             if isinstance(raw, tuple):
                 raw = raw[0]
                 continue
-            if isinstance(raw, dict):
-                if not raw:
-                    raise RuntimeError("empty observation dict")
-                raw = raw["policy"] if "policy" in raw else next(iter(raw.values()))
+            if isinstance(raw, Mapping):
+                keys = list(raw.keys())
+                if not keys:
+                    raise RuntimeError("empty observation mapping")
+                raw = raw["policy"] if "policy" in keys else raw[keys[0]]
                 continue
             break
-        if isinstance(raw, tuple | dict):
+        if isinstance(raw, tuple | Mapping):
             raise RuntimeError(f"could not resolve a policy observation, got {type(raw)}")
         return raw
+
+    def as_float_array(value, what):
+        """Unwrap and convert in one place, failing loudly on an unknown shape.
+
+        Doing the unwrap and the conversion separately let a container slip
+        through the unwrap and only fail later inside the arithmetic, where the
+        message named .astype rather than the real problem.
+        """
+        resolved = policy_obs(value)
+        arr = to_numpy(resolved)
+        if not isinstance(arr, np.ndarray) or arr.dtype == object:
+            raise RuntimeError(
+                f"{what} did not resolve to a numeric array: "
+                f"input {type(value)}, after unwrap {type(resolved)}, "
+                f"after convert {type(arr)}"
+            )
+        return arr.astype(np.float64)
 
     use_norm = checkpoint_has_obs_normalizer(args.checkpoint)
     print(f"[ablation] empirical_normalization from checkpoint: {use_norm}", flush=True)
@@ -217,11 +238,11 @@ def _run(args) -> int:  # noqa: ANN001
             sat_den = 0
             with torch.inference_mode():
                 for _ in range(args.steps):
-                    obs_np = to_numpy(obs).astype(np.float64)
+                    obs_np = as_float_array(obs, "observation")
                     ablated = apply_observation_ablation(obs_np, spec)
                     action = policy(torch.as_tensor(ablated, dtype=torch.float32,
                                                     device=args.device))
-                    action_np = to_numpy(action).astype(np.float64)
+                    action_np = as_float_array(action, "action")
                     applied = apply_action_ablation(action_np, spec, action_scale)
 
                     measured_q = to_numpy(robot.data.joint_pos).astype(np.float64)

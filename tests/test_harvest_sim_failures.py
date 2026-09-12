@@ -289,10 +289,10 @@ def test_recall_denominator_excludes_windows_the_detector_never_saw(harvest):
     shown, reporting the guard's behaviour as the detector's. Recall must be
     over evaluated windows only, with the unevaluable ones reported separately.
     """
-    Record = harvest.TerminationRecord
+    record_cls = harvest.TerminationRecord
 
     def record(evaluated, fired):
-        r = Record(
+        r = record_cls(
             env_index=0,
             step_index=0,
             window_rows=2 if evaluated else 1,
