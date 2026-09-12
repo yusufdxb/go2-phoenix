@@ -123,10 +123,26 @@ def _run(args) -> int:  # noqa: ANN001
     from phoenix.training.checkpoint import load_runner_checkpoint
 
     def policy_obs(raw):
-        if isinstance(raw, tuple):
-            raw = raw[0]
-        if isinstance(raw, dict):
-            raw = raw.get("policy", next(iter(raw.values())))
+        """Unwrap to the policy observation tensor, iteratively.
+
+        rsl_rl and the Isaac wrapper return a tensor, an (obs, extras) tuple, or
+        a {group: tensor} dict depending on version, and the dict can nest. A
+        single-pass unwrap silently handed a dict downstream, which only failed
+        later at .astype. Loop until something array-like appears, and raise
+        naming what was found rather than guessing.
+        """
+        for _ in range(6):
+            if isinstance(raw, tuple):
+                raw = raw[0]
+                continue
+            if isinstance(raw, dict):
+                if not raw:
+                    raise RuntimeError("empty observation dict")
+                raw = raw["policy"] if "policy" in raw else next(iter(raw.values()))
+                continue
+            break
+        if isinstance(raw, tuple | dict):
+            raise RuntimeError(f"could not resolve a policy observation, got {type(raw)}")
         return raw
 
     use_norm = checkpoint_has_obs_normalizer(args.checkpoint)
