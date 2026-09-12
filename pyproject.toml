@@ -101,7 +101,12 @@ target-version = ["py310"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -q --strict-markers"
+# The two -p no: entries block ROS 2 Humble's launch_testing pytest plugins, which
+# autoload whenever /opt/ros is on PYTHONPATH. They install a Logger subclass that
+# sets propagate=False on every logger created afterwards, so caplog sees nothing
+# and every log-assertion test fails on a machine with ROS sourced (CI has no ROS,
+# which is why CI stayed green). Blocking a plugin that is not installed is a no-op.
+addopts = "-ra -q --strict-markers -p no:launch_testing -p no:launch_ros"
 markers = [
     "sim: tests that require Isaac Lab + GPU (skipped in CI)",
     "ros: tests that require a running ROS 2 environment (skipped in CI)",
