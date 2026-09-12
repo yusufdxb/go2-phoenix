@@ -58,6 +58,29 @@ if ! grep -q '"passed": true' "$GATE"; then
   exit 1
 fi
 
+# Workstation stage A evidence travels with the bundle. The payload's own stage A
+# (scripts/harness_preflight.sh A --payload) refuses to pass without it: the
+# checkpoint-side torch parity, the test suite, lint and type checks can only run on
+# the workstation, and parity_golden.npz is what lets the payload check its own
+# onnxruntime against those torch outputs.
+STAGE_A_SESSION="${STAGE_A_SESSION:?set STAGE_A_SESSION to the workstation session directory holding a GO stage_A.json (scripts/harness_preflight.sh A)}"
+STAGE_A_JSON="$STAGE_A_SESSION/stage_A.json"
+GOLDEN="$STAGE_A_SESSION/parity_golden.npz"
+if [[ ! -f "$STAGE_A_JSON" || ! -f "$GOLDEN" ]]; then
+  echo "REFUSING TO STAGE: $STAGE_A_JSON or $GOLDEN missing" >&2
+  exit 1
+fi
+if ! python3 - "$STAGE_A_JSON" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1]))
+ok = r.get("stage") == "A" and r.get("verdict") == "GO" and r.get("mode") == "workstation" and not r.get("rehearsal")
+sys.exit(0 if ok else 1)
+PY
+then
+  echo "REFUSING TO STAGE: $STAGE_A_JSON is not a GO workstation stage A" >&2
+  exit 1
+fi
+
 # latest.pt is a symlink into the dated run directory; -L so the real weights
 # travel, not a dangling link the payload cannot resolve.
 REQUIRED=(policy.onnx policy.onnx.data policy.pt latest.pt)
@@ -75,6 +98,8 @@ for f in "${REQUIRED[@]}"; do
   cp -Lf "$CKPT_DIR/$f" "$DEST/$f"
 done
 cp -f "$GATE" "$DEST/parity_gate.json"
+cp -f "$STAGE_A_JSON" "$DEST/workstation_stage_A.json"
+cp -f "$GOLDEN" "$DEST/parity_golden.npz"
 cp -f "$DEPLOY_CFG" "$DEST/$(basename "$DEPLOY_CFG")"
 [[ -f "$CKPT_DIR/export_report.txt" ]] && cp -f "$CKPT_DIR/export_report.txt" "$DEST/"
 
