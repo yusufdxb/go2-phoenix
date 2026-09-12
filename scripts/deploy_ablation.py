@@ -82,15 +82,20 @@ def _build(args, enforce_limiter: bool):
     """Build one env. The limiter is a training-time MDP term, so it needs a rebuild."""
     import gymnasium as gym
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+    from omegaconf import OmegaConf
 
     from phoenix.sim_env import build_env_cfg, load_layered_config
 
     loaded = load_layered_config(args.env_config)
+    # The in-training limiter defaults to ENABLED. Disabling it reproduces the
+    # pre-limiter training condition the April checkpoints were produced under,
+    # so enforcing it on one of those checkpoints reproduces the historical
+    # deploy mismatch without retraining. Mutate the loaded OmegaConf tree in
+    # place: build_env_cfg wants a PhoenixConfig (or a path) and calls
+    # .to_container() itself, so a bare dict is not a valid substitute.
+    OmegaConf.update(loaded.cfg, "action.rate_limit.enabled", enforce_limiter, force_add=True)
     container = loaded.to_container()
-    # The in-training limiter defaults to enabled. Disabling it reproduces the
-    # pre-limiter training condition the April checkpoints were produced under.
-    container.setdefault("action", {}).setdefault("rate_limit", {})["enabled"] = enforce_limiter
-    env_cfg = build_env_cfg(type(loaded)(container) if hasattr(loaded, "to_container") else loaded)
+    env_cfg = build_env_cfg(loaded)
     env_cfg.scene.num_envs = args.num_envs
     env_cfg.sim.device = args.device
     env_cfg.seed = args.seed

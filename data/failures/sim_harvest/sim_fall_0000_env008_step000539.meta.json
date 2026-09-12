@@ -8,6 +8,7 @@
   "sim_termination_index": 539,
   "sim_termination_time_s": 10.78,
   "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+  "detector_evaluated": true,
   "detector_fired": true,
   "detector_mode": "slip",
   "detector_onset_index": 172,
