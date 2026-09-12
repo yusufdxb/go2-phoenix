@@ -1,0 +1,29 @@
+{
+  "env_index": 8,
+  "step_index": 539,
+  "window_rows": 540,
+  "sim_termination_terms": [
+    "base_contact"
+  ],
+  "sim_termination_index": 539,
+  "sim_termination_time_s": 10.78,
+  "detector_id": "phoenix.real_world.failure_detector.FailureDetector",
+  "detector_fired": true,
+  "detector_mode": "slip",
+  "detector_onset_index": 172,
+  "detector_onset_time_s": 3.44,
+  "detector_latency_s": -7.34,
+  "detector_false_negative": false,
+  "onset_index": 172,
+  "onset_source": "detector",
+  "status": "written",
+  "rejected_reason": null,
+  "path": "data/failures/sim_harvest/sim_fall_0000_env008_step000539.parquet",
+  "schema_version": "1.0",
+  "field_notes": {
+    "sim_*": "simulator ground truth, from the Isaac termination manager",
+    "detector_*": "rule-based FailureDetector output, a measurement only",
+    "onset_index": "row the Parquet failure_flag turns True on",
+    "onset_source": "detector | simulator_termination"
+  }
+}

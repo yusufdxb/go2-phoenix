@@ -1,4 +1,4 @@
-# Corrective pass, 2026-09-11: what is superseded and what is now the source of truth
+# Superseded and invalid results
 
 This record exists so that no earlier result in this repository is read as if it
 still stands. Nothing under `data/`, `reliability_eval/`, `logs/` or
