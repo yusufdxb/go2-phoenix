@@ -32,9 +32,10 @@
 # it was defined on that legacy quantity and its meaning does not carry over to a
 # clip-activation rate.
 #
-# CURRENT HARDWARE SLEW EVIDENCE is the final LowCmd bridge's per-joint clip
-# activation, written every tick to the bridge telemetry file and summarised as
-# bridge_final_slew_clip_activation_v1 (phoenix.sim2real.bridge_telemetry). No
+# CURRENT HARDWARE SLEW EVIDENCE is per-joint clip activation measured at the final
+# LowCmd bridge, the target the motors received against the policy's request, written
+# every tick to the bridge telemetry file and summarised as
+# final_target_vs_policy_request_clip_activation_v1 (phoenix.sim2real.bridge_telemetry). No
 # corrected-metric simulator baseline exists for this checkpoint, so the stand
 # stages REPORT that percentage and do not pass or fail on it
 # (docs/h25_stand_hardware_run_card.md).

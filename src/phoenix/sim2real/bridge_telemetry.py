@@ -13,20 +13,31 @@ written, so a killed process loses at most the line in flight.
 
 Hardware slew metric
 --------------------
-:data:`HARDWARE_SLEW_METRIC` is defined on the FINAL bridge's clip, the one that
-actually shapes the motor command:
+:data:`HARDWARE_SLEW_METRIC` is measured at the final bridge and compares what the
+motors were finally told with what the policy asked for:
 
     over tick rows with ``mode == "policy"`` and ``cmd_is_new``, the percentage of
-    (row, joint) samples whose ``slew_clip`` is true, i.e. whose requested target
-    was altered by ``per_step_clip_array(requested, measured_q, 0.175)``.
+    (row, joint) samples whose ``final_target_unitree`` differs from the policy's
+    requested target ``default_q + action_scale * action`` (wire
+    ``requested_target``, permuted to motor order).
 
-``cmd_is_new`` restricts it to the first tick that processed each policy command,
-so a command the bridge re-applied on a second tick (its 50 Hz timer is not
-synchronised with the policy's) is counted once. The all-policy-ticks variant is
-reported next to it. ``policy_node_slew_clip_pct`` recomputes the policy node's
-own clip from the wire (``requested_target`` against ``q_policy``), which is the
-quantity the corrected sim metric ``slew_clip_activation_rate`` measures, so the
-two layers can be compared on the same run.
+That is the union of every layer that can alter a target on its way to the motors:
+the policy node's slew clip, the bridge's own slew clip against a fresher measured
+position, and the hard joint-limit clip. The two slew layers are also reported
+separately, ``policy_node_slew_clip_pct`` (the quantity the corrected sim metric
+``slew_clip_activation_rate`` measures) and ``bridge_slew_clip_pct`` (per joint,
+``slew_clip`` in every tick row), because on real data they differ a lot.
+Re-derived from the 2026-04-21 Gate 7 live capture with ``scripts/slew_layer_audit.py``
+(stand-v2 policy, not H25): the policy-node clip activates on 33.05% of
+joint-samples, a second clip one control period later binds on 16.24% but never
+where the first did not, and moves the target by 0.6 mrad on average, because the
+joints moved a median 0.16 mrad per tick. A bridge-layer-only percentage is therefore
+dominated by re-clips of already clipped targets, while the end-to-end percentage
+measures "the robot did not get what the policy asked for".
+
+``cmd_is_new`` restricts all of them to the first tick that processed each policy
+command, so a command the bridge re-applied on a second tick (its 50 Hz timer is not
+synchronised with the policy's) is counted once.
 """
 
 from __future__ import annotations
@@ -42,14 +53,15 @@ from typing import Any
 import numpy as np
 
 from .go2_model import UNITREE_MOTOR_ORDER
+from .motor_crc import PHOENIX_FOR_MOTOR
 from .safety import MAX_DELTA_PER_STEP_RAD, per_step_clip_array
 
 TELEMETRY_SCHEMA = "phoenix-bridge-telemetry/v1"
-HARDWARE_SLEW_METRIC = "bridge_final_slew_clip_activation_v1"
+HARDWARE_SLEW_METRIC = "final_target_vs_policy_request_clip_activation_v1"
 HARDWARE_SLEW_METRIC_DEFINITION = (
     "100 * mean over tick rows with mode=='policy' and cmd_is_new, and over the 12 joints, "
-    "of slew_clip (the final LowCmd bridge's per_step_clip_array altered the requested target "
-    "against the fresh measured joint position, cap 0.175 rad)"
+    "of final_target_unitree != the policy's requested target (default_q + action_scale * "
+    "action, permuted to Unitree motor order): every clip between the policy and the motors"
 )
 
 
@@ -160,12 +172,33 @@ def _policy_node_clip_pct(rows: Iterable[dict[str, Any]], max_delta: float) -> f
     return 100.0 * hits / total if total else None
 
 
+def _end_to_end_clip(
+    rows: Iterable[dict[str, Any]],
+) -> tuple[float | None, dict[str, float | None]]:
+    perm = np.asarray(PHOENIX_FOR_MOTOR, dtype=np.int64)
+    hits = np.zeros(12, dtype=np.float64)
+    total = 0
+    for r in rows:
+        requested = (r.get("policy") or {}).get("requested_target")
+        final = r.get("final_target_unitree")
+        if not requested or not final or any(v is None for v in (*requested, *final)):
+            continue
+        hits += np.asarray(final, dtype=np.float64) != np.asarray(requested, dtype=np.float64)[perm]
+        total += 1
+    per_joint = {
+        name: (100.0 * float(hits[j]) / total if total else None)
+        for j, name in enumerate(UNITREE_MOTOR_ORDER)
+    }
+    return (100.0 * float(hits.sum()) / (12 * total) if total else None), per_joint
+
+
 def summarize(manifest: Mapping[str, Any], ticks: list[dict[str, Any]]) -> dict[str, Any]:
     """Everything a stage verdict needs, recomputed from the rows alone."""
     max_delta = float((manifest.get("gate_params") or {}).get("max_delta", MAX_DELTA_PER_STEP_RAD))
     modes = Counter(t.get("mode") for t in ticks)
     policy_rows = [t for t in ticks if t.get("mode") == "policy"]
     new_rows = [t for t in policy_rows if t.get("cmd_is_new")]
+    end_to_end_pct, end_to_end_per_joint = _end_to_end_clip(new_rows)
 
     per_joint: dict[str, float | None] = {}
     for j, name in enumerate(UNITREE_MOTOR_ORDER):
@@ -229,6 +262,8 @@ def summarize(manifest: Mapping[str, Any], ticks: list[dict[str, Any]]) -> dict[
         "mode_counts": dict(modes),
         "policy_ticks": len(policy_rows),
         "policy_new_command_ticks": len(new_rows),
+        "end_to_end_clip_pct": end_to_end_pct,
+        "end_to_end_clip_pct_per_joint": end_to_end_per_joint,
         "bridge_slew_clip_pct": _pct(new_rows, "slew_clip"),
         "bridge_slew_clip_pct_all_policy_ticks": _pct(policy_rows, "slew_clip"),
         "bridge_slew_clip_pct_per_joint": per_joint,
