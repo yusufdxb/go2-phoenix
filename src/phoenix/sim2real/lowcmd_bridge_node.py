@@ -1,56 +1,48 @@
-"""Phoenix → Unitree LowCmd bridge.
+"""Phoenix -> Unitree LowCmd bridge: the final actuator safety boundary.
 
-Converts the Phoenix policy's ``/joint_group_position_controller/command``
-(std_msgs/Float64MultiArray of 12 joint targets in deploy.yaml:joint_order)
-into ``unitree_go/msg/LowCmd`` at 50 Hz, with the CRC the GO2 firmware
-requires. This is the single missing link between the policy and the robot.
+A thin ROS 2 shell. Every decision about what the motors are told is made by
+:class:`phoenix.sim2real.actuator_gate.ActuatorGate`, a pure state machine covered
+by ``tests/test_actuator_gate.py``; read that module's docstring for the modes,
+the joint limits, LowState freshness, the estop and deadman rules, and what
+changed relative to the previous bridge. This file only:
 
-Safety posture (this is a hardware-actuation node — read carefully):
+* feeds ``/lowstate``, ``/phoenix/estop``, the ``/phoenix/estop`` publisher set and
+  the policy command (wire v2, :mod:`phoenix.sim2real.command_wire`) into the gate,
+  stamped with ``time.monotonic_ns()``, never the ROS wall clock;
+* publishes the gate's decision as ``unitree_go/msg/LowCmd`` with the firmware CRC;
+* writes one telemetry line per tick (:mod:`phoenix.sim2real.bridge_telemetry`).
 
-* **Dry-run by default.** Without ``--live``, publishes to ``/lowcmd_dry``
-  only. No motors move. ``--live`` must be passed explicitly per run; there
-  is no config toggle and no env var.
-* **Requires /lowstate before publishing.** If the node has never seen a
-  valid LowState, it stays silent.
-* **Per-step delta clip.** Each motor's target is clipped to ``±0.175 rad``
-  from the last measured joint position. Matches the ``_clip_to_limits``
-  behaviour already in ros2_policy_node.
-* **Stale-command watchdog.** If no new policy command has arrived in
-  ``watchdog_s`` seconds (default 0.2 s = 2×5 control periods at 50 Hz),
-  the bridge holds the last measured joint positions with softer gains
-  (``hold_kp``, ``hold_kd``) so the robot doesn't collapse when the policy
-  stops or is estopped.
-* **Respects /phoenix/estop.** If the estop publisher goes True, the bridge
-  immediately switches to hold-current regardless of policy output. The
-  policy node itself also enforces this, but the bridge double-checks
-  because the policy may have already crashed.
-* **Conservative default gains.** ``kp=25``, ``kd=0.5``. The Unitree stand
-  example uses kp=60/kd=5 which is fine for stand but too stiff for a
-  not-yet-tuned policy. Override via CLI if you know better for a given
-  run.
+Safety posture:
 
-Usage on the Jetson::
+* **Dry-run by default.** Without ``--live`` it publishes ``/lowcmd_dry`` only.
+* **Live refuses to start** unless it has a deploy config that passes the deploy
+  contract, a lock file whose hashes match every artifact that config reaches, a
+  telemetry path, and ``--expect-sha`` matching the running code's commit.
+* **Live requires a real deadman.** Exactly one ``/phoenix/estop`` publisher, and
+  it must be ``wireless_estop_node`` or ``deadman_joy_node``.
+* **Shutdown damps.** On Ctrl-C the gate latches damping and the bridge sends
+  ``kp=0`` for one watchdog period before exiting, so the last command the motors
+  received is damping rather than a stiff hold of a pose nobody is measuring.
 
-    # Terminal A: GO2 driver (provides /lowstate, consumes /lowcmd)
-    # Terminal B: estop publisher (deadman)
-    # Terminal C: this bridge — DRY RUN (default)
-    python3 -m phoenix.sim2real.lowcmd_bridge_node
-    # Verify /lowcmd_dry is publishing with sane values, joints permuted
-    # correctly vs a known Phoenix command, and CRC is non-zero.
-    #
-    # Once that passes, go live:
-    python3 -m phoenix.sim2real.lowcmd_bridge_node --live
+Usage (the preflight and the run card give the exact, complete commands)::
+
+    python3 -m phoenix.sim2real.lowcmd_bridge_node --config <deploy.yaml> \\
+        --lock <lock.yaml> --telemetry <run_dir>/bridge.jsonl          # dry
+    python3 -m phoenix.sim2real.lowcmd_bridge_node --live --config ... --lock ... \\
+        --telemetry ... --expect-sha <commit> --stage E                  # live
 """
 
 from __future__ import annotations
 
 import argparse
+import os
+import socket
 import sys
-from dataclasses import dataclass
+import time
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import rclpy
 import yaml
 from rclpy.node import Node
@@ -58,19 +50,29 @@ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray
 from unitree_go.msg import LowCmd, LowState
 
-from phoenix.sim2real.motor_crc import (
-    PHOENIX_FOR_MOTOR,
-    LowCmdRaw,
-    compute_crc,
+from phoenix.sim2real.actuator_gate import REAL_DEADMAN_NODE_NAMES, ActuatorGate, GateParams
+from phoenix.sim2real.bridge_telemetry import (
+    HARDWARE_SLEW_METRIC,
+    HARDWARE_SLEW_METRIC_DEFINITION,
+    TelemetryWriter,
+    utc_now_iso,
 )
-from phoenix.sim2real.safety import (
-    MAX_DELTA_PER_STEP_RAD,
-    estop_is_active,
-    per_step_clip_array,
+from phoenix.sim2real.deploy_contract import load_lock, validate_deploy_contract, verify_lock
+from phoenix.sim2real.go2_model import (
+    JOINT_LIMITS_PROVENANCE,
+    JOINT_POSITION_LIMITS_RAD,
+    LIMIT_ABORT_BAND_RAD,
+    POLICY_JOINT_ORDER,
+    UNITREE_MOTOR_ORDER,
 )
+from phoenix.sim2real.motor_crc import PHOENIX_FOR_MOTOR, build_raw_from_motor_values, compute_crc
+from phoenix.sim2real.provenance import identity_problems, resolve_code_identity
+from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
 
 # MAX_DELTA_PER_STEP_RAD is re-exported from phoenix.sim2real.safety so
 # the policy node and the bridge cannot drift on the slew-rate cap.
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 @dataclass
@@ -91,6 +93,36 @@ class BridgeConfig:
     # treat the publisher as dead and force hold-pose. Default matches the
     # 0.5s window the wireless/joystick adapters use.
     estop_timeout_s: float = 0.5
+    # LowState older than this revokes policy authority (deploy
+    # safety.sensor_timeout_s, the same freshness authority the policy node uses).
+    lowstate_timeout_s: float = 0.2
+    # How long a stale LowState may still be held before damping.
+    stale_hold_s: float = 0.2
+    # Startup window for the first estop message / deadman discovery
+    # (deploy safety.first_message_timeout_s).
+    first_message_timeout_s: float = 15.0
+    joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
+    config_path: Path | None = None
+    lock_path: Path | None = None
+    telemetry_path: Path | None = None
+    expect_sha: str | None = None
+    stage: str = "unlabelled"
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    def gate_params(self) -> GateParams:
+        return GateParams(
+            live=self.live,
+            kp=self.kp,
+            kd=self.kd,
+            hold_kp=self.hold_kp,
+            hold_kd=self.hold_kd,
+            watchdog_s=self.watchdog_s,
+            estop_timeout_s=self.estop_timeout_s,
+            lowstate_timeout_s=self.lowstate_timeout_s,
+            stale_hold_s=self.stale_hold_s,
+            first_message_timeout_s=self.first_message_timeout_s,
+            joint_order=tuple(self.joint_order),
+        )
 
 
 def _load_deploy_config(path: Path) -> dict[str, Any]:
@@ -98,36 +130,32 @@ def _load_deploy_config(path: Path) -> dict[str, Any]:
         return yaml.safe_load(fh)
 
 
+def lowcmd_fields(target_unitree, kp: float, kd: float) -> tuple[list[float], int]:
+    """The 12 motor targets and the firmware CRC for a LowCmd. Pure; tested."""
+    q = [float(v) for v in target_unitree]
+    raw = build_raw_from_motor_values(q, [float(kp)] * 12, [float(kd)] * 12)
+    return q, compute_crc(raw)
+
+
 class LowCmdBridge(Node):
     """See module docstring for safety posture."""
 
-    def __init__(self, cfg: BridgeConfig) -> None:
+    def __init__(self, cfg: BridgeConfig, telemetry: TelemetryWriter | None) -> None:
         super().__init__("phoenix_lowcmd_bridge")
         self._cfg = cfg
+        self._telemetry = telemetry
+        self._gate = ActuatorGate(cfg.gate_params(), time.monotonic_ns())
+        self._last_mode: str | None = None
+        self._last_fault: str | None = None
 
-        self._last_cmd_phoenix: np.ndarray | None = None
-        self._last_cmd_time_ns: int | None = None
-        self._last_measured_unitree: np.ndarray | None = None
-        self._estop_latched: bool = False
-        # Freshness tracking for the estop topic. The bridge is the
-        # actuation gate, so it cannot trust a stale "estop is False"
-        # value left over from a publisher that has since died.
-        self._last_estop_value: bool | None = None
-        self._last_estop_ns: int | None = None
-
-        # The Phoenix policy node uses a single QoSProfile(depth=1, BEST_EFFORT)
-        # for every pub/sub it owns (see ros2_policy_node.py). To match its
-        # publishers as a subscriber, we have to also be BEST_EFFORT — a
-        # RELIABLE subscriber against a BEST_EFFORT publisher is treated as
-        # incompatible by DDS and receives nothing. Sensor-style topics
-        # (LowState from the firmware) and our own /lowcmd output stay
-        # BEST_EFFORT for the same reason and for low-latency control.
+        # BEST_EFFORT everywhere: the policy node publishes BEST_EFFORT (a
+        # RELIABLE subscriber would receive nothing), LowState comes from the
+        # firmware as sensor data, and /lowcmd is a 50 Hz control stream.
         qos_be = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=10,
         )
-
         self._sub_cmd = self.create_subscription(
             Float64MultiArray, cfg.cmd_topic, self._on_cmd, qos_be
         )
@@ -135,132 +163,84 @@ class LowCmdBridge(Node):
             LowState, cfg.lowstate_topic, self._on_lowstate, qos_be
         )
         self._sub_estop = self.create_subscription(Bool, cfg.estop_topic, self._on_estop, qos_be)
-
         self._pub = self.create_publisher(
             LowCmd, cfg.live_topic if cfg.live else cfg.dry_topic, qos_be
         )
         self._timer = self.create_timer(1.0 / cfg.rate_hz, self._tick)
+        self._graph_timer = self.create_timer(1.0, self._poll_estop_publishers)
 
         mode_label = "LIVE (/lowcmd)" if cfg.live else "DRY (/lowcmd_dry)"
         self.get_logger().info(
-            f"lowcmd bridge up in {mode_label} mode; rate={cfg.rate_hz} Hz, "
-            f"kp={cfg.kp}, kd={cfg.kd}, hold_kp={cfg.hold_kp}, "
-            f"hold_kd={cfg.hold_kd}, watchdog={cfg.watchdog_s}s, "
-            f"clip={MAX_DELTA_PER_STEP_RAD} rad/step"
+            f"lowcmd bridge up in {mode_label} mode; stage={cfg.stage} rate={cfg.rate_hz} Hz, "
+            f"kp={cfg.kp}, kd={cfg.kd}, hold_kp={cfg.hold_kp}, hold_kd={cfg.hold_kd}, "
+            f"watchdog={cfg.watchdog_s}s, lowstate_timeout={cfg.lowstate_timeout_s}s, "
+            f"stale_hold={cfg.stale_hold_s}s, clip={MAX_DELTA_PER_STEP_RAD} rad/step, "
+            f"hard joint limits from {JOINT_LIMITS_PROVENANCE['repository']}"
         )
 
-    # --- subscriptions ------------------------------------------------------
-
+    # --- inputs -------------------------------------------------------------
     def _on_cmd(self, msg: Float64MultiArray) -> None:
-        if len(msg.data) != 12:
-            self.get_logger().warn(f"ignoring command with len={len(msg.data)} (expected 12)")
-            return
-        arr = np.asarray(msg.data, dtype=np.float32)
-        if not np.all(np.isfinite(arr)):
-            self.get_logger().warn("ignoring command containing NaN/Inf")
-            return
-        self._last_cmd_phoenix = arr
-        self._last_cmd_time_ns = self.get_clock().now().nanoseconds
+        dims = getattr(msg.layout, "dim", None) or []
+        label = dims[0].label if dims else ""
+        self._gate.on_command(time.monotonic_ns(), label, list(msg.data))
 
     def _on_lowstate(self, msg: LowState) -> None:
-        q = np.zeros(12, dtype=np.float32)
-        for i in range(12):
-            q[i] = float(msg.motor_state[i].q)
-        if not np.all(np.isfinite(q)):
-            self.get_logger().warn("LowState has NaN in motor_state.q; discarding")
-            return
-        self._last_measured_unitree = q
+        q = [float(msg.motor_state[i].q) for i in range(12)]
+        dq = [float(msg.motor_state[i].dq) for i in range(12)]
+        self._gate.on_lowstate(time.monotonic_ns(), q, dq)
 
     def _on_estop(self, msg: Bool) -> None:
-        self._last_estop_value = bool(msg.data)
-        self._last_estop_ns = self.get_clock().now().nanoseconds
-        if msg.data and not self._estop_latched:
-            self.get_logger().warn("/phoenix/estop True; bridge latching to hold")
-        if msg.data:
-            self._estop_latched = True
+        self._gate.on_estop(time.monotonic_ns(), bool(msg.data))
+
+    def _poll_estop_publishers(self) -> None:
+        infos = self.get_publishers_info_by_topic(self._cfg.estop_topic)
+        self._gate.on_estop_publishers([info.node_name for info in infos])
 
     # --- tick ---------------------------------------------------------------
-
     def _tick(self) -> None:
-        if self._last_measured_unitree is None:
-            # Haven't observed any LowState yet — stay silent.
-            return
+        rec = self._gate.tick(time.monotonic_ns())
+        if rec["publish"]:
+            self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+        self._report(rec)
 
-        now_ns = self.get_clock().now().nanoseconds
-
-        # Fail-closed estop: stale heartbeat ≡ estop True. The latch is
-        # sticky once flipped so a recovering publisher can't lift it.
-        estop_signal = estop_is_active(
-            last_msg_received_ns=self._last_estop_ns,
-            latest_value=self._last_estop_value,
-            now_ns=now_ns,
-            timeout_s=self._cfg.estop_timeout_s,
-        )
-        if estop_signal and not self._estop_latched:
-            reason = (
-                "no /phoenix/estop publisher"
-                if self._last_estop_ns is None
-                else "stale estop heartbeat"
+    def _report(self, rec: dict[str, Any]) -> None:
+        if rec["mode"] != self._last_mode:
+            self.get_logger().warn(
+                f"mode {self._last_mode} -> {rec['mode']} (cause={rec['hold_cause']})"
             )
-            self.get_logger().warn(f"bridge latching to hold: {reason}")
-            self._estop_latched = True
+            self._last_mode = rec["mode"]
+        if rec["fault"] != self._last_fault:
+            self.get_logger().error(f"LATCHED FAULT: {rec['fault']} (all: {rec['faults']})")
+            self._last_fault = rec["fault"]
+        if self._telemetry is not None:
+            self._telemetry.write_tick(rec)
 
-        use_hold = self._estop_latched or self._is_command_stale(now_ns)
-        if use_hold or self._last_cmd_phoenix is None:
-            target_unitree = self._last_measured_unitree.copy()
-            kp, kd = self._cfg.hold_kp, self._cfg.hold_kd
-        else:
-            phoenix_vec = self._last_cmd_phoenix
-            # Reorder to Unitree motor layout.
-            target_unitree = np.array(
-                [phoenix_vec[PHOENIX_FOR_MOTOR[k]] for k in range(12)],
-                dtype=np.float32,
-            )
-            # Clip per-step delta vs measured. Shared helper with the
-            # policy node — see phoenix.sim2real.safety.
-            target_unitree = per_step_clip_array(
-                target_unitree, self._last_measured_unitree, MAX_DELTA_PER_STEP_RAD
-            ).astype(np.float32, copy=False)
-            kp, kd = self._cfg.kp, self._cfg.kd
-
-        self._publish(target_unitree, kp, kd)
-
-    def _is_command_stale(self, now_ns: int) -> bool:
-        if self._last_cmd_time_ns is None:
-            return True
-        age_s = (now_ns - self._last_cmd_time_ns) / 1e9
-        return age_s > self._cfg.watchdog_s
+    def shutdown_damp(self) -> None:
+        """Latch damping and send it for one watchdog period. Best effort."""
+        self._gate.request_shutdown()
+        ticks = max(1, int(round(self._cfg.watchdog_s * self._cfg.rate_hz)))
+        for _ in range(ticks):
+            rec = self._gate.tick(time.monotonic_ns())
+            if rec["publish"] and rclpy.ok():
+                self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+            self._report(rec)
+            time.sleep(1.0 / self._cfg.rate_hz)
 
     # --- publish ------------------------------------------------------------
-
-    def _publish(self, target_unitree: np.ndarray, kp: float, kd: float) -> None:
-        # Build the raw (packed-C) view, compute CRC, then copy into a ROS msg.
-        raw = LowCmdRaw()
-        raw.head[0] = 0xFE
-        raw.head[1] = 0xEF
-        raw.levelFlag = 0xFF
-        for i in range(12):
-            raw.motorCmd[i].mode = 0x01
-            raw.motorCmd[i].q = float(target_unitree[i])
-            raw.motorCmd[i].dq = 0.0
-            raw.motorCmd[i].tau = 0.0
-            raw.motorCmd[i].Kp = kp
-            raw.motorCmd[i].Kd = kd
-        crc = compute_crc(raw)
-
+    def _publish(self, target_unitree, kp: float, kd: float) -> None:
+        q, crc = lowcmd_fields(target_unitree, kp, kd)
         msg = LowCmd()
         msg.head[0] = 0xFE
         msg.head[1] = 0xEF
         msg.level_flag = 0xFF
         for i in range(12):
             msg.motor_cmd[i].mode = 0x01
-            msg.motor_cmd[i].q = float(target_unitree[i])
+            msg.motor_cmd[i].q = q[i]
             msg.motor_cmd[i].dq = 0.0
             msg.motor_cmd[i].tau = 0.0
-            msg.motor_cmd[i].kp = kp
-            msg.motor_cmd[i].kd = kd
+            msg.motor_cmd[i].kp = float(kp)
+            msg.motor_cmd[i].kd = float(kd)
         msg.crc = crc
-
         self._pub.publish(msg)
 
 
@@ -270,7 +250,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--config",
         type=Path,
         default=Path("configs/sim2real/deploy.yaml"),
-        help="deploy.yaml, read for rate and topic names (default: configs/sim2real/deploy.yaml)",
+        help="deploy config: rate, topics, joint order, timeouts (required to exist when --live)",
     )
     p.add_argument(
         "--live",
@@ -279,18 +259,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--kp", type=float, default=25.0, help="active-control kp (default 25)")
     p.add_argument("--kd", type=float, default=0.5, help="active-control kd (default 0.5)")
-    p.add_argument(
-        "--hold-kp",
-        type=float,
-        default=20.0,
-        help="hold-pose kp when stale/estopped (default 20)",
-    )
-    p.add_argument(
-        "--hold-kd",
-        type=float,
-        default=1.0,
-        help="hold-pose kd when stale/estopped (default 1.0)",
-    )
+    p.add_argument("--hold-kp", type=float, default=20.0, help="hold kp (default 20)")
+    p.add_argument("--hold-kd", type=float, default=1.0, help="hold and damping kd (default 1.0)")
     p.add_argument(
         "--watchdog-s",
         type=float,
@@ -301,12 +271,22 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--estop-timeout-s",
         type=float,
         default=None,
-        help=(
-            "seconds without a /phoenix/estop heartbeat before forcing hold. "
-            "Default: read safety.estop_timeout_s from --config (deploy.yaml), "
-            "falling back to 0.5 s if absent."
-        ),
+        help="estop heartbeat timeout; default safety.estop_timeout_s from --config, else 0.5",
     )
+    p.add_argument(
+        "--stale-hold-s",
+        type=float,
+        default=None,
+        help="how long a stale LowState may be held before damping (default: --watchdog-s)",
+    )
+    p.add_argument(
+        "--lock", type=Path, default=None, help="deploy lock file (required when --live)"
+    )
+    p.add_argument(
+        "--telemetry", type=Path, default=None, help="JSONL telemetry path, never overwritten"
+    )
+    p.add_argument("--expect-sha", default=None, help="commit the running code must be (live)")
+    p.add_argument("--stage", default="unlabelled", help="gate stage label for the record")
     return p.parse_args(argv)
 
 
@@ -316,6 +296,9 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
     lowstate_topic = "/lowstate"
     estop_topic = "/phoenix/estop"
     yaml_estop_timeout: float | None = None
+    lowstate_timeout_s = 0.2
+    first_message_timeout_s = 15.0
+    joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
     if args.config.exists():
         cfg = _load_deploy_config(args.config)
         rate_hz = float(cfg.get("control", {}).get("rate_hz", rate_hz))
@@ -325,6 +308,10 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         estop_topic = s.get("emergency_stop_topic", estop_topic)
         if "estop_timeout_s" in s:
             yaml_estop_timeout = float(s["estop_timeout_s"])
+        lowstate_timeout_s = float(s.get("sensor_timeout_s", lowstate_timeout_s))
+        first_message_timeout_s = float(s.get("first_message_timeout_s", first_message_timeout_s))
+        if cfg.get("joint_order"):
+            joint_order = tuple(cfg["joint_order"])
 
     # Resolution order for the estop heartbeat timeout, strict-to-loose:
     #   1. CLI flag --estop-timeout-s if explicitly passed (not None).
@@ -338,6 +325,7 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
     else:
         estop_timeout_s = 0.5
 
+    stale_hold_s = getattr(args, "stale_hold_s", None)
     return BridgeConfig(
         rate_hz=rate_hz,
         watchdog_s=args.watchdog_s,
@@ -352,23 +340,120 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         lowstate_topic=lowstate_topic,
         estop_topic=estop_topic,
         estop_timeout_s=estop_timeout_s,
+        lowstate_timeout_s=lowstate_timeout_s,
+        stale_hold_s=float(args.watchdog_s if stale_hold_s is None else stale_hold_s),
+        first_message_timeout_s=first_message_timeout_s,
+        joint_order=joint_order,
+        config_path=args.config,
+        lock_path=getattr(args, "lock", None),
+        telemetry_path=getattr(args, "telemetry", None),
+        expect_sha=getattr(args, "expect_sha", None),
+        stage=getattr(args, "stage", "unlabelled"),
     )
+
+
+def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
+    """Everything that must refuse startup, plus the manifest to record. Pure-ish (reads files)."""
+    problems: list[str] = []
+    deploy_cfg: dict[str, Any] | None = None
+    if cfg.config_path is not None and cfg.config_path.is_file():
+        deploy_cfg = _load_deploy_config(cfg.config_path)
+        problems.extend(f"deploy contract: {p}" for p in validate_deploy_contract(deploy_cfg))
+    elif cfg.live:
+        problems.append(f"--live requires an existing --config (got {cfg.config_path})")
+
+    observed: dict[str, Any] = {}
+    lock_record: dict[str, Any] | None = None
+    if cfg.lock_path is not None:
+        try:
+            lock = load_lock(cfg.lock_path)
+        except (OSError, ValueError) as exc:
+            problems.append(f"lock unreadable: {exc}")
+        else:
+            if deploy_cfg is None:
+                problems.append("a lock was given but the deploy config could not be read")
+            else:
+                lock_problems, observed = verify_lock(lock, deploy_cfg, cfg.config_path)
+                problems.extend(f"lock: {p}" for p in lock_problems)
+            lock_record = {"path": str(cfg.lock_path), "name": lock.get("name")}
+    elif cfg.live:
+        problems.append("--live requires --lock")
+
+    identity = resolve_code_identity(REPO_ROOT)
+    id_problems = identity_problems(identity, expected_sha=cfg.expect_sha)
+    if cfg.live:
+        if not cfg.expect_sha:
+            problems.append("--live requires --expect-sha")
+        problems.extend(f"code identity: {p}" for p in id_problems)
+        if cfg.telemetry_path is None:
+            problems.append("--live requires --telemetry")
+
+    params = cfg.gate_params()
+    manifest = {
+        "node": "phoenix_lowcmd_bridge",
+        "stage": cfg.stage,
+        "live": cfg.live,
+        "host": socket.gethostname(),
+        "pid": os.getpid(),
+        "start_utc": utc_now_iso(),
+        "start_mono_ns": time.monotonic_ns(),
+        "code_identity": identity.to_dict(),
+        "code_identity_problems": id_problems,
+        "deploy_config": observed.get("deploy_config"),
+        "artifacts": observed.get("artifacts"),
+        "lock": lock_record,
+        "startup_problems": list(problems),
+        "gate_params": {**asdict(params), "deadman_required": params.deadman_required},
+        "topics": {
+            "command": cfg.cmd_topic,
+            "lowstate": cfg.lowstate_topic,
+            "estop": cfg.estop_topic,
+            "output": cfg.live_topic if cfg.live else cfg.dry_topic,
+        },
+        "joint_order_policy": list(cfg.joint_order),
+        "motor_order_unitree": list(UNITREE_MOTOR_ORDER),
+        "phoenix_for_motor": list(PHOENIX_FOR_MOTOR),
+        "joint_limits_rad": {k: list(v) for k, v in JOINT_POSITION_LIMITS_RAD.items()},
+        "joint_limits_provenance": JOINT_LIMITS_PROVENANCE,
+        "limit_abort_band_rad": LIMIT_ABORT_BAND_RAD,
+        "real_deadman_node_names": sorted(REAL_DEADMAN_NODE_NAMES),
+        "hardware_slew_metric": HARDWARE_SLEW_METRIC,
+        "hardware_slew_metric_definition": HARDWARE_SLEW_METRIC_DEFINITION,
+        "array_orders": {
+            "q_unitree, dq_unitree, *_unitree, slew_*, limit_*": "motor_order_unitree",
+            "policy.*": "joint_order_policy",
+        },
+    }
+    return problems, manifest
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     cfg = _build_config(args)
+    problems, manifest = startup_problems(cfg)
+    if problems:
+        print("REFUSING TO START lowcmd bridge:", file=sys.stderr)
+        for problem in problems:
+            print(f"  - {problem}", file=sys.stderr)
+        return 2
 
+    telemetry = TelemetryWriter(cfg.telemetry_path, manifest) if cfg.telemetry_path else None
     rclpy.init()
-    node = LowCmdBridge(cfg)
+    node = LowCmdBridge(cfg, telemetry)
+    end_reason = "spin_returned"
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        end_reason = "sigint"
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        try:
+            node.shutdown_damp()
+        finally:
+            if telemetry is not None:
+                telemetry.close({"reason": end_reason, "faults": list(node._gate.faults)})
+            node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
     return 0
 
 

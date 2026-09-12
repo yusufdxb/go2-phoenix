@@ -1,0 +1,81 @@
+# Deploy lock for the H25 stand-only hardware gate.
+#
+# Every hash below was computed on 2026-09-12 from the files that
+# configs/sim2real/deploy_stand_h25.yaml reaches, with
+# phoenix.sim2real.deploy_contract.observed_artifact_hashes. The policy node and the
+# LowCmd bridge (both with --lock) and every preflight stage refuse to run if any of
+# them differs.
+#
+# The deploy config is pinned by SEMANTIC hash: comments ignored and path values
+# reduced to their file names, so the bundle's path-pinned copy still matches while
+# any change to a timeout, the pose, the joint order, a topic or a file name does not.
+# tests/test_deploy_contract.py fails if the config changes without this lock.
+#
+# Change this file only in the same commit that changes the config or re-exports the
+# policy, and re-run stage A afterwards.
+schema: phoenix-deploy-lock/v1
+name: h25-stand
+stand_only: true
+
+deploy_config:
+  path: configs/sim2real/deploy_stand_h25.yaml
+  semantic_sha256: 92ea5ff7b4f939efee8aeecd60ad9410448de36dbaf023ba912cd842511feb32
+
+# checkpoints/phoenix-stand-h25-lat-noise/2026-06-22_21-08-20/model_799.pt is the
+# source checkpoint; latest.pt is a symlink to it on the workstation and a copy in
+# the payload bundle, so both hash identically.
+checkpoint_source: phoenix-stand-h25-lat-noise/2026-06-22_21-08-20/model_799.pt
+
+artifacts:
+  policy.onnx:
+    sha256: 5331dbb7c4b8194e7f2238c14b985ea16af2f47aa7130e04bade3a0f9e9289eb
+    bytes: 2571
+  policy.onnx.data:
+    sha256: cda0e9b4847c4208ec1aadd447c1851856b9d6f2e38dbadfaae1c23e214dee92
+    bytes: 763392
+  policy.pt:
+    sha256: 24d42d606f916b70ee5f48c665b3405202d14683daa00dd4c8018dcee7273622
+    bytes: 779022
+  checkpoint:
+    sha256: c904aebbb1c62eeca77317dcde9260067f3979be3931dee4db263eac4d9fa8f8
+    bytes: 4588131
+
+# The exact real observation batches the torch-versus-ONNX parity gate runs on. Pinned
+# by hash so the reference can never silently become "the newest parquet on disk".
+# These are the three inputs the 2026-09-04 parity_gate.json recorded. The two
+# parquets are gitignored and exist on the workstation only; the npz is tracked.
+parity_reference_inputs:
+  - path: data/failures/stand_v2_dryrun_2026-04-20_18-02-42.parquet
+    kind: parquet
+    sha256: a2b5ed8f570b6156a10f52f0b5bf09b243517e4d8f6b316f05e386803c4869a9
+  - path: data/failures/gate7_live_2026-04-21_18-33-17.parquet
+    kind: parquet
+    sha256: 70a8998eb671b1ebcdd4edb972c9d6fda20ac529dd211d8fb11d8311bd10d9b0
+  - path: reliability_eval/causal_viability_replication_v2/process_01/stand_obs/arm_unshielded.npz
+    kind: npz
+    key: onset_obs
+    sha256: 481716804bb954ab58cdd94602cc420fa7c9d3b79be2f29acb6b4f9d2e758dea
+
+parity:
+  # The repository's historical export bar (scripts/parity_gate.py defaults).
+  max_abs_tol: 1.0e-5
+  cos_tol: 0.9999
+  max_steps_per_input: 2000
+
+# Canonical-stand bench (phoenix.sim2real.bench_export), recorded for THIS artifact.
+# abs_action_inf is the ONNX output at the training nominal pose, zero command, zero
+# velocity, no prior action. Stage A requires the output on the running machine to
+# reproduce it to max_abs_tol, which is what proves the payload's onnxruntime runs the
+# same function.
+#
+# The bench's legacy 0.3 pass threshold is NOT a gate here and this artifact fails it
+# (0.482). That threshold was set 2026-04-15 to catch an under-trained walking export;
+# its own docstring justifies it as "well below one-third of the per-step slew clip",
+# which compares action units against radians, the same unit confusion as the legacy
+# slew metric. A static single-observation probe is also not evidence about a stand
+# policy that stabilises through feedback; the 32/32 simulator stands are.
+canonical_bench:
+  abs_action_inf: 0.4824811816215515
+  max_abs_tol: 1.0e-5
+  legacy_threshold: 0.3
+  legacy_threshold_is_gate: false

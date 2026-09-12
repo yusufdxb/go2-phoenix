@@ -10,20 +10,27 @@ trick covers the telemetry and observation-provenance paths below.
 
 from __future__ import annotations
 
+import argparse
 import logging
 import time
 import types
+from pathlib import Path
 
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
+import yaml
 
 from phoenix.real_world.failure_detector import FailureDetector, FailureEvent, FailureMode
 from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
-from phoenix.sim2real.observation import BaseLinVelSample
+from phoenix.sim2real.command_wire import KIND_ABORT, KIND_STARTUP_DEFAULT, decode, wire_label
+from phoenix.sim2real.deploy_contract import observed_artifact_hashes
+from phoenix.sim2real.go2_model import POLICY_JOINT_ORDER, TRAINING_DEFAULT_JOINT_POS
+from phoenix.sim2real.observation import BaseLinVelSample, JointOrder
 from phoenix.sim2real.ros2_policy_node import (
     _PhoenixPolicyNode,
     _require_base_lin_vel_source,
+    resolve_startup,
 )
 from phoenix.sim2real.telemetry import OdomSample
 
@@ -164,30 +171,58 @@ def test_base_lin_vel_source_accepts_documented_values(source, caplog) -> None:
 
 
 class _StubResolveNode:
-    """Stub for ``_resolve_base_lin_vel_or_abort`` and ``_publish_default_pose``."""
+    """Stub for ``_resolve_base_lin_vel_or_abort``, ``_on_cmd_vel`` and the wire publishers.
 
-    def __init__(self, source: str) -> None:
+    Every method bound here is the REAL implementation, so the tests cover the
+    actual latch and publish paths rather than mocks of them.
+    """
+
+    def __init__(self, source: str, stand_only: bool = True) -> None:
         self.base_lin_vel_source = source
+        self.stand_only = stand_only
+        self.joint_order = JointOrder(POLICY_JOINT_ORDER)
         self._estopped = False
         self._abort_reason: str | None = None
         self._logger = None
-        self.default_q = np.zeros(12, dtype=np.float32)
-        self.published: list[list[float]] = []
+        self.default_q = np.asarray(
+            [TRAINING_DEFAULT_JOINT_POS[n] for n in POLICY_JOINT_ORDER], dtype=np.float32
+        )
+        self.published: list[tuple[str, list[float]]] = []
         self._float_msg = _FakeMsg
+        self._dim_msg = _FakeDim
         self.cmd_pub = _FakePub(self.published)
+        self._seq = 0
+        self._velocity_command = np.zeros(3, dtype=np.float32)
+        self._cmd_vel_received = np.full(3, np.nan)
+        self._cmd_vel_ns = None
 
     def _latch_abort(self, reason: str) -> None:
-        # Real implementation, bound onto the stub, so the test covers the
-        # actual latch path rather than a mock of it.
         _PhoenixPolicyNode._latch_abort(self, reason)
 
-    def _publish_default_pose(self) -> None:
-        _PhoenixPolicyNode._publish_default_pose(self)
+    def _publish_abort_notice(self, reason: str) -> None:
+        _PhoenixPolicyNode._publish_abort_notice(self, reason)
+
+    def _publish_startup_default(self) -> None:
+        _PhoenixPolicyNode._publish_startup_default(self)
+
+    def _publish_wire(self, *args, **kwargs) -> None:
+        _PhoenixPolicyNode._publish_wire(self, *args, **kwargs)
+
+    def _next_seq(self) -> int:
+        return _PhoenixPolicyNode._next_seq(self)
+
+
+class _FakeDim:
+    def __init__(self) -> None:
+        self.label = ""
+        self.size = 0
+        self.stride = 0
 
 
 class _FakeMsg:
     def __init__(self) -> None:
         self.data: list[float] = []
+        self.layout = types.SimpleNamespace(dim=[])
 
 
 class _FakePub:
@@ -195,7 +230,11 @@ class _FakePub:
         self._sink = sink
 
     def publish(self, msg) -> None:
-        self._sink.append(list(msg.data))
+        label = msg.layout.dim[0].label if msg.layout.dim else ""
+        self._sink.append((label, list(msg.data)))
+
+
+_LABEL = wire_label(POLICY_JOINT_ORDER)
 
 
 def _resolve(stub, odom):
@@ -231,7 +270,10 @@ def test_odom_source_latches_abort_when_odom_is_unavailable() -> None:
     assert sample is None
     assert stub._estopped is True
     assert "base_lin_vel_unavailable" in (stub._abort_reason or "")
-    assert stub.published == [[0.0] * 12], "must hold the default stand pose once"
+    assert len(stub.published) == 1, "exactly one abort notice, then silence"
+    cmd = decode(*stub.published[0], _LABEL)
+    assert cmd.kind == KIND_ABORT and cmd.abort_reason == "base_lin_vel_unavailable"
+    assert np.allclose(cmd.target, stub.default_q)
 
 
 def test_zeros_source_never_aborts_and_records_the_substitution() -> None:
@@ -661,3 +703,148 @@ def test_log_step_fresh_pose_with_unusable_twist_is_disambiguated(tmp_path) -> N
     assert table.column("base_lin_vel_source").to_pylist() == [
         "unrecognized_child_frame:mystery_link"
     ]
+
+
+# ---------------------------------------------------------------------------
+# STAND-ONLY guard, abort notices, startup refusal (hardware-readiness pass).
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+H25 = REPO_ROOT / "configs/sim2real/deploy_stand_h25.yaml"
+
+
+def _twist(x, y, wz):
+    return types.SimpleNamespace(
+        linear=types.SimpleNamespace(x=x, y=y), angular=types.SimpleNamespace(z=wz)
+    )
+
+
+@pytest.mark.parametrize("cmd", [(0.2, 0.0, 0.0), (0.0, -0.1, 0.0), (0.0, 0.0, 0.5)])
+def test_stand_only_nonzero_cmd_vel_latches_abort_and_is_never_fed(cmd) -> None:
+    stub = _StubResolveNode("zeros")
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(*cmd))
+    assert stub._estopped is True
+    assert stub._abort_reason == "walking_command_blocked_stand_only"
+    assert np.allclose(stub._velocity_command, 0.0)
+    assert len(stub.published) == 1
+    decoded = decode(*stub.published[0], _LABEL)
+    assert decoded.kind == KIND_ABORT
+    assert decoded.abort_reason == "walking_command_blocked_stand_only"
+    # A second nonzero command does not produce a second notice.
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(*cmd))
+    assert len(stub.published) == 1
+
+
+def test_stand_only_zero_cmd_vel_is_recorded_not_fed_and_does_not_abort() -> None:
+    stub = _StubResolveNode("zeros")
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(0.0, 0.0, 0.0))
+    assert stub._estopped is False and stub.published == []
+    assert np.allclose(stub._cmd_vel_received, 0.0)
+    assert np.allclose(stub._velocity_command, 0.0)
+
+
+def test_stand_only_nan_cmd_vel_aborts() -> None:
+    stub = _StubResolveNode("zeros")
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(float("nan"), 0.0, 0.0))
+    assert stub._abort_reason == "walking_command_blocked_stand_only"
+
+
+def test_startup_default_is_its_own_kind_not_a_policy_target() -> None:
+    stub = _StubResolveNode("zeros")
+    _PhoenixPolicyNode._publish_startup_default(stub)
+    decoded = decode(*stub.published[0], _LABEL)
+    assert decoded.kind == KIND_STARTUP_DEFAULT
+    assert decoded.fields["stand_only"][0] == 1.0
+    assert decoded.fields["obs_source_code"][0] == 0.0
+
+
+def test_repeated_latches_publish_exactly_one_notice() -> None:
+    stub = _StubResolveNode("zeros")
+    for reason in ("attitude pitch=0.9 roll=0.0", "max_runtime", "external_estop"):
+        _PhoenixPolicyNode._latch_abort(stub, reason)
+    assert len(stub.published) == 1
+    assert decode(*stub.published[0], _LABEL).abort_reason == "attitude"
+
+
+def _args(config, **over):
+    base = dict(config=Path(config), onnx=None, lock=None, max_runtime_s=None, authority_s=None)
+    base.update(over)
+    return argparse.Namespace(**base)
+
+
+def _fake_deploy(tmp_path, **safety_over):
+    ckpt = tmp_path / "ckpt"
+    ckpt.mkdir()
+    for name in ("policy.onnx", "policy.onnx.data", "policy.pt", "latest.pt"):
+        (ckpt / name).write_bytes(name.encode())
+    cfg = yaml.safe_load(H25.read_text())
+    cfg["policy"]["onnx_path"] = str(ckpt / "policy.onnx")
+    cfg["policy"]["torchscript_path"] = str(ckpt / "policy.pt")
+    cfg["safety"].update(safety_over)
+    cfg_path = tmp_path / "deploy.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg))
+    return cfg, cfg_path, ckpt
+
+
+def _lock_for(cfg, cfg_path, tmp_path):
+    observed = observed_artifact_hashes(cfg, cfg_path)
+    lock = {
+        "schema": "phoenix-deploy-lock/v1",
+        "deploy_config": {"semantic_sha256": observed["deploy_config"]["semantic_sha256"]},
+        "artifacts": {r: {"sha256": e["sha256"]} for r, e in observed["artifacts"].items()},
+    }
+    path = tmp_path / "lock.yaml"
+    path.write_text(yaml.safe_dump(lock))
+    return path
+
+
+def test_resolve_startup_accepts_the_config_as_written(tmp_path) -> None:
+    cfg, cfg_path, ckpt = _fake_deploy(tmp_path)
+    onnx, problems = resolve_startup(cfg, _args(cfg_path))
+    assert problems == [] and onnx == ckpt / "policy.onnx"
+
+
+def test_resolve_startup_refuses_a_different_onnx(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path)
+    _, problems = resolve_startup(cfg, _args(cfg_path, onnx=tmp_path / "other.onnx"))
+    assert any("differs from the config" in p for p in problems)
+
+
+def test_resolve_startup_refuses_a_walking_config(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path, stand_only=False)
+    _, problems = resolve_startup(cfg, _args(cfg_path))
+    assert any(p.startswith("deploy contract:") for p in problems)
+
+
+def test_max_runtime_can_be_lowered(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path)
+    _, problems = resolve_startup(cfg, _args(cfg_path, max_runtime_s=5.0))
+    assert problems == [] and cfg["safety"]["max_runtime_s"] == 5.0
+
+
+def test_max_runtime_can_never_be_raised(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path)
+    _, problems = resolve_startup(cfg, _args(cfg_path, max_runtime_s=10_000.0))
+    assert any("--max-runtime-s" in p for p in problems)
+    assert cfg["safety"]["max_runtime_s"] == 120
+
+
+def test_lock_is_checked_against_the_config_before_the_runtime_override(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path)
+    lock = _lock_for(cfg, cfg_path, tmp_path)
+    _, problems = resolve_startup(cfg, _args(cfg_path, lock=lock, max_runtime_s=2.0))
+    assert problems == []
+
+
+def test_lock_mismatch_refuses_startup(tmp_path) -> None:
+    cfg, cfg_path, ckpt = _fake_deploy(tmp_path)
+    lock = _lock_for(cfg, cfg_path, tmp_path)
+    (ckpt / "policy.onnx.data").write_bytes(b"a different export")
+    _, problems = resolve_startup(cfg, _args(cfg_path, lock=lock))
+    assert any(p.startswith("lock:") and "policy.onnx.data" in p for p in problems)
+
+
+def test_nonpositive_authority_window_is_refused(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path)
+    _, problems = resolve_startup(cfg, _args(cfg_path, authority_s=0.0))
+    assert any("--authority-s" in p for p in problems)

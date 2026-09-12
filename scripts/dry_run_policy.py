@@ -152,7 +152,18 @@ class CommandRecorder:
         )
 
     def _on_cmd(self, msg):
-        self.samples.append((time.monotonic(), list(msg.data)))
+        # The command topic carries wire v2 (phoenix.sim2real.command_wire): 72
+        # floats with a joint-order label. Record the 12-joint target only, and
+        # record a non-decodable message as NaN so every gate below fails on it.
+        from phoenix.sim2real.command_wire import WireError, decode, wire_label
+
+        label = msg.layout.dim[0].label if msg.layout.dim else ""
+        try:
+            target = decode(label, list(msg.data), wire_label(DEFAULT_JOINT_ORDER)).target.tolist()
+        except WireError as exc:
+            logger.error("undecodable command on the command topic: %s", exc)
+            target = [float("nan")] * len(DEFAULT_JOINT_ORDER)
+        self.samples.append((time.monotonic(), target))
 
     def snapshot(self) -> list[tuple[float, list[float]]]:
         return list(self.samples)

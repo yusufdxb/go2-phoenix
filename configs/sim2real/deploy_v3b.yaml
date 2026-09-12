@@ -51,6 +51,9 @@ topics:
   joint_command: "/joint_group_position_controller/command"
 
 safety:
+  # base_lin_vel_source is zeros, so this config may only run a commanded-zero
+  # stand (phoenix.sim2real.deploy_contract). Walking is refused in code.
+  stand_only: true
   emergency_stop_topic: "/phoenix/estop"
   dead_mans_switch: true
   max_runtime_s: 120

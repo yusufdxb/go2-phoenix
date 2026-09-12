@@ -41,19 +41,40 @@ path is bit-identical to the pre-existing behaviour.
 
 Publishes:
 
-* ``/joint_group_position_controller/command``, std_msgs/Float64MultiArray
-  of 12 target joint positions in canonical order.
+* ``/joint_group_position_controller/command``, std_msgs/Float64MultiArray in
+  the version-2 wire layout of :mod:`phoenix.sim2real.command_wire`: the 12
+  post-clip targets plus the requested target, the raw action, the measured q
+  it was clipped against, the base_lin_vel and velocity command actually fed,
+  sensor ages and attitude. The LowCmd bridge writes one complete telemetry
+  record per tick from it and rejects anything that is not wire v2 in this
+  exact joint order.
+
+STAND-ONLY configs (``safety.stand_only: true``): the velocity command fed to
+the policy is fixed at zero and a nonzero ``/cmd_vel`` latches
+``walking_command_blocked_stand_only``. ``main`` refuses any config that fails
+:func:`phoenix.sim2real.deploy_contract.validate_deploy_contract`, any
+``--onnx`` that is not the config's own ``policy.onnx_path``, and, with
+``--lock``, any config or ONNX pair whose hashes differ from the lock.
+
+Abort signalling: every latch publishes exactly ONE abort notice
+(``KIND_ABORT``) and then nothing. The bridge holds measured posture on it. The
+nominal pose published while waiting for first messages is
+``KIND_STARTUP_DEFAULT``, which the bridge does not follow either.
 
 Safety:
 
 * Dead-man's-switch on ``/phoenix/estop`` (std_msgs/Bool).
-* Hard max runtime after which the node exits and sends the stand pose.
+* Hard max runtime, after which the node latches ``max_runtime``, sends its one
+  abort notice and goes silent.
 * Per-step joint slew-rate clip, shared with the bridge via
   ``per_step_clip_array`` in ``phoenix.sim2real.safety``. NOTE: per-joint
   position / velocity / torque limit clipping is not implemented here.
 * Attitude abort (pitch/roll) and NaN-in-joint-state abort; same latch path
-  as an external estop, node stops publishing policy actions and holds
-  the default stand pose.
+  as an external estop: one abort notice, then silence. The LowCmd bridge holds
+  the MEASURED posture; nothing drives the robot toward the stand pose.
+* Final joint-position limits, LowState freshness and deadman source checks
+  live in the LowCmd bridge (:mod:`phoenix.sim2real.actuator_gate`), which is
+  the authoritative actuator safety boundary.
 
 Optional telemetry:
 
@@ -80,6 +101,15 @@ from phoenix.real_world.trajectory_logger import (
     TrajectoryStep,
 )
 
+from .activation import file_sha256
+from .command_wire import (
+    KIND_ABORT,
+    KIND_POLICY,
+    KIND_STARTUP_DEFAULT,
+    encode,
+    obs_source_code,
+)
+from .deploy_contract import is_stand_only, load_lock, validate_deploy_contract, verify_lock
 from .gate import GateConfig, Outcome, SensorSnapshot, evaluate_gates
 from .mode_switch import ModeSwitchCfg, State, initial_state
 from .mode_switch import step as mode_step
@@ -165,7 +195,89 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="If set, log each control step to this parquet path.",
     )
+    p.add_argument(
+        "--lock",
+        type=Path,
+        default=None,
+        help="Deploy lock file. Refuse to start unless the config and the ONNX pair on disk "
+        "hash to what the lock records.",
+    )
+    p.add_argument(
+        "--authority-s",
+        type=float,
+        default=None,
+        help="Latch 'authority_window_complete' after this many seconds of policy authority, "
+        "counted from the first tick the policy commanded. Used by the staged stand gates.",
+    )
+    p.add_argument(
+        "--max-runtime-s",
+        type=float,
+        default=None,
+        help="Lower safety.max_runtime_s for this run. It can only lower it, never raise it.",
+    )
     return p.parse_args(argv)
+
+
+def resolve_startup(cfg: dict, args: argparse.Namespace) -> tuple[Path | None, list[str]]:
+    """Every reason the node must refuse to start, and the ONNX it will open.
+
+    The ONNX the node opens is ALWAYS the one the deploy config names. ``--onnx``
+    survives only as a cross-check: a different path is refused, because a path
+    typed by hand at the lab is how a session ends up running a policy nobody
+    gated. ``--max-runtime-s`` may only lower the configured runtime, and it is
+    applied AFTER the lock check so the lock is verified against the config as
+    written. Mutates ``cfg`` only for that override.
+    """
+    import copy
+
+    as_written = copy.deepcopy(cfg)
+    problems = [f"deploy contract: {p}" for p in validate_deploy_contract(as_written)]
+    cfg_onnx = (as_written.get("policy") or {}).get("onnx_path")
+    onnx_path = Path(cfg_onnx) if cfg_onnx else None
+
+    if getattr(args, "onnx", None) is not None and (
+        onnx_path is None or Path(args.onnx) != onnx_path
+    ):
+        problems.append(
+            f"--onnx {args.onnx} differs from the config's policy.onnx_path {cfg_onnx}; the "
+            "node only runs the ONNX its deploy config names"
+        )
+
+    lock_path = getattr(args, "lock", None)
+    if lock_path is not None:
+        try:
+            lock = load_lock(lock_path)
+        except (OSError, ValueError) as exc:
+            problems.append(f"lock unreadable: {exc}")
+        else:
+            lock_problems, observed = verify_lock(lock, as_written, args.config)
+            problems.extend(f"lock: {p}" for p in lock_problems)
+            logger.info(
+                "lock %s: observed %s",
+                lock_path,
+                {role: entry["sha256"] for role, entry in observed["artifacts"].items()},
+            )
+
+    if onnx_path is not None and onnx_path.is_file():
+        logger.info("policy ONNX %s sha256=%s", onnx_path, file_sha256(onnx_path))
+    elif onnx_path is not None:
+        problems.append(f"policy ONNX {onnx_path} does not exist")
+
+    override = getattr(args, "max_runtime_s", None)
+    if override is not None:
+        configured = float((as_written.get("safety") or {}).get("max_runtime_s", 0.0))
+        if not 0.0 < float(override) <= configured:
+            problems.append(
+                f"--max-runtime-s {override} must be positive and not above the configured "
+                f"{configured}"
+            )
+        else:
+            cfg.setdefault("safety", {})["max_runtime_s"] = float(override)
+
+    authority = getattr(args, "authority_s", None)
+    if authority is not None and not float(authority) > 0.0:
+        problems.append(f"--authority-s must be positive, got {authority}")
+    return onnx_path, problems
 
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires ROS 2
@@ -175,16 +287,16 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires R
     import rclpy
 
     cfg = yaml.safe_load(args.config.read_text())
-
-    onnx_path = args.onnx
-    if onnx_path is None:
-        cfg_onnx = cfg.get("policy", {}).get("onnx_path")
-        if not cfg_onnx:
-            raise SystemExit("--onnx not given and cfg['policy']['onnx_path'] is empty")
-        onnx_path = Path(cfg_onnx)
+    onnx_path, problems = resolve_startup(cfg, args)
+    if problems:
+        for problem in problems:
+            logger.error("REFUSING TO START: %s", problem)
+        raise SystemExit(2)
 
     rclpy.init()
-    node = _PhoenixPolicyNode(cfg, onnx_path, log_parquet=args.log_parquet)
+    node = _PhoenixPolicyNode(
+        cfg, onnx_path, log_parquet=args.log_parquet, authority_s=args.authority_s
+    )
     try:
         rclpy.spin(node.node)
     except KeyboardInterrupt:
@@ -200,16 +312,23 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
     """Minimal ROS 2 node wrapper. All rclpy imports are done here so the
     enclosing package can still be imported in CI."""
 
-    def __init__(self, cfg: dict, onnx_path: Path, log_parquet: Path | None = None):
+    def __init__(
+        self,
+        cfg: dict,
+        onnx_path: Path,
+        log_parquet: Path | None = None,
+        authority_s: float | None = None,
+    ):
         import onnxruntime as ort
         from geometry_msgs.msg import Twist
         from nav_msgs.msg import Odometry
         from rclpy.node import Node
         from rclpy.qos import QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Imu, JointState
-        from std_msgs.msg import Bool, Float32MultiArray, Float64MultiArray
+        from std_msgs.msg import Bool, Float32MultiArray, Float64MultiArray, MultiArrayDimension
 
         self._float_msg = Float64MultiArray
+        self._dim_msg = MultiArrayDimension
 
         self.joint_order = JointOrder(tuple(cfg["joint_order"]))
         self.default_q = np.asarray(
@@ -218,6 +337,20 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         )
         self.obs_builder = ObservationBuilder(self.joint_order, cfg["control"]["default_joint_pos"])
         self.base_lin_vel_source = _require_base_lin_vel_source(cfg)
+        # STAND-ONLY: the velocity command is never fed to the policy, and a nonzero
+        # one latches an abort. main() already refused a config that fails the
+        # deploy contract; this re-check keeps the class safe when used directly.
+        self.stand_only = is_stand_only(cfg)
+        if self.base_lin_vel_source == "zeros" and not self.stand_only:
+            raise ValueError(
+                "base_lin_vel_source=zeros requires safety.stand_only: true; walking is blocked"
+            )
+        if self.stand_only:
+            logger.warning(
+                "STAND-ONLY deploy: velocity command fixed at zero; any nonzero /cmd_vel "
+                "latches abort 'walking_command_blocked_stand_only'."
+            )
+        self._authority_s = authority_s
         self.action_scale = float(cfg["control"]["action_scale"])
         self.rate_hz = float(cfg["control"]["rate_hz"])
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
@@ -286,6 +419,10 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # with all pre-mode-switch bringups.
         ms_cfg = cfg.get("policy", {}).get("mode_switch", {}) or {}
         self.mode_switch_enabled = bool(ms_cfg.get("enabled", False))
+        if self.mode_switch_enabled and self.stand_only:
+            raise ValueError(
+                "policy.mode_switch is a walking feature; refused in a stand-only deploy"
+            )
         self.stand_session = None
         self.walk_session = None
         self.mode_cfg: ModeSwitchCfg | None = None
@@ -420,6 +557,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._latest_imu = None
         self._latest_joint_state = None
         self._velocity_command = np.zeros(3, dtype=np.float32)
+        self._cmd_vel_received = np.full(3, np.nan, dtype=np.float64)
+        self._cmd_vel_ns: int | None = None
+        self._seq = 0
+        self._authority_started_ns: int | None = None
+        self._abort_notice_sent = False
         self._last_action = np.zeros(len(self.joint_order), dtype=np.float32)
         self._estopped = False
         self._abort_reason: str | None = None
@@ -512,9 +654,16 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._seen_foot_force = True
 
     def _on_cmd_vel(self, msg):
-        self._velocity_command = np.asarray(
-            [msg.linear.x, msg.linear.y, msg.angular.z], dtype=np.float32
-        )
+        received = np.asarray([msg.linear.x, msg.linear.y, msg.angular.z], dtype=np.float64)
+        self._cmd_vel_received = received
+        self._cmd_vel_ns = time.monotonic_ns()
+        if getattr(self, "stand_only", False):
+            # Never fed to the policy. A nonzero (or non-finite) command on a
+            # stand-only run is an operator or integration error, so it stops the run.
+            if bool(np.any(received != 0.0)) and not self._estopped:
+                self._latch_abort("walking_command_blocked_stand_only")
+            return
+        self._velocity_command = received.astype(np.float32)
 
     def _on_estop(self, msg):
         self._latest_estop_ns = time.monotonic_ns()
@@ -524,9 +673,17 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             self._latch_abort("external_estop")
 
     def _latch_abort(self, reason: str) -> None:
+        first = not self._estopped
         self._estopped = True
         self._abort_reason = reason
-        logger.warning("ABORT: %s, holding stand pose.", reason)
+        logger.warning("ABORT: %s; one abort notice to the bridge, then silence.", reason)
+        # Exactly one notice per latch, never a per-tick rebroadcast (gate.py records
+        # the motor fight and brownout that caused). The bridge holds MEASURED posture.
+        if first and getattr(self, "cmd_pub", None) is not None:
+            try:
+                self._publish_abort_notice(reason)
+            except Exception as exc:  # noqa: BLE001 - the latch itself must not raise
+                logger.warning("abort notice publish failed: %s", exc)
         # Flush the parquet footer at abort time. A hard kill during the
         # post-abort default-pose hold (e.g. operator SIGKILL after
         # max_runtime latched) otherwise skips shutdown() and leaves a
@@ -595,14 +752,13 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # rclpy. See tests/test_gate_ladder.py and docs/NATIVE_RUNTIME_PLAN.md.
         # It is also the parity oracle for the native C++ runtime.
         snap = self._build_snapshot(now_ns, elapsed_s)
-        decision = evaluate_gates(
-            snap, self._gate_config, already_latched=self._estopped
-        )
+        decision = evaluate_gates(snap, self._gate_config, already_latched=self._estopped)
 
         if decision.latches:
+            # The latch publishes the single abort notice itself.
             self._latch_abort(decision.reason or "unknown_safety_gate")
-        if decision.publishes_default:
-            self._publish_default_pose()
+        elif decision.publishes_default:
+            self._publish_startup_default()
         if decision.outcome is not Outcome.RUN_POLICY:
             # Post-abort silence is load-bearing: per-tick rebroadcast of
             # default_q walked the commanded pose against real posture →
@@ -613,6 +769,16 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         q = snap.joint_pos
         qd = snap.joint_vel
         base_ang_vel = np.asarray(snap.ang_vel, dtype=np.float32)
+
+        # Bounded policy authority for the staged stand gates. Counted from the
+        # first tick the policy was allowed to command, not from node start, so a
+        # slow DDS discovery cannot eat into the stand duration.
+        if self._authority_started_ns is None:
+            self._authority_started_ns = now_ns
+        authority_elapsed_s = (now_ns - self._authority_started_ns) / 1e9
+        if self._authority_s is not None and authority_elapsed_s >= self._authority_s:
+            self._latch_abort("authority_window_complete")
+            return
 
         # base_lin_vel is a trained observation term, not a free variable.
         # Resolve it from the operator-selected source and fail closed rather
@@ -625,6 +791,9 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         if base_lin_vel_sample is None:
             return
         base_lin_vel = base_lin_vel_sample.value
+        velocity_command_fed = (
+            np.zeros(3, dtype=np.float32) if self.stand_only else self._velocity_command
+        )
 
         if self.mode_switch_enabled:
             target, action = self._compute_mode_switch_target(
@@ -643,7 +812,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 base_lin_vel=base_lin_vel,
                 quat_xyzw=snap.quat_xyzw,
                 base_ang_vel=base_ang_vel,
-                velocity_command=self._velocity_command,
+                velocity_command=velocity_command_fed,
                 joint_pos=q,
                 joint_vel=qd,
                 last_action=self._last_action,
@@ -659,11 +828,23 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             if self.shield is not None:
                 target = self._apply_shield(outputs[1][0], target)
 
-        target = self._clip_to_limits(target, q)
+        requested_target = np.asarray(target, dtype=np.float32)
+        target = self._clip_to_limits(requested_target, q)
 
-        msg = self._float_msg()
-        msg.data = target.astype(np.float64).tolist()
-        self.cmd_pub.publish(msg)
+        self._publish_wire(
+            KIND_POLICY,
+            target,
+            now_ns=now_ns,
+            requested_target=requested_target,
+            raw_action=action,
+            q_policy=q,
+            base_lin_vel_fed=base_lin_vel,
+            velocity_command_fed=velocity_command_fed,
+            roll_rad=snap.roll,
+            pitch_rad=snap.pitch,
+            policy_elapsed_s=elapsed_s,
+            authority_elapsed_s=authority_elapsed_s,
+        )
 
         if self._logger is not None:
             self._log_step(
@@ -699,7 +880,6 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             )
         except BaseLinVelUnavailableError as exc:
             self._latch_abort(f"base_lin_vel_unavailable: {exc}")
-            self._publish_default_pose()
             return None
 
     def _sample_odom(self, now_ns: int, quat_xyzw) -> OdomSample:
@@ -747,9 +927,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
         odom_valid = odom.fresh
         base_pos = odom.position
-        base_lin_vel_body = (
-            odom.lin_vel_body if odom.twist_valid else np.zeros(3, dtype=np.float32)
-        )
+        base_lin_vel_body = odom.lin_vel_body if odom.twist_valid else np.zeros(3, dtype=np.float32)
 
         foot_force_fresh = (
             self._seen_foot_force
@@ -989,22 +1167,74 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # bridge and the policy node provably share the slew-rate cap.
         return per_step_clip_array(target, q, MAX_DELTA_PER_STEP_RAD).astype(np.float32, copy=False)
 
-    def _publish_default_pose(self) -> None:
+    def _next_seq(self) -> int:
+        self._seq = getattr(self, "_seq", 0) + 1
+        return self._seq
+
+    def _publish_wire(
+        self,
+        kind: int,
+        target,
+        *,
+        now_ns: int | None = None,
+        abort_reason: str | None = None,
+        **fields,
+    ) -> None:
+        """Publish one wire-v2 command. The only code that writes the command topic."""
+        now_ns = time.monotonic_ns() if now_ns is None else now_ns
+
+        def _age(stamp: int | None) -> float:
+            return float("nan") if stamp is None else (now_ns - stamp) / 1e9
+
+        estop_value = getattr(self, "_latest_estop_value", None)
+        wire_fields = {
+            "obs_source_code": obs_source_code(self.base_lin_vel_source),
+            "stand_only": 1.0 if getattr(self, "stand_only", False) else 0.0,
+            "cmd_vel_received": getattr(self, "_cmd_vel_received", None),
+            "imu_age_s": _age(getattr(self, "_latest_imu_ns", None)),
+            "joint_state_age_s": _age(getattr(self, "_latest_joint_state_ns", None)),
+            "estop_age_s": _age(getattr(self, "_latest_estop_ns", None)),
+            "estop_value": float("nan") if estop_value is None else float(estop_value),
+            "cmd_vel_age_s": _age(getattr(self, "_cmd_vel_ns", None)),
+        }
+        wire_fields.update(fields)
+        label, data = encode(
+            self.joint_order.names,
+            seq=self._next_seq(),
+            kind=kind,
+            target=np.asarray(target, dtype=np.float64),
+            abort_reason=abort_reason,
+            **wire_fields,
+        )
         msg = self._float_msg()
-        msg.data = self.default_q.astype(np.float64).tolist()
+        dim = self._dim_msg()
+        dim.label = label
+        dim.size = len(data)
+        dim.stride = len(data)
+        msg.layout.dim = [dim]
+        msg.data = data
         self.cmd_pub.publish(msg)
+
+    def _publish_startup_default(self) -> None:
+        """While waiting for first messages. The bridge HOLDS measured posture on this kind."""
+        self._publish_wire(KIND_STARTUP_DEFAULT, self.default_q)
+
+    def _publish_abort_notice(self, reason: str) -> None:
+        self._abort_notice_sent = True
+        self._publish_wire(KIND_ABORT, self.default_q, abort_reason=reason)
 
     def shutdown(self) -> None:
         import rclpy
 
         # If rclpy has already been torn down (e.g. Ctrl-C propagated through
         # spin), publishing raises RCLError. The ABI is: only publish when the
-        # default context is still valid.
-        if rclpy.ok():
+        # default context is still valid. An already-latched node has sent its
+        # one notice and stays silent.
+        if rclpy.ok() and not self._estopped:
             try:
-                self._publish_default_pose()
-            except Exception as exc:  # noqa: BLE001 - best-effort safe pose
-                logger.warning("shutdown: default-pose publish failed: %s", exc)
+                self._publish_abort_notice("node_shutdown")
+            except Exception as exc:  # noqa: BLE001 - best effort
+                logger.warning("shutdown: abort notice publish failed: %s", exc)
         if self._logger is not None:
             self._logger.close()
             self._logger = None

@@ -274,3 +274,114 @@ def test_shipped_deploy_yaml_estop_timeout_is_loaded() -> None:
     assert "estop_timeout_s" in cfg.get(
         "safety", {}
     ), "configs/sim2real/deploy.yaml must declare safety.estop_timeout_s"
+
+
+# ---------------------------------------------------------------------------
+# Hardware-readiness pass: the bridge is a shell around ActuatorGate.
+# ---------------------------------------------------------------------------
+
+_REPO = Path(__file__).resolve().parent.parent
+
+
+def test_lowcmd_fields_crc_matches_the_reference_packing(bridge_module) -> None:
+    from phoenix.sim2real.motor_crc import build_raw_from_motor_values, compute_crc
+
+    target = [0.1 * i for i in range(12)]
+    q, crc = bridge_module.lowcmd_fields(target, 20.0, 1.0)
+    assert q == target
+    assert crc == compute_crc(build_raw_from_motor_values(target, [20.0] * 12, [1.0] * 12))
+    _, crc_damp = bridge_module.lowcmd_fields(target, 0.0, 1.0)
+    assert crc_damp != crc
+
+
+def _ns(config, **over):
+    base = dict(
+        config=config,
+        live=False,
+        kp=25.0,
+        kd=0.5,
+        hold_kp=20.0,
+        hold_kd=1.0,
+        watchdog_s=0.2,
+        estop_timeout_s=None,
+        stale_hold_s=None,
+        lock=None,
+        telemetry=None,
+        expect_sha=None,
+        stage="test",
+    )
+    base.update(over)
+    return argparse.Namespace(**base)
+
+
+def test_build_config_takes_freshness_and_order_from_the_deploy_config(bridge_module) -> None:
+    cfg = bridge_module._build_config(_ns(_REPO / "configs/sim2real/deploy_stand_h25.yaml"))
+    assert cfg.lowstate_timeout_s == 0.2  # safety.sensor_timeout_s
+    assert cfg.first_message_timeout_s == 15.0
+    assert cfg.stale_hold_s == cfg.watchdog_s
+    assert cfg.joint_order[0] == "FL_hip_joint"
+    params = cfg.gate_params()
+    assert params.deadman_required is False
+
+
+def test_live_bridge_refuses_without_lock_telemetry_and_expected_sha(bridge_module) -> None:
+    cfg = bridge_module._build_config(
+        _ns(_REPO / "configs/sim2real/deploy_stand_h25.yaml", live=True)
+    )
+    assert cfg.gate_params().deadman_required is True
+    problems, manifest = bridge_module.startup_problems(cfg)
+    joined = " | ".join(problems)
+    assert "--live requires --lock" in joined
+    assert "--live requires --expect-sha" in joined
+    assert "--live requires --telemetry" in joined
+    assert manifest["live"] is True and manifest["startup_problems"] == problems
+
+
+def test_live_bridge_refuses_a_missing_config(bridge_module, tmp_path) -> None:
+    cfg = bridge_module._build_config(_ns(tmp_path / "absent.yaml", live=True))
+    problems, _ = bridge_module.startup_problems(cfg)
+    assert any("requires an existing --config" in p for p in problems)
+
+
+def test_bridge_refuses_a_lock_that_does_not_match(bridge_module, tmp_path) -> None:
+    import yaml as _yaml
+
+    lock = tmp_path / "lock.yaml"
+    lock.write_text(
+        _yaml.safe_dump(
+            {
+                "schema": "phoenix-deploy-lock/v1",
+                "deploy_config": {"semantic_sha256": "0" * 64},
+                "artifacts": {"policy.onnx": {"sha256": "1" * 64}},
+            }
+        )
+    )
+    cfg = bridge_module._build_config(
+        _ns(_REPO / "configs/sim2real/deploy_stand_h25.yaml", lock=lock)
+    )
+    problems, _ = bridge_module.startup_problems(cfg)
+    assert any(p.startswith("lock:") and "semantic sha256" in p for p in problems)
+
+
+def test_manifest_records_limits_orders_and_metric(bridge_module) -> None:
+    cfg = bridge_module._build_config(_ns(_REPO / "configs/sim2real/deploy_stand_h25.yaml"))
+    _, manifest = bridge_module.startup_problems(cfg)
+    assert manifest["joint_limits_rad"]["RL_thigh_joint"] == [-0.5236, 4.5379]
+    assert manifest["motor_order_unitree"][0] == "FR_hip_joint"
+    assert manifest["hardware_slew_metric"] == "bridge_final_slew_clip_activation_v1"
+    assert manifest["code_identity"]["source"] in ("git", "payload_sync", "unknown")
+
+
+def test_bridge_times_freshness_with_the_monotonic_clock() -> None:
+    """The ROS wall clock jumps when the payload clock is set by hand mid-session."""
+    import ast
+
+    src = (_REPO / "src/phoenix/sim2real/lowcmd_bridge_node.py").read_text()
+    tree = ast.parse(src)
+    calls = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert "get_clock" not in calls
+    assert "monotonic_ns" in calls
