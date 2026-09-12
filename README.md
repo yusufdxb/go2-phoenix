@@ -58,8 +58,8 @@ ledger for every claim below.
 | Deploy stack ran end-to-end on the GO2 |  Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
 | Failure detector and Parquet trajectory logging |  Done | rule-based attitude / collapse / slip |
 | Replay and failure-curriculum fine-tune |  Done | wired and unit-tested; awaiting real parquets |
-| Live on-robot stand (Gate 7) |  In progress | last live run 33% slew saturation on hardware; stand-v3 staged for retry |
-| Live velocity tracking (Gate 8) | ⬜ Planned | two-policy mode-switch runtime is ready |
+| Live on-robot stand (Gate 7) |  In progress | H25 stand-only staged gates A to H with an audited final actuator gate; no stage has run on the robot yet ([run card](docs/h25_stand_hardware_run_card.md)) |
+| Live velocity tracking (Gate 8) | Blocked | refused in code until the H25 stand passes on hardware and `/utlidar/robot_odom` is validated |
 | Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
 
 Full milestone trail: [`docs/changelog.md`](docs/changelog.md).
@@ -141,13 +141,28 @@ asserted estop, not as "OK to keep going." Every gate is a pure function in
   watchdog holds the motors with conservative `hold_kp` / `hold_kd` gains.
 - **Past the grace window**, an unmet precondition latches the abort with a
   specific reason (`estop_publisher_missing`, `estop_heartbeat_stale`,
-  `external_estop`, `sensor_missing`, `sensor_stale`); the node publishes the
-  safe default stand pose.
+  `external_estop`, `sensor_missing`, `sensor_stale`); the node sends one
+  abort notice and goes silent, and the bridge holds the MEASURED posture. It
+  no longer drives toward the stand pose on abort.
 - **Slew-rate cap is shared.** Both sides call
   `per_step_clip_array(target, current, MAX_DELTA_PER_STEP_RAD)` with the
   constant living in `safety.py`.
 - **Wireless / joystick deadman**: stale input *or* released button publishes
   `estop=True` within one tick.
+- **The LowCmd bridge is the final authority.** `lowcmd_bridge_node` is a thin
+  shell around the pure `phoenix.sim2real.actuator_gate`: hard GO2 joint limits
+  from Unitree's own URDF, LowState freshness (hold, then damping), rejection of
+  NaN, wrong joint order or wire version, a real-deadman requirement when live,
+  and one telemetry line per tick (`phoenix.sim2real.bridge_telemetry`), all
+  covered by `tests/test_actuator_gate.py`.
+- **Stand-only until proven otherwise.** A config with
+  `base_lin_vel_source: zeros` must declare `safety.stand_only: true`; a nonzero
+  velocity command latches an abort, and walking configs are refused
+  (`phoenix.sim2real.deploy_contract`).
+- **Staged hardware gates.** `scripts/harness_preflight.sh` records GO / NO-GO
+  evidence for stages A (offline) through H (10 s stand, three attempts) against
+  one commit and one artifact lock, and never moves between motor-off and live
+  stages on its own. Exact commands: `docs/h25_stand_hardware_run_card.md`.
 
 The relevant knobs live under `safety:` in `configs/sim2real/deploy.yaml`.
 Defaults are deliberate and tighter than the upstream Unitree examples.
