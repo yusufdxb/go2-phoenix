@@ -278,3 +278,47 @@ def test_report_is_json_serializable_and_reads_as_a_measurement(harvest):
     text = harvest.format_report(report)
     assert "detector recall" in text
     assert "MEASUREMENT" in text
+
+
+def test_recall_denominator_excludes_windows_the_detector_never_saw(harvest):
+    """Regression: an exactly-0.500 recall was an artifact of the window guard.
+
+    The len(rows) < 2 guard returns BEFORE evaluate_detector runs, so those
+    records keep detector_fired=False by default. Dividing hits by ALL genuine
+    terminations therefore scored the detector as missing windows it was never
+    shown, reporting the guard's behaviour as the detector's. Recall must be
+    over evaluated windows only, with the unevaluable ones reported separately.
+    """
+    Record = harvest.TerminationRecord
+
+    def record(evaluated, fired):
+        r = Record(
+            env_index=0,
+            step_index=0,
+            window_rows=2 if evaluated else 1,
+            sim_termination_terms=["base_contact"],
+            sim_termination_index=1 if evaluated else 0,
+            sim_termination_time_s=0.02,
+        )
+        r.detector_evaluated = evaluated
+        r.detector_fired = fired
+        return r
+
+    # 4 windows shown to the detector, all detected; 4 never shown.
+    records = [record(True, True) for _ in range(4)] + [record(False, False) for _ in range(4)]
+    report = harvest.build_report(
+        records,
+        dt_ctrl=0.02,
+        min_pre_onset_rows=100,
+        terminations_seen=8,
+        timeouts_seen=0,
+        unattributed_seen=0,
+    )
+    det = report["detector"]
+    assert det["genuine_failures"] == 8
+    assert det["evaluated"] == 4
+    assert det["not_evaluable"] == 4
+    assert det["fired"] == 4
+    # The bug reported 0.5 here. The detector saw 4 and caught 4.
+    assert det["recall"] == 1.0
+    assert det["false_negatives"] == 0
