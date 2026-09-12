@@ -123,48 +123,34 @@ def _run(args) -> int:  # noqa: ANN001
     from phoenix.training.agent_cfg import build_runner_cfg
     from phoenix.training.checkpoint import load_runner_checkpoint
 
-    def policy_obs(raw):
-        """Unwrap to the policy observation tensor, iteratively.
+    def obs_container(raw):
+        """Return the Mapping the POLICY consumes, unwrapping any tuple.
 
-        rsl_rl and the Isaac wrapper return a tensor, an (obs, extras) tuple,
-        or a group mapping depending on version, and the mapping can nest.
-
-        The mapping is a tensordict.TensorDict, which is a Mapping but NOT a
-        dict subclass, so an isinstance(raw, dict) test skips it entirely. It
-        then reaches _to_numpy, which sees .cpu(), calls .numpy(), and gets back
-        a plain dict of arrays. Test against Mapping, not dict.
+        The policy takes the whole container and indexes it by observation
+        group (obs[group]), so it cannot be handed a bare tensor. The ablation
+        therefore has to be applied INSIDE the container rather than to a
+        flattened copy.
         """
         for _ in range(6):
             if isinstance(raw, tuple):
                 raw = raw[0]
                 continue
-            if isinstance(raw, Mapping):
-                keys = list(raw.keys())
-                if not keys:
-                    raise RuntimeError("empty observation mapping")
-                raw = raw["policy"] if "policy" in keys else raw[keys[0]]
-                continue
             break
-        if isinstance(raw, tuple | Mapping):
-            raise RuntimeError(f"could not resolve a policy observation, got {type(raw)}")
+        if not isinstance(raw, Mapping):
+            raise RuntimeError(f"expected an observation mapping, got {type(raw)}")
         return raw
 
-    def as_float_array(value, what):
-        """Unwrap and convert in one place, failing loudly on an unknown shape.
-
-        Doing the unwrap and the conversion separately let a container slip
-        through the unwrap and only fail later inside the arithmetic, where the
-        message named .astype rather than the real problem.
-        """
-        resolved = policy_obs(value)
-        arr = to_numpy(resolved)
+    def ablate_container(container, spec):
+        """Apply the observation ablation to the policy group, in place on a copy."""
+        key = "policy" if "policy" in list(container.keys()) else list(container.keys())[0]
+        tensor = container[key]
+        arr = to_numpy(tensor).astype(np.float64)
         if not isinstance(arr, np.ndarray) or arr.dtype == object:
-            raise RuntimeError(
-                f"{what} did not resolve to a numeric array: "
-                f"input {type(value)}, after unwrap {type(resolved)}, "
-                f"after convert {type(arr)}"
-            )
-        return arr.astype(np.float64)
+            raise RuntimeError(f"observation group {key!r} is not numeric: {type(arr)}")
+        ablated = apply_observation_ablation(arr, spec)
+        out = container.clone() if hasattr(container, "clone") else dict(container)
+        out[key] = torch.as_tensor(ablated, dtype=tensor.dtype, device=tensor.device)
+        return out
 
     use_norm = checkpoint_has_obs_normalizer(args.checkpoint)
     print(f"[ablation] empirical_normalization from checkpoint: {use_norm}", flush=True)
@@ -224,25 +210,30 @@ def _run(args) -> int:  # noqa: ANN001
             raise RuntimeError(f"actor weights did not round-trip: {info}")
         policy = runner.get_inference_policy(device=args.device)
 
+        # Single source for the deploy joint-target reconstruction. Reading
+        # cfg.scale and robot.data.default_joint_pos separately is a SECOND
+        # reading of the same thing, and cfg.scale can be a per-joint dict while
+        # the term's resolved _scale cannot. _resolve_slew_reference reads the
+        # term's resolved _offset and _scale and fails loudly rather than
+        # falling back, which is what the metric correction established.
+        from phoenix.training.evaluate import _resolve_slew_reference
+
         robot = env.unwrapped.scene["robot"]
-        default_q = to_numpy(robot.data.default_joint_pos)[0].astype(np.float64)
-        action_scale = float(
-            getattr(env.unwrapped.action_manager.get_term("joint_pos").cfg, "scale", 0.25)
-        )
+        slew_ref = _resolve_slew_reference(env, to_numpy)
+        default_q = np.asarray(slew_ref.default_q, dtype=np.float64)
+        action_scale = slew_ref.action_scale
 
         for spec in [s for s in grid if s.enforce_deploy_limiter == enforce]:
-            obs = policy_obs(env.get_observations())
+            obs = env.get_observations()
             falls = 0
             episodes = 0
             sat_num = 0.0
             sat_den = 0
             with torch.inference_mode():
                 for _ in range(args.steps):
-                    obs_np = as_float_array(obs, "observation")
-                    ablated = apply_observation_ablation(obs_np, spec)
-                    action = policy(torch.as_tensor(ablated, dtype=torch.float32,
-                                                    device=args.device))
-                    action_np = as_float_array(action, "action")
+                    container = obs_container(obs)
+                    action = policy(ablate_container(container, spec))
+                    action_np = to_numpy(action).astype(np.float64)
                     applied = apply_action_ablation(action_np, spec, action_scale)
 
                     measured_q = to_numpy(robot.data.joint_pos).astype(np.float64)
@@ -257,7 +248,7 @@ def _run(args) -> int:  # noqa: ANN001
                     stepped = env.step(
                         torch.as_tensor(applied, dtype=torch.float32, device=args.device)
                     )
-                    obs = policy_obs(stepped)
+                    obs = stepped
                     dones = stepped[2] if isinstance(stepped, tuple) and len(stepped) > 2 else None
                     if dones is not None:
                         d = to_numpy(dones).astype(bool)
