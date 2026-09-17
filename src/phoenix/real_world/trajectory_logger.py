@@ -108,6 +108,17 @@ is displacement from wherever the robot booted. ``base_pos[2]`` is NOT height
 above the floor and must not be used as one; the logger stores the raw odom
 value plus ``odom_valid`` and derives nothing from it.
 
+That frame is now DECLARED rather than left to a reader's default. Pass
+``position_frame=`` and it is written into the parquet footer under
+:data:`PARQUET_POSITION_FRAME_KEY`; the hardware policy node passes
+:data:`POSITION_FRAME_ODOM_BOOT_RELATIVE`, which
+:mod:`phoenix.replay.state_adapter` refuses to restore into the simulator.
+Before this, an undeclared hardware capture resolved to the simulator's
+``env_local`` convention, and the reset bridge wrote its z straight into
+Isaac: a capture taken while the robot was standing spawned the sim trunk
+near the floor. Leaving it ``None`` keeps a capture undeclared, which a
+reader can still recognise from ``capture_source``.
+
 Writer uses a bounded producer queue and row-group buffering to keep memory
 bounded on long rollouts. ``append`` only enqueues; conversion, compression,
 file writes, and footer finalization run on the writer thread.
@@ -135,6 +146,21 @@ logger = logging.getLogger("phoenix.real_world.trajectory_logger")
 CAPTURE_SOURCE_SIM = "sim"
 CAPTURE_SOURCE_HARDWARE = "hardware"
 CAPTURE_SOURCE_UNKNOWN = "unknown"
+
+#: Parquet file-level metadata key carrying the frame of ``base_pos``. Read by
+#: :class:`phoenix.replay.TrajectoryReader`, which owns the frame vocabulary
+#: (``phoenix.replay.state_adapter.POSITION_FRAMES``). The writer records what
+#: the caller declares and validates nothing about the simulator, so this
+#: module stays importable on the payload without the replay stack.
+PARQUET_POSITION_FRAME_KEY = b"phoenix_position_frame"
+
+#: The frame a real GO2 capture is in. Mirrors
+#: ``phoenix.replay.state_adapter.POSITION_FRAME_ODOM_BOOT_RELATIVE``; the two
+#: are pinned equal by ``tests/test_trajectory_logger.py``.
+POSITION_FRAME_ODOM_BOOT_RELATIVE = "odom_boot_relative"
+
+#: The frame Phoenix simulator captures are in.
+POSITION_FRAME_ENV_LOCAL = "env_local"
 
 
 @dataclass
@@ -219,11 +245,17 @@ class TrajectoryLogger:
         path: str | Path,
         row_group_size: int = 512,
         queue_capacity: int = 4096,
+        position_frame: str | None = None,
     ) -> None:
         if row_group_size <= 0:
             raise ValueError("row_group_size must be positive")
         if queue_capacity <= 0:
             raise ValueError("queue_capacity must be positive")
+        if position_frame is not None and not (
+            isinstance(position_frame, str) and position_frame.strip()
+        ):
+            raise ValueError("position_frame must be a non-empty string, or None to leave it undeclared")
+        self.position_frame = position_frame
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.row_group_size = row_group_size
@@ -382,11 +414,24 @@ class TrajectoryLogger:
         writer: pq.ParquetWriter | None,
         rows: list[dict[str, Any]],
     ) -> pq.ParquetWriter:
-        table = pa.Table.from_pylist(rows, schema=_SCHEMA)
+        schema = self._schema()
+        table = pa.Table.from_pylist(rows, schema=schema)
         if writer is None:
-            writer = pq.ParquetWriter(self.path, _SCHEMA, compression="zstd")
+            writer = pq.ParquetWriter(self.path, schema, compression="zstd")
         writer.write_table(table)
         return writer
+
+    def _schema(self) -> pa.Schema:
+        """The row schema, carrying the declared position frame in the footer.
+
+        An undeclared frame writes no key at all, which is visibly different
+        from declaring one: the reader can then refuse to guess rather than
+        silently assuming the simulator convention.
+        """
+
+        if self.position_frame is None:
+            return _SCHEMA
+        return _SCHEMA.with_metadata({PARQUET_POSITION_FRAME_KEY: self.position_frame.encode()})
 
     def _raise_writer_error(self) -> None:
         with self._state_lock:

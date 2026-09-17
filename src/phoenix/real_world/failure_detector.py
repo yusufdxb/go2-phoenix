@@ -108,6 +108,24 @@ from enum import Enum
 DEFAULT_ATTITUDE_INTERVENTION_RAD = 0.40
 MAX_ATTITUDE_INTERVENTION_RAD = math.radians(25.0)
 
+#: Attitude thresholds for SIMULATOR rollout analysis, deliberately NOT the
+#: hardware intervention value.
+#:
+#: These are the numbers every historical sim result in this repo was scored
+#: at (the 32/32 stand successes, the H25 evaluations, every rollout metrics
+#: JSON under ``docs/``). On 2026-09-17 the shared :class:`FailureThresholds`
+#: defaults moved to the 0.40 rad hardware intervention, which silently
+#: rescored sim rollouts against a stricter bar and made new sim failure
+#: counts incomparable with every recorded one. Splitting the two restores
+#: that comparability and removes the coupling: hardware decides when to
+#: intervene on a real robot, sim analysis decides what counts as a fallen
+#: episode in a rollout, and neither number should move because the other did.
+#:
+#: The asymmetry (pitch above roll) is the historical value and is preserved
+#: on purpose; see ``docs/native_runtime_audit.md`` R24.
+SIM_ANALYSIS_PITCH_RAD = 0.8
+SIM_ANALYSIS_ROLL_RAD = 0.6
+
 
 def resolve_attitude_intervention_rad(safety_config: dict | None = None) -> float:
     """Return the one attitude threshold used by hardware control and logging.
@@ -165,6 +183,25 @@ class FailureThresholds:
     slip_velocity_actual_max: float = 0.05  # m/s
     slip_min_duration_s: float = 0.5
     min_event_gap_s: float = 1.0  # suppress duplicate events
+
+
+def sim_analysis_thresholds(**overrides) -> FailureThresholds:
+    """Thresholds for scoring a SIMULATOR rollout, not a hardware intervention.
+
+    Returns :class:`FailureThresholds` with the historical sim attitude bar
+    (:data:`SIM_ANALYSIS_PITCH_RAD` / :data:`SIM_ANALYSIS_ROLL_RAD`) so a new
+    rollout's failure counts are comparable with every one already recorded.
+    Everything else keeps the shared default. Callers analysing sim rollouts
+    must use this instead of a bare ``FailureThresholds()``; a bare one now
+    carries the hardware intervention threshold, which is a different quantity
+    answering a different question.
+    """
+
+    return FailureThresholds(
+        pitch_rad=overrides.pop("pitch_rad", SIM_ANALYSIS_PITCH_RAD),
+        roll_rad=overrides.pop("roll_rad", SIM_ANALYSIS_ROLL_RAD),
+        **overrides,
+    )
 
 
 @dataclass

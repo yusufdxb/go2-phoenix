@@ -1,13 +1,19 @@
 """Explicit Isaac Lab state/command adapters, importable without the simulator.
 
 Coordinate frames are declared, never inferred. A stored base position is
-either ``env_local`` (measured from that environment's origin, the Phoenix
+``env_local`` (measured from that environment's origin, the Phoenix simulator
 capture convention written by
-:func:`phoenix.training.episode_outcomes.snapshot_manager_state`) or ``world``
-(absolute simulator coordinates). :func:`to_world_position` and
-:func:`to_stored_position` are exact inverses for both, so a capture/restore
-round trip is the identity for any environment origin, including the nonzero
-X and Y offsets a multi-environment scene layout always has.
+:func:`phoenix.training.episode_outcomes.snapshot_manager_state`), ``world``
+(absolute simulator coordinates), or ``odom_boot_relative`` (a real-robot
+capture). :func:`to_world_position` and :func:`to_stored_position` are exact
+inverses for the first two, so a capture/restore round trip is the identity
+for any environment origin, including the nonzero X and Y offsets a
+multi-environment scene layout always has.
+
+``odom_boot_relative`` has NO inverse and both functions refuse it. A hardware
+capture is a recording, not a simulator seed: see
+:data:`POSITION_FRAME_ODOM_BOOT_RELATIVE` for why approximating one is worse
+than refusing it.
 
 Command restoration is a declared policy, not an implicit forever-hold. See
 :func:`resolve_command_hold`.
@@ -17,11 +23,31 @@ from __future__ import annotations
 
 import numpy as np
 
-#: Frames a stored ``base_pos`` may be expressed in.
-POSITION_FRAMES = ("env_local", "world")
+#: The frame a real GO2 capture is in: ``/utlidar/robot_odom`` with its origin
+#: at the BOOT pose (docs/go2_field_notes.md section 3). It is a displacement
+#: from wherever the robot happened to boot, so its z is NOT height above the
+#: floor: a robot that boots standing reads z ~ 0 while standing.
+#:
+#: There is no validated mapping from this frame into simulator coordinates,
+#: because recovering one needs the ground plane's height in odom, which the
+#: stock robot does not publish. Restoring such a state is therefore REFUSED
+#: rather than approximated: treating it as ``env_local`` (the silent default
+#: before 2026-09-17) spawns the sim trunk near z=0 for a capture the robot
+#: took while standing, which is a fabricated seed that looks plausible.
+POSITION_FRAME_ODOM_BOOT_RELATIVE = "odom_boot_relative"
 
-#: The frame Phoenix captures write. Consumers must still record which frame
-#: they resolved and where that declaration came from.
+#: Frames a stored ``base_pos`` may be expressed in. The first two are
+#: simulator-restorable; :data:`POSITION_FRAME_ODOM_BOOT_RELATIVE` is a
+#: declaration that the capture is NOT a valid simulator seed.
+POSITION_FRAMES = ("env_local", "world", POSITION_FRAME_ODOM_BOOT_RELATIVE)
+
+#: Frames :func:`to_world_position` can actually invert.
+RESTORABLE_POSITION_FRAMES = ("env_local", "world")
+
+#: The frame Phoenix SIMULATOR captures write. Consumers must still record
+#: which frame they resolved and where that declaration came from. It is not a
+#: safe fallback for a capture of unknown provenance; see
+#: :meth:`phoenix.replay.TrajectoryReader.resolve_position_frame`.
 DEFAULT_POSITION_FRAME = "env_local"
 
 #: Declared command-restoration policies (:func:`resolve_command_hold`).
@@ -56,6 +82,20 @@ def body_to_world(vector, quat_xyzw):
     return v + 2 * (w * np.cross(xyz, v) + np.cross(xyz, np.cross(xyz, v)))
 
 
+def _require_restorable(frame):
+    """Refuse a frame that has no validated inverse into simulator coordinates."""
+    if frame not in POSITION_FRAMES:
+        raise ValueError(f"Unknown position_frame={frame!r}; expected {POSITION_FRAMES}")
+    if frame not in RESTORABLE_POSITION_FRAMES:
+        raise ValueError(
+            f"position_frame={frame!r} cannot be mapped into simulator coordinates: it is "
+            "boot-relative odometry, so its z is displacement from the boot pose, not height "
+            "above the floor. Restoring it would spawn the trunk at a fabricated height. "
+            "Seed from a simulator capture, or supply a validated ground-relative height "
+            "source and re-express the capture before restoring it."
+        )
+
+
 def _checked_position(position, env_origin):
     p = np.asarray(position, dtype=float)
     o = np.asarray(env_origin, dtype=float)
@@ -74,16 +114,14 @@ def to_world_position(position, env_origin, frame=DEFAULT_POSITION_FRAME):
     restored robot by the rest of the origin, which for the usual grid layout
     is metres of x/y error and lands the robot on another environment's tile.
     """
-    if frame not in POSITION_FRAMES:
-        raise ValueError(f"Unknown position_frame={frame!r}; expected {POSITION_FRAMES}")
+    _require_restorable(frame)
     p, o = _checked_position(position, env_origin)
     return p + o if frame == "env_local" else p
 
 
 def to_stored_position(position_world, env_origin, frame=DEFAULT_POSITION_FRAME):
     """Exact inverse of :func:`to_world_position`."""
-    if frame not in POSITION_FRAMES:
-        raise ValueError(f"Unknown position_frame={frame!r}; expected {POSITION_FRAMES}")
+    _require_restorable(frame)
     p, o = _checked_position(position_world, env_origin)
     return p - o if frame == "env_local" else p
 

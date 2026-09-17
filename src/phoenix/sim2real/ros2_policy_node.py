@@ -101,6 +101,7 @@ from phoenix.real_world.failure_detector import (
 )
 from phoenix.real_world.trajectory_logger import (
     CAPTURE_SOURCE_HARDWARE,
+    POSITION_FRAME_ODOM_BOOT_RELATIVE,
     TrajectoryLogger,
     TrajectoryStep,
 )
@@ -600,7 +601,13 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
         self._logger: TrajectoryLogger | None = None
         if log_parquet is not None:
-            self._logger = TrajectoryLogger(log_parquet)
+            # base_pos comes straight from /utlidar/robot_odom, whose origin is
+            # the boot pose, so the capture declares that frame instead of
+            # letting a reader fall back to the simulator convention and seed
+            # Isaac with a trunk height that was never measured.
+            self._logger = TrajectoryLogger(
+                log_parquet, position_frame=POSITION_FRAME_ODOM_BOOT_RELATIVE
+            )
 
         self.node = Node("phoenix_policy_node")
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)

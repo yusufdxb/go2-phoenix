@@ -25,7 +25,7 @@ import json
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -295,6 +295,75 @@ def cmd_deadman(args: argparse.Namespace) -> int:
     return 1 if failure else 0
 
 
+def active_units(candidates: Sequence[str]) -> list[str]:
+    """Which of ``candidates`` systemd reports as active. Pure-ish, no ROS.
+
+    Uses ``systemctl is-active``, which exits non-zero for an inactive or
+    unknown unit, so an absent unit is simply not active. A systemctl that
+    cannot be run at all raises: reporting "nothing competing" because the
+    check could not run would turn a broken probe into a green gate.
+    """
+
+    import shutil
+    import subprocess
+
+    if shutil.which("systemctl") is None:
+        raise RuntimeError(
+            "systemctl not found, so competing services cannot be checked. "
+            "Run this probe on the payload."
+        )
+    found = []
+    for unit in candidates:
+        result = subprocess.run(
+            ["systemctl", "is-active", unit],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.stdout.strip() == "active":
+            found.append(unit)
+    return found
+
+
+def cmd_contention(args: argparse.Namespace) -> int:  # pragma: no cover - needs ROS 2
+    """Record who else is sharing the robot right now."""
+    import rclpy
+    from rclpy.node import Node
+
+    from .preflight_eval import COMPETING_SERVICES
+
+    units = active_units(COMPETING_SERVICES)
+
+    rclpy.init()
+    node = Node("phoenix_contention_probe")
+    try:
+        # Give discovery a moment; an empty graph read as "nobody else is here"
+        # is the same false green this probe exists to prevent.
+        end = time.monotonic() + float(args.discovery_s)
+        while time.monotonic() < end:
+            rclpy.spin_once(node, timeout_sec=0.05)
+        names = sorted(f"{ns.rstrip('/')}/{n}" for n, ns in node.get_node_names_and_namespaces())
+        topics = len(node.get_topic_names_and_types())
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+    probe = {
+        "active_units": units,
+        "ros_nodes": names,
+        "topic_count": topics,
+        "discovery_s": float(args.discovery_s),
+    }
+    if args.lowstate_rate_hz is not None:
+        probe["lowstate_rate_hz"] = float(args.lowstate_rate_hz)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(probe, indent=2) + "\n")
+    print(f"[contention] units={units} nodes={len(names)} topics={topics} -> {out}")
+    return 1 if units else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="command", required=True)
@@ -315,6 +384,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dead.add_argument("--out", required=True)
     dead.set_defaults(func=cmd_deadman)
+    cont = sub.add_parser(
+        "contention", help="record competing services and nodes sharing the robot"
+    )
+    cont.add_argument("--discovery-s", type=float, default=5.0)
+    cont.add_argument(
+        "--lowstate-rate-hz",
+        type=float,
+        default=None,
+        help="measured /lowstate rate, from a prior 'rates' probe, to gate starvation",
+    )
+    cont.add_argument("--out", required=True)
+    cont.set_defaults(func=cmd_contention)
     return p
 
 
