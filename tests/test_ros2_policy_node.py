@@ -25,6 +25,7 @@ from phoenix.real_world.failure_detector import FailureDetector, FailureEvent, F
 from phoenix.real_world.trajectory_logger import TrajectoryLogger, TrajectoryStep
 from phoenix.sim2real.command_wire import KIND_ABORT, KIND_STARTUP_DEFAULT, decode, wire_label
 from phoenix.sim2real.deploy_contract import observed_artifact_hashes
+from phoenix.sim2real.gate import SensorSnapshot
 from phoenix.sim2real.go2_model import POLICY_JOINT_ORDER, TRAINING_DEFAULT_JOINT_POS
 from phoenix.sim2real.observation import BaseLinVelSample, JointOrder
 from phoenix.sim2real.ros2_policy_node import (
@@ -363,6 +364,15 @@ class _StubTelemetryNode:
         )
         self._started_at = time.monotonic()
         self._step_idx = step_idx
+        self._last_action = np.linspace(-0.2, 0.2, 12, dtype=np.float32)
+        self._attitude_terminal_logged = False
+        self.base_lin_vel_source = "zeros"
+
+    def _sample_odom(self, now_ns, quat_xyzw):
+        return _PhoenixPolicyNode._sample_odom(self, now_ns, quat_xyzw)
+
+    def _log_step(self, **kwargs) -> None:
+        _PhoenixPolicyNode._log_step(self, **kwargs)
 
 
 def _log_step(stub: _StubTelemetryNode, **kwargs) -> None:
@@ -522,6 +532,46 @@ def test_log_step_records_hardware_provenance(tmp_path) -> None:
     assert table.column("obs_base_lin_vel_source").to_pylist() == ["zeros:operator_selected"]
     # foot_force is int16 with no documented calibration; never call it Newtons.
     assert table.column("contact_forces_units").to_pylist() == ["raw_counts_uncalibrated"]
+
+
+def test_attitude_abort_enqueues_one_labelled_terminal_row_before_close(tmp_path) -> None:
+    path = tmp_path / "attitude_terminal.parquet"
+    logger = TrajectoryLogger(path, row_group_size=4)
+    stub = _StubTelemetryNode(logger=logger, step_idx=25)
+    theta = 0.41
+    quat = (float(np.sin(theta / 2)), 0.0, 0.0, float(np.cos(theta / 2)))
+    now_ns = time.monotonic_ns()
+    snap = SensorSnapshot(
+        now_ns=now_ns,
+        elapsed_s=1.0,
+        node_started_ns=0,
+        seen_estop=True,
+        seen_imu=True,
+        seen_joint_state=True,
+        estop_last_ns=now_ns,
+        estop_value=False,
+        imu_last_ns=now_ns,
+        joint_state_last_ns=now_ns,
+        joint_pos=np.arange(12, dtype=np.float32),
+        joint_vel=np.arange(12, dtype=np.float32) * 0.1,
+        quat_xyzw=quat,
+        ang_vel=(0.1, 0.2, 0.3),
+        roll=theta,
+        pitch=0.0,
+    )
+
+    _PhoenixPolicyNode._log_attitude_terminal(stub, snap)
+    _PhoenixPolicyNode._log_attitude_terminal(stub, snap)
+    logger.close()
+
+    table = pq.read_table(path)
+    assert table.num_rows == 1
+    assert table.column("step").to_pylist() == [25]
+    assert table.column("failure_flag").to_pylist() == [True]
+    assert table.column("failure_mode").to_pylist() == ["attitude"]
+    assert table.column("failure_onset_source").to_pylist() == ["safety_gate"]
+    assert table.column("action").to_pylist()[0] == pytest.approx(stub._last_action.tolist())
+    assert stub._step_idx == 26
 
 
 def test_log_step_foot_force_fresh_vs_stale(tmp_path) -> None:

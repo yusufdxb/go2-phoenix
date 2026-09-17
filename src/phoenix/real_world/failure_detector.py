@@ -101,6 +101,36 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
+#: Default intervention shared by the hardware safety gate and the logging
+#: detector. It is intentionally below the run card's 25 degree manual halt
+#: instruction (about 0.436 rad), so software intervenes first when telemetry
+#: and control timing are healthy.
+DEFAULT_ATTITUDE_INTERVENTION_RAD = 0.40
+MAX_ATTITUDE_INTERVENTION_RAD = math.radians(25.0)
+
+
+def resolve_attitude_intervention_rad(safety_config: dict | None = None) -> float:
+    """Return the one attitude threshold used by hardware control and logging.
+
+    The config key is optional so existing locked deploy configs retain their
+    semantic hash. Any explicit override must remain below the operator's
+    25 degree halt instruction. A threshold at or above that instruction would
+    make the automatic intervention the slower safety layer.
+    """
+
+    raw = (safety_config or {}).get("attitude_intervention_rad", DEFAULT_ATTITUDE_INTERVENTION_RAD)
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        raise ValueError("safety.attitude_intervention_rad must be a finite number")
+    value = float(raw)
+    if not math.isfinite(value) or value <= 0.0:
+        raise ValueError("safety.attitude_intervention_rad must be finite and positive")
+    if value >= MAX_ATTITUDE_INTERVENTION_RAD:
+        raise ValueError(
+            "safety.attitude_intervention_rad must stay below the 25 degree "
+            f"operator halt instruction ({MAX_ATTITUDE_INTERVENTION_RAD:.6f} rad)"
+        )
+    return value
+
 
 class FailureMode(str, Enum):
     #: Pitch or roll past threshold. See module docstring.
@@ -128,8 +158,8 @@ MODE_DEFINITIONS: dict[FailureMode, str] = {
 
 @dataclass(frozen=True)
 class FailureThresholds:
-    pitch_rad: float = 0.8
-    roll_rad: float = 0.6
+    pitch_rad: float = DEFAULT_ATTITUDE_INTERVENTION_RAD
+    roll_rad: float = DEFAULT_ATTITUDE_INTERVENTION_RAD
     base_height_min_m: float = 0.15
     slip_velocity_cmd_min: float = 0.3  # m/s
     slip_velocity_actual_max: float = 0.05  # m/s
@@ -241,9 +271,7 @@ class FailureDetector:
 
         return None
 
-    def _emit(
-        self, mode: FailureMode, ts: float, *, onset_s: float, detail: dict
-    ) -> FailureEvent:
+    def _emit(self, mode: FailureMode, ts: float, *, onset_s: float, detail: dict) -> FailureEvent:
         self._last_event_at = ts
         full = dict(detail)
         full["onset_timestamp_s"] = onset_s

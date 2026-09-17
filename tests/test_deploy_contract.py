@@ -81,6 +81,7 @@ def test_mode_switch_cannot_run_in_a_stand_only_config() -> None:
         (lambda c: c["control"].__setitem__("rate_hz", 100), "rate_hz"),
         (lambda c: c["safety"].pop("sensor_timeout_s"), "sensor_timeout_s"),
         (lambda c: c["safety"].__setitem__("estop_timeout_s", 0), "estop_timeout_s"),
+        (lambda c: c["safety"].__setitem__("attitude_intervention_rad", 0.5), "25 degree"),
         (lambda c: c["observation"].pop("base_lin_vel_source"), "base_lin_vel_source"),
     ],
 )

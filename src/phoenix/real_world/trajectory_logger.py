@@ -91,8 +91,10 @@ ground truth exists there:
 * ``sim_termination_index``: row index of the simulator's terminal step.
 * ``sim_termination_time_s``: that row's ``timestamp_s``.
 * ``failure_onset_source``: ``"detector"`` when ``failure_flag`` is the
-  detector's verdict, ``"simulator_termination"`` when it keys off the
-  simulator's terminal step instead. Null when the writer has not declared it.
+  detector's verdict, ``"safety_gate"`` for the synchronously captured
+  hardware attitude-intervention row, and ``"simulator_termination"`` when it
+  keys off the simulator's terminal step instead. Null when the writer has not
+  declared it.
 
 ``failure_mode`` stays strictly the detector's label and stays null when the
 detector did not fire, even on a row the simulator considers terminal. A mode
@@ -285,6 +287,33 @@ class TrajectoryLogger:
                 self._dropped_rows += 1
             else:
                 self._accepted_rows += 1
+
+    def append_terminal(self, step: TrajectoryStep) -> None:
+        """Synchronously enqueue a terminal evidence row without dropping it.
+
+        Normal control rows use :meth:`append` and may be dropped when the
+        bounded queue is full so logging can never stall the 50 Hz control
+        loop. A terminal failure label has the opposite contract: returning
+        before it is accepted would let logger shutdown finalize a clean-looking
+        capture. This method may block the already-aborting path until the
+        writer makes room, and it fails loudly if the writer has died.
+        """
+
+        while True:
+            with self._state_lock:
+                self._raise_writer_error_locked()
+                if self._closed:
+                    raise RuntimeError("cannot append to a closed TrajectoryLogger")
+                writer_alive = self._writer_thread.is_alive()
+            if not writer_alive:
+                raise RuntimeError("trajectory writer stopped before terminal row enqueue")
+            try:
+                self._queue.put(step, timeout=0.05)
+            except queue.Full:
+                continue
+            with self._state_lock:
+                self._accepted_rows += 1
+            return
 
     def close(self) -> None:
         """Drain accepted rows, finalize the footer, and join the writer."""
