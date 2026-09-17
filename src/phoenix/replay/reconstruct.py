@@ -117,15 +117,31 @@ def main(argv: list[str] | None = None) -> int:
 
     app_launcher = AppLauncher(headless=args.headless)
     simulation_app = app_launcher.app
+    # MEASURED 2026-09-17: simulation_app.close() terminates this process with
+    # status 0. A replay that raised still reported SUCCESS, so every caller
+    # gating on the exit status (scripts/loop_closure.sh dies on a failed
+    # held-out replay) was reading a false green. Neither `raise` nor `return`
+    # survives that shutdown, so the status is forced with os._exit.
+    #
+    # On failure Isaac is NOT shut down cleanly: the process is already
+    # aborting, and a correct exit status matters more than tidy teardown.
+    import os
+
     try:
-        return _run(args, simulation_app)
+        rc = int(_run(args, simulation_app))
     except BaseException:
         import traceback
 
         traceback.print_exc()
-        raise
-    finally:
-        simulation_app.close()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(1)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    if rc != 0:
+        os._exit(rc)
+    simulation_app.close()
+    os._exit(0)
 
 
 def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
@@ -357,15 +373,23 @@ def _np(value):
 
 
 def _policy_observation(obs):
-    """Flatten the wrapper's TensorDict to the policy observation group."""
+    """The observation object the inference policy expects.
+
+    Do NOT flatten to the ``policy`` group. rsl_rl's ``MlpModel.get_latent``
+    does ``[obs[g] for g in self.obs_groups]``, so it wants the whole
+    multi-group container; handing it the already-extracted policy tensor
+    raises ``IndexError: too many indices for tensor of dimension 2``.
+
+    ``phoenix.training.evaluate`` looks like it flattens, but its guard is
+    ``isinstance(obs, dict)`` and ``TensorDict`` is NOT a dict subclass, so in
+    practice it passes the container through untouched. This function makes
+    that behaviour explicit instead of accidental: only a genuine tuple or a
+    plain ``dict`` is unwrapped, which keeps a hand-built test double working.
+    """
     if isinstance(obs, tuple):
         obs = obs[0]
-    try:
-        return obs["policy"]
-    except (KeyError, TypeError, IndexError):
-        pass
-    if hasattr(obs, "values"):
-        return next(iter(obs.values()))
+    if isinstance(obs, dict):
+        return obs.get("policy", next(iter(obs.values())))
     return obs
 
 
@@ -502,15 +526,59 @@ def _apply_per_env_mass(robot, mass_deltas, *, device, num_envs: int) -> bool:
             "Friction + initial-velocity perturbations still apply."
         )
         return False
+    import numpy as np
+
     try:
-        masses = physx_view.get_masses()  # (num_envs, num_bodies) on cpu in current Isaac Lab
-        deltas = torch.as_tensor(mass_deltas, dtype=masses.dtype, device=masses.device)
-        new_masses = masses.clone()
+        # This block silently did NOTHING before 2026-09-17. On Isaac Sim 6 /
+        # Isaac Lab 4.5 the tensor view runs a WARP backend: get_masses()
+        # returns a wp.array whose .dtype is a python type, so
+        # torch.as_tensor(..., dtype=masses.dtype) raised TypeError, the except
+        # below swallowed it, and every variant ran with mass_delta_kg = 0
+        # while replay_summary.json reported the sampled values. Handing the
+        # warp frontend a torch tensor fails differently and just as quietly
+        # ("issubclass() arg 1 must be a class", frontend_warp.py:102).
+        #
+        # So: read, modify in numpy, and hand back an array of the SAME kind
+        # the view gave us, which is what omni.physics.tensors' own set_masses
+        # example does (wp.from_numpy(..., dtype=wp.float32)).
+        raw = physx_view.get_masses()  # (count, max_links)
+        masses = _np(raw)
+        new_masses = masses.copy()
+        deltas = _np(mass_deltas).reshape(-1)[:num_envs]
+        if new_masses.shape[0] < num_envs:
+            raise ValueError(
+                f"view holds {new_masses.shape[0]} articulations, need {num_envs}"
+            )
         new_masses[:num_envs, 0] = new_masses[:num_envs, 0] + deltas
-        indices = torch.arange(num_envs, dtype=torch.int32, device=masses.device)
-        physx_view.set_masses(new_masses, indices)
-    except (AttributeError, RuntimeError, TypeError) as exc:
-        logger.warning("set_masses failed (%s) — mass_delta_kg ignored.", exc)
+
+        if type(raw).__module__.startswith("warp"):
+            import warp as wp
+
+            device = getattr(raw, "device", "cpu")
+            data = wp.from_numpy(
+                np.ascontiguousarray(new_masses, dtype=np.float32),
+                dtype=wp.float32,
+                device=device,
+            )
+            idx = wp.from_numpy(
+                np.arange(num_envs, dtype=np.uint32), dtype=wp.uint32, device=device
+            )
+        else:
+            data = torch.as_tensor(new_masses, dtype=torch.float32)
+            idx = torch.arange(num_envs, dtype=torch.int32)
+        physx_view.set_masses(data, idx)
+
+        # Read back: a silent no-op here is the whole point of this fix.
+        applied = _np(physx_view.get_masses())[:num_envs, 0]
+        if not np.allclose(applied, new_masses[:num_envs, 0], atol=1e-4):
+            logger.warning(
+                "set_masses accepted the write but the masses did not change "
+                "(max diff %.3g), mass_delta_kg NOT applied.",
+                float(np.max(np.abs(applied - new_masses[:num_envs, 0]))),
+            )
+            return False
+    except (AttributeError, RuntimeError, TypeError, ValueError, ImportError) as exc:
+        logger.warning("set_masses failed (%s), mass_delta_kg ignored.", exc)
         return False
     return True
 
