@@ -7,6 +7,7 @@ The full stage A run is not invoked here: it runs this very test suite.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -230,3 +231,58 @@ def test_shipped_dds_config_binds_the_payload_nic() -> None:
     ns = {"c": "https://cdds.io/config"}
     names = [n.get("name") for n in root.findall(".//c:NetworkInterface", ns)]
     assert names == ["enP8p1s0"], f"expected the payload NIC, got {names}"
+
+
+BUNDLE = REPO_ROOT / "scripts" / "stage_payload_bundle.sh"
+
+
+def test_bundle_staging_binds_stage_a_evidence_to_head_and_the_lock() -> None:
+    """Stage A evidence is commit-bound; staging must not accept a dead SHA.
+
+    Amending a commit after running stage A produces exactly that situation, and
+    without this check it is only caught by `A --payload` on the robot, which is
+    the most expensive place to find it.
+    """
+    src = BUNDLE.read_text()
+    assert "rev-parse HEAD" in src
+    assert "but HEAD is" in src
+    assert "lock_file_sha256" in src
+    # A rehearsal must never be stageable as real evidence.
+    assert 'r.get("rehearsal")' in src
+    assert 'code_identity' in src
+
+
+def test_bundle_staging_refuses_evidence_from_another_commit(tmp_path) -> None:
+    session = tmp_path / "session"
+    session.mkdir()
+    (session / "stage_A.json").write_text(
+        json.dumps(
+            {
+                "stage": "A",
+                "verdict": "GO",
+                "mode": "workstation",
+                "rehearsal": False,
+                # A commit that is not HEAD.
+                "code_identity": {"sha": "0" * 40, "dirty": False},
+            }
+        )
+    )
+    (session / "parity_golden.npz").write_bytes(b"not a real npz")
+    res = subprocess.run(
+        [
+            str(BUNDLE),
+            "checkpoints/phoenix-stand-h25-lat-noise",
+            "configs/sim2real/deploy_stand_h25.yaml",
+            str(tmp_path / "dest"),
+        ],
+        cwd=REPO_ROOT,
+        env={**os.environ, "STAGE_A_SESSION": str(session)},
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert res.returncode != 0
+    combined = res.stdout + res.stderr
+    assert "but HEAD is" in combined
+    assert "REFUSING TO STAGE" in combined
+    assert not (tmp_path / "dest").exists(), "a refused stage must leave no bundle"

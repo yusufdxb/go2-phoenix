@@ -70,14 +70,48 @@ if [[ ! -f "$STAGE_A_JSON" || ! -f "$GOLDEN" ]]; then
   echo "REFUSING TO STAGE: $STAGE_A_JSON or $GOLDEN missing" >&2
   exit 1
 fi
-if ! python3 - "$STAGE_A_JSON" <<'PY'
+# Stage A evidence is COMMIT-BOUND and LOCK-BOUND. Without these two checks a
+# session directory from a dead SHA stages happily and is only caught later by
+# `harness_preflight.sh A --payload` on the robot, which is the most expensive
+# place to discover it. Amending a commit after running stage A is enough to
+# produce exactly that (it happened on 2026-09-17), so compare here, at the desk.
+_BUNDLE_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HEAD_SHA="$(git -C "$_BUNDLE_REPO" rev-parse HEAD)"
+# Same env var and default the harness uses, so both read one lock.
+_BUNDLE_LOCK="${DEPLOY_LOCK:-configs/sim2real/locks/deploy_stand_h25.lock.yaml}"
+LOCK_SHA="$(sha256sum "$_BUNDLE_REPO/$_BUNDLE_LOCK" 2>/dev/null | cut -d' ' -f1 || true)"
+if ! python3 - "$STAGE_A_JSON" "$HEAD_SHA" "$LOCK_SHA" <<'PY'
 import json, sys
-r = json.load(open(sys.argv[1]))
-ok = r.get("stage") == "A" and r.get("verdict") == "GO" and r.get("mode") == "workstation" and not r.get("rehearsal")
-sys.exit(0 if ok else 1)
+
+path, head_sha, lock_sha = sys.argv[1], sys.argv[2], sys.argv[3]
+r = json.load(open(path))
+problems = []
+if r.get("stage") != "A":
+    problems.append(f"stage is {r.get('stage')!r}, not 'A'")
+if r.get("verdict") != "GO":
+    problems.append(f"verdict is {r.get('verdict')!r}, not 'GO'")
+if r.get("mode") != "workstation":
+    problems.append(f"mode is {r.get('mode')!r}, not 'workstation'")
+if r.get("rehearsal"):
+    problems.append("evidence is flagged rehearsal and never counts")
+recorded = (r.get("code_identity") or {}).get("sha")
+if recorded != head_sha:
+    problems.append(
+        f"evidence is for commit {recorded}, but HEAD is {head_sha}. "
+        "Re-run scripts/harness_preflight.sh A and use the NEW session directory."
+    )
+if (r.get("code_identity") or {}).get("dirty"):
+    problems.append("evidence was recorded from a dirty tree")
+if lock_sha and r.get("lock_file_sha256") and r["lock_file_sha256"] != lock_sha:
+    problems.append(
+        f"evidence is for lock {r['lock_file_sha256'][:12]}, current lock is {lock_sha[:12]}"
+    )
+for p in problems:
+    print(f"  {p}", file=sys.stderr)
+sys.exit(1 if problems else 0)
 PY
 then
-  echo "REFUSING TO STAGE: $STAGE_A_JSON is not a GO workstation stage A" >&2
+  echo "REFUSING TO STAGE: $STAGE_A_JSON is not GO workstation stage A for THIS commit and lock" >&2
   exit 1
 fi
 
