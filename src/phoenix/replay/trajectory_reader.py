@@ -7,8 +7,9 @@ The JSON FailureCapsule adds what a per-step Parquet row cannot carry:
 ``schema_version`` ``"1.0"``
     Frames plus ``failure_onset_index`` / ``pre_failure_start_index``.
 ``schema_version`` ``"1.1"``
-    Adds ``position_frame`` (``env_local`` or ``world``, so a consumer never
-    guesses the frame of ``base_pos``), ``environment_parameters`` and
+    Adds ``position_frame`` (``env_local``, ``world`` or
+    ``odom_boot_relative``, so a consumer never guesses the frame of
+    ``base_pos``), ``environment_parameters`` and
     ``disturbances`` (the physics that CAUSED the failure, without which a
     seeded environment is a state with a fresh random cause attached), and
     ``episode_start_index`` (so a consumer can tell a full episode from a
@@ -18,6 +19,7 @@ The JSON FailureCapsule adds what a per-step Parquet row cannot carry:
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,12 +27,24 @@ import numpy as np
 import pyarrow.parquet as pq
 
 from .controller_history import ControllerHistory
-from .state_adapter import DEFAULT_POSITION_FRAME, POSITION_FRAMES
+from .state_adapter import (
+    DEFAULT_POSITION_FRAME,
+    POSITION_FRAME_ODOM_BOOT_RELATIVE,
+    POSITION_FRAMES,
+)
+
+#: ``capture_source`` value that implies a boot-relative odometry frame. Kept
+#: as a literal so the reader does not import the ROS-side logger module.
+CAPTURE_SOURCE_HARDWARE = "hardware"
+
+logger = logging.getLogger("phoenix.replay.trajectory_reader")
 
 #: FailureCapsule schema versions this reader accepts.
 CAPSULE_SCHEMA_VERSIONS = ("1.0", "1.1")
 
 #: Parquet file-level key a writer may use to declare its position frame.
+#: Mirrors ``phoenix.real_world.trajectory_logger.PARQUET_POSITION_FRAME_KEY``;
+#: the two are pinned equal by ``tests/test_trajectory_reader.py``.
 PARQUET_POSITION_FRAME_KEY = b"phoenix_position_frame"
 
 
@@ -117,10 +131,46 @@ class TrajectoryReader:
                         f"Unknown parquet position frame {frame!r}; expected {POSITION_FRAMES}"
                     )
                 self.declared_position_frame = frame
+        self.inferred_position_frame = self._infer_position_frame()
         self.environment_parameters = _validated_environment_parameters(
             self.metadata.get("environment_parameters")
         )
         self.disturbances = list(self.metadata.get("disturbances") or [])
+
+    def _infer_position_frame(self) -> str | None:
+        """Infer the frame from ``capture_source`` when the writer declared none.
+
+        Captures written before 2026-09-17 carry no frame declaration, and the
+        old fallback was the simulator convention ``env_local``. For a hardware
+        capture that is wrong in the worst way: ``base_pos`` is boot-relative
+        odometry whose z is not ground clearance, so a standing robot reads
+        z ~ 0 and the seeded sim trunk spawns in the floor. The rows themselves
+        say where the capture came from, so use that rather than a default.
+        """
+
+        if "capture_source" not in self._table.column_names:
+            return None
+        import pyarrow.compute as pc
+
+        sources = {
+            value.as_py()
+            for value in pc.unique(self._table.column("capture_source"))
+            if value.as_py() is not None
+        }
+        if sources != {CAPTURE_SOURCE_HARDWARE}:
+            # Inference is only sound for a single-provenance capture. A mixed
+            # file has no one frame, so say nothing rather than guess; a real
+            # hardware capture is uniform and, since 2026-09-17, also carries
+            # an explicit declaration that outranks this path entirely.
+            if CAPTURE_SOURCE_HARDWARE in sources:
+                logger.warning(
+                    "%s mixes capture_source values %s, so its position frame cannot be "
+                    "inferred; declare it explicitly before using it as a seed.",
+                    self.path,
+                    sorted(sources),
+                )
+            return None
+        return POSITION_FRAME_ODOM_BOOT_RELATIVE
 
     def __len__(self) -> int:
         return self._table.num_rows
@@ -142,7 +192,15 @@ class TrajectoryReader:
         return np.asarray([i for i, f in enumerate(flags) if f], dtype=np.int64)
 
     def resolve_position_frame(self, requested: str | None = None) -> tuple[str, str]:
-        """Return ``(frame, source)``, refusing to reconcile a real disagreement."""
+        """Return ``(frame, source)``, refusing to reconcile a real disagreement.
+
+        Precedence is declaration, then the frame inferred from the rows'
+        ``capture_source``, then the caller's request, then the simulator
+        default. The inferred frame outranks a request on purpose: a caller
+        asking for ``env_local`` on a hardware capture is making exactly the
+        mistake this method exists to stop, and silently obeying it produces a
+        seed that looks valid and is not.
+        """
         if requested is not None and requested not in POSITION_FRAMES:
             raise ValueError(f"Unknown position_frame={requested!r}; expected {POSITION_FRAMES}")
         declared = self.declared_position_frame
@@ -153,6 +211,16 @@ class TrajectoryReader:
             )
         if declared is not None:
             return declared, "declared_by_source"
+        inferred = self.inferred_position_frame
+        if inferred is not None:
+            if requested is not None and requested != inferred:
+                raise ValueError(
+                    f"{self.path} has capture_source={CAPTURE_SOURCE_HARDWARE!r}, so its "
+                    f"base_pos is in {inferred!r}, but {requested!r} was requested. A hardware "
+                    "capture is not a simulator seed: its z is displacement from the boot pose, "
+                    "not height above the floor. Fix the caller, do not override the capture."
+                )
+            return inferred, "inferred_from_capture_source"
         if requested is not None:
             return requested, "declared_by_caller"
         return DEFAULT_POSITION_FRAME, "phoenix_capture_default"

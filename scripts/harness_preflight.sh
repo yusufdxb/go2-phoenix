@@ -204,6 +204,37 @@ bridge_args() {
 }
 
 # --------------------------------------------------------------------- stages
+# Nothing else may share the robot. come-here.service autostarts on Jetson boot,
+# starves the payload and can command the motors, so every on-robot stage runs
+# this first. The verdict logic is phoenix.sim2real.preflight_eval
+# .contention_checks, which fails closed when the probe recorded nothing.
+assert_no_contention() {
+    local out="${RUN:-$SESSION}/contention.json"
+    mkdir -p "$(dirname "$out")"
+    # The probe exits 1 when it FINDS a competitor, which is evidence, not an
+    # error, so its status is captured rather than gating. A probe that wrote
+    # no evidence at all is a hard stop: evaluating a missing file, or a stale
+    # one from an earlier stage, is how a gate goes green without looking.
+    rm -f "$out"
+    local probe_rc=0
+    python3 -m phoenix.sim2real.hw_probe contention --out "$out" || probe_rc=$?
+    [[ -f "$out" ]] || halt "contention probe wrote no evidence to $out (exit $probe_rc); \
+it needs ROS 2 and systemctl on the payload"
+    python3 - "$out" <<'CONTENTION_EOF' || halt "another system is sharing the robot; stop it and re-run this stage"
+import json
+import sys
+
+from phoenix.sim2real.preflight_eval import contention_checks
+
+probe = json.load(open(sys.argv[1]))
+checks = contention_checks(probe)
+bad = [c for c in checks if c.gating and not c.ok]
+for c in checks:
+    print(f"[contention] {'ok  ' if c.ok else 'FAIL'} {c.name}: {c.detail}")
+sys.exit(1 if bad else 0)
+CONTENTION_EOF
+}
+
 stage_A() {
     local rc=0
     if [[ "${1:-}" == "--payload" ]]; then
@@ -218,6 +249,7 @@ stage_A() {
 
 stage_B() {
     need_sha; ros_env
+    assert_no_contention
     pf require B
     new_run B
     local rc=0
@@ -232,6 +264,7 @@ stage_B() {
 
 stage_C() {
     need_sha; ros_env
+    assert_no_contention
     pf require C
     new_run C
     echo "[C] motors stay OFF: no lowcmd bridge is started in this stage."
@@ -248,6 +281,7 @@ stage_C() {
 
 stage_D() {
     need_sha; ros_env
+    assert_no_contention
     pf require D
     new_run D
     launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
@@ -263,6 +297,7 @@ stage_D() {
 stage_E() {
     local hold_s="${1:-10}"
     need_sha; ros_env
+    assert_no_contention
     pf require E
     live_confirm E "LowCmd bridge LIVE, holding measured posture for ${hold_s} s, no policy"
     new_run E
@@ -289,6 +324,7 @@ stage_stand() {
     local stage="$1" authority attempts
     case "$stage" in F) authority=2; attempts=1 ;; G) authority=5; attempts=1 ;; H) authority=10; attempts=3 ;; esac
     need_sha; ros_env
+    assert_no_contention
     pf require "$stage"
     live_confirm "$stage" "H25 cmd=0 stand, ${authority} s of policy authority, ${attempts} attempt(s)"
     local first_msg max_rt telemetry_files=() answers=() k

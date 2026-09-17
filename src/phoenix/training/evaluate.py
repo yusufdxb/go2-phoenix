@@ -250,7 +250,17 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     import yaml  # noqa: E402
     from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg
 
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
     from phoenix.training.agent_cfg import build_runner_cfg
+
+    # Derive normalization from the checkpoint, never from a constant. A
+    # hardcoded True on a checkpoint with no normalizer buffers makes rsl_rl
+    # build an untrained EmpiricalNormalization whose forward is (x-0)/(1+1e-2),
+    # silently shrinking every observation by 1%. That is the defect that cost
+    # this project a deploy-parity failure; reliability_rollout.py and
+    # harvest_sim_failures.py were fixed then, evaluate.py was not.
+    use_norm = checkpoint_has_obs_normalizer(args.checkpoint)
+    logger.info("empirical_normalization resolved from checkpoint: %s", use_norm)
 
     eval_yaml = {
         "run": {
@@ -284,7 +294,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             "critic_hidden_dims": [512, 256, 128],
             "activation": "elu",
         },
-        "runner": {"num_steps_per_env": 24, "empirical_normalization": True},
+        "runner": {"num_steps_per_env": 24, "empirical_normalization": use_norm},
     }
     _ = yaml  # quiet unused-import warning (yaml reserved for future config loading)
     runner_cfg = build_runner_cfg(eval_yaml, task_name)
@@ -436,9 +446,15 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     terminal_capture = PreResetCapture(
         env.unwrapped, lambda: snapshot_manager_state(env.unwrapped, _to_numpy)
     )
-    from phoenix.real_world.failure_detector import FailureDetector
+    from phoenix.real_world.failure_detector import FailureDetector, sim_analysis_thresholds
 
-    analyzer_factory = FailureDetector
+    # Sim rollouts are scored at the historical SIM attitude bar, never at the
+    # hardware intervention threshold. A bare FailureDetector() would inherit
+    # the 0.40 rad hardware value and silently rescore every rollout against a
+    # stricter bar than the recorded results it is compared with.
+    def analyzer_factory() -> FailureDetector:
+        return FailureDetector(sim_analysis_thresholds())
+
     extended_analysis = getattr(args, "failure_analyzer_factory", None)
     if extended_analysis:
         from importlib import import_module

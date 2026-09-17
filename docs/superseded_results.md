@@ -264,6 +264,29 @@ that confirms its contact fix.
   default-pose messages (startup wait, abort) followed at up to 0.175 rad per tick.
   See `phoenix.sim2real.actuator_gate` for what replaced each.
 
+### 2026-09-17 s9: the attitude threshold was briefly shared by sim and hardware
+
+Between `e93f1b9` and the fix recorded here, `FailureThresholds`' defaults moved
+from pitch 0.8 / roll 0.6 rad to 0.40 rad on both, to serve the hardware
+attitude intervention. `phoenix.training.evaluate` builds its rollout analyzer
+from the same dataclass, so for that window SIM rollouts were scored at the
+HARDWARE bar: a stricter one than every historical sim number in this repo (the
+32/32 stand successes, the H25 evaluations, every rollout metrics JSON under
+`docs/`).
+
+No sim result was produced or published in that window, so nothing on record is
+invalid. The coupling is now removed rather than merely documented:
+
+* `DEFAULT_ATTITUDE_INTERVENTION_RAD` (0.40 rad) stays the HARDWARE
+  intervention, below the run card's 25 degree operator-halt instruction.
+* `phoenix.real_world.failure_detector.sim_analysis_thresholds()` carries the
+  SIM analysis bar (pitch 0.8 / roll 0.6), and `evaluate.py` and
+  `phoenix.replay.variant_writer` both use it.
+
+The two are separate quantities answering separate questions and neither should
+move because the other did. Old and new sim failure counts are comparable again.
+Pinned by `tests/test_variant_writer.py::test_a_tilt_below_the_sim_bar_is_not_a_failure`.
+
 ## Hardware-unverified
 
 Nothing in this pass ran on hardware; no robot was connected at any point.

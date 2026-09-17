@@ -29,8 +29,13 @@ Where each numeric threshold comes from (none is new):
   sensors and ``safety.estop_timeout_s`` for the deadman heartbeat. A gap that
   long would already trip the node's own fail-closed watchdog.
 * Command / LowCmd gaps: the bridge's command watchdog (``watchdog_s``).
-* Attitude: ``FailureThresholds`` pitch 0.8 rad / roll 0.6 rad, the policy node's
-  abort thresholds.
+* Attitude: ``DEFAULT_ATTITUDE_INTERVENTION_RAD`` = 0.40 rad on BOTH pitch and
+  roll, the policy node's abort threshold and the same number
+  ``safety.attitude_intervention_rad`` overrides. It is deliberately below the
+  run card's 25 degree operator-halt instruction so software intervenes first.
+  This is NOT the simulator analysis bar (pitch 0.8 / roll 0.6, see
+  ``phoenix.real_world.failure_detector.sim_analysis_thresholds``); the two were
+  the same dataclass default until 2026-09-17 and are now split.
 * Hold-test motion bound: one slew cap, ``MAX_DELTA_PER_STEP_RAD``.
 * Stand authority tolerance: two control periods at the configured rate.
 
@@ -49,7 +54,7 @@ from typing import Any
 import numpy as np
 
 from phoenix.real_world.failure_detector import (
-    FailureThresholds,
+    DEFAULT_ATTITUDE_INTERVENTION_RAD,
     resolve_attitude_intervention_rad,
 )
 
@@ -62,6 +67,25 @@ from .go2_model import (
     limits_in_order,
 )
 from .safety import MAX_DELTA_PER_STEP_RAD
+
+#: Services and nodes that must not be running during a Phoenix session.
+#:
+#: ``come-here.service`` autostarts on Jetson boot. Measured on 2026-09-17 it
+#: starves the payload (132 topics against 109, ``/lowstate`` at 349 Hz against
+#: the field notes' 500) AND it can command the robot, so a Phoenix session
+#: sharing the robot with it is both a degraded measurement and a second
+#: uncommanded authority over the motors. The 2026-09-17 audit recorded that no
+#: interlock refusing to run while it is active existed; this is that interlock.
+COMPETING_SERVICES: tuple[str, ...] = ("come-here.service",)
+
+#: Substrings that identify a competing node in the ROS graph. Matched
+#: case-insensitively against node names, because a service can be started by
+#: hand under a different unit name but still brings the same nodes up.
+COMPETING_NODE_SUBSTRINGS: tuple[str, ...] = ("come_here", "come-here", "comehere")
+
+#: ``/lowstate`` floor below which the payload is assumed to be starved. The
+#: field notes measure 500 Hz; 349 Hz was recorded with come-here running.
+LOWSTATE_STARVATION_FLOOR_HZ = 400.0
 
 STAGE_SCHEMA = "phoenix-preflight-stage/v1"
 STAGES: tuple[str, ...] = ("A", "B", "C", "D", "E", "F", "G", "H")
@@ -223,7 +247,7 @@ def sensor_content_checks(
 ) -> list[Check]:
     """Physically plausible sensor CONTENT, not just flow (stage D)."""
     attitude_limit = (
-        FailureThresholds().pitch_rad
+        DEFAULT_ATTITUDE_INTERVENTION_RAD
         if attitude_intervention_rad is None
         else float(attitude_intervention_rad)
     )
@@ -287,6 +311,83 @@ def sensor_content_checks(
 
 
 # ------------------------------------------------------------ bridge records
+def contention_checks(probe: Mapping[str, Any]) -> list[Check]:
+    """Refuse to run while another system shares the robot.
+
+    Takes what a contention probe recorded: the active systemd units it found,
+    the ROS node names it saw, and optionally the measured ``/lowstate`` rate.
+    Every check is GATING. Absent evidence is a FAIL, not a pass: a stage that
+    counted because nobody looked is exactly the failure mode the staged gates
+    exist to prevent.
+    """
+
+    checks: list[Check] = []
+    units = probe.get("active_units")
+    if units is None:
+        checks.append(
+            _check(
+                "competing services were checked",
+                False,
+                "probe recorded no active_units; run the contention probe first",
+            )
+        )
+    else:
+        active = sorted({str(u) for u in units})
+        offenders = [u for u in active if u in COMPETING_SERVICES]
+        checks.append(
+            _check(
+                f"none of {list(COMPETING_SERVICES)} is active",
+                not offenders,
+                (
+                    (
+                        f"active competing units: {offenders}; stop them "
+                        "(sudo systemctl stop <unit>) before this session"
+                    )
+                    if offenders
+                    else f"{len(active)} active unit(s) recorded, none competing"
+                ),
+            )
+        )
+
+    nodes = probe.get("ros_nodes")
+    if nodes is None:
+        checks.append(
+            _check(
+                "ROS graph was checked for competing nodes",
+                False,
+                "probe recorded no ros_nodes; run the contention probe first",
+            )
+        )
+    else:
+        names = [str(n) for n in nodes]
+        offenders = sorted({n for n in names for s in COMPETING_NODE_SUBSTRINGS if s in n.lower()})
+        checks.append(
+            _check(
+                "no competing node in the ROS graph",
+                not offenders,
+                (
+                    f"competing nodes: {offenders}"
+                    if offenders
+                    else f"{len(names)} node(s), none competing"
+                ),
+            )
+        )
+
+    rate = probe.get("lowstate_rate_hz")
+    if rate is not None:
+        checks.append(
+            _check(
+                f"/lowstate at or above {LOWSTATE_STARVATION_FLOOR_HZ:g} Hz",
+                float(rate) >= LOWSTATE_STARVATION_FLOOR_HZ,
+                (
+                    f"measured {float(rate):.1f} Hz; below the floor means the payload is "
+                    "starved even if no competing unit was named"
+                ),
+            )
+        )
+    return checks
+
+
 def manifest_checks(
     manifest: Mapping[str, Any],
     *,

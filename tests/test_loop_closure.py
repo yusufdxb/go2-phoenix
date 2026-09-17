@@ -22,6 +22,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "loop_closure.sh"
 
+#: The seed the staged variations config declares. The held-out arm must use a
+#: different one or its perturbation points are the training pool's.
+TRAIN_VARIATION_SEED = 1234
+
 STUB_PYTHON = r"""#!/usr/bin/env bash
 # Stub python3 for loop_closure.sh tests. Real interpreter for everything the
 # script needs to actually compute; canned behaviour for the Isaac entry points.
@@ -70,11 +74,36 @@ phoenix.adaptation.fine_tune)
     ;;
 phoenix.replay.reconstruct)
     outdir=""
+    policy=""
+    varseed=""
+    traj=""
     for i in "${!ARGS[@]}"; do
         [[ "${ARGS[$i]}" == "--output-dir" ]] && outdir="${ARGS[$((i + 1))]}"
+        [[ "${ARGS[$i]}" == "--policy" ]] && policy="${ARGS[$((i + 1))]}"
+        [[ "${ARGS[$i]}" == "--variation-seed" ]] && varseed="${ARGS[$((i + 1))]}"
+        [[ "${ARGS[$i]}" == "--trajectory" ]] && traj="${ARGS[$((i + 1))]}"
     done
+    # The real entry point now REQUIRES a policy (or an explicit opt-in to the
+    # zero-action diagnostic). A stub that accepted a bare call would hide a
+    # regression where loop_closure stops driving the replay.
+    if [[ -z "$policy" ]]; then
+        echo "[stub] reconstruct called without --policy" >&2
+        exit 2
+    fi
+    printf '%s\n' "traj=$traj policy=$policy varseed=$varseed outdir=$outdir" >> reconstruct_calls.log
     mkdir -p "$outdir"
-    echo '{"controller": "zero_action_diagnostic"}' > "$outdir/replay_summary.json"
+    if [[ -n "$varseed" ]]; then
+        # Held-out arm.
+        n=${STUB_HELDOUT_VARIANTS-4}
+        failed=${STUB_HELDOUT_FAILED-1}
+        printf '{"controller": "policy_driven_replay", "variation_seed": %s}\n' "$varseed" \
+            > "$outdir/replay_summary.json"
+        printf '{"variants_written": %s, "variants_with_failure": %s, "variants": []}\n' \
+            "$n" "$failed" > "$outdir/variants_index.json"
+        echo "[stub] heldout replay $n variants, $failed failed"
+        exit 0
+    fi
+    echo '{"controller": "policy_driven_replay"}' > "$outdir/replay_summary.json"
     for ((v = 0; v < ${STUB_VARIANTS-0}; v++)); do
         if [[ -n "${STUB_VARIANT_FROM-}" ]]; then
             cp "${STUB_VARIANT_FROM}" "$outdir/variant_${v}.parquet"
@@ -82,6 +111,8 @@ phoenix.replay.reconstruct)
             echo "variant$v" > "$outdir/variant_${v}.parquet"
         fi
     done
+    printf '{"variants_written": %s, "variants_with_failure": 0, "variants": []}\n' \
+        "${STUB_VARIANTS-0}" > "$outdir/variants_index.json"
     echo "[stub] reconstruct wrote ${STUB_VARIANTS-0} variants"
     ;;
 phoenix.training.evaluate)
@@ -115,18 +146,24 @@ def staged(tmp_path):
     (repo / "scripts" / SCRIPT.name).chmod(0o755)
     (repo / "scripts" / "_activate.sh").write_text("# stubbed for tests\n")
 
-    ckpt = repo / "checkpoints" / "phoenix-flat" / "2026-04-16_21-39-16"
+    # The locked H25 stand deliverable, which is what the hardware gates run.
+    ckpt = repo / "checkpoints" / "phoenix-stand-h25-lat-noise" / "2026-06-22_21-08-20"
     ckpt.mkdir(parents=True)
-    (ckpt / "model_999.pt").write_text("stub")
+    (ckpt / "model_799.pt").write_text("stub")
 
     for cfg in (
-        "configs/replay/variations.yaml",
-        "configs/env/flat.yaml",
+        "configs/env/stand_v3_h25.yaml",
         "configs/train/adaptation_loop_closure.yaml",
     ):
         path = repo / cfg
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}\n")
+
+    # The script reads the training variation seed out of this file so it can
+    # refuse a held-out arm that would draw the same Halton points.
+    variations = repo / "configs" / "replay" / "variations.yaml"
+    variations.parent.mkdir(parents=True, exist_ok=True)
+    variations.write_text(f"variations:\n  seed: {TRAIN_VARIATION_SEED}\n  per_trajectory: 4\n")
 
     failures = repo / "data" / "failures"
     failures.mkdir(parents=True)
@@ -269,11 +306,107 @@ def test_real_directory_at_the_pool_symlink_path_is_refused(staged):
     assert "is not a symlink" in res.stderr
 
 
-def test_report_does_not_claim_a_heldout_evaluation(staged):
+def _report(repo) -> str:
+    return next((repo / "docs").glob("loop_closure_*")).joinpath("report.md").read_text()
+
+
+# ------------------------------------------------ the replay is actually driven
+def test_the_replay_stage_drives_the_baseline_policy(staged):
+    """A zero-action replay reproduces nothing; the stage must pass --policy."""
+    repo, _ = staged
+    res = _run(staged, STUB_VARIANTS=2)
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    calls = (repo / "reconstruct_calls.log").read_text().splitlines()
+    # The first replay is the training one: driven by the baseline policy.
+    assert "policy=checkpoints/phoenix-stand-h25-lat-noise" in calls[0]
+    assert "traj=data/failures/train.parquet" in calls[0]
+
+
+def test_the_locked_h25_stand_is_the_default_baseline(staged):
+    """The script used to adapt walking v3b on flat.yaml, not what ships."""
     repo, _ = staged
     res = _run(staged, STUB_VARIANTS=1)
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
-    report = next((repo / "docs").glob("loop_closure_*")).joinpath("report.md").read_text()
-    assert "was NOT evaluated" in report
-    assert "No held-out scenario evaluation" in report
-    assert "held-out scenario" not in report.split("## Held-out parquet")[0].lower()
+    report = _report(repo)
+    assert "phoenix-stand-h25-lat-noise" in report
+    assert "configs/env/stand_v3_h25.yaml" in report
+    evals = (repo / "eval_calls.log").read_text()
+    assert "configs/env/stand_v3_h25.yaml" in evals
+    assert "flat.yaml" not in evals
+
+
+# --------------------------------------------------------- the held-out arm
+def test_the_heldout_arm_runs_and_is_reported(staged):
+    repo, _ = staged
+    res = _run(staged, STUB_VARIANTS=2, STUB_HELDOUT_VARIANTS=4, STUB_HELDOUT_FAILED=1)
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    report = _report(repo)
+    assert "## Held-out arm" in report
+    assert "held-out failure rate" in report
+    assert "0.2500" in report  # 1 of 4 variants failed
+    # One held-out replay per policy: baseline plus one per training seed.
+    calls = (repo / "reconstruct_calls.log").read_text().splitlines()
+    heldout_calls = [c for c in calls if "traj=data/failures/heldout.parquet" in c]
+    assert len(heldout_calls) == 4
+
+
+def test_the_heldout_arm_uses_disjoint_halton_points(staged):
+    repo, _ = staged
+    res = _run(staged, STUB_VARIANTS=1)
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    calls = (repo / "reconstruct_calls.log").read_text().splitlines()
+    heldout = [c for c in calls if "traj=data/failures/heldout.parquet" in c]
+    assert heldout, "no held-out replay ran"
+    for call in heldout:
+        assert "varseed=20260917" in call
+        assert f"varseed={TRAIN_VARIATION_SEED}" not in call
+
+
+def test_reusing_the_training_variation_seed_is_refused(staged):
+    """Same Halton points as training means the arm is not held out."""
+    res = _run(staged, ("--heldout-variation-seed", str(TRAIN_VARIATION_SEED)), STUB_VARIANTS=1)
+    assert res.returncode != 0
+    assert "the SAME Halton points training saw" in res.stderr
+
+
+def test_a_failed_heldout_replay_is_a_hard_stop(staged):
+    # STUB_HELDOUT_VARIANTS=0 is what a refused hardware-capture seed looks
+    # like from here: nothing to measure, so the arm must not report a rate.
+    res = _run(staged, STUB_VARIANTS=1, STUB_HELDOUT_VARIANTS=0)
+    assert res.returncode != 0
+    assert "produced 0 variants" in res.stderr
+
+
+def test_skipping_the_heldout_arm_is_recorded_and_cannot_pass(staged):
+    repo, _ = staged
+    res = _run(staged, ("--skip-heldout",), STUB_VARIANTS=1)
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    report = _report(repo)
+    assert "held-out ARM was SKIPPED" in report
+    assert "no held-out evidence and no generalization claim" in report
+
+
+# ------------------------------------------------- the decision cannot cherry-pick
+def test_the_decision_rule_is_not_any_seed_that_improved(staged):
+    repo, _ = staged
+    res = _run(staged, STUB_VARIANTS=1)
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    report = _report(repo)
+    decision = report.split("## Decision")[1]
+    assert "MEAN adapted success_rate across ALL" in decision
+    assert "pre-declared" in decision.lower()
+    assert "cherry-picking" in decision
+    # The old rule, and the old "pick best seed" next step, must be gone.
+    assert "passes if ANY adapted seed" not in report
+    assert "pick best seed" not in report
+    assert "Do NOT pick the best" in report
+
+
+def test_the_report_still_states_what_the_run_is_not(staged):
+    repo, _ = staged
+    res = _run(staged, STUB_VARIANTS=1)
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    report = _report(repo)
+    assert "Sim-only" in report
+    assert "correlated copies of ONE captured state" in report or "copies of ONE" in report
+    assert "No fresh post-training hardware trial" in report

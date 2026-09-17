@@ -17,8 +17,29 @@ What gets perturbed per env:
   the lower-level PhysX material API and is intentionally not done here;
   the per-env mass + initial-velocity sweep gives most of the variation.
 
-The pure-numpy translation of variation samples → per-env tensors lives
-in :mod:`phoenix.replay.apply_variations` and is unit-tested in CI.
+The pure-numpy translation of variation samples -> per-env tensors lives
+in :mod:`phoenix.replay.apply_variations` and is unit-tested in CI, and the
+per-variant Parquet writing lives in :mod:`phoenix.replay.variant_writer`,
+also unit-tested in CI.
+
+What this entry point produces
+------------------------------
+
+Until 2026-09-17 it applied a ZERO action for the whole horizon and wrote only
+``replay_summary.json``. Nothing was reproduced (the robot was not being
+driven) and no trajectories were emitted, so ``scripts/loop_closure.sh``
+aborted at its replay stage by design and the Phoenix loop had never closed.
+
+Now ``--policy CHECKPOINT`` drives the rollout with the policy whose failure is
+being replayed, and every variant env is written to its own Parquet in the
+schema the adaptation curriculum already reads. The legacy behaviour is still
+available but must be asked for by name with ``--zero-action-diagnostic``, and
+the summary then records ``reproduction_evidence: false``. One of the two flags
+is required: the old default silently produced the weaker artifact.
+
+A capture whose ``position_frame`` has no validated inverse into simulator
+coordinates (a real-robot boot-relative odometry capture) is REFUSED with exit
+code 2 rather than seeded; see :mod:`phoenix.replay.state_adapter`.
 """
 
 from __future__ import annotations
@@ -45,7 +66,47 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--headless", action="store_true", default=True)
     p.add_argument("--device", type=str, default="cuda:0")
     p.add_argument("--output-dir", type=Path, default=Path("media/renders/replay"))
-    return p.parse_args(argv)
+    p.add_argument(
+        "--policy",
+        type=Path,
+        default=None,
+        help=(
+            "rsl_rl checkpoint to DRIVE the replay. Without it the rollout applies a "
+            "zero action, which reproduces nothing and is only a state-discovery "
+            "diagnostic; --zero-action-diagnostic must then be passed explicitly."
+        ),
+    )
+    p.add_argument(
+        "--zero-action-diagnostic",
+        action="store_true",
+        help="Run the legacy zero-action rollout instead of a policy-driven replay.",
+    )
+    p.add_argument(
+        "--variation-seed",
+        type=int,
+        default=None,
+        help=(
+            "Override the Halton seed from the variations config. Use a DIFFERENT "
+            "seed for a held-out arm so its variation points are disjoint from the "
+            "ones training saw; reusing the seed makes the held-out trajectory's "
+            "perturbations identical to the training pool's and the arm is not held out."
+        ),
+    )
+    p.add_argument(
+        "--no-variant-trajectories",
+        action="store_true",
+        help="Skip writing per-variant Parquet trajectories (summary JSON only).",
+    )
+    args = p.parse_args(argv)
+    if args.policy is None and not args.zero_action_diagnostic:
+        p.error(
+            "pass --policy CHECKPOINT to replay the failure with the policy that produced "
+            "it, or --zero-action-diagnostic to run the legacy zero-action rollout and "
+            "have the summary record reproduction_evidence=false"
+        )
+    if args.policy is not None and args.zero_action_diagnostic:
+        p.error("--policy and --zero-action-diagnostic are mutually exclusive")
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,9 +148,30 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     initial = load_initial_state(args.trajectory, row=seed_record["resolved_row"])
     logger.info("Loaded initial state from %s", args.trajectory)
 
+    # A hardware capture is a recording, not a simulator seed: its base_pos is
+    # boot-relative odometry whose z is displacement from the boot pose, not
+    # height above the floor. Restoring it would spawn the trunk at a
+    # fabricated height, so refuse here with the capture named rather than
+    # letting the state write produce a plausible-looking rollout.
+    from phoenix.replay.state_adapter import RESTORABLE_POSITION_FRAMES
+    if initial.position_frame not in RESTORABLE_POSITION_FRAMES:
+        logger.error(
+            "%s declares position_frame=%r (source: %s), which has no validated mapping into "
+            "simulator coordinates. Replay refused.",
+            args.trajectory,
+            initial.position_frame,
+            initial.position_frame_source,
+        )
+        return 2
+
+    variation_seed = (
+        int(var_cfg["variations"]["seed"])
+        if args.variation_seed is None
+        else int(args.variation_seed)
+    )
     sampler = VariationSampler(
         bounds=var_cfg["variations"]["dr_bounds"],
-        seed=int(var_cfg["variations"]["seed"]),
+        seed=variation_seed,
     )
     variations = sampler.sample(n_variations)
     logger.info("Sampled %d variations", len(variations))
@@ -108,10 +190,19 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     _apply_friction_scale(env_cfg, mean_friction_scale)
 
     task_name = env_cfg_loaded.to_container()["env"]["task_name"]
-    env = gym.make(task_name, cfg=env_cfg, render_mode=None)
+    raw_env = gym.make(task_name, cfg=env_cfg, render_mode=None)
+
+    # The rsl_rl wrapper RESETS inside its constructor (isaaclab_rl/rsl_rl/
+    # vecenv_wrapper.py: "The wrapper calls reset at the start"), so it must be
+    # built BEFORE the seed state is written or the write is discarded
+    # immediately. Its step() returns (obs, reward, dones, extras) and its
+    # get_observations() recomputes from the observation manager, so it
+    # reflects a state written by hand.
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+    env = RslRlVecEnvWrapper(raw_env, clip_actions=1.0)
 
     # ---- Apply per-env variation & initial state ---------------------------
-    env.reset()  # drive the gym wrapper out of ResetNeeded state
     unwrapped = env.unwrapped
     robot = unwrapped.scene["robot"]
     device = args.device
@@ -154,41 +245,237 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     horizon_s = float(var_cfg["replay"]["horizon_s"])
     ctrl_dt = float(var_cfg["replay"]["dt"])
     n_steps = int(horizon_s / ctrl_dt)
+    action_dim = int(env.action_space.shape[-1])
 
-    # Zero-action rollout. The purpose here is *state discovery under the
-    # sampled perturbations* — a downstream training run replaces the zero
-    # action with the live policy when used as a curriculum seed.
-    action = torch.zeros(n_variations, int(env.action_space.shape[-1]), device=device)
+    policy = None
+    if args.policy is not None:
+        policy = _load_policy(env, args, task_name)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    writer = None
+    if not args.no_variant_trajectories:
+        from phoenix.replay.variant_writer import VariantTrajectoryWriter
+
+        writer = VariantTrajectoryWriter(
+            args.output_dir, n_variations, control_dt=ctrl_dt
+        )
+
+    obs = _policy_observation(env.get_observations())
+    steps_run = 0
+    with torch.inference_mode():
+        for step_index in range(n_steps):
+            if policy is None:
+                # State discovery under the sampled perturbations only. This
+                # reproduces nothing: the robot is not being driven, so a
+                # "the failure reproduced" claim from this arm would be false.
+                action = torch.zeros(n_variations, action_dim, device=device)
+            else:
+                action = policy(obs)
+
+            # Snapshot BEFORE stepping. env.step() resets whichever envs
+            # terminate, so state read after the step is post-reset for exactly
+            # the envs whose terminal state matters most.
+            snapshot = _snapshot(unwrapped, robot, n_variations) if writer else None
+
+            obs_td, _reward, dones, _extras = env.step(action)
+            obs = _policy_observation(obs_td)
+            steps_run = step_index + 1
+
+            if writer is not None:
+                writer.append_step(
+                    step_index,
+                    action=_np(action)[:n_variations, :12],
+                    terminated=_np(dones).astype(bool).reshape(n_variations),
+                    **snapshot,
+                )
+                if writer.active_envs == 0:
+                    logger.info("every variant terminated by step %d", step_index)
+                    break
+
+    variant_results = writer.close() if writer is not None else []
+    controller = "zero_action_diagnostic" if policy is None else "policy_driven_replay"
     summary = {
         "trajectory": str(args.trajectory),
         "seed": seed_record,
-        "controller": "zero_action_diagnostic",
-        "reproduction_evidence": False,
+        "controller": controller,
+        # True only when a policy actually drove the rollout AND per-variant
+        # trajectories were recorded, so the claim can be checked against
+        # artifacts rather than taken on trust.
+        "reproduction_evidence": bool(policy is not None and variant_results),
+        "policy_checkpoint": None if args.policy is None else str(args.policy),
         "position_frame": initial.position_frame,
         "position_frame_source": initial.position_frame_source,
         "replay_fidelity": "state_only_seed",
         "command_hold": "episode",
         "n_variations": n_variations,
+        "variation_seed": variation_seed,
         "horizon_steps": n_steps,
+        "steps_run": steps_run,
         "friction_scale_mean": mean_friction_scale,
         "mass_delta_applied": mass_applied,
+        "variants_written": len(variant_results),
+        "variants_with_failure": sum(1 for r in variant_results if r.failed),
         "variations": [v.__dict__ for v in variations],
     }
 
-    for _ in range(n_steps):
-        env.step(action)
-
     (args.output_dir / "replay_summary.json").write_text(json.dumps(summary, indent=2))
+    if writer is not None:
+        writer.write_index(
+            args.output_dir / "variants_index.json",
+            extra={
+                "trajectory": str(args.trajectory),
+                "controller": controller,
+                "policy_checkpoint": summary["policy_checkpoint"],
+                "variation_seed": variation_seed,
+            },
+        )
     logger.info(
-        "Wrote replay summary to %s (mass_applied=%s, friction_scale=%.3f)",
+        "Wrote %d variant trajectories to %s (%d with a detected failure); "
+        "controller=%s mass_applied=%s friction_scale=%.3f",
+        len(variant_results),
         args.output_dir,
+        summary["variants_with_failure"],
+        controller,
         mass_applied,
         mean_friction_scale,
     )
     env.close()
     return 0
+
+
+def _np(value):
+    """Tensor or warp array to numpy, matching the repo's _to_numpy idiom."""
+    import numpy as np
+
+    if hasattr(value, "detach"):
+        value = value.detach()
+    if hasattr(value, "cpu"):
+        value = value.cpu()
+    if hasattr(value, "numpy") and not isinstance(value, np.ndarray):
+        value = value.numpy()
+    return np.asarray(value)
+
+
+def _policy_observation(obs):
+    """Flatten the wrapper's TensorDict to the policy observation group."""
+    if isinstance(obs, tuple):
+        obs = obs[0]
+    try:
+        return obs["policy"]
+    except (KeyError, TypeError, IndexError):
+        pass
+    if hasattr(obs, "values"):
+        return next(iter(obs.values()))
+    return obs
+
+
+def _snapshot(unwrapped, robot, n: int) -> dict:
+    """Env-local state for every variant env, in the Parquet schema's frames.
+
+    Positions are made environment-local (the capture convention) and the
+    quaternion is converted from Isaac Lab's wxyz to the schema's xyzw. Both
+    conversions match :mod:`phoenix.real_world.synthesize_failure`.
+    """
+    import numpy as np
+
+    data = robot.data
+    origins = _np(unwrapped.scene.env_origins)[:n, :3]
+    base_pos = _np(data.root_pos_w)[:n, :3] - origins
+    quat_wxyz = _np(data.root_quat_w)[:n, :4]
+    quat_xyzw = np.roll(quat_wxyz, -1, axis=-1)
+    contacts = np.zeros((n, 4), dtype=np.float32)
+    try:
+        sensor = unwrapped.scene["contact_forces"]
+        feet = [i for i, name in enumerate(sensor.body_names) if name.lower().endswith("foot")]
+        if len(feet) == 4:
+            contacts = np.linalg.norm(_np(sensor.data.net_forces_w)[:n, feet], axis=-1)
+    except (KeyError, AttributeError):
+        pass
+    return {
+        "base_pos": base_pos,
+        "base_quat_xyzw": quat_xyzw,
+        "base_lin_vel_body": _np(data.root_lin_vel_b)[:n, :3],
+        "base_ang_vel_body": _np(data.root_ang_vel_b)[:n, :3],
+        "joint_pos": _np(data.joint_pos)[:n, :12],
+        "joint_vel": _np(data.joint_vel)[:n, :12],
+        "command_vel": _np(unwrapped.command_manager.get_command("base_velocity"))[:n, :3],
+        "contact_forces": contacts,
+        # base_pos is env-origin-relative and the origin sits on the flat
+        # ground plane, so column 2 IS a validated ground-relative height.
+        # This is the one replay path that may feed the collapse detector.
+        "base_height": base_pos[:, 2:3],
+    }
+
+
+def _load_policy(env, args, task_name: str):
+    """Rebuild the rsl_rl inference policy from a checkpoint.
+
+    Mirrors :mod:`phoenix.training.evaluate`, including resolving
+    ``empirical_normalization`` FROM THE CHECKPOINT. A hardcoded ``True`` on a
+    checkpoint without normalizer buffers silently shrinks every observation by
+    1% (see ``phoenix.sim2real.export.checkpoint_has_obs_normalizer``), which
+    would make the replay a different function of the state than the run being
+    reproduced.
+    """
+    from importlib import metadata
+
+    from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg
+    from rsl_rl.runners import OnPolicyRunner
+
+    from phoenix.sim2real.export import checkpoint_has_obs_normalizer
+    from phoenix.training.agent_cfg import build_runner_cfg
+    from phoenix.training.checkpoint import load_runner_checkpoint
+
+    use_norm = checkpoint_has_obs_normalizer(args.policy)
+    logger.info("empirical_normalization resolved from checkpoint: %s", use_norm)
+    runner_yaml = {
+        "run": {
+            "name": "replay",
+            "output_dir": "/tmp",
+            "log_interval": 1,
+            "save_interval": 1,
+            "max_iterations": 1,
+            "seed": 0,
+            "device": args.device,
+        },
+        "algorithm": {
+            "class_name": "PPO",
+            "value_loss_coef": 1.0,
+            "use_clipped_value_loss": True,
+            "clip_param": 0.2,
+            "entropy_coef": 0.005,
+            "num_learning_epochs": 5,
+            "num_mini_batches": 4,
+            "learning_rate": 1.0e-3,
+            "schedule": "adaptive",
+            "gamma": 0.99,
+            "lam": 0.95,
+            "desired_kl": 0.01,
+            "max_grad_norm": 1.0,
+        },
+        "policy": {
+            "class_name": "ActorCritic",
+            "init_noise_std": 1.0,
+            "actor_hidden_dims": [512, 256, 128],
+            "critic_hidden_dims": [512, 256, 128],
+            "activation": "elu",
+        },
+        "runner": {"num_steps_per_env": 24, "empirical_normalization": use_norm},
+    }
+    runner_cfg = build_runner_cfg(runner_yaml, task_name)
+    runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))
+    runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=None, device=args.device)
+    info = load_runner_checkpoint(
+        runner,
+        args.policy,
+        load_actor=True,
+        load_critic=False,
+        load_optimizer=False,
+        load_iteration=False,
+    )
+    if not info.get("actor_match", False):
+        raise RuntimeError(f"Actor weights did not round-trip from {args.policy}: {info}")
+    return runner.get_inference_policy(device=args.device)
 
 
 def _apply_friction_scale(env_cfg, scale: float) -> None:

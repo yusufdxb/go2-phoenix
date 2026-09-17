@@ -44,9 +44,16 @@ def main() -> int:
         from rsl_rl.runners import OnPolicyRunner
 
         from phoenix.reliability.deploy import load_artifact
+        from phoenix.sim2real.export import checkpoint_has_obs_normalizer
         from phoenix.sim_env import build_env_cfg, load_layered_config
         from phoenix.training.agent_cfg import build_runner_cfg
         from phoenix.training.checkpoint import load_runner_checkpoint
+
+        # Resolved from the checkpoint, never hardcoded: a hardcoded True on a
+        # checkpoint with no normalizer buffers shrinks every observation by 1%
+        # (see phoenix.sim2real.export.checkpoint_has_obs_normalizer).
+        use_norm = checkpoint_has_obs_normalizer(args.checkpoint)
+        print(f"[reset_transient] empirical_normalization from checkpoint: {use_norm}", flush=True)
 
         monitor, op, meta = load_artifact(args.artifact)
         cfg = load_layered_config(args.env_config)
@@ -65,7 +72,7 @@ def main() -> int:
             "policy": {"class_name": "ActorCritic", "init_noise_std": 1.0,
                        "actor_hidden_dims": [512, 256, 128], "critic_hidden_dims": [512, 256, 128],
                        "activation": "elu"},
-            "runner": {"num_steps_per_env": 24, "empirical_normalization": True},
+            "runner": {"num_steps_per_env": 24, "empirical_normalization": use_norm},
         }
         runner_cfg = handle_deprecated_rsl_rl_cfg(build_runner_cfg(eval_yaml, task), md.version("rsl-rl-lib"))
         runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=None, device=args.device)
