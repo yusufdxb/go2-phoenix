@@ -134,9 +134,12 @@ else
   echo "         $IMPORTED" >&2
   echo "       expected:" >&2
   echo "         $EXPECTED" >&2
-  echo "       Fix on the payload (no internet needed):" >&2
-  echo "         cd '$RPATH' && python3 -m pip install --no-deps --no-build-isolation -e ." >&2
+  echo "       Fix on the payload (no internet needed). Use the .pth entry:" >&2
+  echo "         python3 -c \"import site, os; p = site.getusersitepackages(); os.makedirs(p, exist_ok=True); open(os.path.join(p, 'phoenix-dev.pth'), 'w').write('$RPATH/src' + chr(10)); print('wrote ' + p)\"" >&2
   echo "       then re-run this script." >&2
+  echo "       Do NOT use 'pip install -e .' here: the payload's setuptools is" >&2
+  echo "       59.6.0, which predates PEP 660, so an editable install FAILS" >&2
+  echo "       (measured 2026-09-17)." >&2
   exit 1
 fi
 
