@@ -61,10 +61,9 @@ def main(argv: list[str] | None = None) -> int:
     simulation_app = app_launcher.app
     logger.info("Isaac Sim launched")
 
-    try:
-        return _run(args, simulation_app)
-    finally:
-        simulation_app.close()
+    from phoenix.sim_app_exit import run_isaac_main
+
+    return run_isaac_main(lambda: _run(args, simulation_app), simulation_app, label="train")
 
 
 def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001

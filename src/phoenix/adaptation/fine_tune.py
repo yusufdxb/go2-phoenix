@@ -131,6 +131,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="FailureCurriculum RNG seed. Defaults to --seed, never to 0.",
     )
+    p.add_argument(
+        "--seed-row-strategy",
+        type=str,
+        default=None,
+        help=(
+            "Override curriculum.seed_row_strategy. The default backs off 0.5 s from "
+            "failure onset, which is impossible for a capture whose first failure sits "
+            "inside the first 25 rows; such a pool raises 'Requested pre-onset row -1 "
+            "unavailable' at reset-bridge install. Use failure_onset for those."
+        ),
+    )
+    p.add_argument(
+        "--seed-row-offset-seconds",
+        type=float,
+        default=None,
+        help="Override curriculum.seed_row_offset_seconds (default 0.5).",
+    )
     p.add_argument("--headless", action="store_true", default=True)
     return p.parse_args(argv)
 
@@ -144,15 +161,9 @@ def main(argv: list[str] | None = None) -> int:
     app_launcher = AppLauncher(headless=args.headless)
     simulation_app = app_launcher.app
     print("[adapt] app launched", flush=True)
-    try:
-        return _run(args, simulation_app)
-    except BaseException:
-        import traceback
+    from phoenix.sim_app_exit import run_isaac_main
 
-        traceback.print_exc()
-        raise
-    finally:
-        simulation_app.close()
+    return run_isaac_main(lambda: _run(args, simulation_app), simulation_app, label="adapt")
 
 
 def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
@@ -307,14 +318,30 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         from phoenix.adaptation.scenario_bridge import FrictionScenarioAdapter
 
         scenario_adapter = FrictionScenarioAdapter(env.unwrapped)
+    # CLI overrides the config so one run has a single seeding story: the replay
+    # that built the pool and the curriculum that consumes it must agree, and
+    # scripts/loop_closure.sh passes the same value to both.
+    seed_row_strategy = args.seed_row_strategy or reset_cfg.get(
+        "seed_row_strategy", "failure_onset_minus_seconds"
+    )
+    seed_row_offset_seconds = (
+        args.seed_row_offset_seconds
+        if args.seed_row_offset_seconds is not None
+        else float(reset_cfg.get("seed_row_offset_seconds", 0.5))
+    )
+    print(
+        f"[adapt] curriculum seeding: {seed_row_strategy} "
+        f"(offset {seed_row_offset_seconds}s)",
+        flush=True,
+    )
     install_reset_bridge(
         env,
         curriculum,
-        seed_row_strategy=reset_cfg.get("seed_row_strategy", "failure_onset_minus_seconds"),
+        seed_row_strategy=seed_row_strategy,
         seed_row_offset_steps=reset_cfg.get(
             "seed_row_offset_steps", reset_cfg.get("seed_row_offset_k", 0)
         ),
-        seed_row_offset_seconds=float(reset_cfg.get("seed_row_offset_seconds", 0.5)),
+        seed_row_offset_seconds=float(seed_row_offset_seconds),
         command_policy=reset_cfg.get("command_policy", "source_hold_to_onset"),
         command_hold_seconds=reset_cfg.get("command_hold_seconds"),
         position_frame=reset_cfg.get("position_frame"),
