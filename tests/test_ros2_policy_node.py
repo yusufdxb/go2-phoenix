@@ -85,6 +85,9 @@ def test_latch_abort_flushes_parquet_footer(tmp_path) -> None:
 
     table = pq.read_table(path)
     assert table.num_rows == 10
+    assert table.column("step").to_pylist() == list(range(10))
+    assert pq.ParquetFile(path).metadata.num_rows == 10
+    assert path.read_bytes()[-4:] == b"PAR1"
 
 
 def test_latch_abort_is_idempotent_with_shutdown(tmp_path) -> None:
