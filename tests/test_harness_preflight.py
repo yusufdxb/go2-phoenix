@@ -129,3 +129,53 @@ def test_estop_publisher_refuses_outside_a_dryrun(tmp_path) -> None:
     res = _run(["bash", str(ESTOP)], tmp_path)
     assert res.returncode != 0
     assert "NOT A DEADMAN" in res.stderr
+
+
+def _harness_source() -> str:
+    return HARNESS.read_text()
+
+
+def test_every_on_robot_stage_runs_the_contention_interlock() -> None:
+    """come-here can command the robot; no stage may start while it is up."""
+    src = _harness_source()
+    assert "assert_no_contention() {" in src
+    # B..E plus the shared stand function that serves F, G and H.
+    for call in ("assert_no_contention B", "assert_no_contention C",
+                 "assert_no_contention D", "assert_no_contention E",
+                 'assert_no_contention "$stage"'):
+        assert call in src, f"missing {call}"
+
+
+def test_contention_evidence_is_per_stage_not_overwritten() -> None:
+    # A single contention.json would let a later stage inherit an earlier
+    # stage's evidence, which is the same class of bug as a stale ledger.
+    src = _harness_source()
+    assert 'contention_${stage}.json' in src
+    assert '"$SESSION/contention.json"' not in src
+
+
+def test_the_operator_gate_defaults_to_the_terminal() -> None:
+    """Wiring the remote must not silently change how a live stage is confirmed."""
+    src = _harness_source()
+    assert 'if [[ "${PHOENIX_OPERATOR_REMOTE:-0}" != "1" ]]; then' in src
+
+
+def test_the_operator_gate_fails_closed_on_an_unusable_answer() -> None:
+    src = _harness_source()
+    gate = src.split("operator_gate() {", 1)[1].split("\n}", 1)[0]
+    # A timeout or an ambiguous double press must halt, never become a pass.
+    assert "halt \"operator remote gave no usable judgement" in gate
+    assert "halt \"operator remote returned" in gate
+    # Only an explicit A is a yes.
+    assert "yes) printf 'y'" in gate
+    assert "no|halt) printf 'n'" in gate
+
+
+def test_the_live_stand_prompts_go_through_the_operator_gate() -> None:
+    src = _harness_source()
+    stand = src.split("stage_stand() {", 1)[1]
+    assert "operator_gate arm " in stand
+    assert "operator_gate judgement " in stand
+    assert "operator_gate release " in stand
+    # The raw reads they replaced must be gone from the stand path.
+    assert "Press Enter to start: \" _" not in stand

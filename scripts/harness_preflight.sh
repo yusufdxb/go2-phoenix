@@ -208,8 +208,63 @@ bridge_args() {
 # starves the payload and can command the motors, so every on-robot stage runs
 # this first. The verdict logic is phoenix.sim2real.preflight_eval
 # .contention_checks, which fails closed when the probe recorded nothing.
+# Operator interaction for a live stage.
+#
+# Default is the terminal, unchanged. With PHOENIX_OPERATOR_REMOTE=1 the same
+# question is asked through the GO2 remote instead, so the person holding L1 and
+# watching the robot is the one who answers, rather than a second person relaying
+# it to a keyboard. That relay is what src/phoenix/sim2real/operator_remote.py
+# was written for, and until now nothing called it.
+#
+# Fails closed in every direction: a timeout, an ambiguous press (A and B
+# together) or a released deadman all exit non-zero and HALT the stage. The
+# remote can never turn a missing answer into a pass.
+#
+# Modes: arm (hold L1 + Start), judgement (A yes / B NO-GO), release (let go of L1).
+operator_gate() {
+    local mode="$1" label="$2" prompt="$3"
+    if [[ "${PHOENIX_OPERATOR_REMOTE:-0}" != "1" ]]; then
+        case "$mode" in
+            judgement)
+                local answer
+                read -r -p "$prompt" answer
+                printf '%s' "$answer"
+                ;;
+            *)
+                read -r -p "$prompt" _
+                ;;
+        esac
+        return 0
+    fi
+    local out="${RUN:-$SESSION}/remote_${label}_${mode}.json"
+    mkdir -p "$(dirname "$out")"
+    echo "[${label}] remote: $prompt" >&2
+    local rc=0
+    python3 -m phoenix.sim2real.operator_remote "$mode" \
+        --timeout-s "${PHOENIX_OPERATOR_REMOTE_TIMEOUT_S:-120}" --out "$out" >&2 || rc=$?
+    local result
+    result="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['result'])" "$out" 2>/dev/null || echo no_answer)"
+    if [[ $rc -ne 0 && "$mode" != "judgement" ]]; then
+        halt "operator remote returned '$result' for $label $mode (exit $rc)"
+    fi
+    case "$mode" in
+        judgement)
+            case "$result" in
+                yes) printf 'y' ;;
+                no|halt) printf 'n' ;;
+                *) halt "operator remote gave no usable judgement for $label (got '$result')" ;;
+            esac
+            ;;
+    esac
+    return 0
+}
+
 assert_no_contention() {
-    local out="${RUN:-$SESSION}/contention.json"
+    # Runs BEFORE the stage's own run directory exists, so the evidence lands in
+    # the session directory under the stage's name. One file per stage: a single
+    # overwritten contention.json would let stage H inherit stage B's evidence.
+    local stage="${1:-unknown}"
+    local out="$SESSION/contention_${stage}.json"
     mkdir -p "$(dirname "$out")"
     # The probe exits 1 when it FINDS a competitor, which is evidence, not an
     # error, so its status is captured rather than gating. A probe that wrote
@@ -249,7 +304,7 @@ stage_A() {
 
 stage_B() {
     need_sha; ros_env
-    assert_no_contention
+    assert_no_contention B
     pf require B
     new_run B
     local rc=0
@@ -264,7 +319,7 @@ stage_B() {
 
 stage_C() {
     need_sha; ros_env
-    assert_no_contention
+    assert_no_contention C
     pf require C
     new_run C
     echo "[C] motors stay OFF: no lowcmd bridge is started in this stage."
@@ -281,7 +336,7 @@ stage_C() {
 
 stage_D() {
     need_sha; ros_env
-    assert_no_contention
+    assert_no_contention D
     pf require D
     new_run D
     launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
@@ -297,7 +352,7 @@ stage_D() {
 stage_E() {
     local hold_s="${1:-10}"
     need_sha; ros_env
-    assert_no_contention
+    assert_no_contention E
     pf require E
     live_confirm E "LowCmd bridge LIVE, holding measured posture for ${hold_s} s, no policy"
     new_run E
@@ -324,7 +379,7 @@ stage_stand() {
     local stage="$1" authority attempts
     case "$stage" in F) authority=2; attempts=1 ;; G) authority=5; attempts=1 ;; H) authority=10; attempts=3 ;; esac
     need_sha; ros_env
-    assert_no_contention
+    assert_no_contention "$stage"
     pf require "$stage"
     live_confirm "$stage" "H25 cmd=0 stand, ${authority} s of policy authority, ${attempts} attempt(s)"
     local first_msg max_rt telemetry_files=() answers=() k
@@ -334,7 +389,8 @@ stage_stand() {
         new_run "${stage}${k}"
         local telemetry="$RUN/bridge.jsonl"
         if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
-            read -r -p "[${stage}${k}] Robot folded on the mat, feet on the ground, spotter ready, deadman HELD. Press Enter to start: " _
+            operator_gate arm "${stage}${k}" \
+                "[${stage}${k}] Robot folded on the mat, feet on the ground, spotter ready, deadman HELD. Press Enter to start: "
         fi
         # shellcheck disable=SC2046
         launch deadman $(deadman_cmd)
@@ -362,8 +418,10 @@ stage_stand() {
         if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
             answer="${PHOENIX_REHEARSAL_STOOD:-n}"
         else
-            read -r -p "[${stage}${k}] Did the robot stand on its feet and hold, with no collapse, oscillation or buzz? [y/n]: " answer
-            read -r -p "[${stage}${k}] Spotter ready: press Enter to DAMP (the robot sinks onto the mat) and end the attempt: " _
+            answer="$(operator_gate judgement "${stage}${k}" \
+                "[${stage}${k}] Did the robot stand on its feet and hold, with no collapse, oscillation or buzz? [y/n]: ")"
+            operator_gate release "${stage}${k}" \
+                "[${stage}${k}] Spotter ready: press Enter to DAMP (the robot sinks onto the mat) and end the attempt: "
         fi
         stop_proc policy_node
         stop_proc lowcmd_bridge

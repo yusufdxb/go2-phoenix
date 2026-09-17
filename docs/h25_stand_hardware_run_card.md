@@ -33,7 +33,7 @@ SESSION=logs/hw_sessions/$(date -u +%Y%m%d)_${SHA:0:12}
 ## 1. Put the code and the bundle on the payload (over the cable, no `git fetch`)
 
 ```bash
-PAYLOAD_REPO=/home/unitree/go2-phoenix          # confirm on site: ls -d ~/go2-phoenix ~/workspace/go2-phoenix
+PAYLOAD_REPO=/home/unitree/yusuf/go2-phoenix    # CONFIRMED on site 2026-09-17. Not ~/go2-phoenix.
 scripts/stage_payload_repo.sh jetson-cable:$PAYLOAD_REPO           # last line: manifest AND import verified
 STAGE_A_SESSION=$SESSION scripts/stage_payload_bundle.sh \
     checkpoints/phoenix-stand-h25-lat-noise \
@@ -56,6 +56,39 @@ export DEPLOY_CFG=$PHOENIX_BUNDLE/deploy_stand_h25.yaml
 export PHOENIX_DEADMAN=wireless                                         # GO2 remote, L1
 ```
 
+## 2b. Payload hygiene: do this BEFORE any stage
+
+Every item here was measured on the payload on 2026-09-17. Skipping them is how the
+last session lost about an hour.
+
+```bash
+# 1. STOP come-here FIRST. It autostarts on boot, it starves the Phoenix payload
+#    (132 topics against 109, /lowstate 349 Hz against the field notes' 500) AND it
+#    can command the robot: a second, uncommanded authority over the motors.
+sudo systemctl stop come-here.service
+systemctl is-active come-here.service        # must print "inactive"
+
+# 2. The payload has NO RTC. A wrong clock makes a dead publisher look fresh and
+#    silently breaks freshness gates. Set it at session start, every session.
+sudo date -s "$(date -u +'%Y-%m-%d %H:%M:%S') UTC"   # run the inner date ON THE WORKSTATION
+
+# 3. CYCLONEDDS_URI must be a FILE uri. unitree_ros2/setup.sh exports inline XML and
+#    the harness HALTs on it. Point it at a file whose NetworkInterface is enP8p1s0.
+echo "$CYCLONEDDS_URI"                        # must start with file://
+
+# 4. The payload's setuptools is 59.6.0, which predates PEP 660, so `pip install -e .`
+#    FAILS. Do not try to fix it in the field. scripts/stage_payload_repo.sh syncs the
+#    tracked execution set; put the repo's src/ on the path with a .pth entry instead:
+python3 -c "import phoenix, sys; print('phoenix from', phoenix.__file__)"
+```
+
+Every on-robot stage (B through H) now runs a **contention interlock** before it does
+anything: `hw_probe contention` records the active competing units, the ROS node graph
+and the `/lowstate` rate, and `preflight_eval.contention_checks` refuses the stage if
+`come-here.service` is active, if a come-here node is in the graph, if `/lowstate` is
+below 400 Hz, or if the probe recorded nothing at all. If a stage halts with
+"another system is sharing the robot", item 1 above is what it is telling you.
+
 ## 3. Motors OFF: stages A to D
 
 Robot powered, lying folded on the fall mat. Nothing in these stages publishes `/lowcmd`.
@@ -64,9 +97,41 @@ Robot powered, lying folded on the fall mat. Nothing in these stages publishes `
 scripts/harness_preflight.sh A --payload   # lock, activation, ORT 1.18.1, payload ONNX vs workstation torch
 scripts/harness_preflight.sh B 30          # dryrun: bridge to /lowcmd_dry, synthetic heartbeat (NOT a deadman)
 scripts/harness_preflight.sh C             # hold, release, hold the remote's L1 when prompted
+                                           # C is OWED: it has never counted. The probe is now
+                                           # observation-driven (it advances on a SUSTAINED estop
+                                           # state, not on terminal timing), which is what cost
+                                           # three failed C runs on 2026-09-17. No clock
+                                           # coordination between the two people is needed.
 scripts/harness_preflight.sh D 10          # /lowstate, /joint_states, /imu/data rates, gaps, content
 scripts/harness_preflight.sh status        # must say: ready for live hold stage E: YES
 ```
+
+## 3b. Optional: answer the live stages from the GO2 remote
+
+By default every live stage is confirmed at the TERMINAL, so one person types while the
+other holds L1 and watches the robot. `src/phoenix/sim2real/operator_remote.py` exists to
+remove that relay, and it is now wired in behind an opt-in flag:
+
+```bash
+export PHOENIX_OPERATOR_REMOTE=1          # per terminal, before stages F to H
+export PHOENIX_OPERATOR_REMOTE_TIMEOUT_S=120
+```
+
+With it set, the three prompts in each stand attempt come through the remote instead:
+
+| prompt | remote gesture |
+|---|---|
+| ready to start | hold L1, press **Start** once |
+| did it stand? | **A** = yes, **B** = NO-GO |
+| end the attempt | **release L1** (bridge DAMPs) |
+
+It fails closed in every direction: a timeout, an ambiguous press (A and B together) and
+a released deadman all HALT the stage. A held button cannot confirm anything, because the
+recognizer requires a rising edge. The evidence lands in `remote_<stage><k>_<mode>.json`.
+
+**UNVERIFIED ON HARDWARE.** This path has never run against a real GO2. Leave the flag
+unset for the first attempts of the session, confirm the stage passes the ordinary way,
+and only then try it if the terminal relay is slowing you down.
 
 ## 4. Physical setup for every live stage
 
@@ -119,6 +184,17 @@ to DAMP (kp 0): the robot sinks onto the mat, so the spotter must be ready.
 | nonzero velocity command | policy node aborts; bridge latches HOLD |
 | policy abort of any kind, including the end of its window | HOLD, never a drive to the stand pose |
 | Ctrl-C on the bridge | DAMP for 0.2 s, then exit |
+
+## The 66.7% clip figure is a FOLDED-START ARTIFACT, not a policy defect
+
+Do not spend the session chasing it. Folded calf readings (-2.77 to -2.82 rad) sit below
+the audited URDF limit (-2.7227), so HOLD clips to exactly the limit and the margin reads
+zero. The 100% figures are SLEW clipping (target versus measured q, +/- 0.175) with the
+motors off and q never moving.
+
+Cheapest confirmation, once stage F or G has run: take the clip rate over the FINAL
+SETTLED SECOND of one live stand only, not over the whole window and not from a folded
+start.
 
 ## What a pass means, and what it does not
 

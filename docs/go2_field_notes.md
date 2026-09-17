@@ -186,3 +186,47 @@ must assume it is running the older `phoenix-stand-v3` policy on the older node 
 robot's own message stamps are skewed (section 6). Any latency measurement taken by
 differencing a robot stamp against a payload stamp is meaningless until both clocks are
 set; measure latency from payload receive time to payload send time instead.
+
+## 10. Another service owns the robot on boot (measured 2026-09-17)
+
+`come-here.service` autostarts on the Jetson. While it is running it:
+
+* starves the payload: **132 topics against 109**, and `/lowstate` at **349 Hz against the
+  500 Hz** section 3 measured, and
+* **can command the robot**, so any session sharing with it has a second, uncommanded
+  authority over the motors.
+
+Stop it before anything else, and confirm:
+
+```bash
+sudo systemctl stop come-here.service
+systemctl is-active come-here.service     # "inactive"
+```
+
+Phoenix now refuses to start any on-robot stage while it is up
+(`phoenix.sim2real.preflight_eval.contention_checks`, fed by `hw_probe contention`);
+the check also fails closed when the probe recorded nothing, so "no evidence" never
+reads as "nothing competing".
+
+## 11. Payload environment traps (measured 2026-09-17)
+
+* **Repo path is `/home/unitree/yusuf/go2-phoenix`.** Not `~/go2-phoenix`.
+* **`pip install -e .` FAILS.** The payload's setuptools is 59.6.0, which predates
+  PEP 660. Do not try to fix this in the field: put the synced `src/` on the path with
+  a `.pth` entry instead.
+* **`CYCLONEDDS_URI` must be a `file://` URI.** `unitree_ros2/setup.sh` exports inline
+  XML, and the Phoenix harness HALTs on that rather than guess. Point it at a file whose
+  `NetworkInterface` is `enP8p1s0`.
+* **No RTC.** Section 6 covers the skew; the operational consequence is that the clock
+  must be set at the start of EVERY session, before any freshness gate runs, or a dead
+  publisher can look fresh.
+
+## 12. A folded start makes the clip metrics look broken (measured 2026-09-17)
+
+From Unitree's folded pose the calf reads -2.77 to -2.82 rad, below the audited URDF
+limit of -2.7227. HOLD therefore clips to exactly the limit and the limit margin reads
+zero, which surfaces as a 66.7% clip rate and 100% slew-clip figures **with the motors
+off and `q` never moving**. This is a start-pose artifact, not a policy defect.
+
+Measure the clip rate over the **final settled second of a live stand**, never from a
+folded start and never over a whole window that includes one.
