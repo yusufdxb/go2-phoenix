@@ -325,15 +325,9 @@ def main(argv: list[str] | None = None) -> int:
     app_launcher = AppLauncher(headless=True)
     simulation_app = app_launcher.app
     print("[harvest] app launched", flush=True)
-    try:
-        return _run(args)
-    except BaseException:
-        import traceback
+    from phoenix.sim_app_exit import run_isaac_main
 
-        traceback.print_exc()
-        raise
-    finally:
-        simulation_app.close()
+    return run_isaac_main(lambda: _run(args), simulation_app, label="harvest")
 
 
 def _run(args: argparse.Namespace) -> int:  # noqa: ANN001

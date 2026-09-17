@@ -39,6 +39,13 @@
 #   --heldout-variation-seed N
 #                        Halton seed for the held-out arm. MUST differ from the
 #                        training variations config seed (default 20260917)
+#   --seed-row-strategy S
+#                        where to seed the replay from (default
+#                        failure_onset_minus_seconds). A capture whose first
+#                        failure is inside the first 25 rows needs
+#                        failure_onset, since 0.5 s before onset is row < 0
+#   --seed-row-offset-seconds F
+#                        offset for failure_onset_minus_seconds (default 0.5)
 #   --skip-heldout       skip stage 5 and say so in the report
 #   --allow-unaugmented  proceed when the replay stage produced no variant
 #                        trajectories. Records pool_augmented=false in the
@@ -79,6 +86,12 @@ BASELINE_CKPT="checkpoints/phoenix-stand-h25-lat-noise/2026-06-22_21-08-20/model
 ENV_CONFIG="configs/env/stand_v3_h25.yaml"
 HELDOUT_VARIATION_SEED=20260917
 SKIP_HELDOUT=0
+# reconstruct's default backs off 0.5 s from failure onset, which is impossible
+# for a capture whose first failure sits inside the first 25 rows (the synth
+# slippery pool is like this: onset at row 0). Exposed so a run is not blocked
+# on regenerating the pool.
+SEED_ROW_STRATEGY="failure_onset_minus_seconds"
+SEED_ROW_OFFSET_SECONDS=0.5
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -105,6 +118,16 @@ while [[ $# -gt 0 ]]; do
         --heldout-variation-seed)
             [[ $# -ge 2 ]] || die "--heldout-variation-seed needs a value"
             HELDOUT_VARIATION_SEED="$2"
+            shift 2
+            ;;
+        --seed-row-strategy)
+            [[ $# -ge 2 ]] || die "--seed-row-strategy needs a value"
+            SEED_ROW_STRATEGY="$2"
+            shift 2
+            ;;
+        --seed-row-offset-seconds)
+            [[ $# -ge 2 ]] || die "--seed-row-offset-seconds needs a value"
+            SEED_ROW_OFFSET_SECONDS="$2"
             shift 2
             ;;
         --skip-heldout)
@@ -185,7 +208,7 @@ FINE_TUNE_HELP=$(PYTHONPATH="$REPO_ROOT/src" python3 -m phoenix.adaptation.fine_
     || die "could not read 'phoenix.adaptation.fine_tune --help':
 $FINE_TUNE_HELP"
 MISSING_FLAGS=()
-for flag in --seed --curriculum-seed; do
+for flag in --seed --curriculum-seed --seed-row-strategy; do
     grep -q -- "$flag" <<<"$FINE_TUNE_HELP" || MISSING_FLAGS+=("$flag")
 done
 if [[ ${#MISSING_FLAGS[@]} -gt 0 ]]; then
@@ -215,7 +238,11 @@ trap 'rm -f "$POOL_LINK"' EXIT
 
 echo "[loop_closure] =============================="
 echo "[loop_closure] training parquet : $TRAIN_PARQUET"
-echo "[loop_closure] held-out parquet : $HELDOUT_PARQUET (NOT evaluated, see report)"
+if [[ "$SKIP_HELDOUT" -eq 1 ]]; then
+    echo "[loop_closure] held-out parquet : $HELDOUT_PARQUET (arm SKIPPED on request)"
+else
+    echo "[loop_closure] held-out parquet : $HELDOUT_PARQUET (stage 5 arm, variation seed $HELDOUT_VARIATION_SEED)"
+fi
 echo "[loop_closure] baseline policy  : $BASELINE_CKPT"
 echo "[loop_closure] env config       : $ENV_CONFIG"
 echo "[loop_closure] training pool    : $TRAIN_DIR"
@@ -229,12 +256,14 @@ echo "[loop_closure] =============================="
 cp -f "$TRAIN_PARQUET" "$TRAIN_DIR/"
 
 # --- Stage 2: replay with Halton variations --------------------------
-echo "[loop_closure] stage 2/5: replay with variations..."
+echo "[loop_closure] stage 2/6: replay with variations..."
 PYTHONPATH="$REPO_ROOT/src" python3 -m phoenix.replay.reconstruct \
     --trajectory "$TRAIN_PARQUET" \
     --variations-config "$VARIATIONS_CONFIG" \
     --env-config "$ENV_CONFIG" \
     --policy "$BASELINE_CKPT" \
+    --seed-row-strategy "$SEED_ROW_STRATEGY" \
+    --seed-row-offset-seconds "$SEED_ROW_OFFSET_SECONDS" \
     --output-dir "$REPLAY_DIR" \
     --headless \
     2>&1 | tee "$OUT_DIR/replay.log"
@@ -295,7 +324,7 @@ ACTUAL_TRAINING_SEEDS=()
 ACTUAL_CURRICULUM_SEEDS=()
 for seed in "${SEEDS[@]}"; do
     curriculum_seed=$((seed + CURRICULUM_SEED_OFFSET))
-    echo "[loop_closure] stage 3/5: fine-tune training_seed=$seed curriculum_seed=$curriculum_seed"
+    echo "[loop_closure] stage 3/6: fine-tune training_seed=$seed curriculum_seed=$curriculum_seed"
     BEFORE=$(mktemp)
     ls -d checkpoints/phoenix-adapt-loop-closure/20* 2>/dev/null | sort >"$BEFORE" || true
     PYTHONPATH="$REPO_ROOT/src" python3 -m phoenix.adaptation.fine_tune \
@@ -305,6 +334,8 @@ for seed in "${SEEDS[@]}"; do
         --num-envs 10240 \
         --seed "$seed" \
         --curriculum-seed "$curriculum_seed" \
+        --seed-row-strategy "$SEED_ROW_STRATEGY" \
+        --seed-row-offset-seconds "$SEED_ROW_OFFSET_SECONDS" \
         --headless \
         2>&1 | tee "$OUT_DIR/adapt_seed${seed}.log"
     AFTER=$(mktemp)
@@ -356,7 +387,7 @@ for label in training curriculum; do
 done
 
 # --- Stage 4: eval baseline + adapted --------------------------------
-echo "[loop_closure] stage 4/5: evaluations (evaluation seed $EVAL_SEED, shared by all)"
+echo "[loop_closure] stage 4/6: evaluations (evaluation seed $EVAL_SEED, shared by all)"
 
 eval_policy() {
     local ckpt="$1"
@@ -421,6 +452,8 @@ else
             --variations-config "$VARIATIONS_CONFIG" \
             --env-config "$ENV_CONFIG" \
             --policy "$ckpt" \
+            --seed-row-strategy "$SEED_ROW_STRATEGY" \
+            --seed-row-offset-seconds "$SEED_ROW_OFFSET_SECONDS" \
             --variation-seed "$HELDOUT_VARIATION_SEED" \
             --output-dir "$dest" \
             --headless \
@@ -488,6 +521,7 @@ MISSING_METRICS=0
     echo "- Env config: \`$ENV_CONFIG\`"
     echo "- Training pool: $NUM_TRAIN parquets (1 real + $NUM_VARIANTS Halton variants)"
     echo "- Pool augmented: $POOL_AUGMENTED"
+    echo "- Replay seeding: \`$SEED_ROW_STRATEGY\` (offset ${SEED_ROW_OFFSET_SECONDS}s)"
     echo ""
     echo "## Seeds"
     echo ""

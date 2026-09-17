@@ -117,31 +117,9 @@ def main(argv: list[str] | None = None) -> int:
 
     app_launcher = AppLauncher(headless=args.headless)
     simulation_app = app_launcher.app
-    # MEASURED 2026-09-17: simulation_app.close() terminates this process with
-    # status 0. A replay that raised still reported SUCCESS, so every caller
-    # gating on the exit status (scripts/loop_closure.sh dies on a failed
-    # held-out replay) was reading a false green. Neither `raise` nor `return`
-    # survives that shutdown, so the status is forced with os._exit.
-    #
-    # On failure Isaac is NOT shut down cleanly: the process is already
-    # aborting, and a correct exit status matters more than tidy teardown.
-    import os
+    from phoenix.sim_app_exit import run_isaac_main
 
-    try:
-        rc = int(_run(args, simulation_app))
-    except BaseException:
-        import traceback
-
-        traceback.print_exc()
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(1)
-    sys.stdout.flush()
-    sys.stderr.flush()
-    if rc != 0:
-        os._exit(rc)
-    simulation_app.close()
-    os._exit(0)
+    return run_isaac_main(lambda: _run(args, simulation_app), simulation_app, label="replay")
 
 
 def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001

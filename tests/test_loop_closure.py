@@ -47,7 +47,7 @@ phoenix.adaptation.fine_tune)
         if [[ "$a" == "--help" ]]; then
             echo "usage: fine_tune [--config CONFIG] [--resume RESUME]"
             echo "  --trajectory-dir TRAJECTORY_DIR"
-            for flag in ${STUB_FT_FLAGS-"--seed --curriculum-seed"}; do
+            for flag in ${STUB_FT_FLAGS-"--seed --curriculum-seed --seed-row-strategy"}; do
                 echo "  $flag VALUE"
             done
             exit 0

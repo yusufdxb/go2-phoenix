@@ -1,0 +1,156 @@
+{
+  "num_envs": 16,
+  "control_dt": 0.02,
+  "variants_written": 16,
+  "variants_with_failure": 16,
+  "variants": [
+    {
+      "env_index": 0,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_000.parquet",
+      "rows": 70,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 69
+    },
+    {
+      "env_index": 1,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_001.parquet",
+      "rows": 64,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 63
+    },
+    {
+      "env_index": 2,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_002.parquet",
+      "rows": 61,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 60
+    },
+    {
+      "env_index": 3,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_003.parquet",
+      "rows": 46,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 45
+    },
+    {
+      "env_index": 4,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_004.parquet",
+      "rows": 62,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 61
+    },
+    {
+      "env_index": 5,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_005.parquet",
+      "rows": 77,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 76
+    },
+    {
+      "env_index": 6,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_006.parquet",
+      "rows": 250,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": null
+    },
+    {
+      "env_index": 7,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_007.parquet",
+      "rows": 250,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": null
+    },
+    {
+      "env_index": 8,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_008.parquet",
+      "rows": 64,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 63
+    },
+    {
+      "env_index": 9,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_009.parquet",
+      "rows": 76,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 75
+    },
+    {
+      "env_index": 10,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_010.parquet",
+      "rows": 56,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 55
+    },
+    {
+      "env_index": 11,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_011.parquet",
+      "rows": 58,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 57
+    },
+    {
+      "env_index": 12,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_012.parquet",
+      "rows": 81,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 80
+    },
+    {
+      "env_index": 13,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_013.parquet",
+      "rows": 71,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 70
+    },
+    {
+      "env_index": 14,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_014.parquet",
+      "rows": 68,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 67
+    },
+    {
+      "env_index": 15,
+      "path": "data/failures/loop_closure_replay_2026-09-17_18-56-29/variant_015.parquet",
+      "rows": 96,
+      "failed": true,
+      "failure_mode": "attitude",
+      "failure_step": 0,
+      "terminated_step": 95
+    }
+  ],
+  "trajectory": "data/failures/synth_slippery_trained.parquet",
+  "controller": "policy_driven_replay",
+  "policy_checkpoint": "checkpoints/phoenix-stand-h25-lat-noise/2026-06-22_21-08-20/model_799.pt",
+  "variation_seed": 17
+}

@@ -1,0 +1,131 @@
+{
+  "trajectory": "data/failures/synth_slippery_trained.parquet",
+  "seed": {
+    "requested_seed_row": 0,
+    "resolved_row": 0,
+    "failure_onset_row": 0,
+    "time_before_onset_seconds": 0.0,
+    "capsule_id": null,
+    "capsule_schema_version": null,
+    "seed_row_strategy": "failure_onset",
+    "source_format": "legacy_parquet",
+    "position_frame": "env_local",
+    "position_frame_source": "phoenix_capture_default",
+    "declared_environment_parameters": {},
+    "declared_disturbances": [],
+    "environment_context_restored": false
+  },
+  "controller": "policy_driven_replay",
+  "reproduction_evidence": true,
+  "policy_checkpoint": "checkpoints/phoenix-stand-h25-lat-noise/2026-06-22_21-08-20/model_799.pt",
+  "position_frame": "env_local",
+  "position_frame_source": "phoenix_capture_default",
+  "replay_fidelity": "state_only_seed",
+  "command_hold": "episode",
+  "n_variations": 16,
+  "variation_seed": 17,
+  "horizon_steps": 250,
+  "steps_run": 250,
+  "friction_scale_mean": 0.9994140863418579,
+  "mass_delta_applied": true,
+  "variants_written": 16,
+  "variants_with_failure": 16,
+  "variations": [
+    {
+      "friction_delta": 0.01874999999999999,
+      "mass_delta_kg": 0.8518518518518516,
+      "push_velocity_delta": 0.020000000000000018,
+      "push_yaw_delta": -0.01836734693877551
+    },
+    {
+      "friction_delta": -0.13125,
+      "mass_delta_kg": -0.8518518518518519,
+      "push_velocity_delta": 0.22000000000000008,
+      "push_yaw_delta": 0.06734693877551023
+    },
+    {
+      "friction_delta": 0.16875,
+      "mass_delta_kg": -0.18518518518518523,
+      "push_velocity_delta": 0.42000000000000004,
+      "push_yaw_delta": 0.15306122448979587
+    },
+    {
+      "friction_delta": -0.20625,
+      "mass_delta_kg": 0.4814814814814814,
+      "push_velocity_delta": -0.33999999999999997,
+      "push_yaw_delta": 0.23877551020408166
+    },
+    {
+      "friction_delta": 0.09375,
+      "mass_delta_kg": -0.6296296296296297,
+      "push_velocity_delta": -0.14,
+      "push_yaw_delta": -0.26326530612244897
+    },
+    {
+      "friction_delta": -0.056249999999999994,
+      "mass_delta_kg": 0.03703703703703698,
+      "push_velocity_delta": 0.06000000000000005,
+      "push_yaw_delta": -0.17755102040816326
+    },
+    {
+      "friction_delta": 0.24374999999999997,
+      "mass_delta_kg": 0.7037037037037035,
+      "push_velocity_delta": 0.2600000000000001,
+      "push_yaw_delta": -0.09183673469387754
+    },
+    {
+      "friction_delta": -0.24375,
+      "mass_delta_kg": -0.40740740740740744,
+      "push_velocity_delta": 0.4600000000000001,
+      "push_yaw_delta": -0.006122448979591855
+    },
+    {
+      "friction_delta": 0.05625000000000002,
+      "mass_delta_kg": 0.2592592592592593,
+      "push_velocity_delta": -0.492,
+      "push_yaw_delta": 0.07959183673469383
+    },
+    {
+      "friction_delta": -0.09375,
+      "mass_delta_kg": 0.9259259259259258,
+      "push_velocity_delta": -0.292,
+      "push_yaw_delta": 0.16530612244897952
+    },
+    {
+      "friction_delta": 0.20625,
+      "mass_delta_kg": -0.9753086419753086,
+      "push_velocity_delta": -0.09199999999999997,
+      "push_yaw_delta": 0.25102040816326526
+    },
+    {
+      "friction_delta": -0.16874999999999998,
+      "mass_delta_kg": -0.308641975308642,
+      "push_velocity_delta": 0.1080000000000001,
+      "push_yaw_delta": -0.2510204081632653
+    },
+    {
+      "friction_delta": 0.13124999999999998,
+      "mass_delta_kg": 0.3580246913580245,
+      "push_velocity_delta": 0.30800000000000005,
+      "push_yaw_delta": -0.1653061224489796
+    },
+    {
+      "friction_delta": -0.01874999999999999,
+      "mass_delta_kg": -0.7530864197530864,
+      "push_velocity_delta": -0.452,
+      "push_yaw_delta": -0.07959183673469389
+    },
+    {
+      "friction_delta": 0.28124999999999994,
+      "mass_delta_kg": -0.0864197530864198,
+      "push_velocity_delta": -0.252,
+      "push_yaw_delta": 0.006122448979591855
+    },
+    {
+      "friction_delta": -0.29062499999999997,
+      "mass_delta_kg": 0.5802469135802468,
+      "push_velocity_delta": -0.05199999999999999,
+      "push_yaw_delta": 0.09183673469387754
+    }
+  ]
+}
