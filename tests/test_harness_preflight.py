@@ -179,3 +179,54 @@ def test_the_live_stand_prompts_go_through_the_operator_gate() -> None:
     assert "operator_gate release " in stand
     # The raw reads they replaced must be gone from the stand path.
     assert "Press Enter to start: \" _" not in stand
+
+
+PREP = REPO_ROOT / "scripts" / "payload_prep.sh"
+
+
+def test_payload_prep_exists_and_is_executable() -> None:
+    assert PREP.exists()
+    assert os.access(PREP, os.X_OK)
+
+
+def test_payload_prep_moves_no_motors() -> None:
+    """It runs before any gate; it must not touch the command path."""
+    src = PREP.read_text()
+    for forbidden in ("lowcmd_bridge_node", "ros2_policy_node", "--live", "/lowcmd"):
+        assert forbidden not in src, f"payload_prep references {forbidden}"
+
+
+def test_payload_prep_fails_closed_on_this_workstation(tmp_path) -> None:
+    # A workstation has no enP8p1s0, so the NIC check must fail and the script
+    # must exit non-zero. A prep script that exits 0 on the wrong host is worse
+    # than none, because the operator would trust it.
+    res = subprocess.run(
+        [str(PREP)], cwd=REPO_ROOT, capture_output=True, text=True, timeout=180
+    )
+    assert res.returncode != 0
+    assert "NOT READY" in res.stdout + res.stderr
+
+
+def test_payload_prep_checks_every_known_session_killer() -> None:
+    src = PREP.read_text()
+    for needle in ("come-here.service", "NetworkInterface", "getusersitepackages",
+                   "contention", "no RTC" if "no RTC" in src else "RTC"):
+        assert needle in src, f"payload_prep does not check {needle}"
+
+
+def test_payload_prep_never_suggests_pip_editable_install() -> None:
+    # The payload's setuptools 59.6.0 predates PEP 660, so that command fails.
+    src = PREP.read_text()
+    assert "do NOT use pip install -e ." in src
+    assert "python3 -m pip install --no-deps --no-build-isolation -e ." not in src
+
+
+def test_shipped_dds_config_binds_the_payload_nic() -> None:
+    import xml.etree.ElementTree as ET
+
+    xml = REPO_ROOT / "configs" / "payload" / "cyclonedds.xml"
+    assert xml.exists(), "the DDS config must ship so it is not hand-built at the lab"
+    root = ET.parse(xml).getroot()
+    ns = {"c": "https://cdds.io/config"}
+    names = [n.get("name") for n in root.findall(".//c:NetworkInterface", ns)]
+    assert names == ["enP8p1s0"], f"expected the payload NIC, got {names}"

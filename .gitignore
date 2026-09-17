@@ -117,3 +117,6 @@ reliability_eval/causal_viability_replication_preflight*/**/*_preflight.meta.jso
 # Payload staging bundles assembled by scripts/stage_payload_bundle.sh.
 # Copies of already-tracked-or-ignored artifacts; the transport is the T7, not git.
 deploy_staging/
+
+# Generated on the payload by scripts/payload_prep.sh, per session.
+payload_env.sh
