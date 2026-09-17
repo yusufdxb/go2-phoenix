@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
 
+import phoenix.real_world.trajectory_logger as trajectory_logger_module
 from phoenix.real_world.trajectory_logger import (
     _SCHEMA,
     CAPTURE_SOURCE_HARDWARE,
@@ -44,6 +46,10 @@ def test_roundtrip_small(tmp_path: Path) -> None:
 
     table = pq.read_table(p)
     assert table.num_rows == 10
+    parquet = pq.ParquetFile(p)
+    assert parquet.metadata.num_rows == 10
+    assert parquet.metadata.num_row_groups == 3
+    assert p.read_bytes()[-4:] == b"PAR1"
     # step column is monotonically increasing
     steps = table.column("step").to_pylist()
     assert steps == list(range(10))
@@ -63,6 +69,84 @@ def test_rows_written_property(tmp_path: Path) -> None:
     assert log.rows_written == 5
     log.close()
     assert log.rows_written == 5
+
+
+def test_append_only_enqueues_across_row_group_boundary(tmp_path: Path, monkeypatch) -> None:
+    """The producer crosses row 512 while all conversion and I/O are paused."""
+
+    entered_writer = threading.Event()
+    release_writer = threading.Event()
+    original = trajectory_logger_module._step_to_row
+
+    def blocked_conversion(step: TrajectoryStep) -> dict:
+        entered_writer.set()
+        if not release_writer.wait(timeout=10):
+            raise TimeoutError("test did not release the writer thread")
+        return original(step)
+
+    monkeypatch.setattr(trajectory_logger_module, "_step_to_row", blocked_conversion)
+    path = tmp_path / "nonblocking.parquet"
+    log = TrajectoryLogger(path, row_group_size=512, queue_capacity=1024)
+    try:
+        log.append(_make_step(0))
+        assert entered_writer.wait(timeout=5)
+        for i in range(1, 513):
+            log.append(_make_step(i))
+
+        assert log.rows_written == 513
+        assert log.dropped_rows == 0
+        assert not path.exists(), "the append path must not create or write the parquet file"
+    finally:
+        release_writer.set()
+        log.close()
+
+    assert pq.read_table(path).column("step").to_pylist() == list(range(513))
+
+
+def test_queue_overflow_is_counted_and_reported(tmp_path: Path, monkeypatch, caplog) -> None:
+    entered_writer = threading.Event()
+    release_writer = threading.Event()
+    original = trajectory_logger_module._step_to_row
+
+    def blocked_conversion(step: TrajectoryStep) -> dict:
+        entered_writer.set()
+        if not release_writer.wait(timeout=10):
+            raise TimeoutError("test did not release the writer thread")
+        return original(step)
+
+    monkeypatch.setattr(trajectory_logger_module, "_step_to_row", blocked_conversion)
+    path = tmp_path / "overflow.parquet"
+    log = TrajectoryLogger(path, row_group_size=512, queue_capacity=1)
+    try:
+        log.append(_make_step(0))
+        assert entered_writer.wait(timeout=5)
+        log.append(_make_step(1))
+        log.append(_make_step(2))
+        assert log.rows_written == 2
+        assert log.dropped_rows == 1
+    finally:
+        release_writer.set()
+        log.close()
+
+    assert "dropped 1 row(s)" in caplog.text
+    assert pq.read_table(path).column("step").to_pylist() == [0, 1]
+
+
+def test_writer_thread_exception_is_surfaced_by_close(tmp_path: Path, monkeypatch) -> None:
+    failure = ValueError("conversion failed")
+
+    def fail_conversion(step: TrajectoryStep) -> dict:
+        raise failure
+
+    monkeypatch.setattr(trajectory_logger_module, "_step_to_row", fail_conversion)
+    log = TrajectoryLogger(tmp_path / "writer_error.parquet")
+    log.append(_make_step(0))
+
+    with pytest.raises(RuntimeError, match="writer thread failed") as exc_info:
+        log.close()
+
+    assert exc_info.value.__cause__ is failure
+    assert log.writer_error is failure
 
 
 # ---------------------------------------------------------------------------

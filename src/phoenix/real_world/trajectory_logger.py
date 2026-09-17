@@ -106,17 +106,22 @@ is displacement from wherever the robot booted. ``base_pos[2]`` is NOT height
 above the floor and must not be used as one; the logger stores the raw odom
 value plus ``odom_valid`` and derives nothing from it.
 
-Writer uses row-group buffering to keep memory bounded on long rollouts.
+Writer uses a bounded producer queue and row-group buffering to keep memory
+bounded on long rollouts. ``append`` only enqueues; conversion, compression,
+file writes, and footer finalization run on the writer thread.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import queue
 import sys
+import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pyarrow as pa
@@ -198,7 +203,7 @@ _SCHEMA = pa.schema(
 
 
 class TrajectoryLogger:
-    """Buffered Parquet writer. Call :meth:`append` then :meth:`close`.
+    """Asynchronous buffered Parquet writer. Call :meth:`append` then :meth:`close`.
 
     Use as a context manager to guarantee flush on exceptions::
 
@@ -207,13 +212,34 @@ class TrajectoryLogger:
                 log.append(step)
     """
 
-    def __init__(self, path: str | Path, row_group_size: int = 512) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        row_group_size: int = 512,
+        queue_capacity: int = 4096,
+    ) -> None:
+        if row_group_size <= 0:
+            raise ValueError("row_group_size must be positive")
+        if queue_capacity <= 0:
+            raise ValueError("queue_capacity must be positive")
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.row_group_size = row_group_size
-        self._writer: pq.ParquetWriter | None = None
-        self._buffer: list[dict] = []
-        self._rows_written = 0
+        self.queue_capacity = queue_capacity
+        self._queue: queue.Queue[TrajectoryStep | object] = queue.Queue(maxsize=queue_capacity)
+        self._stop = object()
+        self._state_lock = threading.Lock()
+        self._close_lock = threading.Lock()
+        self._closed = False
+        self._accepted_rows = 0
+        self._dropped_rows = 0
+        self._writer_error: BaseException | None = None
+        self._writer_thread = threading.Thread(
+            target=self._writer_main,
+            name=f"trajectory-writer-{self.path.name}",
+            daemon=True,
+        )
+        self._writer_thread.start()
 
     def __enter__(self) -> TrajectoryLogger:
         return self
@@ -223,44 +249,142 @@ class TrajectoryLogger:
 
     @property
     def rows_written(self) -> int:
-        return self._rows_written + len(self._buffer)
+        """Number of accepted rows, including rows queued for the writer."""
+
+        with self._state_lock:
+            return self._accepted_rows
+
+    @property
+    def dropped_rows(self) -> int:
+        """Number of rows rejected because the producer queue was full."""
+
+        with self._state_lock:
+            return self._dropped_rows
+
+    @property
+    def writer_error(self) -> BaseException | None:
+        """The writer-thread failure, if one has occurred."""
+
+        with self._state_lock:
+            return self._writer_error
 
     def append(self, step: TrajectoryStep) -> None:
-        row = asdict(step)
-        # dataclasses.asdict doesn't descend into numpy arrays cleanly, so we
-        # convert array fields by name.
-        for k in (
-            "base_pos",
-            "base_quat",
-            "base_lin_vel_body",
-            "base_ang_vel_body",
-            "joint_pos",
-            "joint_vel",
-            "command_vel",
-            "action",
-            "contact_forces",
-        ):
-            row[k] = np.asarray(row[k], dtype=np.float32).tolist()
-        self._buffer.append(row)
-        if len(self._buffer) >= self.row_group_size:
-            self._flush()
+        """Enqueue one row without waiting for the writer thread.
+
+        A full queue drops the row and increments :attr:`dropped_rows`. Any
+        failure already observed on the writer thread is raised here.
+        """
+
+        with self._state_lock:
+            self._raise_writer_error_locked()
+            if self._closed:
+                raise RuntimeError("cannot append to a closed TrajectoryLogger")
+            try:
+                self._queue.put_nowait(step)
+            except queue.Full:
+                self._dropped_rows += 1
+            else:
+                self._accepted_rows += 1
 
     def close(self) -> None:
-        if self._buffer:
-            self._flush()
-        if self._writer is not None:
-            self._writer.close()
-            self._writer = None
+        """Drain accepted rows, finalize the footer, and join the writer."""
 
-    def _flush(self) -> None:
-        if not self._buffer:
-            return
-        table = pa.Table.from_pylist(self._buffer, schema=_SCHEMA)
-        if self._writer is None:
-            self._writer = pq.ParquetWriter(self.path, _SCHEMA, compression="zstd")
-        self._writer.write_table(table)
-        self._rows_written += len(self._buffer)
-        self._buffer.clear()
+        with self._close_lock:
+            with self._state_lock:
+                first_close = not self._closed
+                self._closed = True
+
+            if first_close:
+                self._enqueue_stop()
+                self._writer_thread.join()
+
+            dropped = self.dropped_rows
+            if dropped:
+                logger.warning(
+                    "Trajectory logger dropped %d row(s) because its queue was full.", dropped
+                )
+            self._raise_writer_error()
+
+    def _enqueue_stop(self) -> None:
+        while self._writer_thread.is_alive():
+            try:
+                self._queue.put(self._stop, timeout=0.05)
+                return
+            except queue.Full:
+                continue
+
+    def _writer_main(self) -> None:
+        writer: pq.ParquetWriter | None = None
+        buffer: list[dict[str, Any]] = []
+        failure: BaseException | None = None
+        try:
+            while True:
+                item = self._queue.get()
+                if item is self._stop:
+                    break
+                if not isinstance(item, TrajectoryStep):
+                    raise TypeError(f"unexpected trajectory queue item: {type(item)!r}")
+                buffer.append(_step_to_row(item))
+                if len(buffer) >= self.row_group_size:
+                    writer = self._write_rows(writer, buffer)
+                    buffer.clear()
+
+            if buffer:
+                writer = self._write_rows(writer, buffer)
+                buffer.clear()
+        except BaseException as exc:  # noqa: BLE001 - surfaced to append/close
+            failure = exc
+        finally:
+            if writer is not None:
+                try:
+                    writer.close()
+                except BaseException as exc:  # noqa: BLE001 - surfaced to close
+                    if failure is None:
+                        failure = exc
+                    else:
+                        logger.error("Parquet footer close also failed: %r", exc)
+            if failure is not None:
+                with self._state_lock:
+                    self._writer_error = failure
+                logger.error("Trajectory writer thread failed: %r", failure)
+
+    def _write_rows(
+        self,
+        writer: pq.ParquetWriter | None,
+        rows: list[dict[str, Any]],
+    ) -> pq.ParquetWriter:
+        table = pa.Table.from_pylist(rows, schema=_SCHEMA)
+        if writer is None:
+            writer = pq.ParquetWriter(self.path, _SCHEMA, compression="zstd")
+        writer.write_table(table)
+        return writer
+
+    def _raise_writer_error(self) -> None:
+        with self._state_lock:
+            self._raise_writer_error_locked()
+
+    def _raise_writer_error_locked(self) -> None:
+        if self._writer_error is not None:
+            raise RuntimeError("trajectory writer thread failed") from self._writer_error
+
+
+def _step_to_row(step: TrajectoryStep) -> dict[str, Any]:
+    row = asdict(step)
+    # dataclasses.asdict doesn't descend into numpy arrays cleanly, so convert
+    # array fields by name on the writer thread.
+    for key in (
+        "base_pos",
+        "base_quat",
+        "base_lin_vel_body",
+        "base_ang_vel_body",
+        "joint_pos",
+        "joint_vel",
+        "command_vel",
+        "action",
+        "contact_forces",
+    ):
+        row[key] = np.asarray(row[key], dtype=np.float32).tolist()
+    return row
 
 
 def _parse_standalone_args(argv: list[str] | None = None) -> argparse.Namespace:
