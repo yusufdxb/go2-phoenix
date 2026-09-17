@@ -13,10 +13,13 @@ import numpy as np
 import pytest
 
 from phoenix.real_world.failure_detector import (
+    DEFAULT_ATTITUDE_INTERVENTION_RAD,
+    MAX_ATTITUDE_INTERVENTION_RAD,
     MODE_DEFINITIONS,
     FailureDetector,
     FailureMode,
     FailureThresholds,
+    resolve_attitude_intervention_rad,
 )
 
 DT = 0.02  # 50 Hz control period
@@ -42,15 +45,25 @@ def _nominal(**overrides) -> dict:
 
 def test_attitude_failure_fires_immediately() -> None:
     det = FailureDetector()
-    ev = det.step(**_nominal(pitch_rad=1.0))  # > 0.8
+    ev = det.step(**_nominal(pitch_rad=0.41))
     assert ev is not None and ev.mode == FailureMode.ATTITUDE
 
 
-def test_attitude_roll_threshold_is_tighter_than_pitch() -> None:
-    det = FailureDetector()
-    # 0.7 rad trips roll (0.6) but would not trip pitch (0.8).
-    assert det.step(**_nominal(roll_rad=0.7)) is not None
-    assert FailureDetector().step(**_nominal(pitch_rad=0.7)) is None
+def test_attitude_default_is_shared_for_roll_and_pitch() -> None:
+    thresholds = FailureThresholds()
+    assert thresholds.pitch_rad == thresholds.roll_rad == DEFAULT_ATTITUDE_INTERVENTION_RAD
+    assert FailureDetector().step(**_nominal(roll_rad=0.39)) is None
+    assert FailureDetector().step(**_nominal(pitch_rad=0.39)) is None
+    assert FailureDetector().step(**_nominal(roll_rad=0.41)) is not None
+    assert FailureDetector().step(**_nominal(pitch_rad=0.41)) is not None
+
+
+def test_attitude_intervention_config_is_bounded_below_operator_halt() -> None:
+    assert resolve_attitude_intervention_rad({}) == DEFAULT_ATTITUDE_INTERVENTION_RAD
+    assert resolve_attitude_intervention_rad({"attitude_intervention_rad": 0.35}) == 0.35
+    for value in (0, -0.1, float("nan"), MAX_ATTITUDE_INTERVENTION_RAD, 0.5, True, "0.3"):
+        with pytest.raises(ValueError, match="attitude_intervention_rad"):
+            resolve_attitude_intervention_rad({"attitude_intervention_rad": value})
 
 
 def test_collapse_failure() -> None:

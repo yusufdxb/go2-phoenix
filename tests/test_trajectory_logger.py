@@ -132,6 +132,47 @@ def test_queue_overflow_is_counted_and_reported(tmp_path: Path, monkeypatch, cap
     assert pq.read_table(path).column("step").to_pylist() == [0, 1]
 
 
+def test_terminal_append_waits_for_queue_space_and_is_never_dropped(
+    tmp_path: Path, monkeypatch
+) -> None:
+    entered_writer = threading.Event()
+    release_writer = threading.Event()
+    terminal_done = threading.Event()
+    original = trajectory_logger_module._step_to_row
+
+    def blocked_conversion(step: TrajectoryStep) -> dict:
+        entered_writer.set()
+        if not release_writer.wait(timeout=10):
+            raise TimeoutError("test did not release the writer thread")
+        return original(step)
+
+    monkeypatch.setattr(trajectory_logger_module, "_step_to_row", blocked_conversion)
+    path = tmp_path / "terminal.parquet"
+    log = TrajectoryLogger(path, row_group_size=512, queue_capacity=1)
+    log.append(_make_step(0))
+    assert entered_writer.wait(timeout=5)
+    log.append(_make_step(1))
+
+    terminal = _make_step(2)
+    terminal.failure_flag = True
+    terminal.failure_mode = "attitude"
+
+    def enqueue_terminal() -> None:
+        log.append_terminal(terminal)
+        terminal_done.set()
+
+    thread = threading.Thread(target=enqueue_terminal)
+    thread.start()
+    assert not terminal_done.wait(timeout=0.1), "terminal enqueue must wait while the queue is full"
+    release_writer.set()
+    assert terminal_done.wait(timeout=5)
+    thread.join(timeout=5)
+    log.close()
+
+    assert log.dropped_rows == 0
+    assert pq.read_table(path).column("step").to_pylist() == [0, 1, 2]
+
+
 def test_writer_thread_exception_is_surfaced_by_close(tmp_path: Path, monkeypatch) -> None:
     failure = ValueError("conversion failed")
 

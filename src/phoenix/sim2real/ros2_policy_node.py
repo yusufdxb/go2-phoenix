@@ -94,7 +94,11 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from phoenix.real_world.failure_detector import FailureDetector, FailureThresholds
+from phoenix.real_world.failure_detector import (
+    FailureDetector,
+    FailureThresholds,
+    resolve_attitude_intervention_rad,
+)
 from phoenix.real_world.trajectory_logger import (
     CAPTURE_SOURCE_HARDWARE,
     TrajectoryLogger,
@@ -532,9 +536,15 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                     "the shield would score a policy that is not in control."
                 )
 
-        # Failure thresholds reused from the offline detector so the
-        # on-robot abort and the sim replay flag the same regimes.
-        self.thresholds = FailureThresholds()
+        # One configurable attitude intervention threshold owns both the
+        # safety gate and the logging detector. Keeping two independently
+        # configured numbers can either lose the terminal label or let the
+        # detector label a pose that control was still willing to command.
+        attitude_intervention_rad = resolve_attitude_intervention_rad(safety_cfg)
+        self.thresholds = FailureThresholds(
+            pitch_rad=attitude_intervention_rad,
+            roll_rad=attitude_intervention_rad,
+        )
 
         # Stateful failure classifier, run on the LOGGING path only (inside
         # _log_step, called only when --log-parquet is set). It is never
@@ -545,8 +555,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._failure_detector = FailureDetector(self.thresholds)
 
         # Every threshold the gate ladder consults, bound once. Collecting
-        # them here is what lets the ladder be a pure function; note that
-        # pitch and roll are deliberately asymmetric (0.8 vs 0.6 rad).
+        # them here is what lets the ladder be a pure function.
         self._gate_config = GateConfig(
             max_runtime_s=self.max_runtime,
             estop_timeout_s=self.estop_timeout_s,
@@ -567,6 +576,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._last_action = np.zeros(len(self.joint_order), dtype=np.float32)
         self._estopped = False
         self._abort_reason: str | None = None
+        self._attitude_terminal_logged = False
         self._started_at = time.monotonic()
         self._started_ns = time.monotonic_ns()
         self._step_idx = 0
@@ -757,6 +767,13 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         decision = evaluate_gates(snap, self._gate_config, already_latched=self._estopped)
 
         if decision.latches:
+            if decision.reason and decision.reason.startswith("attitude "):
+                try:
+                    self._log_attitude_terminal(snap)
+                except Exception:  # noqa: BLE001 - abort must still latch if evidence fails
+                    logger.exception(
+                        "attitude terminal snapshot failed; capture is not valid failure evidence"
+                    )
             # The latch publishes the single abort notice itself.
             self._latch_abort(decision.reason or "unknown_safety_gate")
         elif decision.publishes_default:
@@ -909,6 +926,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         ang_vel,
         odom: OdomSample,
         base_lin_vel_sample: BaseLinVelSample,
+        terminal_failure_mode: str | None = None,
     ) -> None:
         # base_pos / base_lin_vel_body / contact_forces ARE observable on
         # stock GO2: /utlidar/robot_odom (LiDAR stack) gives position + twist
@@ -940,46 +958,95 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             self._latest_foot_force if foot_force_fresh else np.zeros(4, dtype=np.float32)
         )
 
-        failure_flag, failure_mode = _PhoenixPolicyNode._evaluate_failure(
-            self,
-            quat_xyzw=quat_xyzw,
-            odom_valid=odom.twist_valid,
-            base_lin_vel_body=base_lin_vel_body,
-        )
-
-        self._logger.append(
-            TrajectoryStep(
-                step=self._step_idx,
-                timestamp_s=time.monotonic() - self._started_at,
-                base_pos=base_pos,
-                base_quat=np.asarray(quat_xyzw, dtype=np.float32),
+        if terminal_failure_mode is None:
+            failure_flag, failure_mode = _PhoenixPolicyNode._evaluate_failure(
+                self,
+                quat_xyzw=quat_xyzw,
+                odom_valid=odom.twist_valid,
                 base_lin_vel_body=base_lin_vel_body,
-                base_ang_vel_body=ang_vel.astype(np.float32),
-                joint_pos=q.astype(np.float32),
-                joint_vel=qd.astype(np.float32),
-                command_vel=self._velocity_command.astype(np.float32),
-                action=action.astype(np.float32),
-                contact_forces=contact_forces.astype(np.float32),
-                failure_flag=failure_flag,
-                failure_mode=failure_mode,
-                odom_valid=odom_valid,
-                capture_source=CAPTURE_SOURCE_HARDWARE,
-                # Two different facts, kept apart on purpose: where the LOGGED
-                # velocity came from, and what the POLICY was actually fed. In
-                # zeros mode they disagree, and that disagreement is the thing
-                # the capture must not hide.
-                base_lin_vel_source=(
-                    f"odom:{odom.provenance}" if odom.twist_valid else odom.provenance
-                ),
-                obs_base_lin_vel_source=base_lin_vel_sample.provenance,
-                # failure_flag on this path is the detector's verdict and
-                # nothing else. The three sim_termination_* columns stay null:
-                # there is no simulator here, and a hardware capture must not
-                # fabricate ground truth it cannot observe.
-                failure_onset_source="detector",
-                contact_forces_units=CONTACT_FORCE_UNITS_RAW_COUNTS,
             )
+            failure_onset_source = "detector"
+        else:
+            failure_flag, failure_mode = True, terminal_failure_mode
+            failure_onset_source = "safety_gate"
+
+        step = TrajectoryStep(
+            step=self._step_idx,
+            timestamp_s=time.monotonic() - self._started_at,
+            base_pos=base_pos,
+            base_quat=np.asarray(quat_xyzw, dtype=np.float32),
+            base_lin_vel_body=base_lin_vel_body,
+            base_ang_vel_body=ang_vel.astype(np.float32),
+            joint_pos=q.astype(np.float32),
+            joint_vel=qd.astype(np.float32),
+            command_vel=self._velocity_command.astype(np.float32),
+            action=action.astype(np.float32),
+            contact_forces=contact_forces.astype(np.float32),
+            failure_flag=failure_flag,
+            failure_mode=failure_mode,
+            odom_valid=odom_valid,
+            capture_source=CAPTURE_SOURCE_HARDWARE,
+            # Two different facts, kept apart on purpose: where the LOGGED
+            # velocity came from, and what the POLICY was actually fed. In
+            # zeros mode they disagree, and that disagreement is the thing
+            # the capture must not hide.
+            base_lin_vel_source=(
+                f"odom:{odom.provenance}" if odom.twist_valid else odom.provenance
+            ),
+            obs_base_lin_vel_source=base_lin_vel_sample.provenance,
+            # failure_flag on this path is the detector's verdict and
+            # nothing else. The three sim_termination_* columns stay null:
+            # there is no simulator here, and a hardware capture must not
+            # fabricate ground truth it cannot observe.
+            failure_onset_source=failure_onset_source,
+            contact_forces_units=CONTACT_FORCE_UNITS_RAW_COUNTS,
         )
+        if terminal_failure_mode is None:
+            self._logger.append(step)
+        else:
+            self._logger.append_terminal(step)
+
+    def _log_attitude_terminal(self, snap: SensorSnapshot) -> None:
+        """Enqueue exactly one labelled terminal sample before abort closes the log.
+
+        This runs only after the pure gate has decided to intervene and before
+        :meth:`_latch_abort` closes the writer. It performs no inference and
+        publishes no command. The action is the last action actually produced
+        by the policy, which is the controller state at intervention time.
+        """
+
+        if self._logger is None or self._attitude_terminal_logged:
+            return
+        odom = self._sample_odom(snap.now_ns, snap.quat_xyzw)
+        try:
+            base_lin_vel_sample = resolve_base_lin_vel(
+                self.base_lin_vel_source,
+                odom_lin_vel_body=odom.lin_vel_body,
+                odom_valid=odom.twist_valid,
+                odom_provenance=odom.provenance,
+            )
+        except BaseLinVelUnavailableError:
+            # The attitude gate already owns this tick's abort reason. Logging
+            # must not call the normal resolver, which would latch a competing
+            # odometry abort. The row remains explicit about the unavailable
+            # policy input instead of pretending the fallback was measured.
+            base_lin_vel_sample = BaseLinVelSample(
+                value=np.zeros(3, dtype=np.float32),
+                provenance=f"{self.base_lin_vel_source}:unavailable_at_attitude_abort",
+                measured=False,
+            )
+        self._log_step(
+            q=snap.joint_pos,
+            qd=snap.joint_vel,
+            action=self._last_action,
+            quat_xyzw=snap.quat_xyzw,
+            ang_vel=np.asarray(snap.ang_vel, dtype=np.float32),
+            odom=odom,
+            base_lin_vel_sample=base_lin_vel_sample,
+            terminal_failure_mode="attitude",
+        )
+        self._attitude_terminal_logged = True
+        self._step_idx += 1
 
     def _evaluate_failure(
         self, *, quat_xyzw, odom_valid: bool, base_lin_vel_body: np.ndarray

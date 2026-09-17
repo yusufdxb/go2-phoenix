@@ -714,7 +714,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             checks += pe.rate_checks(
                 probe, topic, floor_hz=pe.RATE_FLOOR_HZ, max_gap_s=float(safety["sensor_timeout_s"])
             )
-        checks += pe.sensor_content_checks(probe)
+        checks += pe.sensor_content_checks(
+            probe,
+            attitude_intervention_rad=pe.resolve_attitude_intervention_rad(dict(safety)),
+        )
         extra.update(probe=str(args.probe))
     elif stage == "E":
         manifest, ticks, _ = read_telemetry(args.telemetry[0])

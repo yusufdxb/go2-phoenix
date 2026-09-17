@@ -29,6 +29,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from phoenix.real_world.failure_detector import resolve_attitude_intervention_rad
+
 from .activation import PATH_KEYS, file_sha256
 from .go2_model import POLICY_JOINT_ORDER, verify_default_pose
 
@@ -123,6 +125,10 @@ def validate_deploy_contract(cfg: Mapping[str, Any]) -> list[str]:
         value = safety.get(key)
         if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
             problems.append(f"safety.{key} must be a positive number, got {value!r}")
+    try:
+        resolve_attitude_intervention_rad(dict(safety))
+    except ValueError as exc:
+        problems.append(str(exc))
     if not policy.get("onnx_path"):
         problems.append("policy.onnx_path is missing")
     return problems

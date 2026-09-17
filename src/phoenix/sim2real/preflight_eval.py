@@ -48,7 +48,10 @@ from typing import Any
 
 import numpy as np
 
-from phoenix.real_world.failure_detector import FailureThresholds
+from phoenix.real_world.failure_detector import (
+    FailureThresholds,
+    resolve_attitude_intervention_rad,
+)
 
 from .actuator_gate import REAL_DEADMAN_NODE_NAMES
 from .go2_model import (
@@ -213,9 +216,17 @@ def publisher_check(
     )
 
 
-def sensor_content_checks(probe: Mapping[str, Any]) -> list[Check]:
+def sensor_content_checks(
+    probe: Mapping[str, Any],
+    *,
+    attitude_intervention_rad: float | None = None,
+) -> list[Check]:
     """Physically plausible sensor CONTENT, not just flow (stage D)."""
-    thresholds = FailureThresholds()
+    attitude_limit = (
+        FailureThresholds().pitch_rad
+        if attitude_intervention_rad is None
+        else float(attitude_intervention_rad)
+    )
     checks: list[Check] = []
     low = _topic(probe, "/lowstate")
     q_min, q_max = low.get("q_min"), low.get("q_max")
@@ -255,9 +266,9 @@ def sensor_content_checks(probe: Mapping[str, Any]) -> list[Check]:
             "/imu/data attitude inside the abort thresholds",
             roll is not None
             and pitch is not None
-            and roll < thresholds.roll_rad
-            and pitch < thresholds.pitch_rad,
-            f"max |roll| {roll} (< {thresholds.roll_rad}), max |pitch| {pitch} (< {thresholds.pitch_rad})",
+            and roll < attitude_limit
+            and pitch < attitude_limit,
+            f"max |roll| {roll} (< {attitude_limit}), max |pitch| {pitch} (< {attitude_limit})",
         )
     )
     checks.append(
@@ -690,7 +701,7 @@ def stand_checks(
     control = cfg.get("control") or {}
     rate_hz = float(control.get("rate_hz", 50))
     sensor_timeout = float((cfg.get("safety") or {})["sensor_timeout_s"])
-    thresholds = FailureThresholds()
+    attitude_limit = resolve_attitude_intervention_rad(dict(cfg.get("safety") or {}))
     checks = manifest_checks(manifest, live=True, stage=stage, lock=lock, expected_sha=expected_sha)
 
     first, last = _policy_rows(ticks)
@@ -778,8 +789,8 @@ def stand_checks(
             "attitude stayed inside the abort thresholds",
             roll is not None
             and pitch is not None
-            and roll < thresholds.roll_rad
-            and pitch < thresholds.pitch_rad,
+            and roll < attitude_limit
+            and pitch < attitude_limit,
             f"max |roll| {roll}, max |pitch| {pitch}",
         )
     )

@@ -8,9 +8,9 @@ Two subcommands, each writing one JSON file that
              (receive time, monotonic clock), the publishing node names, and the
              content statistics the freshness stage needs (LowState joint range and
              non-finite count, IMU attitude extremes, joint-state names).
-``deadman``  interactive. Records every ``/phoenix/estop`` message and polls its
-             publisher set while the operator is prompted to HOLD, RELEASE and
-             HOLD AGAIN the physical deadman.
+``deadman``  Records every ``/phoenix/estop`` message and advances only after it
+             observes sustained HOLD, RELEASE and HOLD AGAIN states. The
+             operator never has to touch the terminal.
 
 Neither subcommand publishes anything. Rates are measured from receive times on
 this host, never from message stamps: the robot's and the payload's clocks are
@@ -140,6 +140,31 @@ class TopicRecorder:
             out.update(self.extra)
         return out
 
+    def event_snapshot(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return list(self.events)
+
+
+class ObservedBooleanPhase:
+    """Recognize one sustained boolean state from timestamped observations."""
+
+    def __init__(self, *, desired: bool, duration_s: float) -> None:
+        if duration_s <= 0:
+            raise ValueError("duration_s must be positive")
+        self.desired = bool(desired)
+        self.duration_s = float(duration_s)
+        self.started_s: float | None = None
+
+    def observe(self, timestamp_s: float, value: bool) -> tuple[float, float] | None:
+        if bool(value) != self.desired:
+            self.started_s = None
+            return None
+        if self.started_s is None:
+            self.started_s = float(timestamp_s)
+        if float(timestamp_s) - self.started_s >= self.duration_s:
+            return self.started_s, float(timestamp_s)
+        return None
+
 
 class _Probe:
     """rclpy wiring shared by both subcommands. Imports ROS only when constructed."""
@@ -217,18 +242,38 @@ def cmd_deadman(args: argparse.Namespace) -> int:
 
     thread = threading.Thread(target=spin, daemon=True)
     thread.start()
-    prompts = (
-        ("hold", "HOLD the deadman and keep holding it. Press Enter once you are holding."),
-        ("release", "RELEASE the deadman completely. Press Enter once it is released."),
-        ("rehold", "HOLD the deadman again. Press Enter once you are holding."),
+    requested = (
+        ("hold", False, "HOLD the deadman and keep holding it"),
+        ("release", True, "RELEASE the deadman completely"),
+        ("rehold", False, "HOLD the deadman again and keep holding it"),
     )
+    failure: str | None = None
     try:
-        for name, prompt in prompts:
-            input(f"\n[deadman] {prompt}\n> ")
-            start = time.monotonic()
-            print(f"[deadman] recording '{name}' for {args.phase_s:g} s; do not change the switch")
-            time.sleep(args.phase_s)
-            phases.append({"name": name, "t_start": start, "t_end": time.monotonic()})
+        event_index = 0
+        for name, desired, instruction in requested:
+            print(
+                f"\a\n[deadman] {instruction}. The probe advances after observing "
+                f"{args.phase_s:g} continuous seconds."
+            )
+            tracker = ObservedBooleanPhase(desired=desired, duration_s=args.phase_s)
+            deadline = time.monotonic() + args.transition_timeout_s
+            completed: tuple[float, float] | None = None
+            while time.monotonic() < deadline and completed is None:
+                events = recorder.event_snapshot()
+                for event in events[event_index:]:
+                    completed = tracker.observe(float(event["t"]), bool(event["value"]))
+                    if completed is not None:
+                        break
+                event_index = len(events)
+                if completed is None:
+                    time.sleep(0.02)
+            if completed is None:
+                failure = f"timed out waiting for observed {name} state"
+                phases.append({"name": name, "status": "timeout"})
+                break
+            start, end = completed
+            phases.append({"name": name, "t_start": start, "t_end": end, "status": "observed"})
+            print(f"[deadman] observed '{name}' continuously for {end - start:.2f} s")
     finally:
         stop.set()
         thread.join(timeout=2.0)
@@ -241,12 +286,13 @@ def cmd_deadman(args: argparse.Namespace) -> int:
         "messages": messages,
         "publisher_polls": polls,
         "phases": phases,
+        "failure": failure,
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(trace, indent=2) + "\n")
     print(f"[deadman] {len(messages)} messages, {len(polls)} publisher polls -> {out}")
-    return 0
+    return 1 if failure else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -261,6 +307,12 @@ def build_parser() -> argparse.ArgumentParser:
     dead.add_argument("--estop-topic", default="/phoenix/estop")
     dead.add_argument("--estop-timeout-s", type=float, required=True)
     dead.add_argument("--phase-s", type=float, default=3.0, help="recording time per prompt")
+    dead.add_argument(
+        "--transition-timeout-s",
+        type=float,
+        default=60.0,
+        help="fail after this long without each requested physical transition",
+    )
     dead.add_argument("--out", required=True)
     dead.set_defaults(func=cmd_deadman)
     return p
