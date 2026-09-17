@@ -41,53 +41,45 @@ STAGE_A_SESSION=$SESSION scripts/stage_payload_bundle.sh \
     jetson-cable:/home/unitree/phoenix/stand-h25-${SHA:0:7}        # last line: transfer AND activation verified
 ```
 
-## 2. Payload shell (every terminal)
+## 2. Payload: one prep command, then one `source` per terminal
+
+`scripts/payload_prep.sh` does every payload-side step that cost time on 2026-09-17,
+checks each one actually took effect, and writes `payload_env.sh`. It moves no motors,
+starts no bridge and publishes nothing. Get the UTC string from the workstation first,
+because the payload has no RTC.
 
 ```bash
-cd $PAYLOAD_REPO
-source /opt/ros/humble/setup.bash
-source ~/unitree_ros2/cyclonedds_ws/install/setup.bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export CYCLONEDDS_URI=file://<xml whose NetworkInterface is enP8p1s0>   # docs/go2_field_notes.md section 1
-ros2 daemon stop
-export PHOENIX_EXPECT_SHA=<the full commit stage_payload_repo.sh printed>
-export PHOENIX_BUNDLE=/home/unitree/phoenix/stand-h25-<first 7 characters of that commit>
-export DEPLOY_CFG=$PHOENIX_BUNDLE/deploy_stand_h25.yaml
-export PHOENIX_DEADMAN=wireless                                         # GO2 remote, L1
+# On the WORKSTATION:
+date -u +'%Y-%m-%d %H:%M:%S'
+
+# On the PAYLOAD, from the synced repo:
+cd /home/unitree/yusuf/go2-phoenix
+./scripts/payload_prep.sh \
+    --utc "<the string above>" \
+    --expect-sha <full commit stage_payload_repo.sh printed> \
+    --bundle /home/unitree/phoenix/stand-h25-<first 7 of that commit>
 ```
 
-## 2b. Payload hygiene: do this BEFORE any stage
+It stops `come-here.service` and proves it stopped (it starves the payload, 132 topics
+against 109 and `/lowstate` at 349 Hz against 500, AND it can command the robot); sets and
+sanity-checks the clock; points `CYCLONEDDS_URI` at the repo's own
+`configs/payload/cyclonedds.xml` and verifies the NIC named in it exists and is UP (a name
+that does not exist makes every Go2 topic advertise and carry no data, while
+`ros2 topic list` looks perfectly healthy); confirms `python3` imports phoenix from the
+synced tree, printing the `.pth` fix rather than `pip install -e .`, which fails on this
+payload's pre-PEP-660 setuptools; and runs the contention probe. It exits non-zero and
+prints `NOT READY` if any of that fails.
 
-Every item here was measured on the payload on 2026-09-17. Skipping them is how the
-last session lost about an hour.
+Then, in **every** terminal:
 
 ```bash
-# 1. STOP come-here FIRST. It autostarts on boot, it starves the Phoenix payload
-#    (132 topics against 109, /lowstate 349 Hz against the field notes' 500) AND it
-#    can command the robot: a second, uncommanded authority over the motors.
-sudo systemctl stop come-here.service
-systemctl is-active come-here.service        # must print "inactive"
-
-# 2. The payload has NO RTC. A wrong clock makes a dead publisher look fresh and
-#    silently breaks freshness gates. Set it at session start, every session.
-sudo date -s "$(date -u +'%Y-%m-%d %H:%M:%S') UTC"   # run the inner date ON THE WORKSTATION
-
-# 3. CYCLONEDDS_URI must be a FILE uri. unitree_ros2/setup.sh exports inline XML and
-#    the harness HALTs on it. Point it at a file whose NetworkInterface is enP8p1s0.
-echo "$CYCLONEDDS_URI"                        # must start with file://
-
-# 4. The payload's setuptools is 59.6.0, which predates PEP 660, so `pip install -e .`
-#    FAILS. Do not try to fix it in the field. scripts/stage_payload_repo.sh syncs the
-#    tracked execution set; put the repo's src/ on the path with a .pth entry instead:
-python3 -c "import phoenix, sys; print('phoenix from', phoenix.__file__)"
+cd /home/unitree/yusuf/go2-phoenix
+source payload_env.sh
 ```
 
-Every on-robot stage (B through H) now runs a **contention interlock** before it does
-anything: `hw_probe contention` records the active competing units, the ROS node graph
-and the `/lowstate` rate, and `preflight_eval.contention_checks` refuses the stage if
-`come-here.service` is active, if a come-here node is in the graph, if `/lowstate` is
-below 400 Hz, or if the probe recorded nothing at all. If a stage halts with
-"another system is sharing the robot", item 1 above is what it is telling you.
+That sets ROS, `RMW_IMPLEMENTATION`, the `file://` `CYCLONEDDS_URI`, `PHOENIX_EXPECT_SHA`,
+`PHOENIX_BUNDLE`, `DEPLOY_CFG`, `PHOENIX_DEADMAN=wireless`, and stops the stale `ros2`
+daemon (which otherwise reports the previous environment's topic list).
 
 ## 3. Motors OFF: stages A to D
 
