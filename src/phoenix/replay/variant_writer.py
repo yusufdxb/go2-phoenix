@@ -141,6 +141,7 @@ class VariantTrajectoryWriter:
         # into one file.
         self._closed_env = [False] * self.num_envs
         self._closed = False
+        self._results: list[VariantResult] = []
 
     @property
     def active_envs(self) -> int:
@@ -208,11 +209,19 @@ class VariantTrajectoryWriter:
                 actual_lin_vel=lin[i][:2],
             )
             failed = event is not None
-            if failed and self._failure_step[i] is None:
-                self._failure_mode[i] = (
+            # The ROW reports the mode that fired on THIS step; the summary
+            # keeps the first onset. Reporting the first mode on every later
+            # row mislabels a slip that follows an earlier attitude event, and
+            # the schema contract (trajectory_logger's module docstring) is
+            # that failure_mode is strictly the detector's label for that row.
+            row_mode: str | None = None
+            if failed:
+                row_mode = (
                     event.mode.value if isinstance(event.mode, FailureMode) else str(event.mode)
                 )
-                self._failure_step[i] = step_index
+                if self._failure_step[i] is None:
+                    self._failure_mode[i] = row_mode
+                    self._failure_step[i] = step_index
             onset_source: str | None = ONSET_SOURCE_DETECTOR if failed else None
             if bool(dones[i]):
                 self._terminated_step[i] = step_index
@@ -232,7 +241,7 @@ class VariantTrajectoryWriter:
                     action=act[i],
                     contact_forces=contact[i],
                     failure_flag=failed,
-                    failure_mode=self._failure_mode[i] if failed else None,
+                    failure_mode=row_mode,
                     odom_valid=True,
                     capture_source=CAPTURE_SOURCE_SIM,
                     base_lin_vel_source=BASE_LIN_VEL_SOURCE_SIM,

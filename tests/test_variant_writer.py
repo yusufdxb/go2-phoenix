@@ -251,3 +251,58 @@ def test_index_counts_only_files_that_exist(tmp_path):
     payload = json.loads(out.read_text())
     assert payload["variants_written"] == 0
     assert payload["variants"] == []
+
+
+def test_a_row_reports_the_mode_that_fired_on_that_step(tmp_path):
+    """Regression: a later slip was labelled with the earlier attitude mode.
+
+    The row's failure_mode used to carry the FIRST mode ever seen for that env,
+    so once an attitude event had fired, every later failure row claimed
+    "attitude" whatever actually fired. The schema contract in
+    trajectory_logger's module docstring is that failure_mode is strictly the
+    detector's label for THAT row, and a mode filter downstream trusts it.
+    """
+    w = VariantTrajectoryWriter(tmp_path, N, control_dt=DT)
+    # Step 0: upright, nothing fires.
+    w.append_step(0, **step_kwargs())
+    # Step 1: tipped past the sim attitude bar -> attitude.
+    w.append_step(1, **step_kwargs(quat=tipped(SIM_ANALYSIS_PITCH_RAD + 0.3)))
+    # Now upright again, but commanded fast while measured speed stays ~0, held
+    # long enough to trip the kinematic slip mode.
+    cmd = np.tile(np.asarray([1.0, 0.0, 0.0], dtype=np.float32), (N, 1))
+    for i in range(2, 60):
+        w.append_step(i, **step_kwargs(cmd=cmd))
+    w.close()
+
+    reader = TrajectoryReader(tmp_path / "variant_000.parquet")
+    modes = list(reader.column("failure_mode"))
+    flags = list(reader.column("failure_flag"))
+    fired = [(i, m) for i, (f, m) in enumerate(zip(flags, modes, strict=True)) if f]
+
+    assert fired, "no failure row was recorded at all"
+    assert fired[0][1] == "attitude", fired
+    later = [m for i, m in fired if i > 1]
+    assert "slip" in later, f"expected a later slip row, got {fired}"
+    # The bug: every later row said "attitude".
+    assert "attitude" not in later, f"a later row inherited the first mode: {fired}"
+
+
+def test_the_summary_still_reports_the_first_onset(tmp_path):
+    """Per-row honesty must not cost the first-onset summary."""
+    w = VariantTrajectoryWriter(tmp_path, N, control_dt=DT)
+    w.append_step(0, **step_kwargs())
+    w.append_step(1, **step_kwargs(quat=tipped(1.2)))
+    cmd = np.tile(np.asarray([1.0, 0.0, 0.0], dtype=np.float32), (N, 1))
+    for i in range(2, 60):
+        w.append_step(i, **step_kwargs(cmd=cmd))
+    results = w.close()
+    assert {r.failure_mode for r in results} == {"attitude"}
+    assert {r.failure_step for r in results} == {1}
+
+
+def test_close_is_safe_to_call_again_after_an_error(tmp_path):
+    # close() marks itself closed before doing the work, so a second call used
+    # to hit an unset _results attribute.
+    w = VariantTrajectoryWriter(tmp_path, N, control_dt=DT)
+    w.append_step(0, **step_kwargs())
+    assert w.close() == w.close()

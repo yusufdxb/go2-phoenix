@@ -137,6 +137,24 @@ class TrajectoryReader:
         )
         self.disturbances = list(self.metadata.get("disturbances") or [])
 
+    @property
+    def provenance_declared(self) -> bool:
+        """Can this capture say where it came from?
+
+        False for a capture written before the ``capture_source`` column
+        existed (April 2026 and earlier) that also declares no frame. Those
+        files carry a schema BYTE-FOR-BYTE IDENTICAL to a simulator capture's,
+        so nothing in the file distinguishes a hardware recording from a sim
+        rollout, and the old fallback silently called them ``env_local``.
+        A caller that intends to seed a simulator from one must declare the
+        frame itself rather than accept a guess.
+        """
+        return (
+            self.declared_position_frame is not None
+            or self.inferred_position_frame is not None
+            or "capture_source" in self._table.column_names
+        )
+
     def _infer_position_frame(self) -> str | None:
         """Infer the frame from ``capture_source`` when the writer declared none.
 
@@ -270,6 +288,35 @@ class TrajectoryReader:
             control_dt=float(control_dt) if control_dt else None,
             source_rows=(first, row),
         )
+
+
+def undeclared_provenance_problem(path, position_frame: str | None = None) -> str | None:
+    """Why this capture may not be seeded into a simulator, or ``None``.
+
+    A capture written before the ``capture_source`` column existed carries a
+    parquet schema BYTE-FOR-BYTE IDENTICAL to a simulator capture's, so nothing
+    in the file says whether it is a sim rollout or a boot-relative robot
+    recording. The old behaviour resolved it to the simulator convention
+    ``env_local``, which for a hardware capture writes a trunk height that was
+    never measured. Refusing and making the caller declare is the only honest
+    answer; guessing is what produced fabricated seeds.
+
+    Returns the operator-facing reason string when the capture must be refused,
+    so the caller can log it and exit. ``position_frame`` being supplied by the
+    caller IS the declaration, and clears the refusal.
+    """
+
+    if position_frame is not None:
+        return None
+    if TrajectoryReader(path).provenance_declared:
+        return None
+    return (
+        f"{path} declares no position frame and has no capture_source column, so whether "
+        "it is a simulator rollout or a boot-relative robot recording cannot be determined "
+        "from the file: the two schemas are identical. Seeding it as env_local is a guess "
+        "that spawns the trunk at a fabricated height when the guess is wrong. Pass "
+        "--position-frame to declare what this capture actually is."
+    )
 
 
 def load_initial_state(

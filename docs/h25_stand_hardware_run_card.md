@@ -155,6 +155,101 @@ authority window, then its single abort notice returns the bridge to HOLD. The s
 asks whether the robot stood without collapse, oscillation or buzz, then asks for Enter
 to DAMP (kp 0): the robot sinks onto the mat, so the spotter must be ready.
 
+## 6. Post-run report (after every stage that wrote telemetry)
+
+```bash
+scripts/hardware_run_report.sh "$SESSION"
+```
+
+Offline, reads only what the session already wrote, and prints the numbers that
+decide whether a run is evidence. It also writes `hardware_run_report.json` next
+to the text, and exits non-zero unless the result is PASS.
+
+The clip rate is reported TWICE, over disjoint windows: `startup` and `settled`
+(the final second of the policy window, half-open so the boundary tick counts as
+startup). **Quote the settled number.** A single blended rate is what produced the
+66.7% / 100% figures, which described the folded start pose, not the standing robot.
+
+Any metric the evidence cannot support prints `UNAVAILABLE` with what would be
+needed. Do not quote a number the report did not print.
+
+## 7. Reproducibility check, only after H x3 has passed
+
+A single passing sequence is one run. Repeat it from a clean process start to show
+it was not a one-off. **No GO2 power cycle is needed**; this is a software restart.
+
+1. End the last attempt normally: the policy window closes, the bridge HOLDs,
+   the operator confirms, then DAMP.
+2. `Ctrl-C` the bridge (it damps for 0.2 s then exits), then the other nodes.
+   Release the deadman first, as always.
+3. Re-arm exactly as at the start of the session: `source payload_env.sh` in a
+   fresh terminal, then `scripts/harness_preflight.sh status` to confirm the
+   ledger still counts A..G for this commit and lock.
+4. Re-run the shortest sequence the safety model still permits, `F` then `G`
+   then `H`, with the same physical setup and the same typed confirmations.
+5. Record it as a SEPARATE run. Do not overwrite the first: use a new
+   `PHOENIX_SESSION`, or keep the stage run directories distinct, and run the
+   report on each session on its own.
+
+Two independent sessions that both reach H are the claim. One is an anecdote.
+
+## 8. Controlled fail-closed validation, one failure, after the clean baseline
+
+Phoenix exists to fail closed, so the session should demonstrate it once, on
+purpose, in the safest form the architecture already supports. **No fault
+injection, no network chaos, no unusual actuator commands, no walking
+perturbations, and never the unvalidated remote-operator path.** Each test below
+only stops something that is already allowed to stop.
+
+### FC-1, motors OFF, run this during stage B before any live stage
+
+Proves the stale-command path on the real robot with the motors off.
+
+1. Run stage B as usual and let it reach policy mode.
+2. While it is running, stop ONLY the policy publisher (`Ctrl-C` its terminal, or
+   `pkill -f ros2_policy_node`). Change nothing else.
+3. The bridge must go to HOLD with `hold_cause="command_stale"` within the
+   configured `watchdog_s`, and it must keep publishing a hold, not silence.
+4. Confirm from the evidence, not from the screen:
+
+```bash
+scripts/hardware_run_report.sh "$SESSION"    # stale commands, max command age,
+                                             # intervention reasons, watchdog trips
+```
+
+Expected: a non-zero `stale commands` count and `command_stale` among the hold
+causes. If the report shows neither, the detection did NOT happen and no live
+stage should follow.
+
+### FC-2, motors OFF, already covered by stage C
+
+Stage C is the deadman test: hold, release, hold, with the probe advancing on the
+SUSTAINED `/phoenix/estop` state. Passing C is the motors-off proof of the deadman
+path. No extra step.
+
+### FC-3, motors LIVE, ONLY after H x3 and the reproducibility check have passed
+
+The live equivalent of FC-2, using the normal stop, nothing exotic.
+
+1. Set up exactly as for stage F, 2 s of authority, spotter ready, feet on the mat.
+2. Part way through the window, the operator **releases L1**, which is the normal
+   HALT gesture they are already holding.
+3. The bridge must leave policy mode immediately and HOLD the measured posture.
+4. Measure it from the evidence:
+
+```bash
+scripts/hardware_run_report.sh "$SESSION"    # deadman transitions,
+                                             # release to safe out (ms)
+```
+
+`release to safe out` is measured from the first tick that recorded the deadman
+unsafe while the policy still had authority, to the first tick that left policy
+mode. If the run never had that transition the report says `UNAVAILABLE` rather
+than inventing a latency.
+
+Abort FC-3 and do not retry it if the robot does anything other than settle into a
+hold.
+
 ## HALT: release L1 immediately, then Ctrl-C the terminal
 
 * A joint snaps, or buzz or hard saturation on any motor.
@@ -200,6 +295,30 @@ start.
 * Passing H does not permit walking. The walking prerequisites are listed in
   `phoenix.sim2real.deploy_contract.WALKING_PREREQUISITES`, starting with validating
   `/utlidar/robot_odom` from a bag with known motion.
+
+## What `v0.4.0-stand-hw` may and may not claim
+
+Tag ONLY after the physical evidence exists: H x3 GO on a real GO2, the
+reproducibility check passed as a separate run, and FC-1 (and FC-3 if run)
+demonstrated. Workstation stage A and any simulator result are NOT grounds to
+tag, and neither is a localhost rehearsal against the fake GO2.
+
+The tag means exactly:
+
+> The Phoenix standing policy and safety execution path were validated on
+> physical GO2 hardware under the documented configuration
+> (`configs/sim2real/deploy_stand_h25.yaml` + its lock, commanded zero velocity,
+> stand-only, feet on the ground on a mat, tethered or spotted).
+
+It does NOT claim, and must not be summarised as:
+
+* robust locomotion, or walking of any kind (walking is refused in code)
+* terrain robustness: one flat mat is not terrain
+* recovery behaviour: nothing here recovers from a fall
+* walking-policy validation
+* remote-operator validation (`PHOENIX_OPERATOR_REMOTE` stays off by default and
+  is unverified on hardware)
+* any claim about the reliability shield, which is not enabled in this config
 
 ## Evidence to keep
 

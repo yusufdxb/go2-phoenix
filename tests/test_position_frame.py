@@ -221,3 +221,82 @@ def test_a_hardware_capture_cannot_be_restored_end_to_end(tmp_path):
         state_adapter.to_world_position(
             initial.base_pos, np.zeros(3), initial.position_frame
         )
+
+
+# ------------------------------- layer 4: captures with NO provenance at all
+# The April 2026 hardware captures (gate7_live_*, stand_v2_dryrun_*) predate the
+# capture_source column entirely, and their parquet schema is BYTE-FOR-BYTE
+# identical to a synth simulator capture's. Nothing in the file distinguishes a
+# boot-relative robot recording from a sim rollout, so the inference layer above
+# cannot see them and they still resolved to env_local. That is the same bug,
+# still open, for exactly the files most likely to be seeded by mistake.
+def test_a_capture_with_no_capture_source_column_declares_no_provenance(tmp_path):
+    import pyarrow.parquet as pq
+
+    p = write(tmp_path / "legacy.parquet", CAPTURE_SOURCE_SIM)
+    table = pq.read_table(p)
+    stripped = table.drop_columns(["capture_source"])
+    q = tmp_path / "legacy_nosrc.parquet"
+    pq.write_table(stripped, q)
+
+    reader = TrajectoryReader(q)
+    assert "capture_source" not in reader.column_names
+    assert reader.provenance_declared is False
+
+
+def test_provenance_is_declared_when_the_column_exists(tmp_path):
+    p = write(tmp_path / "sim.parquet", CAPTURE_SOURCE_SIM)
+    assert TrajectoryReader(p).provenance_declared is True
+
+
+def test_provenance_is_declared_when_the_writer_declared_a_frame(tmp_path):
+    p = write(tmp_path / "hw.parquet", CAPTURE_SOURCE_HARDWARE,
+              position_frame=POSITION_FRAME_ODOM_BOOT_RELATIVE)
+    assert TrajectoryReader(p).provenance_declared is True
+
+
+def strip_capture_source(src_path: Path, dest: Path) -> Path:
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(src_path)
+    pq.write_table(table.drop_columns(["capture_source"]), dest)
+    return dest
+
+
+def test_an_undeclared_capture_is_refused_as_a_simulator_seed(tmp_path):
+    """The April hardware captures look exactly like this on disk."""
+    from phoenix.replay.trajectory_reader import undeclared_provenance_problem
+
+    legacy = strip_capture_source(
+        write(tmp_path / "src.parquet", CAPTURE_SOURCE_SIM), tmp_path / "legacy.parquet"
+    )
+    problem = undeclared_provenance_problem(legacy)
+    assert problem is not None
+    assert "no capture_source column" in problem
+    assert "--position-frame" in problem
+
+
+def test_declaring_the_frame_clears_the_refusal(tmp_path):
+    from phoenix.replay.trajectory_reader import undeclared_provenance_problem
+
+    legacy = strip_capture_source(
+        write(tmp_path / "src.parquet", CAPTURE_SOURCE_SIM), tmp_path / "legacy.parquet"
+    )
+    assert undeclared_provenance_problem(legacy, POSITION_FRAME_ENV_LOCAL) is None
+
+
+def test_a_capture_with_provenance_is_never_refused(tmp_path):
+    from phoenix.replay.trajectory_reader import undeclared_provenance_problem
+
+    p = write(tmp_path / "sim.parquet", CAPTURE_SOURCE_SIM)
+    assert undeclared_provenance_problem(p) is None
+
+
+def test_reconstruct_exposes_the_declaration_flag():
+    from phoenix.replay.reconstruct import parse_args
+
+    args = parse_args([
+        "--trajectory", "t.parquet", "--variations-config", "v.yaml",
+        "--policy", "p.pt", "--position-frame", "env_local",
+    ])
+    assert args.position_frame == "env_local"
