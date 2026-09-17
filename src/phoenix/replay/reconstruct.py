@@ -82,6 +82,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Run the legacy zero-action rollout instead of a policy-driven replay.",
     )
     p.add_argument(
+        "--position-frame",
+        type=str,
+        default=None,
+        choices=["env_local", "world", "odom_boot_relative"],
+        help=(
+            "Declare the frame of the capture's base_pos. REQUIRED for a capture "
+            "written before the capture_source column existed (April 2026 and "
+            "earlier): its schema is identical to a simulator capture's, so nothing "
+            "in the file says whether it is a sim rollout or a boot-relative robot "
+            "recording, and guessing wrong spawns the trunk at a fabricated height."
+        ),
+    )
+    p.add_argument(
         "--variation-seed",
         type=int,
         default=None,
@@ -139,8 +152,22 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     from phoenix.replay.state_adapter import VelocityCommandAdapter
     seed_record = resolve_seed(args.trajectory, args.seed_row_strategy,
                                args.seed_row_offset_steps, args.seed_row_offset_seconds)
-    initial = load_initial_state(args.trajectory, row=seed_record["resolved_row"])
-    logger.info("Loaded initial state from %s", args.trajectory)
+    from phoenix.replay.trajectory_reader import undeclared_provenance_problem
+
+    problem = undeclared_provenance_problem(args.trajectory, args.position_frame)
+    if problem is not None:
+        logger.error("%s", problem)
+        return 2
+
+    initial = load_initial_state(
+        args.trajectory, row=seed_record["resolved_row"], position_frame=args.position_frame
+    )
+    logger.info(
+        "Loaded initial state from %s (frame %s, source %s)",
+        args.trajectory,
+        initial.position_frame,
+        initial.position_frame_source,
+    )
 
     # A hardware capture is a recording, not a simulator seed: its base_pos is
     # boot-relative odometry whose z is displacement from the boot pose, not
