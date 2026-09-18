@@ -155,3 +155,16 @@ def test_summary_reports_faults_and_policy_abort_reasons() -> None:
     assert s["first_fault"] == "policy_abort:authority_window_complete"
     assert s["policy_abort_reasons"] == ["authority_window_complete"]
     assert s["mode_counts"] == {"hold": 1}
+
+
+def test_lowstate_age_excludes_shutdown_damp_ticks() -> None:
+    # Regression (GO2 payload 2026-09-18): stage B's freshness check read 0.193 s against a
+    # 0.2 s limit, all of it from teardown damp ticks; the worst operating tick was 0.022 s.
+    operating = [{"mode": "hold", "lowstate_age_s": age, "faults": []} for age in (0.01, 0.022)]
+    teardown = [
+        {"mode": "damp", "lowstate_age_s": age, "faults": ["bridge_shutdown"]}
+        for age in (0.05, 0.193)
+    ]
+    s = summarize({}, operating + teardown)
+    assert s["max_lowstate_age_s"] == 0.022
+    assert s["max_lowstate_age_s_teardown"] == 0.193

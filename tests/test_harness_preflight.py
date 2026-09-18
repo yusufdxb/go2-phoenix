@@ -286,3 +286,11 @@ def test_bundle_staging_refuses_evidence_from_another_commit(tmp_path) -> None:
     assert "but HEAD is" in combined
     assert "REFUSING TO STAGE" in combined
     assert not (tmp_path / "dest").exists(), "a refused stage must leave no bundle"
+
+
+
+def test_launchers_pin_single_threaded_blas() -> None:
+    for script in (HARNESS, DRYRUN):
+        text = script.read_text()
+        for var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+            assert f'{var}="${{{var}:-1}}"' in text, (script.name, var)

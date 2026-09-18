@@ -243,6 +243,9 @@ def summarize(manifest: Mapping[str, Any], ticks: list[dict[str, Any]]) -> dict[
                 vals.append(abs(float(value)))
         return max(vals) if vals else None
 
+    teardown = [t for t in ticks if "bridge_shutdown" in (t.get("faults") or [])]
+    operating = [t for t in ticks if "bridge_shutdown" not in (t.get("faults") or [])]
+
     first_q = next((t["q_unitree"] for t in ticks if t.get("q_unitree")), None)
     q_excursion = None
     if first_q is not None:
@@ -274,7 +277,10 @@ def summarize(manifest: Mapping[str, Any], ticks: list[dict[str, Any]]) -> dict[
         "first_fault": faults[0] if faults else None,
         "policy_abort_reasons": abort_reasons,
         "max_tick_gap_s": float(gaps.max()) if gaps.size else None,
-        "max_lowstate_age_s": _max("lowstate_age_s", ticks),
+        # Shutdown-damp ticks are excluded: the bridge sends kp=0 regardless of LowState
+        # then, and their age only measures how long teardown took.
+        "max_lowstate_age_s": _max("lowstate_age_s", operating),
+        "max_lowstate_age_s_teardown": _max("lowstate_age_s", teardown),
         "max_cmd_age_s_in_policy": _max("cmd_age_s", policy_rows),
         "max_estop_age_s": _max("estop_age_s", ticks),
         "policy_window_s": (policy_t[-1] - policy_t[0]) / 1e9 if len(policy_t) > 1 else 0.0,
