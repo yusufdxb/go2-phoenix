@@ -1,0 +1,77 @@
+# Deployment config for Phase 8 (Gate 8 mode-switch on floor, 2026-04-22).
+#
+# Two-policy runtime: stand-v3 at cmd=0, v3b at cmd!=0, hysteresis band
+# [0.05, 0.15] m/s-equivalent, 25-tick (0.5 s @ 50 Hz) linear blend.
+# Derived from deploy_stand_v3.yaml + the mode_switch block pattern in
+# deploy.yaml. Phase 7 uses deploy_stand_v3.yaml (mode_switch disabled
+# by default); this file is only for Phase 8.
+
+policy:
+  # Fallback single-policy path if mode_switch is disabled at runtime -
+  # stand-v3 alone.
+  onnx_path: "checkpoints/phoenix-stand-v3/policy.onnx"
+  torchscript_path: "checkpoints/phoenix-stand-v3/policy.pt"
+  device: "cpu"
+  obs_pad_zeros: 0
+
+  mode_switch:
+    enabled: true
+    stand_onnx_path: "checkpoints/phoenix-stand-v3/policy.onnx"     # stand-v3 (cmd=0)
+    walk_onnx_path:  "checkpoints/phoenix-flat/v3b/policy.onnx"     # v3b (cmd!=0)
+    enter_walk_thresh: 0.15    # enter TRANS_TO_WALK above this
+    enter_stand_thresh: 0.05   # enter TRANS_TO_STAND below this (hysteresis band = 0.10)
+    yaw_scale: 0.3             # rad/s -> m/s equivalent for combined magnitude
+    transition_ticks: 25       # 0.5 s @ 50 Hz linear blend
+
+control:
+  rate_hz: 50
+  action_scale: 0.25
+  default_joint_pos:
+    FL_hip_joint: 0.0
+    FR_hip_joint: 0.0
+    RL_hip_joint: 0.0
+    RR_hip_joint: 0.0
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+latency:
+  action_delay_steps: 2
+
+actuator_limits:
+  position_margin_rad: 0.05
+  velocity_max_rad_s: 18.0
+  torque_max_nm: 22.0
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+
+safety:
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120
+  estop_timeout_s: 0.5
+  sensor_timeout_s: 0.2
+  first_message_timeout_s: 15.0
