@@ -543,3 +543,10 @@ def test_stage_constants() -> None:
     assert pe.H_ATTEMPTS == 3
     assert pe.LIVE_STAGES == {"E", "F", "G", "H"}
     assert UNITREE_MOTOR_ORDER[0] == "FR_hip_joint"
+
+
+def test_lowstate_age_check_fails_closed_on_missing_age() -> None:
+    assert pe._age_within(None, 0.2) is False
+    assert pe._age_within(0.0, 0.2) is True
+    assert pe._age_within(0.2, 0.2) is True
+    assert pe._age_within(0.21, 0.2) is False

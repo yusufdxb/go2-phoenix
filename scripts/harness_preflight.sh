@@ -34,6 +34,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+# Single-threaded BLAS for every node this script launches (the reliability shield's
+# per-tick matvec). Measured on the GO2 Orin NX payload 2026-09-18: default threads gave
+# shield ticks up to 13.1 ms (p99.9 4.0 ms, 0.23% over the 2 ms budget); one thread, max 0.10 ms.
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}" OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}" MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
 
 DEPLOY_CFG="${DEPLOY_CFG:-configs/sim2real/deploy_stand_h25.yaml}"
 DEPLOY_LOCK="${DEPLOY_LOCK:-configs/sim2real/locks/deploy_stand_h25.lock.yaml}"

@@ -125,6 +125,11 @@ class Check:
         return asdict(self)
 
 
+def _age_within(age: float | None, limit: float) -> bool:
+    """Fail closed: a missing age (no operating ticks recorded) is not fresh."""
+    return age is not None and float(age) <= limit
+
+
 def verdict(checks: Sequence[Check]) -> str:
     gating = [c for c in checks if c.gating]
     return "GO" if gating and all(c.ok for c in gating) else "NO-GO"
@@ -586,7 +591,7 @@ def dryrun_checks(
     checks.append(
         _check(
             "LowState fresh while the bridge had authority",
-            (summary.get("max_lowstate_age_s") or 0.0) <= sensor_timeout,
+            _age_within(summary.get("max_lowstate_age_s"), sensor_timeout),
             f"max LowState age {summary.get('max_lowstate_age_s')} s",
         )
     )
@@ -778,7 +783,7 @@ def hold_test_checks(
     checks.append(
         _check(
             "max LowState age within sensor timeout",
-            (summary.get("max_lowstate_age_s") or 1e9) <= sensor_timeout,
+            _age_within(summary.get("max_lowstate_age_s"), sensor_timeout),
             f"{summary.get('max_lowstate_age_s')} s",
         )
     )
@@ -899,7 +904,7 @@ def stand_checks(
     checks.append(
         _check(
             "max LowState age within sensor timeout",
-            (summary.get("max_lowstate_age_s") or 1e9) <= sensor_timeout,
+            _age_within(summary.get("max_lowstate_age_s"), sensor_timeout),
             f"{summary.get('max_lowstate_age_s')} s",
         )
     )
