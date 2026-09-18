@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import socket
 import sys
 import time
@@ -221,8 +222,15 @@ class LowCmdBridge(Node):
         ticks = max(1, int(round(self._cfg.watchdog_s * self._cfg.rate_hz)))
         for _ in range(ticks):
             rec = self._gate.tick(time.monotonic_ns())
-            if rec["publish"] and rclpy.ok():
-                self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+            if rec["publish"]:
+                # Telemetry must record what went out, not what the gate asked for.
+                if not rclpy.ok():
+                    rec = {**rec, "publish": False, "publish_skipped": "ros_context_invalid"}
+                else:
+                    try:
+                        self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+                    except Exception as exc:  # keep trying the remaining damp ticks
+                        rec = {**rec, "publish": False, "publish_skipped": repr(exc)}
             self._report(rec)
             time.sleep(1.0 / self._cfg.rate_hz)
 
@@ -438,11 +446,27 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     telemetry = TelemetryWriter(cfg.telemetry_path, manifest) if cfg.telemetry_path else None
-    rclpy.init()
+    # rclpy's own SIGINT handler shuts the context down before ``finally`` runs, which made
+    # shutdown_damp skip every damp publish. Keep the context alive; SIGINT/SIGTERM only set
+    # a flag (raising inside rclpy's C calls surfaces as a RuntimeError), and the loop below
+    # exits cleanly so the damp window is actually sent.
+    from rclpy.signals import SignalHandlerOptions
+
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    stop: list[str] = []
+
+    def _request_stop(signum, _frame) -> None:
+        stop.append(signal.Signals(signum).name.lower())
+
+    signal.signal(signal.SIGINT, _request_stop)
+    signal.signal(signal.SIGTERM, _request_stop)
     node = LowCmdBridge(cfg, telemetry)
     end_reason = "spin_returned"
     try:
-        rclpy.spin(node)
+        while not stop and rclpy.ok():
+            rclpy.spin_once(node, timeout_sec=0.05)
+        if stop:
+            end_reason = stop[0]
     except KeyboardInterrupt:
         end_reason = "sigint"
     finally:

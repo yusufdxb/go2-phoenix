@@ -385,3 +385,62 @@ def test_bridge_times_freshness_with_the_monotonic_clock() -> None:
     }
     assert "get_clock" not in calls
     assert "monotonic_ns" in calls
+
+
+class _DampGate:
+    def __init__(self) -> None:
+        self.shutdown_requested = False
+
+    def request_shutdown(self) -> None:
+        self.shutdown_requested = True
+
+    def tick(self, _now_ns: int) -> dict:
+        return {"publish": True, "final_target_unitree": [0.0] * 12, "kp": 0.0, "kd": 1.0}
+
+
+def _damp_self(publish):
+    reported: list[dict] = []
+    fake = types.SimpleNamespace(
+        _gate=_DampGate(),
+        _cfg=types.SimpleNamespace(watchdog_s=0.02, rate_hz=500.0),
+        _publish=publish,
+        _report=reported.append,
+    )
+    return fake, reported
+
+
+def test_shutdown_damp_publishes_every_tick_while_ros_is_up(bridge_module) -> None:
+    sent: list[float] = []
+    fake, reported = _damp_self(lambda _t, kp, _kd: sent.append(kp))
+    bridge_module.LowCmdBridge.shutdown_damp(fake)
+    assert fake._gate.shutdown_requested
+    assert len(sent) == 10 and all(kp == 0.0 for kp in sent)
+    assert all(r["publish"] and "publish_skipped" not in r for r in reported)
+
+
+def test_shutdown_damp_does_not_log_unsent_ticks_as_published(bridge_module, monkeypatch) -> None:
+    # Regression: after an external rclpy shutdown every damp tick was skipped
+    # but telemetry still recorded publish=True.
+    monkeypatch.setattr(bridge_module.rclpy, "ok", lambda: False)
+    sent: list[float] = []
+    fake, reported = _damp_self(lambda *_a: sent.append(1.0))
+    bridge_module.LowCmdBridge.shutdown_damp(fake)
+    assert sent == []
+    assert len(reported) == 10
+    assert all(r["publish"] is False for r in reported)
+    assert all(r["publish_skipped"] == "ros_context_invalid" for r in reported)
+
+
+def test_shutdown_damp_keeps_going_after_a_publish_error(bridge_module) -> None:
+    calls = {"n": 0}
+
+    def flaky(*_a):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("publisher's context is invalid")
+
+    fake, reported = _damp_self(flaky)
+    bridge_module.LowCmdBridge.shutdown_damp(fake)
+    assert calls["n"] == 10
+    assert reported[0]["publish"] is False and "context is invalid" in reported[0]["publish_skipped"]
+    assert all(r["publish"] for r in reported[1:])
