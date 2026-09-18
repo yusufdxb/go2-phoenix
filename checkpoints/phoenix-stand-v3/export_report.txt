@@ -1,0 +1,8 @@
+stand-v3 export report
+2026-04-21T23:51:00Z
+source_checkpoint: checkpoints/phoenix-stand-v3/2026-04-21_19-41-35/model_499.pt
+
+sha256:
+629058818891c2d9a8be82fd8e591f650907dc3cc821aba16082184e7a64eea1  checkpoints/phoenix-stand-v3/latest.pt
+d757dbb553645cf29ce0d6e4bc18c62a622411d009f0d09b8fe7b2b2211a93df  checkpoints/phoenix-stand-v3/policy.onnx
+faab205491a2f9db5de306ab2fff1f619c85e480a702868b1f9981d91aa37638  checkpoints/phoenix-stand-v3/policy.pt
