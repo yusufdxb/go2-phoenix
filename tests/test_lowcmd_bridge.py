@@ -442,5 +442,7 @@ def test_shutdown_damp_keeps_going_after_a_publish_error(bridge_module) -> None:
     fake, reported = _damp_self(flaky)
     bridge_module.LowCmdBridge.shutdown_damp(fake)
     assert calls["n"] == 10
-    assert reported[0]["publish"] is False and "context is invalid" in reported[0]["publish_skipped"]
+    assert (
+        reported[0]["publish"] is False and "context is invalid" in reported[0]["publish_skipped"]
+    )
     assert all(r["publish"] for r in reported[1:])
