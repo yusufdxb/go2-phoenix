@@ -93,7 +93,7 @@ true**.
 - **Gate 7**: 10 s live stand x3 on real GO2 in low-level mode. Pending hardware.
   The sim-side blocker is now resolved: the stand-v3-h25 deliverable clears the
   <5% slew gate in sim (3.30% / 2.91%) after the actuator-gain DR fix. Live
-  hardware retry still owed (mewtwo now goes to the lab; no T7 staging).
+  hardware retry still owed (the dev workstation now goes to the lab; no T7 staging).
 - **Gate 8**: flat walking on real GO2 with v3b. Not attempted.
 - **Failure-curriculum adaptation against real-robot parquets.**
   `adaptation.yaml` ships with `failure_sample_fraction: 0.0`; the headline
