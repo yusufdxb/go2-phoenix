@@ -62,9 +62,9 @@ e.g. `cell_03__f0.05-0.4__p1.0__a-2.0`.
 | FULL | 4096 | 300 | 25 to 40 min | 5 to 8 h (12 cells) |
 
 FULL recommendation comes from the existing stand-v3 retrain (500 iters
-at 10240 envs took ~45 min on the lab-PC 5080 per commit message on
-93e4a94), scaled to 4096 envs and 300 iters. Mewtwo's 5070 is roughly
-70% of the 5080, so the upper bound is reasonable. The user can adjust
+at 10240 envs took ~45 min on the lab PC's GPU per commit message on
+93e4a94), scaled to 4096 envs and 300 iters. The dev workstation GPU is roughly
+70% as fast as the lab PC's, so the upper bound is reasonable. The user can adjust
 in the spec file before kicking it off.
 
 ## Eval metrics
