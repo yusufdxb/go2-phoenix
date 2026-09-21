@@ -68,6 +68,7 @@ def _run(
     pitch: float = 0.02,
     velocity_command_fed=(0.0, 0.0, 0.0),
     publishers=("phoenix_wireless_estop",),
+    teardown_ticks: int = 10,
 ) -> list[dict]:
     gate = ActuatorGate(
         GateParams(
@@ -124,7 +125,7 @@ def _run(
                 aborted = True
         ticks.append(gate.tick(t + 2_000_000))
     gate.request_shutdown()
-    for k in range(10):
+    for k in range(teardown_ticks):
         ticks.append(gate.tick(T0 + (n + k) * PERIOD_NS))
     return ticks
 
@@ -433,6 +434,28 @@ def test_dryrun_with_no_policy_authority_is_no_go() -> None:
     assert "bridge reached policy mode" in failed
 
 
+def test_dryrun_lowstate_stale_during_teardown_is_go() -> None:
+    # 2026-09-21 payload stage B: LowState aged past 0.2 s inside the damp window
+    # after SIGINT, latching lowstate_stale behind bridge_shutdown.
+    ticks = _run(live=False, seconds=3.0, publishers=("_ros2cli_77",), teardown_ticks=15)
+    faults = summarize({}, ticks)["faults"]
+    assert faults == ["bridge_shutdown", "lowstate_stale"]
+    checks = _dryrun(ticks)
+    assert pe.verdict(checks) == "GO", [c for c in checks if not c.ok]
+
+
+def test_lowstate_stale_before_teardown_still_fails() -> None:
+    assert pe._operating_faults(["lowstate_stale", "bridge_shutdown"]) == [
+        "lowstate_stale",
+        "bridge_shutdown",
+    ]
+    assert pe._operating_faults(["lowstate_stale"]) == ["lowstate_stale"]
+    assert pe._operating_faults(["bridge_shutdown", "lowstate_stale", "estop_asserted"]) == [
+        "bridge_shutdown",
+        "estop_asserted",
+    ]
+
+
 # ------------------------------------------------------------------ hold (E)
 def _hold(ticks):
     return pe.hold_test_checks(
@@ -473,6 +496,11 @@ def test_hold_test_with_synthetic_estop_source_is_no_go() -> None:
         if not c.ok
     ]
     assert "no fault other than deadman release or teardown" in failed
+
+
+def test_hold_test_lowstate_stale_during_teardown_is_go() -> None:
+    checks = _hold(_run(live=True, seconds=3.0, policy=False, teardown_ticks=15))
+    assert pe.verdict(checks) == "GO", [c for c in checks if not c.ok]
 
 
 # ----------------------------------------------------------------- stand (F-H)
@@ -550,3 +578,8 @@ def test_lowstate_age_check_fails_closed_on_missing_age() -> None:
     assert pe._age_within(0.0, 0.2) is True
     assert pe._age_within(0.2, 0.2) is True
     assert pe._age_within(0.21, 0.2) is False
+
+
+def test_stand_lowstate_stale_during_teardown_is_go() -> None:
+    checks = _stand(_run(live=True, seconds=3.0, authority_s=2.0, teardown_ticks=15))
+    assert pe.verdict(checks) == "GO", [c for c in checks if not c.ok]

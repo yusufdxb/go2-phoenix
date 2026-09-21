@@ -112,6 +112,10 @@ COMMAND_TOPIC_DEFAULT = "/joint_group_position_controller/command"
 _E_ALLOWED_FAULTS = frozenset({"estop_asserted", "bridge_shutdown"})
 _STAND_END_FAULT = "policy_abort:authority_window_complete"
 _STAND_ALLOWED_AFTER_END = frozenset({"estop_asserted", "bridge_shutdown"})
+#: Latched only AFTER bridge_shutdown, this is teardown: the lowstate bridge is stopped
+#: while the lowcmd bridge is still sending its damp window, so LowState ages past the
+#: timeout. Latched before bridge_shutdown it still fails every stage.
+_TEARDOWN_ONLY_FAULTS = frozenset({"lowstate_stale"})
 
 
 @dataclass(frozen=True)
@@ -123,6 +127,15 @@ class Check:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _operating_faults(faults: Sequence[str]) -> list[str]:
+    """Latch-ordered faults with teardown-only faults latched after bridge_shutdown dropped."""
+    faults = list(faults)
+    if "bridge_shutdown" not in faults:
+        return faults
+    cut = faults.index("bridge_shutdown") + 1
+    return faults[:cut] + [f for f in faults[cut:] if f not in _TEARDOWN_ONLY_FAULTS]
 
 
 def _age_within(age: float | None, limit: float) -> bool:
@@ -580,7 +593,7 @@ def dryrun_checks(
                 "continuous" if not interruptions else "; ".join(interruptions[:5]),
             )
         )
-    faults = set(summary.get("faults") or [])
+    faults = set(_operating_faults(summary.get("faults") or []))
     checks.append(
         _check(
             "no latched fault other than teardown",
@@ -725,7 +738,7 @@ def hold_test_checks(
             f"{summary.get('policy_ticks')} policy ticks",
         )
     )
-    faults = set(summary.get("faults") or [])
+    faults = set(_operating_faults(summary.get("faults") or []))
     checks.append(
         _check(
             "no fault other than deadman release or teardown",
@@ -848,7 +861,7 @@ def stand_checks(
             f"policy abort reasons {reasons}",
         )
     )
-    faults = list(summary.get("faults") or [])
+    faults = _operating_faults(summary.get("faults") or [])
     ok_faults = (
         bool(faults)
         and faults[0] == _STAND_END_FAULT
