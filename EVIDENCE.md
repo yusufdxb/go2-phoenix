@@ -46,7 +46,16 @@ trip. It has not happened.
 | The v2 path executes H25 faithfully on the GO2 | NOT YET VERIFIED | not run: robot unreachable |
 | H25 absorbs RR_thigh gain reduction to 0.5 (score drop 0.042) | SIM VERIFIED | `results/phoenix_v2/strain_pilot/`; stage S stopped by rule (EXPERIMENT.md amendment 4) |
 | The monitor passes its sim validation gate | FALSE in an exploratory run | 5/20 nominal false positives, 5/10 localisation, `exploratory_monitor_sim_s0p5/` |
-| A walking policy passes Gate L | FALSE for the only one trained | 0/256, 31 % rate-limited, `results/phoenix_v2/gate_l/` |
+| A walking policy passes Gate L | FALSE for the amendment 3 baseline | 0/256, 31 % rate-limited, `results/phoenix_v2/gate_l/`; its tracking figures are INVALID (scorer defect, amendment 6.1) |
+| Deploy contract v3 is identical in training, sim evaluation and the deploy path | SIM VERIFIED (live Isaac Lab plant) | zero difference on `ActionManager.action`, the applied target and every observation term over 120 steps of pathological actions, `results/phoenix_v2/contract/w1/` |
+| A walking policy (W2) passes Gate W-H with no soft limiter, hard envelope only | SIM VERIFIED | final seeds 0.9023 / 0.8906 / 1.0000, `results/phoenix_v2/walk_final/w2/`; dev 0.941 / 0.918 / 1.000 |
+| That policy tracks both directions | SIM VERIFIED | strong forward +0.701 -> +0.697, strong backward -0.703 -> -0.694, `results/phoenix_v2/walk_diag/w2_nominal/directional.json` |
+| The forward/backward asymmetry of W1 was an implementation bug | FALSE | sampler, rewards, frame, signs and command reading all audited symmetric, `results/phoenix_v2/asymmetry_audit/` |
+| W2 has an admissible deployment rate limiter | FALSE | every bound in the frozen grid alters 7 to 36 % of joint-samples (limit 1 %) and drops walking success to 0, `results/phoenix_v2/walk_limiter/` |
+| A smoother walking policy exists in this recipe family | FALSE for both declared rungs | action_rate -0.25 and -0.5 never leave the stand-still plateau, `results/phoenix_v2/walk_dev/w5_*` |
+| The exact deploy stack executes the walking policy faithfully | SIM VERIFIED (limiter opened, recorded) | 0.0000 altered, 100 % fidelity and hardware-gate pass, no faults, 0.953 nominal / 0.859 DR, `results/phoenix_v2/walk_deploy/` |
+| Walking absorbs the controlled single-joint degradation | TRUE, so Stage W stops | primary score drop 0.031 at s = 0.5 against the 0.10 rule, `results/phoenix_v2/walk_strain_pilot/` |
+| Walking absorbs a global actuator weakening | FALSE | success 0.953 -> 0.719 at motor strength 0.75 on every joint, `results/phoenix_v2/walk_deploy/w2_open/d_actuator_weak/` |
 
 ## Incumbent policy and deploy stack
 

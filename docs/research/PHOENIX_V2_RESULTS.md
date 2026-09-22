@@ -198,3 +198,30 @@ strong backward -0.70 -> -0.74 m/s (segment success 0.99), strong forward +0.70 
 +0.05 m/s (0.00). Learning curve over its checkpoints: backward appears between
 iterations 1000 and 1100; forward stays near zero to the end. The sign/asymmetry audit
 found no implementation bug (amendment 8.1).
+
+### Walking, continued (same day)
+
+| candidate | change from the one before | dev Gate W-H (DR off / DR on / stand) |
+|---|---|---|
+| W1-full | no soft limiter in the MDP, yaw rate commanded directly | 0.27 / 0.29 / 1.00 |
+| W2 | 3000 iterations instead of 1500 | **0.941 / 0.918 / 1.000 PASS** |
+| W5 rung 1 | W2 with action_rate -0.25 | 0.000 / 0.000 / 1.000 |
+| W5 rung 2 | W2 with action_rate -0.5 | 0.000 / 0.000 / 1.000 |
+
+W2 also passes Gate W-H on the fresh final seeds (0.9023 / 0.8906 / 1.0000) and is
+directionally symmetric. W1's backward-only behaviour was not a bug (amendment 8.1) and
+not an exploration trap: forward locomotion emerged between iterations 1600 and 1800.
+
+Phase 7 then failed for W2 and for both W5 rungs, for opposite reasons (amendments 10
+and 11): W2 commands bang-bang joint targets that no bound in the frozen grid can pass
+as a seatbelt, and the smoother rungs do not walk at all. Phase 9 through the exact
+deploy stack, with the gate's bound opened so it never binds, executes W2 faithfully
+(0.0000 altered targets) at 0.953 nominal and 0.859 under training randomisation, and
+fails the held-out friction (0.156 at 0.2, 0.703 at 1.8) and weak-actuator (0.719 at
+0.75) conditions. The Stage W s_train pilot then stopped the stage by the same rule that
+stopped Stage S (amendment 12): W2 absorbs RR_thigh at 0.5 (primary score drop 0.031).
+
+**Status of the research question after this work: still unanswered, and untested.** The
+program now has the two things it lacked, a faithful deployment contract and a valid
+walking baseline, and it is stopped by the intervention being too weak, not by its own
+machinery. Nothing here ran on the robot.
