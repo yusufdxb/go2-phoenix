@@ -24,6 +24,9 @@ NUM_ENVS="${NUM_ENVS:-128}"
 DURATION="${DURATION:-20}"
 LIMITER_OVR="${LIMITER_OVR:-0.6}"
 TELEMETRY_ENVS="${TELEMETRY_ENVS:-4}"
+# EXPERIMENT.md amendment 14: the saturation latch's standing band (0.175 rad) fires on a
+# HEALTHY bang-bang walking policy, so the walking band is used for every walking cell.
+PIN_BAND="${PIN_BAND:-0.65}"
 
 # Amendment 13.1: the screening must load the frozen artifacts, nothing else.
 EXPECT_ONNX_SHA=fd0d3f30873654530462fc40b8917267202cc779d85d69ee6eaa42782fc0fdbb
@@ -63,7 +66,7 @@ for entry in "${CELLS[@]}"; do
       --num-envs "$NUM_ENVS" --seed "$seed" --duration-s "$DURATION" \
       --limiter-max-delta-override "$LIMITER_OVR" \
       --telemetry-envs "$TELEMETRY_ENVS" \
-      ${spec:+--degrade "$spec" --allow-degradation} \
+      ${spec:+--degrade "$spec" --allow-degradation --degradation-pin-band "$PIN_BAND"} \
       --out "$dir" --label "$name" 2>&1 \
       | grep -v Warp | sed -n '/^{/,/^}/p' | python3 -c "
 import json,sys

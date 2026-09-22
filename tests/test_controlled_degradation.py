@@ -13,6 +13,8 @@ import pytest
 from phoenix.sim2real.degradation import (
     ARM_ENV,
     ARM_VALUE,
+    DEGRADATION_PIN_BAND_RAD,
+    DEGRADATION_PIN_BAND_WALK_RAD,
     JOINT_GROUPS,
     MIN_SCALE,
     MIN_SCALE_MULTI,
@@ -435,3 +437,60 @@ def test_multi_joint_spec_serialises_with_its_set_and_floor():
     import json
 
     assert json.loads(json.dumps(d))["min_scale"] == MIN_SCALE_MULTI
+
+
+# ------------------------------ the walking pin band (amendment 14)
+def test_walking_pin_band_is_wider_than_the_standing_one():
+    """The standing bound fires on a HEALTHY bang-bang walking policy, so it is not a
+    sag detector there. The walking bound is derived from nominal walking telemetry."""
+    assert DEGRADATION_PIN_BAND_WALK_RAD > DEGRADATION_PIN_BAND_RAD
+    # Still inside the general catastrophic-tracking watchdog, so it remains the
+    # stricter, degradation-specific guard rather than a replacement for it.
+    assert DEGRADATION_PIN_BAND_WALK_RAD < 1.25
+
+
+def test_pin_band_defaults_to_the_standing_bound():
+    """Standing configs must be bit-identical to before this parameter existed."""
+    gate = armed(degradation=SPEC)
+    assert gate.params.degradation_pin_band == DEGRADATION_PIN_BAND_RAD
+
+
+def test_a_gap_between_the_two_bands_latches_on_standing_and_not_on_walking():
+    """The exact behaviour change, pinned in both directions."""
+    sagged = DEFAULT_U.copy()
+    sagged[J] -= 0.5  # beyond the standing band, inside the walking band
+
+    standing = run_policy(armed(degradation=SPEC), 0.01, SATURATION_LATCH_S + 0.2, q_u=sagged)
+    assert any(
+        r["fault"] == f"degradation_joint_saturated:{RR_THIGH}" for r in standing
+    ), "the standing bound must still latch"
+
+    walking = run_policy(
+        armed(degradation=SPEC, degradation_pin_band=DEGRADATION_PIN_BAND_WALK_RAD),
+        0.01,
+        SATURATION_LATCH_S + 0.2,
+        q_u=sagged,
+    )
+    assert all(r["mode"] == "policy" for r in walking)
+    assert all(r["fault"] is None for r in walking)
+
+
+def test_the_walking_band_still_latches_a_genuinely_pinned_joint():
+    """Widening it must not disable it."""
+    sagged = DEFAULT_U.copy()
+    sagged[J] -= DEGRADATION_PIN_BAND_WALK_RAD + 0.1
+    recs = run_policy(
+        armed(degradation=SPEC, degradation_pin_band=DEGRADATION_PIN_BAND_WALK_RAD),
+        0.01,
+        SATURATION_LATCH_S + 0.2,
+        q_u=sagged,
+    )
+    assert any(r["fault"] == f"degradation_joint_saturated:{RR_THIGH}" for r in recs)
+    assert recs[-1]["mode"] == "hold"
+
+
+def test_the_applied_pin_band_is_recorded_in_the_tick_record():
+    """A run must be readable back without guessing which bound was in force."""
+    gate = armed(degradation=SPEC, degradation_pin_band=DEGRADATION_PIN_BAND_WALK_RAD)
+    rec = run_policy(gate, 0.01, 0.1)[-1]
+    assert rec["degradation"]["pin_band"] == DEGRADATION_PIN_BAND_WALK_RAD

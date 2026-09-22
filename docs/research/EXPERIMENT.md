@@ -711,3 +711,69 @@ revisited, and the endpoint is not changed a second time.
 robot subnet routes to the default gateway, and .161 / .18 / .15 do not answer. Hardware
 phases stay BLOCKED, not failed. The screening and anything following it are SIM VERIFIED
 at best until that changes.
+
+### Amendment 14 (2026-09-22): the degradation saturation latch is re-sized for walking
+
+Written after the first (latch-armed) pass of the amendment 13 screen and before the
+pass that supersedes it. It changes one experiment-specific safety constant and nothing
+else. The screening endpoint, bar, families, severities, seeds and selection rule of
+amendment 13 are UNCHANGED.
+
+**The finding.** The saturation latch fires when a degraded joint's requested target sits
+at least `DEGRADATION_PIN_BAND_RAD` (0.175 rad) beyond its measured position for
+`SATURATION_LATCH_S` (0.5 s). That band is the historical slew cap and was reasoned about
+for STANDING, where a joint pinned that far is a sagging leg. It is not a sag detector for
+a bang-bang walking policy. On the screen's own nominal walking telemetry, **with no
+degradation applied at all** (seeds 7001-7003, 12 sessions, 144 joint-sessions):
+
+* per-joint p99 of `|requested - q|` reaches **0.69 rad**, about four times the band;
+* **9 of 144 joint-sessions (6.2 %) sustain the latch condition for 0.5 s or more**, one
+  of them for 10.18 s.
+
+Nominal never latches only because the latch is armed exclusively when a degradation spec
+is present. Arm a no-op (scale 1.0) spec and a healthy robot would latch. In the C2 cell
+(`leg_RR` at 0.80) the trip count was **6 of 144, no higher than nominal's 9 of 144**.
+
+**What that did to the first pass.** The C2 family cleared the magnitude bar (pooled
+walking-success drop 0.164 to 0.190) but failed the `not_catastrophic` rule on safety
+holds (0.206 to 0.234 against the 0.15 bound) and fidelity (0.77 to 0.79 against 0.90).
+Splitting its episodes shows the effect is not graded locomotion degradation at all:
+
+| `leg_RR` at 0.80 | episodes | walking success | min base height |
+|---|---|---|---|
+| latch fired | 90 / 384 | 0.000 | 0.106 m |
+| latch did not fire | 294 / 384 | 0.956 | 0.281 m |
+| nominal reference | 384 | 0.922 | 0.282 m |
+
+In roughly three quarters of episodes the weakened leg walks as well as nominal; in the
+rest the gate latches, the robot sinks and scores zero. Only 1.4 % of un-held degraded
+episodes ever breach the 0.20 m height bound. The measured "degradation" was substantially
+the fraction of episodes tripping a latch sized for a different task.
+
+**The change, sized by this program's own rule.** Amendments 2 and 7 sized the
+catastrophic-tracking watchdog by taking the largest sustained `|sent - q|` observed on
+nominal development runs and rounding up with margin (observed 1.115 rad, frozen 1.40).
+The same rule, applied to the latch statistic on nominal walking development seeds
+7001-7003: the largest 0.5 s-sustained `|requested - q|` is **0.499 rad** (RR_calf);
+times the same 1.25 margin gives 0.624; rounded up on the same 0.05 grid:
+
+> **`DEGRADATION_PIN_BAND_WALK_RAD` = 0.65 rad, sustained 0.5 s, for walking policies.**
+
+At kp 25 a joint held 0.65 rad from its target is demanding 16.3 N m and not moving, which
+is what "pinned" was meant to mean. It remains stricter than the general
+catastrophic-tracking watchdog (1.25 rad for 0.2 s), which is unchanged and runs whether
+or not a degradation is armed.
+
+**Scope of the change.** `DEGRADATION_PIN_BAND_RAD` (0.175 rad) is unchanged and remains
+the default, so every standing configuration is bit-identical to before. The band is now a
+gate parameter (`GateParams.degradation_pin_band`), recorded in every manifest and in every
+tick record, so no run can be read back without knowing which bound was in force. Nothing
+else in the envelope is touched: hard joint limits, abort band, tracking watchdog, E-stop,
+deadman, LowState freshness, reduction-only, POLICY-mode-only, the 2 s ramp and the
+triple-locked arming all stand. The floors (`MIN_SCALE` 0.50, `MIN_SCALE_MULTI` 0.70) are
+unchanged.
+
+**Consequence for the screen.** The amendment 13 screen is re-run in full with the walking
+band. The first pass is kept, not deleted, under
+`results/phoenix_v2/intervention_screen_pinband_0p175/`, and is reported as the evidence
+for this amendment. No screening threshold or rule is changed with it.

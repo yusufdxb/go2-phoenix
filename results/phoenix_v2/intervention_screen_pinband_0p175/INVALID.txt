@@ -1,0 +1,41 @@
+INVALID FOR INTERVENTION SELECTION. Kept as evidence, not deleted.
+
+This is the first pass of the amendment 13 screen, run with the degradation saturation
+latch at its STANDING band (DEGRADATION_PIN_BAND_RAD = 0.175 rad, sustained 0.5 s).
+Commit d4e0d56, seeds 7001-7003, 60/60 cells complete.
+
+Why it cannot select an intervention
+------------------------------------
+The 0.175 rad band is not a sag detector for a bang-bang walking policy. On this run's
+OWN nominal walking telemetry, with no degradation applied at all, per-joint p99 of
+|requested - q| reaches 0.69 rad and 9 of 144 joint-sessions sustain the latch condition
+for 0.5 s or more (one for 10.18 s). Nominal never latches only because the latch is
+armed exclusively when a degradation spec is present; a no-op scale-1.0 spec would latch
+a healthy robot. In the leg_RR 0.80 cell the trip count was 6 of 144, NO HIGHER than
+nominal's 9 of 144.
+
+So the measured "degradation" is substantially the fraction of episodes tripping a latch
+sized for a different task, not graded locomotion degradation. Splitting leg_RR at 0.80:
+
+  latch fired       90/384 episodes   walking success 0.000   min base height 0.106 m
+  latch did not     294/384 episodes  walking success 0.956   min base height 0.281 m
+  nominal reference 384 episodes      walking success 0.922   min base height 0.282 m
+
+Three quarters of episodes walk as well as nominal; the rest are stopped by the gate.
+Only 1.4 % of un-held degraded episodes ever breach the 0.20 m height bound.
+
+What it shows
+-------------
+Every C2/C3/C4 cell fails the preregistered not_catastrophic rule, on safety-hold rates
+of 0.206 to 0.841 and fidelity of 0.79 down to 0.16. Dose-response is monotone in all
+four families (worst reversal +0.0000). C1 (single joint) fails on magnitude regardless
+of the latch: max pooled drop 0.0495 at s = 0.50 against the 0.15 bar, which
+independently reproduces amendment 12 on fresh seeds with the more sensitive endpoint.
+
+Superseded by
+-------------
+results/phoenix_v2/intervention_screen/ , the same 60 cells with the walking band
+DEGRADATION_PIN_BAND_WALK_RAD = 0.65 rad (EXPERIMENT.md amendment 14). No screening
+threshold, family, severity, seed or selection rule differs between the two passes.
+
+The C1 result here stands and is not re-litigated.

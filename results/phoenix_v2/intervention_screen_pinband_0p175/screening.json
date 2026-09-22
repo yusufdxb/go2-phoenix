@@ -1,0 +1,1637 @@
+{
+ "schema": "phoenix-v2-intervention-screen/v1",
+ "prereg": "docs/research/INTERVENTION_SCREENING.md (EXPERIMENT.md amendment 13)",
+ "thresholds": {
+  "min_drop": 0.15,
+  "min_remaining": 0.4,
+  "max_safety_hold": 0.15,
+  "max_attitude": 0.3,
+  "max_abort_band": 0.0,
+  "min_fidelity": 0.9,
+  "monotone_tol": 0.05
+ },
+ "nominal": {
+  "cell": "nominal",
+  "family": "nominal",
+  "family_label": "nominal",
+  "target": "nominal",
+  "joints": [],
+  "n_joints": 0,
+  "severity": 1.0,
+  "floor_applied": null,
+  "seeds": [
+   7001,
+   7002,
+   7003
+  ],
+  "episodes": 384,
+  "walking_success": 0.921875,
+  "drop_vs_nominal": 0.0,
+  "per_seed": {
+   "7001": {
+    "success": 0.90625,
+    "drop": 0.0
+   },
+   "7002": {
+    "success": 0.953125,
+    "drop": 0.0
+   },
+   "7003": {
+    "success": 0.90625,
+    "drop": 0.0
+   }
+  },
+  "min_seed_drop": 0.0,
+  "primary_score": 0.9899140625,
+  "fidelity_pass_rate": 1.0,
+  "safety_hold_rate": 0.0,
+  "attitude_violation_rate": 0.005208333333333333,
+  "abort_band_rate": 0.0,
+  "mean_lin_err_m_s": 0.09549252688884735,
+  "mean_yaw_err_rad_s": 0.0861993208527565,
+  "median_progress_ratio": 0.9421238203843435,
+  "p05_min_base_height_m": 0.2624954024950663,
+  "p95_max_joint_speed_rad_s": 13.779013617833455,
+  "failures_by_check": {
+   "stand_criteria": 2,
+   "lin_err": 2,
+   "yaw_err": 1,
+   "progress": 30,
+   "height": 2,
+   "effort": 0,
+   "joint_speed": 0,
+   "target_jumps": 0
+  },
+  "gate_faults": []
+ },
+ "family_monotonicity": {
+  "c1": {
+   "ok": true,
+   "worst_reversal": 0.0
+  },
+  "c2": {
+   "ok": true,
+   "worst_reversal": 0.0
+  },
+  "c3": {
+   "ok": true,
+   "worst_reversal": 0.0
+  },
+  "c4": {
+   "ok": true,
+   "worst_reversal": 0.0
+  }
+ },
+ "cells": [
+  {
+   "cell": "c1_rr_thigh_0p50",
+   "family": "c1",
+   "family_label": "C1 single joint",
+   "target": "RR_thigh_joint",
+   "joints": [
+    "RR_thigh_joint"
+   ],
+   "n_joints": 1,
+   "severity": 0.5,
+   "floor_applied": 0.5,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.8723958333333334,
+   "drop_vs_nominal": 0.04947916666666663,
+   "per_seed": {
+    "7001": {
+     "success": 0.8828125,
+     "drop": 0.0234375
+    },
+    "7002": {
+     "success": 0.890625,
+     "drop": 0.0625
+    },
+    "7003": {
+     "success": 0.84375,
+     "drop": 0.0625
+    }
+   },
+   "min_seed_drop": 0.0234375,
+   "primary_score": 0.9598671875,
+   "fidelity_pass_rate": 0.9375,
+   "safety_hold_rate": 0.0625,
+   "attitude_violation_rate": 0.03125,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.10930662353833516,
+   "mean_yaw_err_rad_s": 0.12306090692679088,
+   "median_progress_ratio": 0.9291096131006876,
+   "p05_min_base_height_m": 0.14565942722062272,
+   "p95_max_joint_speed_rad_s": 14.114378118515013,
+   "failures_by_check": {
+    "stand_criteria": 28,
+    "lin_err": 8,
+    "yaw_err": 11,
+    "progress": 35,
+    "height": 28,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": false,
+    "reproducible_every_seed_drop_ge_0.15": false,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": true,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c1_rr_thigh_0p60",
+   "family": "c1",
+   "family_label": "C1 single joint",
+   "target": "RR_thigh_joint",
+   "joints": [
+    "RR_thigh_joint"
+   ],
+   "n_joints": 1,
+   "severity": 0.6,
+   "floor_applied": 0.5,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.8984375,
+   "drop_vs_nominal": 0.0234375,
+   "per_seed": {
+    "7001": {
+     "success": 0.890625,
+     "drop": 0.015625
+    },
+    "7002": {
+     "success": 0.9375,
+     "drop": 0.015625
+    },
+    "7003": {
+     "success": 0.8671875,
+     "drop": 0.0390625
+    }
+   },
+   "min_seed_drop": 0.015625,
+   "primary_score": 0.9742239583333333,
+   "fidelity_pass_rate": 0.9583333333333334,
+   "safety_hold_rate": 0.041666666666666664,
+   "attitude_violation_rate": 0.026041666666666668,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.1030836949745814,
+   "mean_yaw_err_rad_s": 0.10666200270255406,
+   "median_progress_ratio": 0.9308330615361532,
+   "p05_min_base_height_m": 0.21690281803409261,
+   "p95_max_joint_speed_rad_s": 13.881578509012856,
+   "failures_by_check": {
+    "stand_criteria": 18,
+    "lin_err": 5,
+    "yaw_err": 7,
+    "progress": 32,
+    "height": 18,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": false,
+    "reproducible_every_seed_drop_ge_0.15": false,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": true,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c1_rr_thigh_0p70",
+   "family": "c1",
+   "family_label": "C1 single joint",
+   "target": "RR_thigh_joint",
+   "joints": [
+    "RR_thigh_joint"
+   ],
+   "n_joints": 1,
+   "severity": 0.7,
+   "floor_applied": 0.5,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.9088541666666666,
+   "drop_vs_nominal": 0.01302083333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.90625,
+     "drop": 0.0
+    },
+    "7002": {
+     "success": 0.9453125,
+     "drop": 0.0078125
+    },
+    "7003": {
+     "success": 0.875,
+     "drop": 0.03125
+    }
+   },
+   "min_seed_drop": 0.0,
+   "primary_score": 0.9781302083333333,
+   "fidelity_pass_rate": 0.9713541666666666,
+   "safety_hold_rate": 0.028645833333333332,
+   "attitude_violation_rate": 0.013020833333333334,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.09905183066924413,
+   "mean_yaw_err_rad_s": 0.09552545100450516,
+   "median_progress_ratio": 0.936892052491506,
+   "p05_min_base_height_m": 0.22203243921200433,
+   "p95_max_joint_speed_rad_s": 13.934334325790402,
+   "failures_by_check": {
+    "stand_criteria": 12,
+    "lin_err": 3,
+    "yaw_err": 3,
+    "progress": 29,
+    "height": 12,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": false,
+    "reproducible_every_seed_drop_ge_0.15": false,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": true,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c1_rr_thigh_0p80",
+   "family": "c1",
+   "family_label": "C1 single joint",
+   "target": "RR_thigh_joint",
+   "joints": [
+    "RR_thigh_joint"
+   ],
+   "n_joints": 1,
+   "severity": 0.8,
+   "floor_applied": 0.5,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.9088541666666666,
+   "drop_vs_nominal": 0.01302083333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.8984375,
+     "drop": 0.0078125
+    },
+    "7002": {
+     "success": 0.9296875,
+     "drop": 0.0234375
+    },
+    "7003": {
+     "success": 0.8984375,
+     "drop": 0.0078125
+    }
+   },
+   "min_seed_drop": 0.0078125,
+   "primary_score": 0.9844791666666667,
+   "fidelity_pass_rate": 0.9765625,
+   "safety_hold_rate": 0.0234375,
+   "attitude_violation_rate": 0.010416666666666666,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.09654379387696584,
+   "mean_yaw_err_rad_s": 0.09069300691286723,
+   "median_progress_ratio": 0.9420957962671915,
+   "p05_min_base_height_m": 0.2605004474520683,
+   "p95_max_joint_speed_rad_s": 13.74134686787923,
+   "failures_by_check": {
+    "stand_criteria": 11,
+    "lin_err": 2,
+    "yaw_err": 3,
+    "progress": 30,
+    "height": 11,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": false,
+    "reproducible_every_seed_drop_ge_0.15": false,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": true,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c2_leg_rr_0p70",
+   "family": "c2",
+   "family_label": "C2 one leg",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "n_joints": 3,
+   "severity": 0.7,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.5729166666666666,
+   "drop_vs_nominal": 0.34895833333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.5703125,
+     "drop": 0.3359375
+    },
+    "7002": {
+     "success": 0.5546875,
+     "drop": 0.3984375
+    },
+    "7003": {
+     "success": 0.59375,
+     "drop": 0.3125
+    }
+   },
+   "min_seed_drop": 0.3125,
+   "primary_score": 0.7795104166666667,
+   "fidelity_pass_rate": 0.6328125,
+   "safety_hold_rate": 0.3671875,
+   "attitude_violation_rate": 0.09635416666666667,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.16464437544345856,
+   "mean_yaw_err_rad_s": 0.1539923201004664,
+   "median_progress_ratio": 0.9245283603668213,
+   "p05_min_base_height_m": 0.08174206192294757,
+   "p95_max_joint_speed_rad_s": 13.17835513750712,
+   "failures_by_check": {
+    "stand_criteria": 143,
+    "lin_err": 49,
+    "yaw_err": 46,
+    "progress": 102,
+    "height": 143,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c2_leg_rr_0p75",
+   "family": "c2",
+   "family_label": "C2 one leg",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "n_joints": 3,
+   "severity": 0.75,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.6510416666666666,
+   "drop_vs_nominal": 0.27083333333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.6328125,
+     "drop": 0.2734375
+    },
+    "7002": {
+     "success": 0.6328125,
+     "drop": 0.3203125
+    },
+    "7003": {
+     "success": 0.6875,
+     "drop": 0.21875
+    }
+   },
+   "min_seed_drop": 0.21875,
+   "primary_score": 0.8424062500000001,
+   "fidelity_pass_rate": 0.6875,
+   "safety_hold_rate": 0.3125,
+   "attitude_violation_rate": 0.0859375,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.14924576878547668,
+   "mean_yaw_err_rad_s": 0.13741440077622732,
+   "median_progress_ratio": 0.9195233782132467,
+   "p05_min_base_height_m": 0.08523660177985827,
+   "p95_max_joint_speed_rad_s": 13.186386760075886,
+   "failures_by_check": {
+    "stand_criteria": 122,
+    "lin_err": 41,
+    "yaw_err": 38,
+    "progress": 92,
+    "height": 122,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c2_leg_rr_0p80",
+   "family": "c2",
+   "family_label": "C2 one leg",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "n_joints": 3,
+   "severity": 0.8,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.7317708333333334,
+   "drop_vs_nominal": 0.19010416666666663,
+   "per_seed": {
+    "7001": {
+     "success": 0.7265625,
+     "drop": 0.1796875
+    },
+    "7002": {
+     "success": 0.765625,
+     "drop": 0.1875
+    },
+    "7003": {
+     "success": 0.703125,
+     "drop": 0.203125
+    }
+   },
+   "min_seed_drop": 0.1796875,
+   "primary_score": 0.8703098958333334,
+   "fidelity_pass_rate": 0.765625,
+   "safety_hold_rate": 0.234375,
+   "attitude_violation_rate": 0.0703125,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.12495665500561397,
+   "mean_yaw_err_rad_s": 0.12010364234447479,
+   "median_progress_ratio": 0.9289924403031667,
+   "p05_min_base_height_m": 0.08478537810345492,
+   "p95_max_joint_speed_rad_s": 13.246805874506633,
+   "failures_by_check": {
+    "stand_criteria": 94,
+    "lin_err": 23,
+    "yaw_err": 27,
+    "progress": 60,
+    "height": 94,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c2_leg_rr_0p85",
+   "family": "c2",
+   "family_label": "C2 one leg",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "n_joints": 3,
+   "severity": 0.85,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.7552083333333334,
+   "drop_vs_nominal": 0.16666666666666663,
+   "per_seed": {
+    "7001": {
+     "success": 0.7578125,
+     "drop": 0.1484375
+    },
+    "7002": {
+     "success": 0.7421875,
+     "drop": 0.2109375
+    },
+    "7003": {
+     "success": 0.765625,
+     "drop": 0.140625
+    }
+   },
+   "min_seed_drop": 0.140625,
+   "primary_score": 0.8939921875,
+   "fidelity_pass_rate": 0.7916666666666666,
+   "safety_hold_rate": 0.20833333333333334,
+   "attitude_violation_rate": 0.041666666666666664,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.12279945611953735,
+   "mean_yaw_err_rad_s": 0.11266009757916133,
+   "median_progress_ratio": 0.9301870862642924,
+   "p05_min_base_height_m": 0.08838202742238839,
+   "p95_max_joint_speed_rad_s": 13.44253807067871,
+   "failures_by_check": {
+    "stand_criteria": 81,
+    "lin_err": 23,
+    "yaw_err": 22,
+    "progress": 56,
+    "height": 81,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": false,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c2_leg_rr_0p90",
+   "family": "c2",
+   "family_label": "C2 one leg",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint"
+   ],
+   "n_joints": 3,
+   "severity": 0.9,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.7578125,
+   "drop_vs_nominal": 0.1640625,
+   "per_seed": {
+    "7001": {
+     "success": 0.7109375,
+     "drop": 0.1953125
+    },
+    "7002": {
+     "success": 0.8203125,
+     "drop": 0.1328125
+    },
+    "7003": {
+     "success": 0.7421875,
+     "drop": 0.1640625
+    }
+   },
+   "min_seed_drop": 0.1328125,
+   "primary_score": 0.8964713541666667,
+   "fidelity_pass_rate": 0.7942708333333334,
+   "safety_hold_rate": 0.20572916666666666,
+   "attitude_violation_rate": 0.0625,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.1247646560271581,
+   "mean_yaw_err_rad_s": 0.11462292075157166,
+   "median_progress_ratio": 0.9385665357112885,
+   "p05_min_base_height_m": 0.08653162655731043,
+   "p95_max_joint_speed_rad_s": 13.628459533055624,
+   "failures_by_check": {
+    "stand_criteria": 83,
+    "lin_err": 31,
+    "yaw_err": 28,
+    "progress": 59,
+    "height": 83,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": false,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c3_rear_0p70",
+   "family": "c3",
+   "family_label": "C3 both rear legs",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 6,
+   "severity": 0.7,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.3854166666666667,
+   "drop_vs_nominal": 0.5364583333333333,
+   "per_seed": {
+    "7001": {
+     "success": 0.40625,
+     "drop": 0.5
+    },
+    "7002": {
+     "success": 0.3515625,
+     "drop": 0.6015625
+    },
+    "7003": {
+     "success": 0.3984375,
+     "drop": 0.5078125
+    }
+   },
+   "min_seed_drop": 0.5,
+   "primary_score": 0.6599114583333333,
+   "fidelity_pass_rate": 0.4921875,
+   "safety_hold_rate": 0.5078125,
+   "attitude_violation_rate": 0.109375,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.19817072649796805,
+   "mean_yaw_err_rad_s": 0.16165022055308023,
+   "median_progress_ratio": 0.8731620411078135,
+   "p05_min_base_height_m": 0.07938518399993579,
+   "p95_max_joint_speed_rad_s": 13.598513046900429,
+   "failures_by_check": {
+    "stand_criteria": 195,
+    "lin_err": 89,
+    "yaw_err": 54,
+    "progress": 150,
+    "height": 195,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RL_hip_joint",
+    "degradation_joint_saturated:RL_thigh_joint",
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": false,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c3_rear_0p75",
+   "family": "c3",
+   "family_label": "C3 both rear legs",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 6,
+   "severity": 0.75,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.5807291666666666,
+   "drop_vs_nominal": 0.34114583333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.5546875,
+     "drop": 0.3515625
+    },
+    "7002": {
+     "success": 0.6015625,
+     "drop": 0.3515625
+    },
+    "7003": {
+     "success": 0.5859375,
+     "drop": 0.3203125
+    }
+   },
+   "min_seed_drop": 0.3203125,
+   "primary_score": 0.79565625,
+   "fidelity_pass_rate": 0.65625,
+   "safety_hold_rate": 0.3463541666666667,
+   "attitude_violation_rate": 0.0625,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.16558683415253958,
+   "mean_yaw_err_rad_s": 0.13097377121448517,
+   "median_progress_ratio": 0.9130303064982096,
+   "p05_min_base_height_m": 0.08279809219141802,
+   "p95_max_joint_speed_rad_s": 12.995511277516684,
+   "failures_by_check": {
+    "stand_criteria": 133,
+    "lin_err": 48,
+    "yaw_err": 37,
+    "progress": 104,
+    "height": 133,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RL_hip_joint",
+    "degradation_joint_saturated:RL_thigh_joint",
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c3_rear_0p80",
+   "family": "c3",
+   "family_label": "C3 both rear legs",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 6,
+   "severity": 0.8,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.6588541666666666,
+   "drop_vs_nominal": 0.26302083333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.671875,
+     "drop": 0.234375
+    },
+    "7002": {
+     "success": 0.703125,
+     "drop": 0.25
+    },
+    "7003": {
+     "success": 0.6015625,
+     "drop": 0.3046875
+    }
+   },
+   "min_seed_drop": 0.234375,
+   "primary_score": 0.8452682291666668,
+   "fidelity_pass_rate": 0.7109375,
+   "safety_hold_rate": 0.2890625,
+   "attitude_violation_rate": 0.07291666666666667,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.15117478370666504,
+   "mean_yaw_err_rad_s": 0.1254633218050003,
+   "median_progress_ratio": 0.9164990484714508,
+   "p05_min_base_height_m": 0.08629747964441777,
+   "p95_max_joint_speed_rad_s": 13.11767323811849,
+   "failures_by_check": {
+    "stand_criteria": 114,
+    "lin_err": 45,
+    "yaw_err": 29,
+    "progress": 88,
+    "height": 114,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RL_hip_joint",
+    "degradation_joint_saturated:RL_thigh_joint",
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c3_rear_0p85",
+   "family": "c3",
+   "family_label": "C3 both rear legs",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 6,
+   "severity": 0.85,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.6666666666666666,
+   "drop_vs_nominal": 0.25520833333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.65625,
+     "drop": 0.25
+    },
+    "7002": {
+     "success": 0.6875,
+     "drop": 0.265625
+    },
+    "7003": {
+     "success": 0.65625,
+     "drop": 0.25
+    }
+   },
+   "min_seed_drop": 0.25,
+   "primary_score": 0.8655703125,
+   "fidelity_pass_rate": 0.7135416666666666,
+   "safety_hold_rate": 0.2864583333333333,
+   "attitude_violation_rate": 0.07291666666666667,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.14050947626431784,
+   "mean_yaw_err_rad_s": 0.12252303709586461,
+   "median_progress_ratio": 0.9211932718753815,
+   "p05_min_base_height_m": 0.09084601265688737,
+   "p95_max_joint_speed_rad_s": 13.334148979187011,
+   "failures_by_check": {
+    "stand_criteria": 111,
+    "lin_err": 36,
+    "yaw_err": 36,
+    "progress": 85,
+    "height": 111,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RL_hip_joint",
+    "degradation_joint_saturated:RL_thigh_joint",
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_thigh_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c3_rear_0p90",
+   "family": "c3",
+   "family_label": "C3 both rear legs",
+   "target": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 6,
+   "severity": 0.9,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.7447916666666666,
+   "drop_vs_nominal": 0.17708333333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.734375,
+     "drop": 0.171875
+    },
+    "7002": {
+     "success": 0.7578125,
+     "drop": 0.1953125
+    },
+    "7003": {
+     "success": 0.7421875,
+     "drop": 0.1640625
+    }
+   },
+   "min_seed_drop": 0.1640625,
+   "primary_score": 0.8977578125000001,
+   "fidelity_pass_rate": 0.78125,
+   "safety_hold_rate": 0.21875,
+   "attitude_violation_rate": 0.052083333333333336,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.12513522058725357,
+   "mean_yaw_err_rad_s": 0.11200229823589325,
+   "median_progress_ratio": 0.9344267249107361,
+   "p05_min_base_height_m": 0.09222009604175885,
+   "p95_max_joint_speed_rad_s": 13.39833631515503,
+   "failures_by_check": {
+    "stand_criteria": 87,
+    "lin_err": 29,
+    "yaw_err": 23,
+    "progress": 63,
+    "height": 87,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RL_thigh_joint",
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c4_all_0p70",
+   "family": "c4",
+   "family_label": "C4 global",
+   "target": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 12,
+   "severity": 0.7,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.10416666666666667,
+   "drop_vs_nominal": 0.8177083333333334,
+   "per_seed": {
+    "7001": {
+     "success": 0.046875,
+     "drop": 0.859375
+    },
+    "7002": {
+     "success": 0.1328125,
+     "drop": 0.8203125
+    },
+    "7003": {
+     "success": 0.1328125,
+     "drop": 0.7734375
+    }
+   },
+   "min_seed_drop": 0.7734375,
+   "primary_score": 0.4237135416666667,
+   "fidelity_pass_rate": 0.15885416666666666,
+   "safety_hold_rate": 0.8411458333333334,
+   "attitude_violation_rate": 0.15364583333333334,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.3131036361058553,
+   "mean_yaw_err_rad_s": 0.281747301419576,
+   "median_progress_ratio": 0.5981948177019755,
+   "p05_min_base_height_m": 0.07894520225624244,
+   "p95_max_joint_speed_rad_s": 13.269189945856729,
+   "failures_by_check": {
+    "stand_criteria": 323,
+    "lin_err": 183,
+    "yaw_err": 140,
+    "progress": 307,
+    "height": 323,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:FL_calf_joint",
+    "degradation_joint_saturated:FL_hip_joint",
+    "degradation_joint_saturated:FL_thigh_joint",
+    "degradation_joint_saturated:FR_calf_joint",
+    "degradation_joint_saturated:FR_hip_joint",
+    "degradation_joint_saturated:FR_thigh_joint",
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RR_calf_joint",
+    "degradation_joint_saturated:RR_hip_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": false,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c4_all_0p75",
+   "family": "c4",
+   "family_label": "C4 global",
+   "target": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 12,
+   "severity": 0.75,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.234375,
+   "drop_vs_nominal": 0.6875,
+   "per_seed": {
+    "7001": {
+     "success": 0.2421875,
+     "drop": 0.6640625
+    },
+    "7002": {
+     "success": 0.2421875,
+     "drop": 0.7109375
+    },
+    "7003": {
+     "success": 0.21875,
+     "drop": 0.6875
+    }
+   },
+   "min_seed_drop": 0.6640625,
+   "primary_score": 0.5704973958333334,
+   "fidelity_pass_rate": 0.2942708333333333,
+   "safety_hold_rate": 0.7057291666666666,
+   "attitude_violation_rate": 0.1328125,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.2639548530181249,
+   "mean_yaw_err_rad_s": 0.22152809302012125,
+   "median_progress_ratio": 0.6865480442841848,
+   "p05_min_base_height_m": 0.07917368958393733,
+   "p95_max_joint_speed_rad_s": 13.26837623914083,
+   "failures_by_check": {
+    "stand_criteria": 271,
+    "lin_err": 142,
+    "yaw_err": 107,
+    "progress": 246,
+    "height": 271,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:FL_calf_joint",
+    "degradation_joint_saturated:FL_thigh_joint",
+    "degradation_joint_saturated:FR_calf_joint",
+    "degradation_joint_saturated:FR_hip_joint",
+    "degradation_joint_saturated:FR_thigh_joint",
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RL_thigh_joint",
+    "degradation_joint_saturated:RR_calf_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": false,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c4_all_0p80",
+   "family": "c4",
+   "family_label": "C4 global",
+   "target": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 12,
+   "severity": 0.8,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.3619791666666667,
+   "drop_vs_nominal": 0.5598958333333333,
+   "per_seed": {
+    "7001": {
+     "success": 0.3828125,
+     "drop": 0.5234375
+    },
+    "7002": {
+     "success": 0.3671875,
+     "drop": 0.5859375
+    },
+    "7003": {
+     "success": 0.3359375,
+     "drop": 0.5703125
+    }
+   },
+   "min_seed_drop": 0.5234375,
+   "primary_score": 0.6584557291666666,
+   "fidelity_pass_rate": 0.40625,
+   "safety_hold_rate": 0.59375,
+   "attitude_violation_rate": 0.140625,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.21187284588813782,
+   "mean_yaw_err_rad_s": 0.19645211597283682,
+   "median_progress_ratio": 0.7948871652285258,
+   "p05_min_base_height_m": 0.0795567429314057,
+   "p95_max_joint_speed_rad_s": 13.501842641830443,
+   "failures_by_check": {
+    "stand_criteria": 228,
+    "lin_err": 101,
+    "yaw_err": 84,
+    "progress": 188,
+    "height": 228,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:FL_calf_joint",
+    "degradation_joint_saturated:FL_thigh_joint",
+    "degradation_joint_saturated:FR_calf_joint",
+    "degradation_joint_saturated:FR_hip_joint",
+    "degradation_joint_saturated:FR_thigh_joint",
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RR_calf_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": false,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c4_all_0p85",
+   "family": "c4",
+   "family_label": "C4 global",
+   "target": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 12,
+   "severity": 0.85,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.4947916666666667,
+   "drop_vs_nominal": 0.4270833333333333,
+   "per_seed": {
+    "7001": {
+     "success": 0.4765625,
+     "drop": 0.4296875
+    },
+    "7002": {
+     "success": 0.5078125,
+     "drop": 0.4453125
+    },
+    "7003": {
+     "success": 0.5,
+     "drop": 0.40625
+    }
+   },
+   "min_seed_drop": 0.40625,
+   "primary_score": 0.7540130208333334,
+   "fidelity_pass_rate": 0.515625,
+   "safety_hold_rate": 0.484375,
+   "attitude_violation_rate": 0.12239583333333333,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.16934095323085785,
+   "mean_yaw_err_rad_s": 0.1603715866804123,
+   "median_progress_ratio": 0.8686519662539164,
+   "p05_min_base_height_m": 0.08166120424866675,
+   "p95_max_joint_speed_rad_s": 13.285188929239908,
+   "failures_by_check": {
+    "stand_criteria": 186,
+    "lin_err": 74,
+    "yaw_err": 61,
+    "progress": 131,
+    "height": 186,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:FL_calf_joint",
+    "degradation_joint_saturated:FL_thigh_joint",
+    "degradation_joint_saturated:FR_calf_joint",
+    "degradation_joint_saturated:FR_hip_joint",
+    "degradation_joint_saturated:FR_thigh_joint",
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RL_thigh_joint",
+    "degradation_joint_saturated:RR_calf_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  },
+  {
+   "cell": "c4_all_0p90",
+   "family": "c4",
+   "family_label": "C4 global",
+   "target": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "joints": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+   ],
+   "n_joints": 12,
+   "severity": 0.9,
+   "floor_applied": 0.7,
+   "seeds": [
+    7001,
+    7002,
+    7003
+   ],
+   "episodes": 384,
+   "walking_success": 0.5416666666666666,
+   "drop_vs_nominal": 0.38020833333333337,
+   "per_seed": {
+    "7001": {
+     "success": 0.5,
+     "drop": 0.40625
+    },
+    "7002": {
+     "success": 0.5703125,
+     "drop": 0.3828125
+    },
+    "7003": {
+     "success": 0.5546875,
+     "drop": 0.3515625
+    }
+   },
+   "min_seed_drop": 0.3515625,
+   "primary_score": 0.7866536458333333,
+   "fidelity_pass_rate": 0.5729166666666666,
+   "safety_hold_rate": 0.4270833333333333,
+   "attitude_violation_rate": 0.09114583333333333,
+   "abort_band_rate": 0.0,
+   "mean_lin_err_m_s": 0.15308584769566855,
+   "mean_yaw_err_rad_s": 0.14585583408673605,
+   "median_progress_ratio": 0.8869123657544454,
+   "p05_min_base_height_m": 0.08138553649187089,
+   "p95_max_joint_speed_rad_s": 13.567236264546713,
+   "failures_by_check": {
+    "stand_criteria": 164,
+    "lin_err": 61,
+    "yaw_err": 51,
+    "progress": 116,
+    "height": 164,
+    "effort": 0,
+    "joint_speed": 0,
+    "target_jumps": 0
+   },
+   "gate_faults": [
+    "degradation_joint_saturated:FL_calf_joint",
+    "degradation_joint_saturated:FL_thigh_joint",
+    "degradation_joint_saturated:FR_calf_joint",
+    "degradation_joint_saturated:FR_thigh_joint",
+    "degradation_joint_saturated:RL_calf_joint",
+    "degradation_joint_saturated:RR_calf_joint"
+   ],
+   "rules": {
+    "magnitude_pooled_drop_ge_0.15": true,
+    "reproducible_every_seed_drop_ge_0.15": true,
+    "headroom_success_ge_0.40": true,
+    "not_catastrophic": false,
+    "family_monotone_within_0.05": true
+   },
+   "qualifies": false,
+   "family_worst_reversal": 0.0
+  }
+ ],
+ "selected": null,
+ "held_out_severities": [],
+ "secondary_global_qualifies": false,
+ "stop": true
+}
