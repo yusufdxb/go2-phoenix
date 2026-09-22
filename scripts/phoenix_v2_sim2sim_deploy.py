@@ -75,6 +75,14 @@ def parse_args(argv=None):
     )
     p.add_argument("--policy-onnx-override", type=Path, default=None)
     p.add_argument("--walk-thresholds", type=Path, default=None)
+    p.add_argument(
+        "--limiter-max-delta-override",
+        type=float,
+        default=None,
+        help="RESEARCH ONLY: run the gate with this rate bound instead of the deploy "
+        "config's, to measure the deploy path with the limiter open; recorded in the "
+        "manifest and never a deployment configuration",
+    )
     return p.parse_args(argv)
 
 
@@ -169,6 +177,8 @@ def _run(args) -> int:
             )
         else:
             limiter = limiter_params_from_config({})
+    if args.limiter_max_delta_override is not None:
+        limiter = {**limiter, "max_delta": float(args.limiter_max_delta_override)}
     lin_src = "odom" if args.walk else dcfg["observation"]["base_lin_vel_source"]
     onnx_path = args.policy_onnx_override or args.onnx or Path(dcfg["policy"]["onnx_path"])
     sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
@@ -246,6 +256,7 @@ def _run(args) -> int:
         "walk_contract_refusal_lifted_in_sim": walk_block_lifted,
         "effective_action_clip": clip,
         "effective_limiter": limiter,
+        "limiter_max_delta_override": args.limiter_max_delta_override,
     }
     tel_dir = out / "bridge"
     tel_dir.mkdir()

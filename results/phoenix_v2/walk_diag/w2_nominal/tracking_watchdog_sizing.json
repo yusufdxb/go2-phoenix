@@ -1,0 +1,30 @@
+{
+ "rule": "smallest multiple of 0.05 >= 1.25 x max 0.2s-sustained |sent-q|",
+ "runs": {
+  "results/phoenix_v2/walk_diag/w2_nominal": {
+   "max_sustained_gap_per_joint": [
+    0.321,
+    0.2851,
+    0.2716,
+    0.2728,
+    0.6626,
+    0.6889,
+    0.4816,
+    0.3074,
+    0.7413,
+    0.523,
+    0.9854,
+    0.7559
+   ],
+   "max": 0.9853646755218506,
+   "at_step_env": [
+    512,
+    217
+   ],
+   "max_instant": 1.108198642730713
+  }
+ },
+ "max_sustained_gap_rad": 0.9853646755218506,
+ "tracking_abort_rad": 1.25,
+ "effort_saturation_gap_rad_kp25": 0.94
+}
