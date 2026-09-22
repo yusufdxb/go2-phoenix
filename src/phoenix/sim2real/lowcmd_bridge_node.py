@@ -58,6 +58,7 @@ from phoenix.sim2real.bridge_telemetry import (
     TelemetryWriter,
     utc_now_iso,
 )
+from phoenix.sim2real.degradation import DegradationSpec, activation_problems, parse_spec
 from phoenix.sim2real.deploy_contract import load_lock, validate_deploy_contract, verify_lock
 from phoenix.sim2real.go2_model import (
     JOINT_LIMITS_PROVENANCE,
@@ -111,6 +112,7 @@ class BridgeConfig:
     standup_s: float = 0.0
     standup_kp: float = 60.0
     standup_kd: float = 5.0
+    degradation: DegradationSpec | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     def gate_params(self) -> GateParams:
@@ -129,6 +131,7 @@ class BridgeConfig:
             standup_s=self.standup_s,
             standup_kp=self.standup_kp,
             standup_kd=self.standup_kd,
+            degradation=self.degradation,
         )
 
 
@@ -137,10 +140,33 @@ def _load_deploy_config(path: Path) -> dict[str, Any]:
         return yaml.safe_load(fh)
 
 
-def lowcmd_fields(target_unitree, kp: float, kd: float) -> tuple[list[float], int]:
-    """The 12 motor targets and the firmware CRC for a LowCmd. Pure; tested."""
+def _per_motor(value, name: str) -> list[float]:
+    if isinstance(value, (int, float)):
+        return [float(value)] * 12
+    out = [float(v) for v in value]
+    if len(out) != 12:
+        raise ValueError(f"{name} must be a scalar or 12 values, got {len(out)}")
+    return out
+
+
+def _gains(rec: dict[str, Any]) -> tuple[Any, Any]:
+    """Per-motor gains when the gate recorded them, else the mode's scalar gains.
+
+    The fallback matters on the shutdown path: a record without the vectors must
+    still produce a damping publish, never a skipped one.
+    """
+    kp = rec.get("kp_unitree")
+    kd = rec.get("kd_unitree")
+    return (rec["kp"] if kp is None else kp), (rec["kd"] if kd is None else kd)
+
+
+def lowcmd_fields(target_unitree, kp, kd) -> tuple[list[float], int]:
+    """The 12 motor targets and the firmware CRC for a LowCmd. Pure; tested.
+
+    ``kp``/``kd`` are a scalar (every motor) or 12 per-motor values.
+    """
     q = [float(v) for v in target_unitree]
-    raw = build_raw_from_motor_values(q, [float(kp)] * 12, [float(kd)] * 12)
+    raw = build_raw_from_motor_values(q, _per_motor(kp, "kp"), _per_motor(kd, "kd"))
     return q, compute_crc(raw)
 
 
@@ -194,7 +220,8 @@ class LowCmdBridge(Node):
     def _on_lowstate(self, msg: LowState) -> None:
         q = [float(msg.motor_state[i].q) for i in range(12)]
         dq = [float(msg.motor_state[i].dq) for i in range(12)]
-        self._gate.on_lowstate(time.monotonic_ns(), q, dq)
+        tau = [float(msg.motor_state[i].tau_est) for i in range(12)]
+        self._gate.on_lowstate(time.monotonic_ns(), q, dq, tau)
 
     def _on_estop(self, msg: Bool) -> None:
         self._gate.on_estop(time.monotonic_ns(), bool(msg.data))
@@ -207,7 +234,7 @@ class LowCmdBridge(Node):
     def _tick(self) -> None:
         rec = self._gate.tick(time.monotonic_ns())
         if rec["publish"]:
-            self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+            self._publish(rec["final_target_unitree"], *_gains(rec))
         self._report(rec)
 
     def _report(self, rec: dict[str, Any]) -> None:
@@ -234,15 +261,16 @@ class LowCmdBridge(Node):
                     rec = {**rec, "publish": False, "publish_skipped": "ros_context_invalid"}
                 else:
                     try:
-                        self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+                        self._publish(rec["final_target_unitree"], *_gains(rec))
                     except Exception as exc:  # keep trying the remaining damp ticks
                         rec = {**rec, "publish": False, "publish_skipped": repr(exc)}
             self._report(rec)
             time.sleep(1.0 / self._cfg.rate_hz)
 
     # --- publish ------------------------------------------------------------
-    def _publish(self, target_unitree, kp: float, kd: float) -> None:
+    def _publish(self, target_unitree, kp, kd) -> None:
         q, crc = lowcmd_fields(target_unitree, kp, kd)
+        kp_m, kd_m = _per_motor(kp, "kp"), _per_motor(kd, "kd")
         msg = LowCmd()
         msg.head[0] = 0xFE
         msg.head[1] = 0xEF
@@ -252,8 +280,8 @@ class LowCmdBridge(Node):
             msg.motor_cmd[i].q = q[i]
             msg.motor_cmd[i].dq = 0.0
             msg.motor_cmd[i].tau = 0.0
-            msg.motor_cmd[i].kp = float(kp)
-            msg.motor_cmd[i].kd = float(kd)
+            msg.motor_cmd[i].kp = kp_m[i]
+            msg.motor_cmd[i].kd = kd_m[i]
         msg.crc = crc
         self._pub.publish(msg)
 
@@ -310,6 +338,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--standup-kp", type=float, default=60.0, help="standup kp (default 60)")
     p.add_argument("--standup-kd", type=float, default=5.0, help="standup kd (default 5)")
+    p.add_argument(
+        "--experiment-degradation",
+        default=None,
+        metavar="JOINT:SCALE[:KD_SCALE]",
+        help="CONTROLLED EXPERIMENT ONLY: scale one motor's kp/kd down (0.5..1.0) in policy "
+        "mode. Also requires PHOENIX_EXPERIMENT=controlled_degradation and a stage label "
+        "starting with X. See phoenix.sim2real.degradation.",
+    )
     return p.parse_args(argv)
 
 
@@ -375,6 +411,11 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         standup_s=float(getattr(args, "standup_s", 0.0)),
         standup_kp=float(getattr(args, "standup_kp", 60.0)),
         standup_kd=float(getattr(args, "standup_kd", 5.0)),
+        degradation=(
+            parse_spec(args.experiment_degradation)
+            if getattr(args, "experiment_degradation", None)
+            else None
+        ),
     )
 
 
@@ -404,6 +445,10 @@ def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
             lock_record = {"path": str(cfg.lock_path), "name": lock.get("name")}
     elif cfg.live:
         problems.append("--live requires --lock")
+
+    problems.extend(
+        f"controlled degradation: {p}" for p in activation_problems(cfg.degradation, cfg.stage)
+    )
 
     identity = resolve_code_identity(REPO_ROOT)
     id_problems = identity_problems(identity, expected_sha=cfg.expect_sha)
@@ -442,6 +487,7 @@ def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
         "joint_limits_rad": {k: list(v) for k, v in JOINT_POSITION_LIMITS_RAD.items()},
         "joint_limits_provenance": JOINT_LIMITS_PROVENANCE,
         "limit_abort_band_rad": LIMIT_ABORT_BAND_RAD,
+        "controlled_degradation": None if cfg.degradation is None else cfg.degradation.to_dict(),
         "real_deadman_node_names": sorted(REAL_DEADMAN_NODE_NAMES),
         "hardware_slew_metric": HARDWARE_SLEW_METRIC,
         "hardware_slew_metric_definition": HARDWARE_SLEW_METRIC_DEFINITION,

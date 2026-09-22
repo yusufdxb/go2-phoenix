@@ -116,6 +116,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # Persist the exact configs used (replay-friendly)
     shutil.copy(args.config, log_dir / "train.yaml")
     shutil.copy(env_cfg_path, log_dir / "env.yaml")
+    # env.yaml above is the LEAF file only; its ``defaults:`` chain is not in the run
+    # dir, so the run could not be reproduced from its artifacts (the H25 run is an
+    # example). The resolved tree is what the env factory actually consumed.
+    OmegaConf.save(OmegaConf.create(env_cfg_loaded.to_container()), log_dir / "env_resolved.yaml")
 
     # ---- Create env + runner -----------------------------------------------
     print("[phoenix] before gym.make", flush=True)
