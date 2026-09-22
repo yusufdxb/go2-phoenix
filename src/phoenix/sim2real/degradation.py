@@ -73,6 +73,17 @@ SATURATION_LATCH_S = 0.5
 #: measured position. The historical slew cap value, kept fixed when the soft limiter
 #: changed to a command-rate limiter (Phoenix v2 amendment 1) so the latch is unchanged.
 DEGRADATION_PIN_BAND_RAD = 0.175
+#: The same latch, sized for WALKING (EXPERIMENT.md amendment 14). The standing value is
+#: meaningless for a bang-bang walking policy: on nominal W2 walking, with no degradation
+#: applied at all, 9 of 144 joint-sessions sustained a 0.175 rad gap for the latch time
+#: (one for 10.18 s) and per-joint p99 gaps reach 0.69 rad, so the standing band fires on
+#: a HEALTHY robot. Sized by the rule amendments 2 and 7 used for the tracking watchdog:
+#: the largest latch-length-sustained ``|requested - q|`` on nominal walking development
+#: seeds (0.499 rad, RR_calf, seeds 7001-7003) times the same 1.25 margin, rounded up to
+#: the 0.05 grid. At kp 25 a joint held 0.65 rad from its target is demanding 16.3 N m and
+#: not moving, which is what "pinned" was meant to mean. Still stricter than the general
+#: catastrophic-tracking watchdog (1.25 rad / 0.2 s), which is unchanged and runs anyway.
+DEGRADATION_PIN_BAND_WALK_RAD = 0.65
 ARM_ENV = "PHOENIX_EXPERIMENT"
 ARM_VALUE = "controlled_degradation"
 STAGE_PREFIX = "X"

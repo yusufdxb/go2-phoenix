@@ -271,6 +271,7 @@ is revisited, and the endpoint is not changed again.
 | deploy config | `configs/sim2real/deploy_walk_w2_sim.yaml` |
 | env config | `configs/env/phoenix_v2/walk_deploy_a_nominal.yaml` (**DR off**) for every cell |
 | limiter | `--limiter-max-delta-override 0.6`, the bound used for every W2 result, which never binds (0.0000 altered) |
+| saturation latch | `--degradation-pin-band 0.65` (amendment 14). The standing band 0.175 rad fires on a HEALTHY bang-bang walking policy, so the first pass measured the latch as much as the intervention; that pass is kept under `results/phoenix_v2/intervention_screen_pinband_0p175/` and reported as the evidence for the change |
 | episodes | 128 robots x 20 s per seed; 384 per cell |
 | seeds | **7001, 7002, 7003** (screening development, not used anywhere else in this program) |
 | telemetry | 4 robots per run, for the later monitor work |

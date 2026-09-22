@@ -156,6 +156,12 @@ class GateParams:
     #: one motor's kp/kd, or a named joint set's, DOWN in POLICY mode; every other
     #: mode keeps nominal gains.
     degradation: DegradationSpec | None = None
+    #: Gap at which a degraded joint counts as pinned, for the saturation latch. The
+    #: default is the STANDING bound; a walking policy needs
+    #: :data:`phoenix.sim2real.degradation.DEGRADATION_PIN_BAND_WALK_RAD`, because a
+    #: bang-bang walking command routinely lags the standing bound on a healthy robot
+    #: (EXPERIMENT.md amendment 14). Recorded in every manifest.
+    degradation_pin_band: float = DEGRADATION_PIN_BAND_RAD
 
     def __post_init__(self) -> None:
         for name in (
@@ -185,7 +191,9 @@ class GateParams:
             if not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be non-negative and finite, got {value}")
         if self.limiter_mode not in LIMITER_MODES:
-            raise ValueError(f"limiter_mode must be one of {LIMITER_MODES}, got {self.limiter_mode!r}")
+            raise ValueError(
+                f"limiter_mode must be one of {LIMITER_MODES}, got {self.limiter_mode!r}"
+            )
         if self.live and self.require_real_deadman is False:
             raise ValueError("a live gate cannot disable the real-deadman requirement")
 
@@ -595,7 +603,7 @@ class ActuatorGate:
                     for name, j in zip(
                         p.degradation.joints, p.degradation.motor_indices, strict=True
                     ):
-                        if abs(requested[j] - q[j]) >= DEGRADATION_PIN_BAND_RAD:
+                        if abs(requested[j] - q[j]) >= p.degradation_pin_band:
                             since = self._deg_pinned_since_ns.get(j)
                             if since is None:
                                 self._deg_pinned_since_ns[j] = now_ns
@@ -678,6 +686,7 @@ class ActuatorGate:
                 "joints": list(p.degradation.joints),
                 "applied": bool(applied),
                 "ramp": float(ramp),
+                "pin_band": float(p.degradation_pin_band),
                 "kp_scale_unitree": _floats(kp_scale),
                 "kd_scale_unitree": _floats(kd_scale),
             }

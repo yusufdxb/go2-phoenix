@@ -47,7 +47,9 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--deploy-config", type=Path, required=True)
     p.add_argument("--env-config", type=Path, required=True)
-    p.add_argument("--onnx", type=Path, default=None, help="default: policy.onnx_path in the deploy config")
+    p.add_argument(
+        "--onnx", type=Path, default=None, help="default: policy.onnx_path in the deploy config"
+    )
     p.add_argument("--num-envs", type=int, default=32)
     p.add_argument("--seed", type=int, default=2001)
     p.add_argument("--device", default="cuda:0")
@@ -56,13 +58,26 @@ def parse_args(argv=None):
     p.add_argument("--label", default=None)
     p.add_argument("--degrade", default=None, help="JOINT:scale, e.g. RR_thigh:0.6 (gate-applied)")
     p.add_argument("--allow-degradation", action="store_true")
+    p.add_argument(
+        "--degradation-pin-band",
+        type=float,
+        default=None,
+        help="gap (rad) at which a degraded joint counts as pinned for the saturation "
+        "latch; default is the STANDING bound. A walking policy needs the walking bound "
+        "(EXPERIMENT.md amendment 14). Recorded in the manifest.",
+    )
     p.add_argument("--kp", type=float, default=25.0)
     p.add_argument("--kd", type=float, default=0.5)
     p.add_argument("--save-steps", action="store_true")
     p.add_argument(
         "--factorial",
         default=None,
-        choices=["clamp_measured_q", "noclamp_prev_command", "clamp_prev_command", "noclamp_measured_q"],
+        choices=[
+            "clamp_measured_q",
+            "noclamp_prev_command",
+            "clamp_prev_command",
+            "noclamp_measured_q",
+        ],
         help="RESEARCH ONLY: override the action clamp and limiter of the deploy config to "
         "isolate each change (recorded in the manifest; never a deploy configuration)",
     )
@@ -136,7 +151,6 @@ def _run(args) -> int:
     from phoenix.sim2real.go2_model import (
         LIMIT_ABORT_BAND_RAD,
         POLICY_JOINT_ORDER,
-        UNITREE_MOTOR_ORDER,
         limits_in_order,
     )
     from phoenix.sim2real.motor_crc import PHOENIX_FOR_MOTOR
@@ -163,7 +177,9 @@ def _run(args) -> int:
     if args.walk:
         # SIMULATION ONLY: the walking refusal is the one problem this process may lift
         # (hardware prerequisites, deploy_contract.WALKING_PREREQUISITES); recorded below.
-        walk_block_lifted = [p for p in problems if p.startswith("walking deploy configs are blocked")]
+        walk_block_lifted = [
+            p for p in problems if p.startswith("walking deploy configs are blocked")
+        ]
         problems = [p for p in problems if p not in walk_block_lifted]
     if problems:
         raise SystemExit(f"deploy contract refuses {args.deploy_config}: {problems}")
@@ -243,6 +259,11 @@ def _run(args) -> int:
         first_message_timeout_s=float(dcfg["safety"]["first_message_timeout_s"]),
         joint_order=order,
         degradation=degradation,
+        **(
+            {"degradation_pin_band": float(args.degradation_pin_band)}
+            if args.degradation_pin_band is not None
+            else {}
+        ),
         **limiter,
     )
     manifest_common = {
@@ -396,11 +417,28 @@ def _run(args) -> int:
     env.close()
 
     metrics, episodes = score_stand_rollout(
-        raw=arrs["raw"], req=arrs["req"], sent=arrs["sent"], q0=arrs["q0"], q1=arrs["q1"],
-        tau_c=arrs["tau_c"], tau_a=arrs["tau_a"], grav=grav, height=height, linv=linv,
-        angv=angv, cmd=cmd, alive=alive, contact_term=contact_term, ended=ended,
-        default=default_p, lo=lo_p, hi=hi_p, dt=dt, abort_band=LIMIT_ABORT_BAND_RAD,
-        joint_names=list(order), safety_hold=hold,
+        raw=arrs["raw"],
+        req=arrs["req"],
+        sent=arrs["sent"],
+        q0=arrs["q0"],
+        q1=arrs["q1"],
+        tau_c=arrs["tau_c"],
+        tau_a=arrs["tau_a"],
+        grav=grav,
+        height=height,
+        linv=linv,
+        angv=angv,
+        cmd=cmd,
+        alive=alive,
+        contact_term=contact_term,
+        ended=ended,
+        default=default_p,
+        lo=lo_p,
+        hi=hi_p,
+        dt=dt,
+        abort_band=LIMIT_ABORT_BAND_RAD,
+        joint_names=list(order),
+        safety_hold=hold,
     )
     if args.walk:
         from phoenix.monitor.stand_metrics import score_walk_episodes
@@ -408,32 +446,63 @@ def _run(args) -> int:
         T_, N_ = alive.shape
         first_end = np.where((~alive).any(axis=0), np.argmax(~alive, axis=0), T_)
         valid = np.arange(T_)[:, None] < first_end[None, :]
-        metrics.update(score_walk_episodes(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid, dt=dt))
+        metrics.update(
+            score_walk_episodes(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid, dt=dt)
+        )
         from phoenix.monitor.stand_metrics import score_walk_v2, walk_primary_score
 
         wth = json.loads(args.walk_thresholds.read_text()) if args.walk_thresholds else None
-        wps = walk_primary_score(grav=grav, cmd=cmd, linv=linv, valid=valid,
-                                 contact_term=contact_term, dt=dt)
+        wps = walk_primary_score(
+            grav=grav, cmd=cmd, linv=linv, valid=valid, contact_term=contact_term, dt=dt
+        )
         metrics["walk_primary_score_mean"] = float(wps.mean())
         metrics["walk_primary_score_per_episode"] = [float(v) for v in wps]
-        metrics.update(score_walk_v2(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid,
-                                     height=height, qd=arrs["qd1"], req=arrs["req"],
-                                     tau_c=arrs["tau_c"], tau_a=arrs["tau_a"], dt=dt,
-                                     thresholds=wth))
+        metrics.update(
+            score_walk_v2(
+                episodes,
+                linv=linv,
+                angv=angv,
+                cmd=cmd,
+                valid=valid,
+                height=height,
+                qd=arrs["qd1"],
+                req=arrs["req"],
+                tau_c=arrs["tau_c"],
+                tau_a=arrs["tau_a"],
+                dt=dt,
+                thresholds=wth,
+            )
+        )
     # The hardware fidelity gate, on the gate's own telemetry, per simulated robot.
     fid = []
     for e in range(n_tel):
         rep = fidelity_report(read_bridge_telemetry(tel_dir / f"robot{e:03d}.jsonl"))
-        fid.append({k: rep.get(k) for k in ("verdict", "reasons", "altered_fraction",
-                                            "rms_distortion_rad", "authority_s")})
+        fid.append(
+            {
+                k: rep.get(k)
+                for k in (
+                    "verdict",
+                    "reasons",
+                    "altered_fraction",
+                    "rms_distortion_rad",
+                    "authority_s",
+                )
+            }
+        )
     faults = sorted({f for g in gates for f in g.faults})
     summary = {
         "schema": "phoenix-v2-sim2sim-deploy/v1",
         "label": args.label,
         **manifest_common,
         "env_resolved": container,
-        "commit": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(),
-        "dirty": bool(subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout.strip()),
+        "commit": subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip(),
+        "dirty": bool(
+            subprocess.run(
+                ["git", "status", "--porcelain"], capture_output=True, text=True
+            ).stdout.strip()
+        ),
         "num_robots": N,
         "steps": T,
         "dt_s": dt,
@@ -453,12 +522,32 @@ def _run(args) -> int:
             fh.write(json.dumps({**ep, **extra}) + "\n")
     if args.save_steps:
         np.savez_compressed(out / "steps.npz", grav=grav, alive=alive, hold=hold, **arrs)
-    print(json.dumps({k: summary[k] for k in (
-        "label", "success_rate", "survival_rate", "mean_primary_score", "fidelity_pass_rate",
-        "altered_fraction", "rms_modification_rad", "raw_out_of_range_fraction",
-        "attitude_violation_episode_rate", "safety_hold_episode_rate", "mean_base_height_m",
-        "gate_faults", "wall_s")} | {k: v for k, v in summary.items() if k.startswith("walk")} | {"hw_gate_pass_rate": summary["hardware_fidelity_gate"]["pass_rate"]},
-        indent=1), flush=True)
+    print(
+        json.dumps(
+            {
+                k: summary[k]
+                for k in (
+                    "label",
+                    "success_rate",
+                    "survival_rate",
+                    "mean_primary_score",
+                    "fidelity_pass_rate",
+                    "altered_fraction",
+                    "rms_modification_rad",
+                    "raw_out_of_range_fraction",
+                    "attitude_violation_episode_rate",
+                    "safety_hold_episode_rate",
+                    "mean_base_height_m",
+                    "gate_faults",
+                    "wall_s",
+                )
+            }
+            | {k: v for k, v in summary.items() if k.startswith("walk")}
+            | {"hw_gate_pass_rate": summary["hardware_fidelity_gate"]["pass_rate"]},
+            indent=1,
+        ),
+        flush=True,
+    )
     return 0
 
 
