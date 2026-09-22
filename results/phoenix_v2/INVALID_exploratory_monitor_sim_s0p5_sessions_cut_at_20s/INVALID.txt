@@ -1,0 +1,1 @@
+Sessions were silently cut at the env's 20 s time_out (harness bug, fixed in the next commit); do not use.

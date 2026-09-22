@@ -301,3 +301,30 @@ stops: the incumbent absorbs this degradation; there is nothing to adapt to.** P
 policy after this point is labelled exploratory and is not evidence for or against H1.
 Stage W (walking) is unaffected and repeats the protocol, pilot first, once a walking
 policy passes Gate L.
+
+### Amendment 5 (2026-09-22): Gate L fails; Stage W stops before hardware
+
+`checkpoints/phoenix-walk-v2/2026-09-22_09-47-26/model_1499.pt` (recipe of amendment 3,
+trained once, 1500 iterations) evaluated on the preregistered seeds
+(`results/phoenix_v2/gate_l/`):
+
+| condition | walking success | fidelity pass | altered | planar err (m/s) | yaw err (rad/s) |
+|---|---|---|---|---|---|
+| DR off (4001) | 0/256 | 0/256 | 31.5 % | 0.252 | 0.310 |
+| DR on (4002) | 0/256 | 0/256 | 30.3 % | 0.268 | 0.360 |
+| zero command (stand check) | 0/256 (stand success) | 0/256 | 1.9 % | 0.019 | 0.017 |
+
+Gate L fails on every criterion's fidelity term and on tracking. Exploratory
+diagnostic (not a gate, `results/phoenix_v2/gate_l_diag/nolimit`): the same checkpoint
+with the limiter removed walks worse (walking success 14.8 %, planar error 0.35 m/s at a
+mean commanded speed of 0.39 m/s), so the policy relies on the limiter as part of its
+plant, exactly as H25 relied on the measured-q clip; the 0.075 rad/step bound chosen on
+standing data is inside the walking gait's natural target rate. **Stage W stops:** no
+walking policy exists that passes Gate L, so phases L (hardware), M and N are not run.
+The recipe is not retuned on the evaluation seeds.
+
+Next single experiment (not run): train the walking baseline with NO soft limiter in the
+MDP (action-rate penalty only), then choose a deployment dq_max for it with the
+amendment 1 selection rule on development seeds only, and re-run Gate L with fresh
+evaluation seeds. It tests whether the fidelity failure is caused by training against a
+binding limiter or by the bound itself.

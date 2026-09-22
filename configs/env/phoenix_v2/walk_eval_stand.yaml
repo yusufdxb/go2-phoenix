@@ -1,0 +1,11 @@
+# Gate L standing check (amendment 3): the walking policy under zero command, DR off.
+defaults:
+  - walk_flat
+domain_randomization:
+  enabled: false
+command:
+  lin_vel_x: [0.0, 0.0]
+  lin_vel_y: [0.0, 0.0]
+  ang_vel_z: [0.0, 0.0]
+  heading_stiffness: 0.0
+  rel_standing_envs: 1.0

@@ -1,0 +1,3 @@
+# Gate L evaluation (amendment 3): walking baseline under its training DR.
+defaults:
+  - walk_flat

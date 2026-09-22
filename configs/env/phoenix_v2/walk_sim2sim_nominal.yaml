@@ -1,0 +1,8 @@
+# Gate L deployment-path check: the env applies the deploy gate's target (own limiter OFF).
+defaults:
+  - walk_flat
+domain_randomization:
+  enabled: false
+action:
+  rate_limit:
+    enabled: false
