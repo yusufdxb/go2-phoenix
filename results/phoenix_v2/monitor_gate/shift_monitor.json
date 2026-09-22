@@ -1,0 +1,1176 @@
+{
+ "schema": "phoenix-v2-shift-monitor-eval/v1",
+ "label": "GATE",
+ "config": {
+  "alpha": 0.05,
+  "min_effect": 0.06,
+  "n": 10,
+  "k_of_n": 7,
+  "min_usable": 8,
+  "spread_quantile": 0.9,
+  "min_spread_bound": 0.1
+ },
+ "true_group": "rear",
+ "hypothesis_space": [
+  "all",
+  "calfs",
+  "diag_a",
+  "diag_b",
+  "front",
+  "hips",
+  "leg_FL",
+  "leg_FR",
+  "leg_RL",
+  "leg_RR",
+  "rear",
+  "thighs"
+ ],
+ "calibration_sessions": [
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot000.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot001.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot002.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot003.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot004.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot005.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot006.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot007.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot008.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot009.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot010.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot011.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot000.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot001.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot002.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot003.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot004.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot005.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot006.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot007.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot008.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot009.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot010.jsonl",
+  "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot011.jsonl"
+ ],
+ "group_baseline": {
+  "schema": "phoenix-group-baseline/v1",
+  "regime": "walk",
+  "groups": [
+   "all",
+   "leg_FR",
+   "leg_FL",
+   "leg_RR",
+   "leg_RL",
+   "rear",
+   "front",
+   "diag_a",
+   "diag_b",
+   "hips",
+   "thighs",
+   "calfs",
+   "FR_hip_joint",
+   "FR_thigh_joint",
+   "FR_calf_joint",
+   "FL_hip_joint",
+   "FL_thigh_joint",
+   "FL_calf_joint",
+   "RR_hip_joint",
+   "RR_thigh_joint",
+   "RR_calf_joint",
+   "RL_hip_joint",
+   "RL_thigh_joint",
+   "RL_calf_joint"
+  ],
+  "threshold": {
+   "all": 0.854160242219774,
+   "leg_FR": 0.7795819708259929,
+   "leg_FL": 0.7858552465025495,
+   "leg_RR": 0.802937343201762,
+   "leg_RL": 0.6807347140182926,
+   "rear": 0.8179663019595892,
+   "front": 0.8298883752755483,
+   "diag_a": 0.8089809761820956,
+   "diag_b": 0.8401406066541441,
+   "hips": 0.6961496245404037,
+   "thighs": 0.796816762521474,
+   "calfs": 0.8088125572379362,
+   "FR_hip_joint": 0.5939711696344965,
+   "FR_thigh_joint": 0.6584753236345254,
+   "FR_calf_joint": 0.7460158209738488,
+   "FL_hip_joint": 0.5921466672908693,
+   "FL_thigh_joint": 0.6703931572513148,
+   "FL_calf_joint": 0.7496809712514829,
+   "RR_hip_joint": 0.6080812269298698,
+   "RR_thigh_joint": 0.7125720419170118,
+   "RR_calf_joint": 0.7634622200669722,
+   "RL_hip_joint": 0.5470925987365969,
+   "RL_thigh_joint": 0.48735594901027046,
+   "RL_calf_joint": 0.6573890716795077
+  },
+  "nominal_median": {
+   "all": 1.0632373039877057,
+   "leg_FR": 1.0739042435539021,
+   "leg_FL": 1.0093826832101205,
+   "leg_RR": 1.0100221761233201,
+   "leg_RL": 1.2470688660977913,
+   "rear": 1.1116348944550112,
+   "front": 1.039494796156407,
+   "diag_a": 1.1702189472012137,
+   "diag_b": 1.0162421886679498,
+   "hips": 1.2274864980522406,
+   "thighs": 1.1035342711754081,
+   "calfs": 1.0126340037805954,
+   "FR_hip_joint": 1.1420831630041177,
+   "FR_thigh_joint": 1.046051526571948,
+   "FR_calf_joint": 1.0067081490263292,
+   "FL_hip_joint": 1.2024928966227235,
+   "FL_thigh_joint": 0.9806371581544235,
+   "FL_calf_joint": 0.9996128309748178,
+   "RR_hip_joint": 1.122106320164299,
+   "RR_thigh_joint": 1.0196930832361257,
+   "RR_calf_joint": 0.9913721970156881,
+   "RL_hip_joint": 1.3517913678823357,
+   "RL_thigh_joint": 1.5157909845090363,
+   "RL_calf_joint": 1.15697429371335
+  },
+  "nominal_quantile": {
+   "all": 0.854160242219774,
+   "leg_FR": 0.7795819708259929,
+   "leg_FL": 0.7858552465025495,
+   "leg_RR": 0.802937343201762,
+   "leg_RL": 0.6807347140182926,
+   "rear": 0.8179663019595892,
+   "front": 0.8298883752755483,
+   "diag_a": 0.8089809761820956,
+   "diag_b": 0.8401406066541441,
+   "hips": 0.6961496245404037,
+   "thighs": 0.796816762521474,
+   "calfs": 0.8088125572379362,
+   "FR_hip_joint": 0.5939711696344965,
+   "FR_thigh_joint": 0.6584753236345254,
+   "FR_calf_joint": 0.7460158209738488,
+   "FL_hip_joint": 0.5921466672908693,
+   "FL_thigh_joint": 0.6703931572513148,
+   "FL_calf_joint": 0.7496809712514829,
+   "RR_hip_joint": 0.6080812269298698,
+   "RR_thigh_joint": 0.7125720419170118,
+   "RR_calf_joint": 0.7634622200669722,
+   "RL_hip_joint": 0.5470925987365969,
+   "RL_thigh_joint": 0.48735594901027046,
+   "RL_calf_joint": 0.6573890716795077
+  },
+  "spread_bound": {
+   "all": 0.44818693760793843,
+   "leg_FR": 0.2548745884830093,
+   "leg_FL": 0.5770533471224369,
+   "leg_RR": 0.2779798704775113,
+   "leg_RL": 0.5597355553118732,
+   "rear": 0.4886594555071001,
+   "front": 0.3746113609660803,
+   "diag_a": 0.48423623900600604,
+   "diag_b": 0.3067543291683788,
+   "hips": 0.38112103942907216,
+   "thighs": 0.4676660253588022,
+   "calfs": 0.15978613437828276,
+   "FR_hip_joint": 0.1,
+   "FR_thigh_joint": 0.1,
+   "FR_calf_joint": 0.1,
+   "FL_hip_joint": 0.1,
+   "FL_thigh_joint": 0.1,
+   "FL_calf_joint": 0.1,
+   "RR_hip_joint": 0.1,
+   "RR_thigh_joint": 0.1,
+   "RR_calf_joint": 0.1,
+   "RL_hip_joint": 0.1,
+   "RL_thigh_joint": 0.1,
+   "RL_calf_joint": 0.1
+  },
+  "config": {
+   "alpha": 0.05,
+   "min_effect": 0.06,
+   "n": 10,
+   "k_of_n": 7,
+   "min_usable": 8,
+   "spread_quantile": 0.9,
+   "min_spread_bound": 0.1
+  },
+  "sessions": [
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot000.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot001.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot002.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot003.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot004.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot005.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot006.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot007.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot008.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot009.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot010.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7101/bridge/robot011.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot000.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot001.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot002.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot003.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot004.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot005.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot006.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot007.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot008.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot009.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot010.jsonl",
+   "results/phoenix_v2/monitor_gate/calibration/seed7102/bridge/robot011.jsonl"
+  ]
+ },
+ "nominal": {
+  "sessions": [
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot000.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.951558255786829,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot001.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9432138956932452,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot002.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9958569238347581,
+    "latency_windows": 98
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot003.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.1449464683593082,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot004.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 5.329895219536849,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot005.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9447585178854897,
+    "latency_windows": 105
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot006.jsonl",
+    "flagged": true,
+    "selected_group": "front",
+    "selected_is_true": false,
+    "severity": 0.9288826918043402,
+    "range": [
+     0.777184237256866,
+     1.2634917059028334
+    ],
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9262543853470143,
+    "latency_windows": 8
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot007.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.0670216472974696,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot008.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.0701882048555644,
+    "latency_windows": 78
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot009.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.0390629174193209,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot010.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 5.356559882140916,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7103/bridge/robot011.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9333520149824165,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot000.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9148276861808978,
+    "latency_windows": 48
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot001.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 5.4917266915610785,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot002.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.1488426693421823,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot003.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.078376375488917,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot004.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9130904415416774,
+    "latency_windows": 38
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot005.jsonl",
+    "flagged": true,
+    "selected_group": "leg_FL",
+    "selected_is_true": false,
+    "severity": 1.0040389766444993,
+    "range": [
+     0.7246243370673496,
+     1.561614434407032
+    ],
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9732530082538904,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot006.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9876583173440776,
+    "latency_windows": 18
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot007.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.1744881173301591,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot008.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.0793793827326412,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot009.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 0.9573386717682827,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot010.jsonl",
+    "flagged": false,
+    "selected_group": null,
+    "selected_is_true": false,
+    "severity": null,
+    "range": null,
+    "true_group_state": "nominal",
+    "true_group_shift": 1.0255260606820102,
+    "latency_windows": null
+   },
+   {
+    "session": "results/phoenix_v2/monitor_gate/nominal/seed7104/bridge/robot011.jsonl",
+    "flagged": true,
+    "selected_group": "hips",
+    "selected_is_true": false,
+    "severity": 1.148190121412572,
+    "range": [
+     0.6639311236532685,
+     2.1362067810267584
+    ],
+    "true_group_state": "nominal",
+    "true_group_shift": 0.906760724855509,
+    "latency_windows": 69
+   }
+  ],
+  "n": 24,
+  "flagged_rate": 0.125,
+  "selected_is_true_rate": 0.0,
+  "true_group_detected_rate": 0.0,
+  "severity_median": 1.0106914922583843,
+  "severity_range": [
+   0.906760724855509,
+   5.4917266915610785
+  ],
+  "applied_scale": null,
+  "severity_bias": null,
+  "latency_windows_median": 58.5,
+  "latency_detected_fraction": 0.3333333333333333
+ },
+ "conditions": {
+  "degraded": {
+   "sessions": [
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot000.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 1.0697452519298767,
+     "latency_windows": 18
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot001.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.2513512366841678,
+     "range": [
+      0.2317070992741373,
+      0.7466833005194806
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.2513512366841678,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot002.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.7791979763785828,
+     "latency_windows": 14
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot003.jsonl",
+     "flagged": true,
+     "selected_group": "thighs",
+     "selected_is_true": false,
+     "severity": 1.046035251697337,
+     "range": [
+      0.6612103637333703,
+      2.404870365680041
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 1.01690009401961,
+     "latency_windows": null
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot004.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.7112996902371194,
+     "range": [
+      0.6646580675587767,
+      2.330282554986432
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.7112996902371194,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot005.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.990776174909203,
+     "range": [
+      0.6969190329805126,
+      1.4274690889318618
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.990776174909203,
+     "latency_windows": 77
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot006.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.7094451110866622,
+     "range": [
+      0.5840755248636098,
+      1.0337878035217665
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.7094451110866622,
+     "latency_windows": 9
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot007.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.6625490771814941,
+     "range": [
+      0.22955488528818896,
+      2.701569872579952
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.6625490771814941,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot008.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.6551907309207841,
+     "range": [
+      0.4353660506810011,
+      0.8797369521073731
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.6551907309207841,
+     "latency_windows": 10
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot009.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.9783115470323426,
+     "range": [
+      0.8066750172064507,
+      1.3522605564828951
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.770047999654579,
+     "latency_windows": 27
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot010.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 1.016380738361721,
+     "latency_windows": 57
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7105/bridge/robot011.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8067668458699536,
+     "latency_windows": 18
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot000.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.27376866966335495,
+     "range": [
+      0.20602109541497024,
+      0.6276963635315125
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.27376866966335495,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot001.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 3.8247431962435403,
+     "latency_windows": 14
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot002.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.9983877901792384,
+     "range": [
+      0.5292126871687657,
+      1.1256117731687822
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 1.0676973317527665,
+     "latency_windows": 27
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot003.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.8394817176647085,
+     "range": [
+      0.587831702757364,
+      1.038704853507554
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.763315595280476,
+     "latency_windows": 9
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot004.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.7929948039648315,
+     "range": [
+      0.7743433370112734,
+      0.9193379997227161
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.7929948039648315,
+     "latency_windows": 9
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot005.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8991739745127387,
+     "latency_windows": 28
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot006.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.6580902695389326,
+     "range": [
+      0.5096794788649582,
+      0.8261265774231152
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.5794502178257657,
+     "latency_windows": 9
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot007.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.8533187697265132,
+     "range": [
+      0.5148501692989798,
+      1.1655951037884607
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.7319466673264233,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot008.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.7281774603870665,
+     "range": [
+      0.6179114800017249,
+      1.0354979542203848
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.7281774603870665,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot009.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.9635364651896126,
+     "range": [
+      0.6967007108754116,
+      1.1863454949485048
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.7984245883303868,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot010.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.8162553786718116,
+     "range": [
+      0.6473290558639084,
+      0.9240306575416883
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.5637222222351082,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/degraded/seed7106/bridge/robot011.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.880310733577519,
+     "range": [
+      0.8342736369670336,
+      1.0683262368565847
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.9055781733657341,
+     "latency_windows": 18
+    }
+   ],
+   "n": 24,
+   "flagged_rate": 0.75,
+   "selected_is_true_rate": 0.375,
+   "true_group_detected_rate": 0.7083333333333334,
+   "severity_median": 0.7746229880165809,
+   "severity_range": [
+    0.2513512366841678,
+    3.8247431962435403
+   ],
+   "applied_scale": null,
+   "severity_bias": null,
+   "latency_windows_median": 9.0,
+   "latency_detected_fraction": 0.9583333333333334
+  },
+  "heldout": {
+   "sessions": [
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot000.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.9766600788683023,
+     "latency_windows": 18
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot001.jsonl",
+     "flagged": true,
+     "selected_group": "leg_RR",
+     "selected_is_true": false,
+     "severity": 0.7767903077875719,
+     "range": [
+      0.6321756050933557,
+      1.1904787370575816
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 0.9617624097113067,
+     "latency_windows": 57
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot002.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.9767183769377297,
+     "latency_windows": 37
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot003.jsonl",
+     "flagged": true,
+     "selected_group": "leg_RR",
+     "selected_is_true": false,
+     "severity": 0.7803743750228578,
+     "range": [
+      0.5853487658805885,
+      1.2560795642860338
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8077289262258258,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot004.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.8418565344274813,
+     "range": [
+      0.8128939878329314,
+      1.0173742580566723
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.689760692756946,
+     "latency_windows": 18
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot005.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.8414456983501484,
+     "range": [
+      0.6939818770032906,
+      1.2566715633228556
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.8414456983501484,
+     "latency_windows": 18
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot006.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 1.0952603394382852,
+     "latency_windows": 18
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot007.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.920259225877573,
+     "latency_windows": 27
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot008.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.868255396218,
+     "range": [
+      0.7254277301169266,
+      1.0949843437899602
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.8679388691384851,
+     "latency_windows": 37
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot009.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.863372853526823,
+     "range": [
+      0.7070341166807477,
+      1.025167851600771
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.668069579828309,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot010.jsonl",
+     "flagged": true,
+     "selected_group": "leg_RL",
+     "selected_is_true": false,
+     "severity": 0.8131271327176574,
+     "range": [
+      0.558323729546243,
+      1.3496976226718291
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 0.9452917193463917,
+     "latency_windows": 48
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7107/bridge/robot011.jsonl",
+     "flagged": true,
+     "selected_group": "diag_a",
+     "selected_is_true": false,
+     "severity": 0.8779682644267628,
+     "range": [
+      0.7468405163758094,
+      1.2504894238909279
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8143467384524308,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot000.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.8211796482252811,
+     "range": [
+      0.6312467524036846,
+      1.233304413248224
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.8211796482252811,
+     "latency_windows": 17
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot001.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.7554591306717163,
+     "range": [
+      0.5873351885773844,
+      1.280030587424969
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.7554591306717163,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot002.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 1.2045668712796278,
+     "latency_windows": 17
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot003.jsonl",
+     "flagged": true,
+     "selected_group": "rear",
+     "selected_is_true": true,
+     "severity": 0.6965400484194252,
+     "range": [
+      0.6845708621826143,
+      0.9743266833106221
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.6965400484194252,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot004.jsonl",
+     "flagged": true,
+     "selected_group": "diag_a",
+     "selected_is_true": false,
+     "severity": 0.8940843946551187,
+     "range": [
+      0.7033601848174009,
+      1.3205134967429688
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8274553605388572,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot005.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8489552757710122,
+     "latency_windows": 11
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot006.jsonl",
+     "flagged": true,
+     "selected_group": "thighs",
+     "selected_is_true": false,
+     "severity": 0.9972851075490624,
+     "range": [
+      0.70933188858379,
+      1.289665217883639
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 0.9419096943196507,
+     "latency_windows": 17
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot007.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8892416321540021,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot008.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.8682104340169057,
+     "latency_windows": 17
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot009.jsonl",
+     "flagged": true,
+     "selected_group": "all",
+     "selected_is_true": false,
+     "severity": 0.8542297526588489,
+     "range": [
+      0.6958526590692217,
+      2.071118648577066
+     ],
+     "true_group_state": "shifted",
+     "true_group_shift": 0.8098289479011569,
+     "latency_windows": 9
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot010.jsonl",
+     "flagged": true,
+     "selected_group": "leg_RL",
+     "selected_is_true": false,
+     "severity": 0.5434506459075265,
+     "range": [
+      0.5042836701353348,
+      0.6296646452578849
+     ],
+     "true_group_state": "nominal",
+     "true_group_shift": 0.7519358392193459,
+     "latency_windows": 8
+    },
+    {
+     "session": "results/phoenix_v2/monitor_gate/heldout/seed7108/bridge/robot011.jsonl",
+     "flagged": false,
+     "selected_group": null,
+     "selected_is_true": false,
+     "severity": null,
+     "range": null,
+     "true_group_state": "nominal",
+     "true_group_shift": 0.7398578207051565,
+     "latency_windows": 8
+    }
+   ],
+   "n": 24,
+   "flagged_rate": 0.625,
+   "selected_is_true_rate": 0.16666666666666666,
+   "true_group_detected_rate": 0.3333333333333333,
+   "severity_median": 0.8452004870605803,
+   "severity_range": [
+    0.668069579828309,
+    1.2045668712796278
+   ],
+   "applied_scale": null,
+   "severity_bias": null,
+   "latency_windows_median": 17.0,
+   "latency_detected_fraction": 1.0
+  }
+ }
+}
