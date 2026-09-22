@@ -1,0 +1,16 @@
+# Phoenix v2 Stage W recipe W3 (amendment 8.3): W1 + the symmetric command curriculum.
+# Advancement needs forward AND backward tracking ratios >= 0.7, measured separately.
+defaults:
+  - walk_w1
+command:
+  curriculum:
+    enabled: true
+    factors: [0.2, 0.4, 0.6, 1.0]
+    ratio_threshold: 0.7
+    window: 2000
+    min_segments_per_direction: 500
+    check_every_steps: 1200
+    min_stage_steps: 2400
+    max_stage_steps: 24000
+    settle_steps: 50
+    consecutive_checks: 2
