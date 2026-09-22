@@ -123,8 +123,12 @@ stage S stopped by rule.
 Walking baseline trained (amendment 3 recipe,
 `checkpoints/phoenix-walk-v2/2026-09-22_09-47-26/model_1499.pt`, gitignored). Gate L
 (`results/phoenix_v2/gate_l/`): walking success 0/256 nominal and 0/256 with DR, 0/256
-fidelity passes (31 % of samples rate-limited), planar error 0.25 m/s, yaw-rate error
-0.31 rad/s. Without the limiter it walks worse (exploratory). No walking hardware run.
+fidelity passes (31 % of samples rate-limited). The planar error 0.25 m/s and yaw-rate
+error 0.31 rad/s quoted here earlier are INVALID (amendment 6.1: the scorer's settled
+window was empty for 196 of 256 episodes under heading-derived yaw commands, so the
+figures describe a biased subset); the fidelity failure alone fails the gate. Without the
+limiter it walks worse (exploratory; its tracking figures carry the same defect). No
+walking hardware run. Continued after amendment 5: see the 2026-09-22 addendum below.
 
 ## 14-17. Closed loop, hypothesis, claims
 
@@ -172,3 +176,25 @@ Workstation only: `*/steps.npz`, `*/bridge/robot*.jsonl` (gate telemetry, schema
 `PYTHONPATH=src PHOENIX_SKIP_HEAVY=1 pytest tests -m "not sim and not ros"`, 2026-09-22,
 after this work: 1732 passed, 17 skipped, 4 deselected, 0 failed (workstation with the
 checkpoint directory present).
+
+
+## Addendum, 2026-09-22 (later): walking without the soft limiter
+
+Amendments 6 to 8 (`EXPERIMENT.md`). Deploy contract v3 (`DEPLOY_CONTRACT.md`) verified
+against the live Isaac Lab plant with zero difference on every action and observation
+term (`results/phoenix_v2/contract/w1/`); the mode-switch path of the policy node fixed
+to use the same clamp. H25's limiter re-selected on new seeds under the one-sided rule:
+0.035 rad/step, watchdog 1.40 rad (amendment 7). Walking candidates, all in
+`results/phoenix_v2/walk_ledger.jsonl`:
+
+| candidate | change | dev walking success (DR off / DR on) | stand | note |
+|---|---|---|---|---|
+| W1 (stopped at 500) | no soft limiter, yaw rate commanded | 0 / 0 | 1.00 | stopped prematurely (my error), kept |
+| screens SA, SB (300 it) | feet_air_time 0.25; action_rate -0.01 | not evaluated | - | inconclusive: too short |
+| W1-full (1500 it) | as W1 | 0.27 / 0.29 | 1.00 | walks backward only |
+
+W1-full per direction (`results/phoenix_v2/walk_diag/w1_full_nominal/directional.json`):
+strong backward -0.70 -> -0.74 m/s (segment success 0.99), strong forward +0.70 ->
++0.05 m/s (0.00). Learning curve over its checkpoints: backward appears between
+iterations 1000 and 1100; forward stays near zero to the end. The sign/asymmetry audit
+found no implementation bug (amendment 8.1).
