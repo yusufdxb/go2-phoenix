@@ -387,6 +387,7 @@ stage_stand() {
     pf require "$stage"
     live_confirm "$stage" "H25 cmd=0 stand, ${authority} s of policy authority, ${attempts} attempt(s)"
     local first_msg max_rt telemetry_files=() answers=() k
+    local standup_s="${PHOENIX_STANDUP_S:-2.0}"
     first_msg="$(cfg_get safety.first_message_timeout_s)"
     max_rt="$(python3 -c "print(float('$first_msg') + $authority)")"
     for k in $(seq "$attempts"); do
@@ -402,9 +403,15 @@ stage_stand() {
         sleep 1
         require_alive deadman lowstate_bridge
         # shellcheck disable=SC2046
-        launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args "$stage" "$telemetry")
-        wait_for_telemetry "$telemetry" 't.get("mode") == "hold" and t.get("deadman_source_ok")' \
-            "$first_msg" "bridge holding with the real deadman armed"
+        # Stand-up ramp (2026-09-21): a folded start cannot rise under the policy's
+        # measured-q slew clip and is outside its training distribution, so the
+        # bridge first ramps to the training stance and the policy starts from there.
+        launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args "$stage" "$telemetry") \
+            --standup-s "$standup_s"
+        wait_for_telemetry "$telemetry" 't.get("mode") in ("hold", "standup") and t.get("deadman_source_ok")' \
+            "$first_msg" "bridge armed with the real deadman"
+        wait_for_telemetry "$telemetry" 't.get("standup_done")' \
+            "$(python3 -c "print($standup_s + $first_msg)")" "stand-up ramp complete, holding the training stance"
         require_alive deadman lowstate_bridge lowcmd_bridge
         launch policy_node python3 -m phoenix.sim2real.ros2_policy_node --config "$DEPLOY_CFG" \
             --lock "$DEPLOY_LOCK" --authority-s "$authority" --max-runtime-s "$max_rt" \

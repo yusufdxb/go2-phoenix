@@ -108,6 +108,9 @@ class BridgeConfig:
     telemetry_path: Path | None = None
     expect_sha: str | None = None
     stage: str = "unlabelled"
+    standup_s: float = 0.0
+    standup_kp: float = 60.0
+    standup_kd: float = 5.0
     extra: dict[str, Any] = field(default_factory=dict)
 
     def gate_params(self) -> GateParams:
@@ -123,6 +126,9 @@ class BridgeConfig:
             stale_hold_s=self.stale_hold_s,
             first_message_timeout_s=self.first_message_timeout_s,
             joint_order=tuple(self.joint_order),
+            standup_s=self.standup_s,
+            standup_kp=self.standup_kp,
+            standup_kd=self.standup_kd,
         )
 
 
@@ -295,6 +301,15 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--expect-sha", default=None, help="commit the running code must be (live)")
     p.add_argument("--stage", default="unlabelled", help="gate stage label for the record")
+    p.add_argument(
+        "--standup-s",
+        type=float,
+        default=0.0,
+        help="ramp from the measured posture to the training stance over this long before "
+        "following the policy (0 = off, the default)",
+    )
+    p.add_argument("--standup-kp", type=float, default=60.0, help="standup kp (default 60)")
+    p.add_argument("--standup-kd", type=float, default=5.0, help="standup kd (default 5)")
     return p.parse_args(argv)
 
 
@@ -357,6 +372,9 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         telemetry_path=getattr(args, "telemetry", None),
         expect_sha=getattr(args, "expect_sha", None),
         stage=getattr(args, "stage", "unlabelled"),
+        standup_s=float(getattr(args, "standup_s", 0.0)),
+        standup_kp=float(getattr(args, "standup_kp", 60.0)),
+        standup_kd=float(getattr(args, "standup_kd", 5.0)),
     )
 
 
