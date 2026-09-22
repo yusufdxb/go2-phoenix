@@ -29,9 +29,26 @@ def test_h25_is_a_valid_stand_only_config() -> None:
     assert cfg["observation"]["base_lin_vel_source"] == "zeros"
 
 
-@pytest.mark.parametrize("path", DEPLOY_CONFIGS, ids=lambda p: p.name)
+#: Configs that exist ONLY for simulation studies and are refused on hardware by design.
+#: They must be refused for the walking block and for NOTHING else; the simulated deploy
+#: harness lifts that one refusal in its own process and records it in the run manifest.
+SIMULATION_ONLY = {"deploy_walk_w2_sim.yaml"}
+
+
+@pytest.mark.parametrize(
+    "path", [p for p in DEPLOY_CONFIGS if p.name not in SIMULATION_ONLY], ids=lambda p: p.name
+)
 def test_every_shipped_deploy_config_passes_the_contract(path: Path) -> None:
     assert dc.validate_deploy_contract(yaml.safe_load(path.read_text())) == []
+
+
+@pytest.mark.parametrize(
+    "path", [p for p in DEPLOY_CONFIGS if p.name in SIMULATION_ONLY], ids=lambda p: p.name
+)
+def test_simulation_only_config_is_refused_for_the_walking_block_alone(path: Path) -> None:
+    problems = dc.validate_deploy_contract(yaml.safe_load(path.read_text()))
+    assert len(problems) == 1, problems
+    assert problems[0].startswith("walking deploy configs are blocked")
 
 
 def test_zeros_source_without_stand_only_is_refused() -> None:

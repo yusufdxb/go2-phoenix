@@ -45,6 +45,7 @@ The loop has **not** closed through hardware. Status words follow [`EVIDENCE.md`
 | VERIFY: candidate gate and promotion rule | IMPLEMENTED, OFFLINE VERIFIED |
 | Controlled degradation on the robot (gated gain reduction on one joint) | IMPLEMENTED; NOT YET VERIFIED on hardware |
 | A policy the robot executes faithfully | **not yet**: see below |
+| A walking baseline that needs no downstream correction | SIM VERIFIED (W2); not deployable under the frozen limiter rule |
 
 **The first thing Phoenix found is about Phoenix.** In the only live policy run on the
 GO2 (stand-only policy, 2026-09-22), the execution layer altered 88.8 % of the joint
@@ -57,6 +58,16 @@ monitor refuses them. Fixing that is phase 0 of the
 [experiment](docs/research/EXPERIMENT.md). The incumbent policy is also stand-only;
 walking needs a velocity policy that does not exist yet. Evidence per claim:
 [`EVIDENCE.md`](EVIDENCE.md).
+
+**Update, 2026-09-22, later (simulation only; nothing has run on the robot).** A
+walking baseline now exists: trained with no soft limiter in the loop, it passes its
+preregistered gate on held-out seeds (0.90 / 0.89 / 1.00) and tracks commands in both
+directions. It is not deployable, because no rate bound in the frozen grid acts as a
+seatbelt for it, and the smoother variants do not walk. The walking stage then stopped at
+the same preregistered rule as the standing stage: the one controlled degradation this
+study may apply, a single joint at half gain, moves neither policy's endpoint by the
+required margin. The central question is still untested. Details:
+[`docs/research/PHOENIX_V2_RESULTS.md`](docs/research/PHOENIX_V2_RESULTS.md).
 
 **Update, 2026-09-22 (simulation only; nothing new has run on the robot).** Two
 deploy-contract defects explain the rewriting: the measured-position clip (also a
