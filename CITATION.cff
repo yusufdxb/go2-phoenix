@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "go2-phoenix: Closed-Loop Sim-Real Learning for Unitree GO2"
+title: "Phoenix: Hardware-Aware Policy Adaptation for the Unitree GO2"
 message: "If you use this software, please cite it as below."
 type: software
 authors:
@@ -19,4 +19,4 @@ keywords:
   - ros2
   - reinforcement-learning
   - sim-to-real
-  - continual-learning
+  - actuator-degradation

@@ -50,8 +50,7 @@ carries every weight, and onnxruntime resolves the sidecar relative to the
 ### 1. Stage the bundle to the payload
 
 From the repo root on the workstation, with the payload reachable
-(`jetson` = 192.168.0.70 wifi, `jetson-cable` = 192.168.123.18; both in
-`~/.ssh/config`):
+(`jetson` and `jetson-cable` host aliases in `~/.ssh/config`):
 
 ```bash
 scripts/stage_payload_bundle.sh \
@@ -170,6 +169,6 @@ All four must hold. Any one failing fails the check.
 
 ## Record on completion
 
-Append to the day's vault log: the four command outputs verbatim, the sha256
+Append to the day's lab log: the four command outputs verbatim, the sha256
 `verify` printed, and the resolved ONNX path from step 4. Until that exists,
 Phoenix Jetson activation stays **UNVERIFIED** in every document that mentions it.

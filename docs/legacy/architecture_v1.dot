@@ -1,0 +1,56 @@
+// Phoenix closed-loop architecture. Render:
+//   dot -Tsvg docs/architecture.dot -o docs/architecture.svg
+digraph phoenix {
+    rankdir=LR;
+    bgcolor="white";
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fillcolor="#E8F0FE", color="#1A73E8"];
+    edge [fontname="Helvetica", fontsize=10, color="#5F6368"];
+
+    subgraph cluster_sim {
+        label="Simulation (Isaac Lab Python)";
+        style="rounded,dashed";
+        color="#1A73E8";
+        fontsize=12;
+        fontname="Helvetica-Bold";
+
+        sim_env   [label="sim_env\nPhoenix GO2 env\n(DR + terrain + perturbation)"];
+        training  [label="training\nPPO (rsl_rl)\n→ checkpoints/*.pt"];
+        replay    [label="replay\nfailure reconstruction\n+ Halton variations"];
+        adapt     [label="adaptation\nfine-tune w/ failure curriculum"];
+    }
+
+    subgraph cluster_bridge {
+        label="Sim → Real Bridge";
+        style="rounded,dashed";
+        color="#E37400";
+        fontsize=12;
+        fontname="Helvetica-Bold";
+        node [fillcolor="#FFF3E0", color="#E37400"];
+
+        export    [label="sim2real.export\n.pt → .onnx\n(+ verify parity)"];
+        ros_node  [label="sim2real.ros2_policy_node\n50 Hz policy @ GO2"];
+    }
+
+    subgraph cluster_real {
+        label="Real Robot (ROS 2 Python)";
+        style="rounded,dashed";
+        color="#188038";
+        fontsize=12;
+        fontname="Helvetica-Bold";
+        node [fillcolor="#E6F4EA", color="#188038"];
+
+        detect    [label="real_world.failure_detector\npitch / collapse / slip"];
+        log       [label="real_world.trajectory_logger\n→ data/failures/*.parquet"];
+    }
+
+    training -> export [label="checkpoint"];
+    export -> ros_node [label="policy.onnx"];
+    ros_node -> detect [label="telemetry"];
+    detect -> log;
+    log -> replay [label="parquet"];
+    replay -> adapt [label="seeds"];
+    adapt -> training [label="warm start", style="dashed", constraint=false];
+    adapt -> export  [label="improved\ncheckpoint", style="dashed"];
+
+    sim_env -> training [style=invis];
+}

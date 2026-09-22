@@ -1,5 +1,7 @@
 # Phoenix Sim Sweep Design (2026-05-17)
 
+> Legacy (v1 project scope), indexed in `docs/legacy/README.md`.
+
 ## Why a sweep, why now
 
 The v0.2 deployment checkpoint at commit `93e4a94` (phoenix-stand-v3,
@@ -38,8 +40,8 @@ Two additional axes are *available* in the spec format but excluded from
 the default grid to keep the cell count small:
 
 * `command.lin_vel_x` range (stand collapses to [0, 0])
-* `curriculum.failure_modes` subset (per `feedback_go2_mcf_gait` notes,
-  combined vx + yaw degrades on real hardware; not a sim-stress concern)
+* `curriculum.failure_modes` subset (combined vx + yaw is
+  known to degrade on real hardware; not a sim-stress concern)
 
 ## Default grid (12 cells, "stand-v3 stress")
 

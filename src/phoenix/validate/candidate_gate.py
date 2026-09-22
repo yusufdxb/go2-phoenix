@@ -54,9 +54,9 @@ class GateRules:
     seed: int = 0
 
 
-#: Frozen 2026-09-22 with docs/research/EXPERIMENT.md. The metric they apply to is
-#: the preregistered primary endpoint, which is a fraction in [0, 1] (episodes
-#: completed without a fall or attitude violation), so 0.05 = five points.
+#: Frozen 2026-09-22 with docs/research/EXPERIMENT.md. They apply to the
+#: preregistered primary endpoint, a per-episode score in [0, 1] (the fraction of the
+#: episode spent inside the success envelope), so 0.05 = five points.
 PREREGISTERED = GateRules()
 
 
@@ -78,6 +78,62 @@ def bootstrap_diff_ci(
     return float(a_.mean() - b_.mean()), float(lo), float(hi)
 
 
+#: Two-sided 95 % Student t quantiles (standard table). Welch degrees of freedom are
+#: floored to the next tabulated value, which only widens the interval.
+_T975 = {
+    1: 12.706,
+    2: 4.303,
+    3: 3.182,
+    4: 2.776,
+    5: 2.571,
+    6: 2.447,
+    7: 2.365,
+    8: 2.306,
+    9: 2.262,
+    10: 2.228,
+    11: 2.201,
+    12: 2.179,
+    13: 2.160,
+    14: 2.145,
+    15: 2.131,
+    16: 2.120,
+    17: 2.110,
+    18: 2.101,
+    19: 2.093,
+    20: 2.086,
+    25: 2.060,
+    30: 2.042,
+    40: 2.021,
+    60: 2.000,
+    120: 1.980,
+}
+
+
+def _t975(df: float) -> float:
+    keys = [k for k in sorted(_T975) if k <= df]
+    return _T975[keys[-1]] if keys else _T975[1]
+
+
+def welch_diff_ci(a: Sequence[float], b: Sequence[float]) -> tuple[float, float, float, float]:
+    """Mean(a) - mean(b) with a 95 % Welch t interval; returns ``(diff, lo, hi, df)``.
+
+    The primary interval for the seed-level comparison: with 5 to 10 seeds per arm a
+    percentile bootstrap under-covers (it was measured at 0.85 to 0.89 for 5 seeds).
+    """
+    a_ = np.asarray(a, dtype=np.float64)
+    b_ = np.asarray(b, dtype=np.float64)
+    if a_.size < 2 or b_.size < 2:
+        raise ValueError("need at least two values per group")
+    va, vb = a_.var(ddof=1) / a_.size, b_.var(ddof=1) / b_.size
+    se = float(np.sqrt(va + vb))
+    d = float(a_.mean() - b_.mean())
+    if se == 0.0:
+        return d, d, d, float("inf")
+    df = (va + vb) ** 2 / (va**2 / (a_.size - 1) + vb**2 / (b_.size - 1))
+    h = _t975(df) * se
+    return d, d - h, d + h, float(df)
+
+
 def compare_arms(
     per_seed: Mapping[str, Mapping[str, Sequence[float]]],
     reference: str,
@@ -86,7 +142,8 @@ def compare_arms(
     """``per_seed[arm][condition]`` = one value per independent training seed.
 
     Returns, per non-reference arm and condition, the difference to ``reference``
-    with its CI and a standardised effect size (difference / pooled SD).
+    with its 95 % Welch t interval (primary), a percentile bootstrap interval
+    (secondary) and a standardised effect size (difference / pooled SD).
     """
     if reference not in per_seed:
         raise KeyError(f"reference arm {reference!r} missing")
@@ -103,11 +160,15 @@ def compare_arms(
             ref_vals = per_seed[reference].get(cond)
             if ref_vals is None:
                 continue
-            d, lo, hi = bootstrap_diff_ci(vals, ref_vals, rules.n_boot, rules.ci, rules.seed)
+            d, lo, hi, df = welch_diff_ci(vals, ref_vals)
+            _, blo, bhi = bootstrap_diff_ci(vals, ref_vals, rules.n_boot, rules.ci, rules.seed)
             sd = float(np.sqrt((np.var(vals, ddof=1) + np.var(ref_vals, ddof=1)) / 2))
             out[arm][cond] = {
                 "diff": d,
                 "ci": [lo, hi],
+                "ci_method": "welch_t_95",
+                "welch_df": df,
+                "bootstrap_ci": [blo, bhi],
                 "effect_size": d / sd if sd > 0 else None,
                 "n": [len(vals), len(ref_vals)],
             }
@@ -183,4 +244,5 @@ __all__ = [
     "bootstrap_diff_ci",
     "candidate_gate",
     "compare_arms",
+    "welch_diff_ci",
 ]

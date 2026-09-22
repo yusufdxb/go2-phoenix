@@ -152,12 +152,26 @@ def _per_motor(value, name: str) -> list[float]:
 def _gains(rec: dict[str, Any]) -> tuple[Any, Any]:
     """Per-motor gains when the gate recorded them, else the mode's scalar gains.
 
-    The fallback matters on the shutdown path: a record without the vectors must
-    still produce a damping publish, never a skipped one.
+    ``ActuatorGate.tick`` always records the vectors on a publishing tick, so the
+    fallback only serves records built elsewhere (test doubles); either way the gains
+    sent are the gains in the record.
     """
     kp = rec.get("kp_unitree")
     kd = rec.get("kd_unitree")
     return (rec["kp"] if kp is None else kp), (rec["kd"] if kd is None else kd)
+
+
+def lowcmd_motor_fields(
+    target_unitree, kp, kd
+) -> tuple[list[float], list[float], list[float], int]:
+    """``(q, kp, kd, crc)``, per motor, from ONE copy of the gains. Pure; tested.
+
+    The message is filled from exactly the lists the CRC was computed over, so the
+    gains on the wire cannot drift from the checksummed ones.
+    """
+    q = [float(v) for v in target_unitree]
+    kp_m, kd_m = _per_motor(kp, "kp"), _per_motor(kd, "kd")
+    return q, kp_m, kd_m, compute_crc(build_raw_from_motor_values(q, kp_m, kd_m))
 
 
 def lowcmd_fields(target_unitree, kp, kd) -> tuple[list[float], int]:
@@ -165,9 +179,8 @@ def lowcmd_fields(target_unitree, kp, kd) -> tuple[list[float], int]:
 
     ``kp``/``kd`` are a scalar (every motor) or 12 per-motor values.
     """
-    q = [float(v) for v in target_unitree]
-    raw = build_raw_from_motor_values(q, _per_motor(kp, "kp"), _per_motor(kd, "kd"))
-    return q, compute_crc(raw)
+    q, _, _, crc = lowcmd_motor_fields(target_unitree, kp, kd)
+    return q, crc
 
 
 class LowCmdBridge(Node):
@@ -269,8 +282,7 @@ class LowCmdBridge(Node):
 
     # --- publish ------------------------------------------------------------
     def _publish(self, target_unitree, kp, kd) -> None:
-        q, crc = lowcmd_fields(target_unitree, kp, kd)
-        kp_m, kd_m = _per_motor(kp, "kp"), _per_motor(kd, "kd")
+        q, kp_m, kd_m, crc = lowcmd_motor_fields(target_unitree, kp, kd)
         msg = LowCmd()
         msg.head[0] = 0xFE
         msg.head[1] = 0xEF
@@ -449,6 +461,8 @@ def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
     problems.extend(
         f"controlled degradation: {p}" for p in activation_problems(cfg.degradation, cfg.stage)
     )
+    if cfg.degradation is not None and cfg.telemetry_path is None:
+        problems.append("controlled degradation: requires --telemetry, dry or live")
 
     identity = resolve_code_identity(REPO_ROOT)
     id_problems = identity_problems(identity, expected_sha=cfg.expect_sha)

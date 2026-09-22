@@ -474,7 +474,9 @@ def scale_targeted_actuator_gains(
     asset = env.scene[asset_cfg.name]
     if env_ids is None:
         env_ids = torch.arange(asset.num_instances, device=asset.device)
-    rng = np.random.default_rng(seed)
+    # Mix in the run seed so each PPO seed gets its own nominal/targeted split.
+    run_seed = int(getattr(getattr(env, "cfg", None), "seed", 0) or 0)
+    rng = np.random.default_rng([int(seed), run_seed])
     found: set[str] = set()
     for actuator in asset.actuators.values():
         names = list(actuator.joint_names)
@@ -511,6 +513,7 @@ def _prepare_targeted_actuator_term(env_cfg: Any, dr: dict[str, Any]) -> None:
     from isaaclab.managers import SceneEntityCfg  # type: ignore[import]
 
     events = _events_root(env_cfg)
+    # mode must stay "startup": scale_targeted_actuator_gains multiplies in place.
     events.phoenix_targeted_actuator = EventTerm(
         func=scale_targeted_actuator_gains,
         mode="startup",

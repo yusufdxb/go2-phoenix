@@ -1,56 +1,52 @@
-// Phoenix closed-loop architecture. Render:
+// Phoenix v2 architecture. Render:
 //   dot -Tsvg docs/architecture.dot -o docs/architecture.svg
 digraph phoenix {
-    rankdir=LR;
+    rankdir=TB; nodesep=0.35; ranksep=0.45;
     bgcolor="white";
-    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fillcolor="#E8F0FE", color="#1A73E8"];
-    edge [fontname="Helvetica", fontsize=10, color="#5F6368"];
+    newrank=true;
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#3C4043", fillcolor="#F1F3F4"];
+    edge [fontname="Helvetica", fontsize=9, color="#5F6368"];
+
+    subgraph cluster_robot {
+        label="On the GO2 (live, 50 Hz)";
+        style="rounded"; color="#E37400"; fontname="Helvetica-Bold"; fontsize=12;
+        node [fillcolor="#FFF3E0", color="#E37400"];
+        policy  [label="Policy node\nONNX, raw action a"];
+        gate    [label="Final actuator gate\nslew + limit clips, hold / damp\n(controlled degradation: X stages only)"];
+        motors  [label="GO2 motors\nPD: kp (q_sent - q) - kd dq"];
+        policy -> gate  [label="request\nq0 + 0.25 a"];
+        gate   -> motors [label="sent q, kp, kd"];
+    }
+
+    subgraph cluster_monitor {
+        label="DETECT  (phoenix.monitor, live tail of the bridge telemetry, read-only)";
+        style="rounded"; color="#1A73E8"; fontname="Helvetica-Bold"; fontsize=12;
+        node [fillcolor="#E8F0FE", color="#1A73E8"];
+        layers  [label="Four-layer record\nrequest | node clip | sent | measured"];
+        fidel   [label="Deployment-fidelity gate\n<= 5 % altered, >= 10 s authority"];
+        health  [label="Health vector\ns_hat per joint vs nominal baseline\npersistence 8/10, global-shift veto"];
+        layers -> fidel -> health;
+    }
 
     subgraph cluster_sim {
-        label="Simulation (Isaac Lab Python)";
-        style="rounded,dashed";
-        color="#1A73E8";
-        fontsize=12;
-        fontname="Helvetica-Bold";
-
-        sim_env   [label="sim_env\nPhoenix GO2 env\n(DR + terrain + perturbation)"];
-        training  [label="training\nPPO (rsl_rl)\n→ checkpoints/*.pt"];
-        replay    [label="replay\nfailure reconstruction\n+ Halton variations"];
-        adapt     [label="adaptation\nfine-tune w/ failure curriculum"];
-    }
-
-    subgraph cluster_bridge {
-        label="Sim → Real Bridge";
-        style="rounded,dashed";
-        color="#E37400";
-        fontsize=12;
-        fontname="Helvetica-Bold";
-        node [fillcolor="#FFF3E0", color="#E37400"];
-
-        export    [label="sim2real.export\n.pt → .onnx\n(+ verify parity)"];
-        ros_node  [label="sim2real.ros2_policy_node\n50 Hz policy @ GO2"];
-    }
-
-    subgraph cluster_real {
-        label="Real Robot (ROS 2 Python)";
-        style="rounded,dashed";
-        color="#188038";
-        fontsize=12;
-        fontname="Helvetica-Bold";
+        label="Between deployments (workstation, Isaac Lab)";
+        style="rounded"; color="#188038"; fontname="Helvetica-Bold"; fontsize=12;
         node [fillcolor="#E6F4EA", color="#188038"];
-
-        detect    [label="real_world.failure_detector\npitch / collapse / slip"];
-        log       [label="real_world.trajectory_logger\n→ data/failures/*.parquet"];
+        cond    [label="CONDITION  (phoenix.condition)\ntargeted range for the degraded joint\n+ nominal anchor"];
+        train   [label="TRAIN\nPPO fine-tune from incumbent\n(same budget for every arm)"];
+        verify  [label="VERIFY  (phoenix.validate)\ndegraded improves, nominal non-inferior,\nheld-out severity, ONNX parity"];
+        cond -> train -> verify;
     }
 
-    training -> export [label="checkpoint"];
-    export -> ros_node [label="policy.onnx"];
-    ros_node -> detect [label="telemetry"];
-    detect -> log;
-    log -> replay [label="parquet"];
-    replay -> adapt [label="seeds"];
-    adapt -> training [label="warm start", style="dashed", constraint=false];
-    adapt -> export  [label="improved\ncheckpoint", style="dashed"];
+    promote [shape=diamond, label="PROMOTE?", fillcolor="#FCE8E6", color="#C5221F", fontsize=10];
 
-    sim_env -> training [style=invis];
+    motors -> layers  [label="LowState q, dq, tau_est", style=dashed];
+    gate   -> layers  [label="bridge telemetry", style=dashed];
+    health -> cond    [label="DEGRADED joint\n(range, not a point)"];
+    verify -> promote;
+    promote -> policy [label="yes: REDEPLOY\n(new incumbent)", color="#188038", fontcolor="#188038", constraint=false];
+    promote -> train  [label="no: keep incumbent", color="#C5221F", fontcolor="#C5221F", style=dashed, constraint=false];
+    { rank=same; policy; gate; motors; }
+    { rank=same; layers; fidel; health; }
+    { rank=same; cond; train; verify; }
 }

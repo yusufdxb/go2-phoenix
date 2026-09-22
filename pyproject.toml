@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "phoenix"
 version = "0.1.0"
-description = "Closed-loop sim-real learning for the Unitree GO2 quadruped"
+description = "Hardware-aware policy adaptation for the Unitree GO2 quadruped"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

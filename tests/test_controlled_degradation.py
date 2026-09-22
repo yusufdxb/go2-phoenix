@@ -14,11 +14,14 @@ from phoenix.sim2real.degradation import (
     ARM_ENV,
     ARM_VALUE,
     MIN_SCALE,
+    RAMP_S,
+    SATURATION_LATCH_S,
     DegradationSpec,
     activation_problems,
     parse_spec,
 )
 from phoenix.sim2real.go2_model import UNITREE_MOTOR_ORDER
+from phoenix.sim2real.motor_crc import build_raw_from_motor_values, compute_crc
 
 from .test_actuator_gate import DEFAULT_P, DEFAULT_U, ZERO12, armed, ns, send
 from .test_lowcmd_bridge import bridge_module  # noqa: F401  (pytest fixture)
@@ -83,33 +86,80 @@ def test_bridge_refuses_to_start_without_locks(bridge_module, monkeypatch, tmp_p
 
 
 # ------------------------------------------------------------- in the gate
-def _policy_gate(**over):
-    gate = armed(degradation=SPEC, **over)
-    send(gate, 0.01, DEFAULT_P)
-    return gate
+DT = 0.02
 
 
-def test_policy_mode_scales_only_the_named_motor_and_never_the_target():
+def run_policy(gate, t0, t1, q_u=DEFAULT_U, seq0=1):
+    """Feed fresh LowState and policy commands every tick from t0 to t1; return records."""
+    recs, seq, t = [], seq0, t0
+    while t <= t1 + 1e-9:
+        gate.on_lowstate(ns(t), q_u, ZERO12)
+        gate.on_estop(ns(t), False)
+        send(gate, t, DEFAULT_P, seq=seq)
+        recs.append(gate.tick(ns(t + 0.001)))
+        seq += 1
+        t += DT
+    return recs
+
+
+def test_scale_ramps_in_and_touches_only_the_named_motor_never_the_target():
     ref = armed()
-    send(ref, 0.01, DEFAULT_P)
-    r0 = ref.tick(ns(0.02))
-    gate = _policy_gate()
-    rec = gate.tick(ns(0.02))
-    assert rec["mode"] == "policy"
-    assert rec["final_target_unitree"] == r0["final_target_unitree"]
-    assert (rec["kp"], rec["kd"]) == (25.0, 0.5)  # scalar mode gains unchanged
-    kp = np.asarray(rec["kp_unitree"])
-    kd = np.asarray(rec["kd_unitree"])
-    assert kp[J] == pytest.approx(15.0) and kd[J] == pytest.approx(0.3)
-    assert np.all(np.delete(kp, J) == 25.0) and np.all(np.delete(kd, J) == 0.5)
-    assert rec["degradation"]["applied"] is True
-    assert rec["degradation"]["kp_scale_unitree"][J] == 0.6
+    r0 = run_policy(ref, 0.01, RAMP_S + 0.2)
+    recs = run_policy(armed(degradation=SPEC), 0.01, RAMP_S + 0.2)
+    assert all(r["mode"] == "policy" for r in recs)
+    assert [r["final_target_unitree"] for r in recs] == [r["final_target_unitree"] for r in r0]
+    first, mid, last = recs[0], recs[len(recs) // 2], recs[-1]
+    assert first["kp_unitree"][J] == pytest.approx(25.0)  # ramp starts at nominal
+    assert 15.0 < mid["kp_unitree"][J] < 25.0
+    assert last["kp_unitree"][J] == pytest.approx(15.0) and last["kd_unitree"][J] == pytest.approx(
+        0.3
+    )
+    assert last["degradation"]["ramp"] == 1.0 and last["degradation"]["applied"] is True
+    for r in recs:
+        kp, kd = np.asarray(r["kp_unitree"]), np.asarray(r["kd_unitree"])
+        assert (r["kp"], r["kd"]) == (25.0, 0.5)
+        assert np.all(np.delete(kp, J) == 25.0) and np.all(np.delete(kd, J) == 0.5)
+        assert kp.max() <= 25.0 and kd.max() <= 0.5  # never above nominal, any tick
+        assert r["degradation"]["kp_scale_unitree"][J] == pytest.approx(kp[J] / 25.0)
 
 
-def test_no_gain_ever_exceeds_nominal():
-    gate = _policy_gate()
-    rec = gate.tick(ns(0.02))
-    assert max(rec["kp_unitree"]) <= rec["kp"] and max(rec["kd_unitree"]) <= rec["kd"]
+def test_ramp_restarts_after_leaving_policy_mode():
+    gate = armed(degradation=SPEC)
+    run_policy(gate, 0.01, RAMP_S + 0.2)
+    gate.on_lowstate(ns(3.0), DEFAULT_U, ZERO12)
+    gate.on_estop(ns(3.0), False)
+    stale = gate.tick(ns(3.0))  # last command is 0.8 s old -> watchdog hold
+    assert stale["mode"] == "hold" and stale["hold_cause"] == "command_stale"
+    assert stale["kp_unitree"] == [20.0] * 12 and stale["degradation"]["applied"] is False
+    again = run_policy(gate, 3.02, 3.1, seq0=500)
+    assert again[0]["mode"] == "policy" and again[0]["kp_unitree"][J] == pytest.approx(25.0)
+
+
+def test_pinned_degraded_joint_latches_hold():
+    sagged = DEFAULT_U.copy()
+    sagged[J] -= 0.3  # the joint lags its target by more than one slew cap
+    recs = run_policy(armed(degradation=SPEC), 0.01, SATURATION_LATCH_S + 0.2, q_u=sagged)
+    faults = [r["fault"] for r in recs]
+    assert "degradation_joint_saturated:RR_thigh_joint" in faults
+    after = recs[faults.index("degradation_joint_saturated:RR_thigh_joint")]
+    assert after["mode"] == "hold" and after["kp_unitree"] == [20.0] * 12
+    assert recs[-1]["mode"] == "hold"  # latched
+
+
+def test_pinned_joint_without_degradation_does_not_latch():
+    sagged = DEFAULT_U.copy()
+    sagged[J] -= 0.3
+    recs = run_policy(armed(), 0.01, SATURATION_LATCH_S + 0.2, q_u=sagged)
+    assert all(r["mode"] == "policy" for r in recs)
+
+
+def test_brief_pin_does_not_latch():
+    gate = armed(degradation=SPEC)
+    sagged = DEFAULT_U.copy()
+    sagged[J] -= 0.3
+    run_policy(gate, 0.01, SATURATION_LATCH_S / 2, q_u=sagged)
+    recs = run_policy(gate, SATURATION_LATCH_S / 2 + DT, 1.5, seq0=200)
+    assert all(r["mode"] == "policy" for r in recs)
 
 
 def test_hold_keeps_nominal_gains():
@@ -121,18 +171,20 @@ def test_hold_keeps_nominal_gains():
 
 
 def test_estop_drops_to_hold_with_nominal_gains():
-    gate = _policy_gate()
-    assert gate.tick(ns(0.02))["mode"] == "policy"
-    gate.on_estop(ns(0.03), True)
-    rec = gate.tick(ns(0.04))
+    gate = armed(degradation=SPEC)
+    assert run_policy(gate, 0.01, RAMP_S + 0.1)[-1]["mode"] == "policy"
+    t = RAMP_S + 0.2
+    gate.on_estop(ns(t), True)
+    rec = gate.tick(ns(t + 0.001))
     assert rec["mode"] == "hold" and rec["fault"] == "estop_asserted"
     assert rec["kp_unitree"] == [20.0] * 12
 
 
 def test_damp_keeps_zero_kp_on_every_motor():
-    gate = _policy_gate()
+    gate = armed(degradation=SPEC)
+    run_policy(gate, 0.01, RAMP_S + 0.1)
     gate.request_shutdown()
-    rec = gate.tick(ns(0.02))
+    rec = gate.tick(ns(RAMP_S + 0.2))
     assert rec["mode"] == "damp"
     assert rec["kp_unitree"] == [0.0] * 12 and rec["kd_unitree"] == [1.0] * 12
 
@@ -170,3 +222,83 @@ def test_lowcmd_fields_accepts_per_motor_gains(bridge_module):  # noqa: F811
     assert len(q) == 12 and crc != crc_nominal
     with pytest.raises(ValueError):
         bridge.lowcmd_fields(DEFAULT_U, [25.0] * 11, 0.5)
+
+
+def test_stale_lowstate_goes_to_damp_with_nominal_gains():
+    gate = armed(degradation=SPEC)
+    run_policy(gate, 0.01, RAMP_S + 0.1)
+    t = RAMP_S + 0.1
+    for k in range(1, 30):  # LowState stops arriving
+        rec = gate.tick(ns(t + k * DT))
+    assert rec["mode"] == "damp" and rec["kp_unitree"] == [0.0] * 12
+
+
+# ------------------------------------------------------------- in the node
+def test_bridge_requires_telemetry_with_degradation(
+    bridge_module, monkeypatch, tmp_path  # noqa: F811
+):
+    monkeypatch.setenv(ARM_ENV, ARM_VALUE)
+    args = bridge_module._parse_args(
+        [
+            "--config",
+            str(tmp_path / "none.yaml"),
+            "--stage",
+            "X1",
+            "--experiment-degradation",
+            "RR_thigh:0.6",
+        ]
+    )
+    problems, _ = bridge_module.startup_problems(bridge_module._build_config(args))
+    assert any("requires --telemetry" in p for p in problems)
+    args = bridge_module._parse_args(
+        [
+            "--config",
+            str(tmp_path / "none.yaml"),
+            "--stage",
+            "X1",
+            "--telemetry",
+            str(tmp_path / "t.jsonl"),
+            "--experiment-degradation",
+            "RR_thigh:0.6",
+        ]
+    )
+    problems, _ = bridge_module.startup_problems(bridge_module._build_config(args))
+    assert not any("controlled degradation" in p for p in problems)
+
+
+def test_node_publishes_exactly_the_recorded_per_motor_gains(bridge_module):  # noqa: F811
+    import types
+
+    sent, reported = [], []
+    gate = armed(degradation=SPEC)
+    run_policy(gate, 0.01, RAMP_S + 0.1)
+    gate.on_lowstate(ns(2.3), DEFAULT_U, ZERO12)
+    gate.on_estop(ns(2.3), False)
+    send(gate, 2.3, DEFAULT_P, seq=900)
+    fake = types.SimpleNamespace(
+        _gate=types.SimpleNamespace(tick=lambda _now: gate.tick(ns(2.301))),
+        _publish=lambda target, kp, kd: sent.append((target, kp, kd)),
+        _report=reported.append,
+    )
+    bridge_module.LowCmdBridge._tick(fake)
+    rec = reported[0]
+    assert rec["mode"] == "policy"
+    assert sent == [(rec["final_target_unitree"], rec["kp_unitree"], rec["kd_unitree"])]
+    assert sent[0][1][J] == pytest.approx(15.0)
+
+
+def test_message_gains_are_the_checksummed_gains(bridge_module):  # noqa: F811
+    import types
+
+    out = []
+    fake = types.SimpleNamespace(_pub=types.SimpleNamespace(publish=out.append))
+    kp = [25.0] * 12
+    kp[J] = 15.0
+    kd = [0.5] * 12
+    kd[J] = 0.3
+    bridge_module.LowCmdBridge._publish(fake, list(DEFAULT_U), kp, kd)
+    msg = out[0]
+    m = msg.motor_cmd[:12]
+    assert [c.kp for c in m] == kp and [c.kd for c in m] == kd
+    raw = build_raw_from_motor_values([c.q for c in m], [c.kp for c in m], [c.kd for c in m])
+    assert msg.crc == compute_crc(raw)
