@@ -1,0 +1,109 @@
+{
+ "settle_s": 1.0,
+ "bins": {
+  "strong_backward": {
+   "vx_cmd": -0.7191064298152924,
+   "vx_achieved": -0.021686554910515302,
+   "abs_vx_err": 0.6974198754344668,
+   "planar_err": 0.7730014979839325,
+   "yaw_err": 0.43534905346376557,
+   "success": 0.0,
+   "trunk_contact_episode": 0.0,
+   "attitude_violation": 0.0,
+   "mean_abs_action": 0.6861043776784624,
+   "raw_out_of_range": 0.39583333333333337,
+   "torque_saturation": 0.0,
+   "p95_joint_speed": 1.4711123758554465,
+   "duty_FL_foot": 0.9996825396825396,
+   "duty_FR_foot": 0.9996507936507937,
+   "duty_RL_foot": 0.9931746031746033,
+   "duty_RR_foot": 0.9869206349206351,
+   "front_duty_minus_rear": 0.00961904761904763,
+   "thigh_contact": 0.0,
+   "n_segments": 70,
+   "n_episodes": 58,
+   "range": [
+    -Infinity,
+    -0.4
+   ]
+  },
+  "mild_backward": {
+   "vx_cmd": -0.19671576298200166,
+   "vx_achieved": 0.0002159471906242498,
+   "abs_vx_err": 0.20021075191191182,
+   "planar_err": 0.36153967606906706,
+   "yaw_err": 0.40667394978495747,
+   "success": 0.17307692307692307,
+   "trunk_contact_episode": 0.019230769230769232,
+   "attitude_violation": 0.019230769230769232,
+   "mean_abs_action": 0.7161854081428968,
+   "raw_out_of_range": 0.44312150014736224,
+   "torque_saturation": 0.0,
+   "p95_joint_speed": 1.2752342894959912,
+   "duty_FL_foot": 0.9977571470674919,
+   "duty_FR_foot": 0.9966106690244619,
+   "duty_RL_foot": 0.9912805776598881,
+   "duty_RR_foot": 0.9933775419982316,
+   "front_duty_minus_rear": 0.004854848216917188,
+   "thigh_contact": 0.019230769230769232,
+   "n_segments": 52,
+   "n_episodes": 47,
+   "range": [
+    -0.4,
+    0.0
+   ]
+  },
+  "mild_forward": {
+   "vx_cmd": 0.2182891821039134,
+   "vx_achieved": 0.009658293600860533,
+   "abs_vx_err": 0.21309172802058787,
+   "planar_err": 0.4087731168316356,
+   "yaw_err": 0.4538231974403406,
+   "success": 0.05172413793103448,
+   "trunk_contact_episode": 0.0,
+   "attitude_violation": 0.0,
+   "mean_abs_action": 0.7272115473089547,
+   "raw_out_of_range": 0.4604916985951469,
+   "torque_saturation": 0.0,
+   "p95_joint_speed": 1.3411192719278668,
+   "duty_FL_foot": 0.9993103448275861,
+   "duty_FR_foot": 0.9987739463601532,
+   "duty_RL_foot": 0.9961685823754789,
+   "duty_RR_foot": 0.998007662835249,
+   "front_duty_minus_rear": 0.00195402298850575,
+   "thigh_contact": 0.0,
+   "n_segments": 58,
+   "n_episodes": 55,
+   "range": [
+    0.0,
+    0.4
+   ]
+  },
+  "strong_forward": {
+   "vx_cmd": 0.7124127796718053,
+   "vx_achieved": 0.01239410334819695,
+   "abs_vx_err": 0.7000578446047646,
+   "planar_err": 0.8061747802155358,
+   "yaw_err": 0.5004196369222232,
+   "success": 0.0,
+   "trunk_contact_episode": 0.014285714285714285,
+   "attitude_violation": 0.014285714285714285,
+   "mean_abs_action": 0.7117029275212969,
+   "raw_out_of_range": 0.4464118913101964,
+   "torque_saturation": 0.0,
+   "p95_joint_speed": 1.5629053168637417,
+   "duty_FL_foot": 0.9981291364003229,
+   "duty_FR_foot": 0.9950799031476998,
+   "duty_RL_foot": 0.9945574387947269,
+   "duty_RR_foot": 0.9898724778046815,
+   "front_duty_minus_rear": 0.004389561474307237,
+   "thigh_contact": 0.014285714285714285,
+   "n_segments": 70,
+   "n_episodes": 59,
+   "range": [
+    0.4,
+    Infinity
+   ]
+  }
+ }
+}

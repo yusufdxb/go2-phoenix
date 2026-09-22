@@ -61,6 +61,12 @@ def parse_args(argv=None):
     p.add_argument("--label", default=None)
     p.add_argument("--save-steps", action="store_true", help="save per-step arrays (npz)")
     p.add_argument("--walk", action="store_true", help="also score Amendment 3 walking success")
+    p.add_argument(
+        "--flip-command-obs",
+        default="",
+        help="DIAGNOSTIC ONLY: negate these velocity_command components (subset of 'xyz') in "
+        "the observation the POLICY sees; the env, reward and scorer keep the true command",
+    )
     p.add_argument("--walk-thresholds", type=Path, default=None,
                    help="JSON overriding WALK_V2_PROVISIONAL (amendment 7 freezes one)")
     p.add_argument(
@@ -201,13 +207,26 @@ def _run(args) -> int:
     angv = np.zeros((T, N, 3), np.float32)
     cmd = np.zeros((T, N, 3), np.float32)
     alive = np.ones((T, N), bool)
+    # Contact bookkeeping for directional diagnostics (feet, thighs), from the task's
+    # own contact sensor; force norm > 1 N counts as contact (the task's thigh threshold).
+    csens = u.scene["contact_forces"]
+    foot_ids, foot_names = csens.find_sensors(".*_foot", preserve_order=True)
+    thigh_ids, thigh_names = csens.find_sensors(".*_thigh", preserve_order=True)
+    foot_c = np.zeros((T, N, len(foot_ids)), bool)
+    thigh_c = np.zeros((T, N, len(thigh_ids)), bool)
     contact_term = np.zeros(N, bool)
     ended = np.zeros(N, bool)
     quat_err = {"wxyz": [], "xyzw": []}
 
     term_names = list(u.termination_manager.active_terms)
+    # velocity_command occupies obs dims 9..11 (OBS_TERM_ORDER; contract check verified).
+    flip_idx = [9 + "xyz".index(c) for c in args.flip_command_obs]
     with torch.inference_mode():
         for k in range(T):
+            if flip_idx:
+                obs = obs.clone()
+                pol = obs["policy"] if hasattr(obs, "keys") else obs
+                pol[:, flip_idx] = -pol[:, flip_idx]
             a = policy(obs)
             raw[k] = t2n(a)
             req[k] = default + scale * np.clip(raw[k], -1.0, 1.0)
@@ -230,6 +249,9 @@ def _run(args) -> int:
             height[k] = t2n(robot.data.root_pos_w)[:, 2] - t2n(u.scene.env_origins)[:, 2]
             linv[k] = t2n(robot.data.root_lin_vel_b)
             angv[k] = t2n(robot.data.root_ang_vel_b)
+            fn = np.linalg.norm(t2n(csens.data.net_forces_w).reshape(N, -1, 3), axis=-1)
+            foot_c[k] = fn[:, foot_ids] > 1.0
+            thigh_c[k] = fn[:, thigh_ids] > 1.0
             d = t2n(dones).astype(bool)
             alive[k] = ~ended
             if d.any():
@@ -278,6 +300,7 @@ def _run(args) -> int:
         "steps_per_episode": T,
         "dt_s": dt,
         "limiter": limiter,
+        "flip_command_obs_diagnostic": args.flip_command_obs,
         "action_scale": scale,
         "quaternion_order_check": {o: max(v) for o, v in quat_err.items()},
         **metrics,
@@ -291,7 +314,9 @@ def _run(args) -> int:
     if args.save_steps:
         np.savez_compressed(args.out / "steps.npz", raw=raw, req=req, sent=sent, q0=q0, q1=q1, qd1=qd1,
                             tau_c=tau_c, tau_a=tau_a, grav=grav, valid=valid, cmd=cmd, linv=linv,
-                            angv=angv, height=height)
+                            angv=angv, height=height, foot_contact=foot_c,
+                            thigh_contact=thigh_c, foot_names=np.array(foot_names),
+                            thigh_names=np.array(thigh_names), contact_term=contact_term)
     if args.bridge_records_envs:
         _write_bridge_records(args, raw, req, sent, q0, tau_a, valid, dt, default, scale,
                               t2n_kp=kp_eff)
