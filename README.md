@@ -55,8 +55,17 @@ rate, recorded with the earlier metric; the altered-by-more-than-1-mrad fraction
 not been measured in sim yet). No adaptation claim can be made from such runs, and the
 monitor refuses them. Fixing that is phase 0 of the
 [experiment](docs/research/EXPERIMENT.md). The incumbent policy is also stand-only;
-walking needs a velocity policy that does not exist yet. Full audit:
-[`docs/research/Phoenix_v2_audit.md`](docs/research/Phoenix_v2_audit.md).
+walking needs a velocity policy that does not exist yet. Evidence per claim:
+[`EVIDENCE.md`](EVIDENCE.md).
+
+**Update, 2026-09-22 (simulation only; nothing new has run on the robot).** Two
+deploy-contract defects explain the rewriting: the measured-position clip (also a
+4.4 N m torque cap) and a missing [-1, 1] action clamp that training always applied.
+With the clamp and a 0.075 rad/step command-rate limiter, the same policy runs through
+the exact deploy code in simulation with 0.14 % of targets altered. The stand stage then
+stopped by its preregistered rule (the stand policy absorbs a 50 % RR_thigh gain loss),
+and the first walking baseline failed its gate. Details:
+[`docs/research/PHOENIX_V2_RESULTS.md`](docs/research/PHOENIX_V2_RESULTS.md).
 
 ## Experiment
 
@@ -69,7 +78,7 @@ and the selected Phoenix candidate then run under a controlled, reversible softw
 degradation, which is the same parameter as in the simulator. The
 protocol runs on standing first and on walking once a walking policy exists. Success
 and failure criteria are fixed in [`docs/research/EXPERIMENT.md`](docs/research/EXPERIMENT.md)
-before any run. No result exists yet.
+before any run. Status: stopped before the arms were trained (see the update above).
 
 A one-joint model ([`docs/research/TOY_MODEL.md`](docs/research/TOY_MODEL.md)) shows why a
 nominal policy is brittle to gain loss and why targeting costs nominal performance. It
@@ -77,7 +86,7 @@ also shows Phoenix's mixture tying with broad randomisation on one joint.
 
 ## Demo
 
-Planned, not filmed: [`docs/research/DEMO.md`](docs/research/DEMO.md).
+None yet: no hardware result exists to film.
 
 ## Reproduce
 

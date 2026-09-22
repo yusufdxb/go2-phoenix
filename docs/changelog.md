@@ -10,7 +10,7 @@ it, fine-tune, gate on degraded improvement and nominal non-inferiority, redeplo
 
 - New `phoenix.monitor`, `phoenix.condition`, `phoenix.validate`,
   `phoenix.sim2real.degradation`, sim event `targeted_actuator`, `scripts/phoenix_loop.py`.
-- Audit of the incumbent (`docs/research/Phoenix_v2_audit.md`): stand-only policy, 88.8 %
+- Audit of the incumbent (summarised in `EVIDENCE.md`): stand-only policy, 88.8 %
   of its targets altered on the only live run, 59.7 % in simulation; deployment fidelity
   is now a gate.
 - Bridge telemetry now records `tau_est` and per-motor gains.
