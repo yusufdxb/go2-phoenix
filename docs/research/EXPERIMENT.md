@@ -438,3 +438,57 @@ Deploy config `configs/sim2real/deploy_stand_h25_v3.yaml`, semantic sha256 `419e
 lock `configs/sim2real/locks/deploy_stand_h25_v3.lock.yaml` (verified against the
 artifacts, no problems). The v2 config (0.075, 1.55 rad) is kept and superseded.
 Phase E on hardware, when the robot is reachable, uses the v3 config.
+
+### Amendment 8 (2026-09-22, W2 at iteration ~1170, before any W2 checkpoint past 1500 is evaluated)
+
+W2 (W1 recipe, 3000 iterations, seed 42) reproduces W1-full value for value through
+iteration 1499 (deterministic training), so everything below is fixed before any W2
+information that W1-full did not already give.
+
+**8.1 Sign / asymmetry audit, done on the live W1 plant, no implementation bug**
+(`results/phoenix_v2/asymmetry_audit/audit.json`, `scripts/phoenix_v2_asymmetry_audit.py`):
+the command sampler is symmetric (102,400 samples: 50,198 positive vs 50,096 negative
+vx; tail probabilities P(vx > a) vs P(vx < -a) within |z| < 1.3 for a in 0.1..0.95;
+standing 2.06 %; no curriculum term); Isaac Lab's tracking rewards are exactly mirror-
+symmetric on the six sign cases; body +x points at the head and a velocity written
+along the heading reads with the correct sign and earns the matching command's reward.
+The default stance is mildly back-biased: after 1 s of zero action the whole-body COM is
+1.9 cm (sd 1.4) behind the feet's support centroid and the trunk is 3 deg nose-up. The
+command-sign flip on the observation (diagnostic, `--flip-command-obs x`) flips the
+behaviour: W1-full reads the command and only knows how to execute its negative sign.
+Under forward commands W1-full leans nose-down and sees more attitude violations (6.5 %
+vs 0 %), thigh contacts (4.6 % vs 0 %) and trunk contact (0.7 % vs 0 %) than backward.
+Directional bins (`phoenix.monitor.walk_directional`) are diagnostic only; Gate W-H is
+unchanged.
+
+**8.2 W2 decision rule.** `F(it)` = strong-forward bin (vx_cmd > 0.4) mean achieved vx /
+mean commanded vx, nominal dev seed 5001, 128 episodes, W2 checkpoints 1500..2999.
+(a) W2 passes dev Gate W-H: freeze, fresh-seed evaluation, then Phase 7.
+(b) Else, if `F(2999) >= 0.5` and `F(2999) - F(2600) >= 0.05`: training-extension study
+E, resumed from W2's final checkpoint in blocks of 500 iterations, at most 3 blocks
+(4500 total); after each block dev Gate W-H and `F`; stop at a gate pass (freeze, fresh
+seeds), at a block improving `F` by less than 0.03 (plateau, go to W3), or after 3 blocks.
+(c) Else: W3.
+
+**8.3 W3, symmetric command curriculum (one change from W1).** `command.curriculum`
+(`phoenix.sim_env.curriculum_command`, stage machine `phoenix.sim_env.command_curriculum`,
+unit-tested): all three command ranges scaled by stage factors 0.2, 0.4, 0.6, 1.0, so
+every stage is symmetric; advance only when forward AND backward tracking ratios, each
+the mean achieved/commanded vx over the last 2000 qualifying segments of its own sign
+(|vx_cmd| >= 0.5 x stage max, at least 500 per sign, first 1 s excluded), are both
+>= 0.7 on 2 consecutive checks (every 50 iterations), at least 100 iterations in a stage;
+a stage that has not qualified after 1000 iterations stays (no promotion on time) and
+the run is reported as failing to advance. Budget 3000 iterations, W1 otherwise.
+Development: one run, seed 42; after it, only the stage factors, the ratio threshold and
+the maximum stage duration may be changed, once, and the change is recorded. Then frozen
+and trained on fresh seeds 101, 102, 103, each evaluated on dev Gate W-H. W3 works if at
+least 2 of 3 pass; the candidate is the passing seed with the median dev walking
+success, and only it sees the final seeds (6001-6003).
+
+**8.4 W4, exploration (only if W3 fails).** One variable family: PPO `entropy_coef`
+0.005 -> 0.01, W3's frozen curriculum kept, same dev + 3-seed protocol.
+
+**8.5 Stopping rule.** If W4 also fails (fewer than 2 of 3 seeds pass dev Gate W-H),
+Stage W stops with the finding that this flat-ground PPO recipe (Isaac Lab GO2 flat task,
+clamp [-1, 1], scale 0.25, no soft limiter) did not produce a symmetric walking baseline
+within the declared budget. No further locomotion variables are tried in this study.

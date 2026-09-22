@@ -370,6 +370,19 @@ def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
             vel_cmd.rel_heading_envs = 0.0
     if "heading_stiffness" in cmd and hasattr(vel_cmd, "heading_control_stiffness"):
         vel_cmd.heading_control_stiffness = float(cmd["heading_stiffness"])
+    cur = cmd.get("curriculum") or {}
+    if cur.get("enabled", False):
+        # Recipe W3: swap in the symmetric curriculum command term (lazy Isaac import).
+        from dataclasses import fields as dc_fields
+
+        from phoenix.sim_env.curriculum_command import SymmetricCurriculumVelocityCommandCfg
+
+        kw = {f.name: getattr(vel_cmd, f.name) for f in dc_fields(vel_cmd) if f.name != "class_type"}
+        for k, v in cur.items():
+            if k != "enabled":
+                kw["curriculum_" + k] = tuple(v) if isinstance(v, list) else v
+        env_cfg.commands.base_velocity = SymmetricCurriculumVelocityCommandCfg(**kw)
+        logger.warning("phoenix env cfg: symmetric command curriculum ACTIVE: %s", cur)
 
 
 def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
