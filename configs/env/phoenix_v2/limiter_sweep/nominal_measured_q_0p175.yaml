@@ -1,0 +1,10 @@
+# Phase B/C development sweep (dev seeds only). Condition: nominal. Limiter: measured_q @ 0.175 rad/step.
+defaults:
+  - ../../stand_v3_h25
+domain_randomization:
+  enabled: false
+action:
+  rate_limit:
+    enabled: true
+    clip_mode: measured_q
+    max_delta_per_step: 0.175
