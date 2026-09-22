@@ -34,7 +34,7 @@ def test_both_directions_advance_after_consecutive_checks_and_min_duration():
             advanced.append((step, st.stage))
     assert [s for _, s in advanced] == [1, 2, 3]
     assert st.final and st.factor == 1.0
-    assert all(b - a >= SPEC.min_stage_steps for (a, _), (b, _) in zip([(0, 0)] + advanced, advanced))
+    assert all(b - a >= SPEC.min_stage_steps for (a, _), (b, _) in zip([(0, 0)] + advanced, advanced, strict=False))
 
 
 def test_small_commands_do_not_count_and_ratios_need_enough_segments():
