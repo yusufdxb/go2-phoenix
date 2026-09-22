@@ -406,3 +406,35 @@ once per frozen candidate: 6001 (DR off), 6002 (DR on), 6003 (zero command).
 
 Stage W's s_train pilot, monitor validation and arms follow only after Gate W-D, as in
 the preregistration.
+
+### Amendment 7 (2026-09-22): H25 limiter re-selected and frozen under the 6.2 rule
+
+`results/phoenix_v2/sim_limiter_a6/` (H25 `model_799`, 256 episodes per cell, new dev
+seeds 1101 DR / 1102 nominal, `scripts/phoenix_v2_select_dq.py`, which reproduces the
+amendment 2 table exactly when pointed at the old sweep):
+
+| dq_max | DR altered | DR worst joint | DR score (hard-only 0.9837) | nominal altered | nominal score (1.000) | one-sided | two-sided |
+|---|---|---|---|---|---|---|---|
+| 0.020 | 2.98 % | 13.9 % | 0.9996 (+0.016) | 2.51 % | 1.000 | fail | fail |
+| **0.035** | **0.998 %** | **2.3 %** | **0.9930 (+0.009)** | **0.88 %** | **1.000** | **PASS** | PASS |
+| 0.050 | 0.49 % | 1.3 % | 0.9939 (+0.010) | 0.42 % | 1.000 | PASS | PASS |
+| 0.075 | 0.27 % | 0.6 % | 0.9967 (+0.013) | 0.20 % | 1.000 | PASS | PASS |
+| 0.100 | 0.16 % | 0.3 % | 0.9840 (+0.000) | 0.12 % | 1.000 | PASS | PASS |
+| 0.175 | 0.05 % | 0.1 % | 0.9753 (-0.008) | 0.04 % | 1.000 | PASS | PASS |
+
+**H25 dq_max = 0.035 rad/step (1.75 rad/s), frozen.** On these seeds both readings of the
+criterion agree. Margins are thin and are stated, not used to reopen the choice: the DR
+altered fraction is 0.998 % against the 1 % bound; per-episode fidelity passes in 92 %
+of DR episodes (RMS alteration 0.0091 rad against 0.01), against 100 % at 0.075. Also on
+these seeds H25 violates the 0.40 rad attitude bound in 27 % of DR episodes with no soft
+limiter at all (physical success 0.73 hard-only), a property of the policy under its own
+training randomisation.
+
+Catastrophic tracking-error watchdog for this bound, amendment 2 rule on the saved
+dq_max 0.035 runs (`results/phoenix_v2/sim_limiter_a6_steps/`, bit-identical to the
+sweep cells): largest 0.2 s-sustained `|sent - q|` 1.115 rad, so **1.40 rad for 0.2 s**
+(PD effort saturates at 0.94 rad at kp 25; the watchdog is not torque protection).
+Deploy config `configs/sim2real/deploy_stand_h25_v3.yaml`, semantic sha256 `419efa18...`,
+lock `configs/sim2real/locks/deploy_stand_h25_v3.lock.yaml` (verified against the
+artifacts, no problems). The v2 config (0.075, 1.55 rad) is kept and superseded.
+Phase E on hardware, when the robot is reachable, uses the v3 config.

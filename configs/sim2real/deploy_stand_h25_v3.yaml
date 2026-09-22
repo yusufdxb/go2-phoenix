@@ -1,0 +1,157 @@
+# Phoenix v2 deploy config for H25 under amendment 7 (docs/research/EXPERIMENT.md):
+# identical to deploy_stand_h25_v2.yaml except dq_max 0.035 rad/step (amendment 6.2 rule,
+# dev seeds 1101/1102, results/phoenix_v2/sim_limiter_a6/selection.json) and the
+# catastrophic tracking-error watchdog re-sized to 1.40 rad by the amendment 2 rule on
+# the dq_max 0.035 development runs (results/phoenix_v2/sim_limiter_a6_steps/). Pinned by
+# configs/sim2real/locks/deploy_stand_h25_v3.lock.yaml.
+# Phoenix v2 deploy config for the H25 stand policy (amendments 1 and 2,
+# docs/research/EXPERIMENT.md). Identical to deploy_stand_h25.yaml except:
+#   * control.action_clip: 1.0, the trained plant's action clamp, applied by the policy
+#     node to the joint target AND the fed-back last_action (Isaac Lab clamps both);
+#   * limiter: the frozen command-rate limiter (dq_max 0.075 rad/step, chosen on
+#     development simulation only) plus the tracking abort that replaces the
+#     catastrophic tracking-error watchdog, a non-rewriting latch that notices a joint no
+#     longer following its command (NOT torque protection; see the limiter block).
+# The hard envelope (joint limits, 0.175 rad abort band, E-stop, deadman, watchdogs,
+# hold/damp) is unchanged. Pinned by configs/sim2real/locks/deploy_stand_h25_v2.lock.yaml.
+# Deployment config for the FULLY-HARDENED stand-v3-h25 deliverable on the real GO2.
+#
+# STAND-ONLY. This config runs the policy at a commanded-zero velocity and nothing
+# else. observation.base_lin_vel_source is zeros, so the policy has no body-velocity
+# observation, and safety.stand_only: true makes the deploy contract
+# (phoenix.sim2real.deploy_contract), the policy node and the LowCmd bridge all
+# refuse a nonzero velocity command. Walking needs a different config, and walking
+# configs are refused in code until deploy_contract.WALKING_PREREQUISITES have
+# hardware evidence. Hashes of everything this config reaches are pinned in
+# configs/sim2real/locks/deploy_stand_h25.lock.yaml.
+#
+# Transfer-hardened stand policy with all four sim-to-real layers active in
+# training: (1) per-step rate limiter inside the MDP (sim == the Jetson +/-0.175
+# rad/step cap vs measured q, no train/deploy mismatch), (2) motor-strength gain
+# DR, (3) DelayedDCMotor actuator latency [1,5] physics steps, (4) observation
+# noise (enable_corruption: noisy IMU/encoder obs). It is trained against the
+# disturbances the real robot actually has, which is the point, not the lowest
+# clean-sim number.
+#
+# Recorded 2026-06-23 (checkpoints/phoenix-stand-h25-lat-noise/, model_799):
+#   nominal (stand_nodr):    32/32 stand, 20 s episodes
+#   full DR (stand_v3_h25):  32/32 stand, 20 s episodes
+#   ONNX parity: max torch<->onnx abs diff 5.722e-06   (gate <1e-5) PASS
+#
+# LEGACY, SUPERSEDED SLEW FIGURES, kept verbatim as history only. The same
+# 2026-06-23 eval reported "slew 3.65%" (nominal) and "slew 4.23%" (full DR)
+# against a "<5% gate", and an earlier limiter-only policy 2.40/3.47%. Every one
+# of those came from legacy_raw_action_delta_saturation_rate, which thresholds
+# consecutive RAW ACTION deltas at 0.175 and is not what the deploy limiter does
+# (it clips default_q + 0.25*action against MEASURED q; docs/superseded_results.md
+# section 2). They are NOT a current pass criterion. Neither is the 5% threshold:
+# it was defined on that legacy quantity and its meaning does not carry over to a
+# clip-activation rate.
+#
+# CURRENT HARDWARE SLEW EVIDENCE is per-joint clip activation measured at the final
+# LowCmd bridge, the target the motors received against the policy's request, written
+# every tick to the bridge telemetry file and summarised as
+# final_target_vs_policy_request_clip_activation_v1 (phoenix.sim2real.bridge_telemetry). No
+# corrected-metric simulator baseline exists for this checkpoint, so the stand
+# stages REPORT that percentage and do not pass or fail on it
+# (docs/h25_stand_hardware_run_card.md).
+#
+# WATCH AT LAB: the limiter slows posture leveling (slightly slower settle than a
+# Sport-mode stand); never falls in sim. The live gate is FEET ON THE GROUND, on a
+# fall mat, tethered or spotted, with a real physical deadman. A suspended fixture
+# is an out-of-distribution diagnostic only and never counts as a hardware gate.
+#
+# Supersedes phoenix-stand-h25-ratelimit, phoenix-stand-v3-h25-final, deploy_stand_v3.yaml.
+#
+# DEPLOY NOTE: the export is external-data format. BOTH policy.onnx AND
+# policy.onnx.data must ship to the Jetson, in the same directory. onnxruntime
+# resolves the .data file relative to the .onnx path automatically.
+
+policy:
+  onnx_path: "checkpoints/phoenix-stand-h25-lat-noise/policy.onnx"
+  torchscript_path: "checkpoints/phoenix-stand-h25-lat-noise/policy.pt"
+  device: "cpu"
+  obs_pad_zeros: 0
+
+control:
+  rate_hz: 50
+  action_scale: 0.25
+  action_clip: 1.0
+  # MUST equal the training default_joint_pos (IsaacLab unitree.py GO2 init_state),
+  # because use_default_offset=True makes this the action offset AND the
+  # joint-relative observation reference. Every other deploy config used to set
+  # all hips to 0.0 while training uses L=+0.1 / R=-0.1, a constant 0.1 rad hip
+  # offset the policy never saw (off-distribution obs + offset on all 4 hips);
+  # they now carry the training pose too, guarded by
+  # tests/test_deploy_default_joint_pos.py.
+  default_joint_pos:
+    FL_hip_joint: 0.1
+    FR_hip_joint: -0.1
+    RL_hip_joint: 0.1
+    RR_hip_joint: -0.1
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+
+safety:
+  # Explicit, never defaulted. true = commanded-zero stand only; any nonzero
+  # /cmd_vel latches an abort in the policy node and a hold in the bridge.
+  stand_only: true
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120
+  estop_timeout_s: 0.5
+  sensor_timeout_s: 0.2
+  # first_message_timeout_s replaces the old startup_grace_s wallclock gate.
+  # cyclonedds discovery on the Jetson routinely takes >3 s; 15 s gives a
+  # generous first-message window without masking real publisher failures.
+  # Once every required topic has delivered one message, steady-state
+  # freshness reverts to the canonical estop/sensor timeouts above.
+  first_message_timeout_s: 15.0
+
+# Which source supplies the body linear velocity the POLICY consumes. There is
+# deliberately no default: base_lin_vel is a TRAINED observation term, and a
+# silent zero for a trained feature is the defect this key exists to prevent.
+#   zeros : feed zeros, as every run before 2026-09-11 did. Reproduces historical
+#           behaviour exactly and is the calibration the shield artifact was fit in.
+#   odom  : use validated /utlidar/robot_odom body twist. HARDWARE-UNVERIFIED and
+#           NOT the input distribution any shipped checkpoint was trained against.
+observation:
+  base_lin_vel_source: zeros
+
+limiter:
+  mode: prev_command
+  max_delta_per_step: 0.035
+  # Rule in EXPERIMENT.md amendment 2: 1.25 x the largest 0.2 s-sustained |sent - q|
+  # in the dq_max = 0.075 development runs (1.214 rad, DR), rounded up to 0.05. It is
+  # above effort saturation (0.94 rad at kp 25): it latches hold on a joint that is
+  # not following, it does not bound torque. Firmware torque limits do that. Name in
+  # telemetry and docs: catastrophic tracking-error watchdog (fault
+  # catastrophic_tracking_error:<joints>); the keys keep their names for the lock.
+  tracking_abort_rad: 1.4
+  tracking_abort_s: 0.2

@@ -284,3 +284,25 @@ def test_walk_v2_flags_collapse_and_joint_speed() -> None:
     score_walk_v2(eps, **kw)
     assert eps[0]["walk2_checks"]["height"] is False
     assert eps[1]["walk2_checks"]["joint_speed"] is False
+
+
+def test_h25_v3_deploy_config_carries_the_amendment_7_values() -> None:
+    from pathlib import Path
+
+    import yaml
+
+    from phoenix.sim2real.deploy_contract import (
+        load_lock,
+        semantic_config_sha256,
+        validate_deploy_contract,
+    )
+
+    path = Path("configs/sim2real/deploy_stand_h25_v3.yaml")
+    cfg = yaml.safe_load(path.read_text())
+    assert validate_deploy_contract(cfg) == []
+    assert cfg["limiter"]["mode"] == "prev_command"
+    assert cfg["limiter"]["max_delta_per_step"] == 0.035
+    assert cfg["limiter"]["tracking_abort_rad"] == 1.4
+    assert cfg["control"]["action_clip"] == 1.0
+    lock = load_lock(Path("configs/sim2real/locks/deploy_stand_h25_v3.lock.yaml"))
+    assert lock["deploy_config"]["semantic_sha256"] == semantic_config_sha256(cfg)

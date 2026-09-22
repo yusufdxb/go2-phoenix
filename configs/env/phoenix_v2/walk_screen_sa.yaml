@@ -1,0 +1,5 @@
+# Recipe W diagnosis screen sa (amendment 6.3, development only, 300 iterations): W1 with feet_air_time 1.0 -> 0.25 (upstream Go2 flat).
+defaults:
+  - walk_w1
+reward:
+  feet_air_time: 0.25

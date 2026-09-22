@@ -1,0 +1,5 @@
+# Recipe W diagnosis screen sb (amendment 6.3, development only, 300 iterations): W1 with action_rate -0.05 -> -0.01 (upstream).
+defaults:
+  - walk_w1
+reward:
+  action_rate: -0.01
