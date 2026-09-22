@@ -136,10 +136,14 @@ class GateParams:
     #: default keeps the incumbent behaviour for configs that predate Phoenix v2.
     limiter_mode: str = "measured_q"
     limit_abort_band: float = LIMIT_ABORT_BAND_RAD
-    #: Effort protection that replaces the torque cap the measured-q clip used to
-    #: impose, WITHOUT rewriting any command: if any joint's ``|sent - q|`` stays above
-    #: this for ``tracking_abort_s``, latch hold. 0 disables it (incumbent configs,
-    #: whose measured-q clip bounds ``|sent - q|`` by ``max_delta`` already).
+    #: Catastrophic tracking-error watchdog (config keys ``limiter.tracking_abort_rad``
+    #: / ``tracking_abort_s`` kept for lock stability): if any joint's ``|sent - q|``
+    #: stays above this for ``tracking_abort_s``, latch hold, WITHOUT rewriting any
+    #: command. It detects a joint that has stopped following its command (a fall, a
+    #: stuck or unpowered motor). It is NOT torque or effort protection: at kp 25 the PD
+    #: effort saturates at a 0.94 rad gap, below every value the sizing rule has
+    #: produced; torque is bounded by the actuator and firmware limits. 0 disables it
+    #: (incumbent configs, whose measured-q clip bounds ``|sent - q|`` already).
     tracking_abort_rad: float = 0.0
     tracking_abort_s: float = 0.2
     #: ``None`` means "required exactly when live". A live gate cannot opt out.
@@ -602,7 +606,7 @@ class ActuatorGate:
                         if self._tracking_since_ns is None:
                             self._tracking_since_ns = now_ns
                         elif (now_ns - self._tracking_since_ns) / 1e9 >= p.tracking_abort_s:
-                            self._latch(f"tracking_error_exceeded:{_names(over)}")
+                            self._latch(f"catastrophic_tracking_error:{_names(over)}")
                     else:
                         self._tracking_since_ns = None
                 rec["limit_clip"] = [bool(v) for v in final != slewed]
@@ -613,7 +617,7 @@ class ActuatorGate:
                 rec["policy"] = cmd.telemetry()
                 kp, kd = p.kp, p.kd
                 if self.fault is not None and self.fault.startswith(
-                    ("degradation_joint_saturated", "tracking_error_exceeded")
+                    ("degradation_joint_saturated", "catastrophic_tracking_error")
                 ):
                     mode = Mode.HOLD
                     cause = self.fault

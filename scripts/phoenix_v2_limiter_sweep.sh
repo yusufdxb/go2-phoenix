@@ -10,7 +10,8 @@ OUT="${OUT:-results/phoenix_v2/sim_limiter}"
 NUM_ENVS="${NUM_ENVS:-256}"
 for cfg in configs/env/phoenix_v2/limiter_sweep/*.yaml; do
   name="$(basename "$cfg" .yaml)"
-  case "$name" in dr_*) seed=1001 ;; *) seed=1002 ;; esac
+  # Amendment 2 used 1001/1002; amendment 6 re-selects on SEED_DR=1101 SEED_NOM=1102.
+  case "$name" in dr_*) seed=${SEED_DR:-1001} ;; *) seed=${SEED_NOM:-1002} ;; esac
   [ -f "$OUT/$name/summary.json" ] && { echo "skip $name"; continue; }
   echo "=== $name seed=$seed"
   PYTHONPATH=src python scripts/phoenix_v2_sim_stand.py --checkpoint "$CKPT" \

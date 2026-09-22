@@ -4,7 +4,8 @@
 #     node to the joint target AND the fed-back last_action (Isaac Lab clamps both);
 #   * limiter: the frozen command-rate limiter (dq_max 0.075 rad/step, chosen on
 #     development simulation only) plus the tracking abort that replaces the
-#     measured-q clip's effort bound as a non-rewriting safety latch.
+#     catastrophic tracking-error watchdog, a non-rewriting latch that notices a joint no
+#     longer following its command (NOT torque protection; see the limiter block).
 # The hard envelope (joint limits, 0.175 rad abort band, E-stop, deadman, watchdogs,
 # hold/damp) is unchanged. Pinned by configs/sim2real/locks/deploy_stand_h25_v2.lock.yaml.
 # Deployment config for the FULLY-HARDENED stand-v3-h25 deliverable on the real GO2.
@@ -143,6 +144,8 @@ limiter:
   # Rule in EXPERIMENT.md amendment 2: 1.25 x the largest 0.2 s-sustained |sent - q|
   # in the dq_max = 0.075 development runs (1.214 rad, DR), rounded up to 0.05. It is
   # above effort saturation (0.94 rad at kp 25): it latches hold on a joint that is
-  # not following, it does not bound torque. Firmware torque limits do that.
+  # not following, it does not bound torque. Firmware torque limits do that. Name in
+  # telemetry and docs: catastrophic tracking-error watchdog (fault
+  # catastrophic_tracking_error:<joints>); the keys keep their names for the lock.
   tracking_abort_rad: 1.55
   tracking_abort_s: 0.2

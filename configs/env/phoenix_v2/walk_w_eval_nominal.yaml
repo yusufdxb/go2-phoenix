@@ -1,0 +1,6 @@
+# Recipe W evaluation (amendment 6.4), DR off, hard envelope only (no soft limiter),
+# training command ranges with yaw rate commanded directly. Seeds: dev 5001, final 6001.
+defaults:
+  - walk_w1
+domain_randomization:
+  enabled: false

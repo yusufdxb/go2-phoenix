@@ -140,7 +140,8 @@ def _limiter_problems(cfg: Mapping[str, Any]) -> list[str]:
 
     Absent means the incumbent (measured-q clip, no action clamp). Declared means every
     constant is explicit: a command-rate limiter without the tracking abort would drop
-    the only effort protection the incumbent clip provided, so that is refused.
+    the catastrophic tracking-error watchdog, the only check left that notices a joint
+    no longer following its command, so that is refused.
     """
     from .safety import LIMITER_MODES, TRAINED_ACTION_CLIP
 
@@ -167,7 +168,7 @@ def _limiter_problems(cfg: Mapping[str, Any]) -> list[str]:
         if not isinstance(abort, (int, float)) or isinstance(abort, bool) or abort <= 0:
             problems.append(
                 "limiter.tracking_abort_rad must be a positive number with a command-rate "
-                f"limiter (it replaces the measured-q clip's effort bound), got {abort!r}"
+                f"limiter (the catastrophic tracking-error watchdog), got {abort!r}"
             )
         hold = limiter.get("tracking_abort_s")
         if not isinstance(hold, (int, float)) or isinstance(hold, bool) or hold <= 0:
