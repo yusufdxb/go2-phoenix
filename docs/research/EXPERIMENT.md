@@ -328,3 +328,81 @@ MDP (action-rate penalty only), then choose a deployment dq_max for it with the
 amendment 1 selection rule on development seeds only, and re-run Gate L with fresh
 evaluation seeds. It tests whether the fidelity failure is caused by training against a
 binding limiter or by the bound itself.
+
+### Amendment 6 (2026-09-22, before any run it governs): scorer defect, limiter criterion, recipe W
+
+Written after amendment 5 and before the W1 training run, the limiter re-selection and
+any evaluation below. Directed by the robot owner where stated.
+
+**6.1 Harness defect in the Gate L tracking scorer.** `score_walk_episodes` (amendment 3)
+excludes 1 s after every step on which the command changes. The walking task samples a
+heading and derives `ang_vel_z` from the heading error on every step
+(`heading_command: true`, `rel_heading_envs: 1.0`, Isaac Lab defaults; the YAML
+`heading_stiffness` was never wired), so the yaw command changes on almost every step and
+the settled window is empty: in `results/phoenix_v2/gate_l/nominal`, 196 of 256 episodes
+have no settled sample and score an infinite tracking error (184/256 in
+`gate_l_diag/nolimit`). The amendment 5 verdict is unchanged, because every episode also
+failed the fidelity term (31 % of samples rate-limited), but its planar and yaw-rate
+error figures describe a biased subset of episodes and are relabelled INVALID in the
+results report; the artifacts are kept. Fix: `score_walk_v2` treats only command jumps
+(resamples) as changes, and recipe W commands yaw rate directly
+(`heading_command: false`, now wired in `_apply_commands`), holding it until resample,
+which is what the joystick sends on the robot. Regression test:
+`test_walk_v2_keeps_a_settled_window_under_a_drifting_yaw_command`.
+
+**6.2 Limiter selection criterion, restated (owner-directed).** Amendment 1 required the
+mean primary score to be "within 0.02 of the hard-envelope-only reference". Amendment 2
+applied it two-sided and wrote down the intent as excluding any closed-loop change,
+better or worse; that reading excluded 0.035 and 0.05, which improved the DR score by
+0.023 and 0.027, and selected 0.075. The robot owner directs the criterion to be
+one-sided: the score term guards against the limiter harming the task, and intervention
+itself is bounded by the altered-fraction terms, which measure it directly. This is a
+change of criterion, not a clarification of the original text, and it is written
+knowing that on the amendment 2 data it would have selected 0.035. It therefore runs on
+new development seeds; the amendment 2 table is not reused for selection.
+
+For a policy `P`, development conditions `C` (its training distribution with DR, and
+nominal with DR off), the grid `G = {0.02, 0.035, 0.05, 0.075, 0.10, 0.175}` rad/step,
+`alt(d, c)` the fraction of joint-samples altered by more than 1 mrad, `alt_j(d, c)` the
+same per joint, and `S(d, c)` the mean primary score (walking: mean walking success
+indicator, `score_walk_v2`), with `S(hard, c)` from the same seeds and no soft limiter:
+
+    dq_max(P) = min { d in G : for all c in C,
+                      alt(d, c) <= 0.01  and  max_j alt_j(d, c) <= 0.05  and
+                      S(d, c) >= S(hard, c) - 0.02 }
+
+If the set is empty, the policy has no admissible limiter and is not deployed. The
+two-sided result is reported beside it. H25 is re-selected on seeds 1101 (DR) and
+1102 (nominal); a walking policy on seeds 5101 (DR) and 5102 (nominal), after it passes
+Gate W-H (6.4). The value is frozen per policy in a further amendment before any fresh-
+seed evaluation that uses it.
+
+**6.3 Recipe W: no soft limiter in the training MDP.** Training plant: policy, clamp
+[-1, 1], scale 0.25, DC-motor PD, PhysX joint limits (contract v3,
+`docs/research/DEPLOY_CONTRACT.md`). Smoothness pressure lives in the objective only.
+W1 is amendment 3's recipe with exactly two changes: `action.rate_limit.enabled: false`
+and `command.heading_command: false` (`configs/env/phoenix_v2/walk_w1.yaml`,
+`configs/train/ppo_walk_w1.yaml`, seed 42, 1500 iterations). Later candidates change one
+diagnosed dimension at a time, each recorded in `results/phoenix_v2/walk_ledger.jsonl`
+(commit, resolved env and train config, seed, checkpoint sha256, contract version,
+limiter used at evaluation, development metrics). No run is deleted from the ledger.
+
+**6.4 Gates and seeds.** Development evaluation (tuning allowed): seeds 5001 (DR off),
+5002 (training DR), 5003 (zero command), 256 episodes of 20 s. Final evaluation, used
+once per frozen candidate: 6001 (DR off), 6002 (DR on), 6003 (zero command).
+
+* **Gate W-H (hard envelope only, Phase 6):** walking success `score_walk_v2` >= 0.90 DR
+  off and >= 0.80 DR on; zero-command standing success >= 0.90. Walking success
+  thresholds are provisional (`WALK_V2_PROVISIONAL`) and are frozen by amendment 7
+  before the first final-seed evaluation.
+* **Gate W-L (frozen deploy limiter, Phase 7):** the same, with the policy's frozen
+  `dq_max`, plus the amendment 1 fidelity gate per episode (altered <= 5 % overall and on
+  every joint, RMS <= 0.01 rad) inside walking success.
+* **Gate W-D (exact deploy stack around Isaac Lab, Phase 9):** ONNX Runtime, deploy
+  observation builder, `policy_action_map`, command wire and the real `ActuatorGate`,
+  conditions nominal, training DR, held-out friction, held-out actuator scale, held-out
+  command combinations; walking success >= 0.90 nominal and >= 0.80 on each other
+  condition. Held-out values fixed in amendment 7.
+
+Stage W's s_train pilot, monitor validation and arms follow only after Gate W-D, as in
+the preregistration.

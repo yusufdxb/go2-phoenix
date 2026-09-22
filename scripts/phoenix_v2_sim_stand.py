@@ -61,6 +61,8 @@ def parse_args(argv=None):
     p.add_argument("--label", default=None)
     p.add_argument("--save-steps", action="store_true", help="save per-step arrays (npz)")
     p.add_argument("--walk", action="store_true", help="also score Amendment 3 walking success")
+    p.add_argument("--walk-thresholds", type=Path, default=None,
+                   help="JSON overriding WALK_V2_PROVISIONAL (amendment 7 freezes one)")
     p.add_argument(
         "--bridge-records-envs",
         type=int,
@@ -189,6 +191,7 @@ def _run(args) -> int:
     sent = np.zeros(shape, np.float32)
     q0 = np.zeros(shape, np.float32)
     q1 = np.zeros(shape, np.float32)
+    qd1 = np.zeros(shape, np.float32)
     tau_c = np.zeros(shape, np.float32)
     tau_a = np.zeros(shape, np.float32)
     kp_eff = np.zeros((N, 12), np.float32)
@@ -215,6 +218,7 @@ def _run(args) -> int:
                 obs = obs[0]
             sent[k] = t2n(term.processed_actions)
             q1[k] = t2n(robot.data.joint_pos)
+            qd1[k] = t2n(robot.data.joint_vel)
             tau_c[k] = t2n(robot.data.computed_torque)
             tau_a[k] = t2n(robot.data.applied_torque)
             g = t2n(robot.data.projected_gravity_b)
@@ -253,6 +257,12 @@ def _run(args) -> int:
         from phoenix.monitor.stand_metrics import score_walk_episodes
 
         metrics.update(score_walk_episodes(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid, dt=dt))
+        from phoenix.monitor.stand_metrics import score_walk_v2
+
+        wth = json.loads(args.walk_thresholds.read_text()) if args.walk_thresholds else None
+        metrics.update(score_walk_v2(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid,
+                                     height=height, qd=qd1, req=req, tau_c=tau_c, tau_a=tau_a,
+                                     dt=dt, thresholds=wth))
     summary = {
         "schema": "phoenix-v2-sim-stand/v1",
         "label": args.label,
@@ -279,7 +289,7 @@ def _run(args) -> int:
         for ep in episodes:
             fh.write(json.dumps(ep) + "\n")
     if args.save_steps:
-        np.savez_compressed(args.out / "steps.npz", raw=raw, req=req, sent=sent, q0=q0, q1=q1,
+        np.savez_compressed(args.out / "steps.npz", raw=raw, req=req, sent=sent, q0=q0, q1=q1, qd1=qd1,
                             tau_c=tau_c, tau_a=tau_a, grav=grav, valid=valid, cmd=cmd, linv=linv,
                             angv=angv, height=height)
     if args.bridge_records_envs:
@@ -290,7 +300,7 @@ def _run(args) -> int:
         "altered_fraction", "rms_modification_rad", "distortion_D", "raw_out_of_range_fraction",
         "effort_saturation_fraction", "attitude_violation_episode_rate", "max_abs_roll_rad",
         "max_abs_pitch_rad", "quaternion_order_check", "wall_s")}
-        | {k: v for k, v in summary.items() if k.startswith("walk_")}, indent=1), flush=True)
+        | {k: v for k, v in summary.items() if k.startswith("walk")}, indent=1), flush=True)
     return 0
 
 

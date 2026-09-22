@@ -1,0 +1,12 @@
+# Phoenix v2 Stage W, recipe W1 (EXPERIMENT.md amendment 6): amendment 3's walking recipe
+# with the soft limiter REMOVED from the MDP. The learner sees POLICY -> clamp [-1, 1] ->
+# scale 0.25 -> PD; smoothness pressure stays in the objective (base.yaml action_rate
+# -0.05, joint_acc, joint_torque). Yaw is commanded as a rate held until resample
+# (heading_command: false), as the joystick commands it on the robot.
+defaults:
+  - ../flat
+action:
+  rate_limit:
+    enabled: false
+command:
+  heading_command: false

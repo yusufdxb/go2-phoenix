@@ -232,8 +232,118 @@ def score_walk_episodes(
     }
 
 
+#: Amendment 6/7 walking success, PROVISIONAL until amendment 7 freezes it. Every entry
+#: is an upper or lower bound on one physical quantity; the scorer reports the value of
+#: each quantity per episode so the bound can be set on development seeds and then frozen.
+WALK_V2_PROVISIONAL: dict[str, float] = {
+    "max_lin_err_m_s": 0.25,  # mean settled planar velocity error
+    "max_yaw_err_rad_s": 0.30,  # mean settled yaw-rate error
+    "settle_s": 1.0,  # excluded after episode start and after each command resample
+    "min_progress_ratio": 0.80,  # distance along the commanded direction / commanded distance
+    "min_base_height_m": 0.20,  # collapse: trunk below this at any step
+    "max_effort_saturation": 0.01,  # fraction of joint-steps with |tau_computed - tau_applied| > 1e-3
+    "max_joint_speed_rad_s": 30.0,  # sim DCMotor velocity_limit; any step above it
+    "max_target_jump_fraction": 1.0,  # joint-steps with |delta target| > jump_ref_rad (reported)
+    "jump_ref_rad": 0.075,
+}
+
+
+def score_walk_v2(
+    episodes: list[dict[str, Any]],
+    *,
+    linv: np.ndarray,
+    angv: np.ndarray,
+    cmd: np.ndarray,
+    valid: np.ndarray,
+    height: np.ndarray,
+    qd: np.ndarray,
+    req: np.ndarray,
+    tau_c: np.ndarray,
+    tau_a: np.ndarray,
+    dt: float,
+    thresholds: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Physical walking success (Phase 4). Adds ``walk2_*`` fields to each episode.
+
+    Unlike :func:`score_walk_episodes` (amendment 3, kept for reproduction), a command
+    counts as changed only when it JUMPS (resample), so a heading-controlled yaw command
+    that drifts every step cannot empty the settled window: that was the Gate L defect
+    (amendment 6). With ``heading_command: false`` commands are piecewise constant and
+    both definitions agree. Requires stand scoring first (``success`` = no trunk
+    contact, attitude, no abort-band request, fidelity, no safety hold, full length).
+    """
+    th = dict(WALK_V2_PROVISIONAL)
+    th.update(thresholds or {})
+    n_t, n_e = valid.shape
+    settle = int(round(th["settle_s"] / dt))
+    jump = np.zeros((n_t, n_e), bool)
+    jump[0] = True
+    jump[1:] = np.any(np.abs(np.diff(cmd, axis=0)) > 0.05, axis=-1)
+    since = np.zeros((n_t, n_e), int)
+    for k in range(1, n_t):
+        since[k] = np.where(jump[k], 0, since[k - 1] + 1)
+    use = valid & (since >= settle)
+    lin_err = np.linalg.norm(linv[..., :2] - cmd[..., :2], axis=-1)
+    yaw_err = np.abs(angv[..., 2] - cmd[..., 2])
+    speed = np.linalg.norm(cmd[..., :2], axis=-1)
+    moving = use & (speed > 0.1)
+    along = np.sum(linv[..., :2] * cmd[..., :2], axis=-1) / np.maximum(speed, 1e-6)
+    sat = np.abs(tau_c - tau_a) > 1e-3
+    dreq = np.abs(np.diff(req, axis=0, prepend=req[:1]))
+    for e, ep in enumerate(episodes):
+        v, u, m = valid[:, e], use[:, e], moving[:, e]
+        le = float(lin_err[u, e].mean()) if u.any() else float("nan")
+        ye = float(yaw_err[u, e].mean()) if u.any() else float("nan")
+        prog = float(along[m, e].sum() / speed[m, e].sum()) if m.any() else float("nan")
+        hmin = float(height[v, e].min()) if v.any() else float("nan")
+        satf = float(sat[v, e].mean()) if v.any() else 1.0
+        qmax = float(np.abs(qd[v, e]).max()) if v.any() else float("inf")
+        jf = float((dreq[v, e] > th["jump_ref_rad"]).mean()) if v.any() else 1.0
+        checks = {
+            "stand_criteria": bool(ep["success"]),
+            "lin_err": bool(u.any() and le <= th["max_lin_err_m_s"]),
+            "yaw_err": bool(u.any() and ye <= th["max_yaw_err_rad_s"]),
+            # an episode with no moving segment (all-zero command) passes progress vacuously
+            "progress": bool((not m.any()) or prog >= th["min_progress_ratio"]),
+            "height": bool(hmin >= th["min_base_height_m"]),
+            "effort": bool(satf <= th["max_effort_saturation"]),
+            "joint_speed": bool(qmax <= th["max_joint_speed_rad_s"]),
+            "target_jumps": bool(jf <= th["max_target_jump_fraction"]),
+        }
+        ep.update({
+            "walk2_lin_err_m_s": le,
+            "walk2_yaw_err_rad_s": ye,
+            "walk2_progress_ratio": prog,
+            "walk2_min_base_height_m": hmin,
+            "walk2_effort_saturation": satf,
+            "walk2_max_joint_speed_rad_s": qmax,
+            "walk2_target_jump_fraction": jf,
+            "walk2_mean_cmd_speed_m_s": float(speed[u, e].mean()) if u.any() else 0.0,
+            "walk2_checks": checks,
+            "walk2_success": all(checks.values()),
+        })
+    fails = {k: int(sum(not ep["walk2_checks"][k] for ep in episodes)) for k in episodes[0]["walk2_checks"]} if episodes else {}
+    fin = lambda key: [ep[key] for ep in episodes if np.isfinite(ep[key])]  # noqa: E731
+    return {
+        "walk2_thresholds": th,
+        "walk2_success_rate": float(np.mean([ep["walk2_success"] for ep in episodes])),
+        "walk2_failures_by_check": fails,
+        "walk2_mean_lin_err_m_s": float(lin_err[use].mean()) if use.any() else float("nan"),
+        "walk2_mean_yaw_err_rad_s": float(yaw_err[use].mean()) if use.any() else float("nan"),
+        "walk2_mean_cmd_speed_m_s": float(speed[use].mean()) if use.any() else 0.0,
+        "walk2_settled_fraction": float(use.sum() / max(valid.sum(), 1)),
+        "walk2_median_progress_ratio": float(np.median(fin("walk2_progress_ratio"))) if fin("walk2_progress_ratio") else float("nan"),
+        "walk2_p05_min_base_height_m": float(np.percentile(fin("walk2_min_base_height_m"), 5)),
+        "walk2_p95_max_joint_speed_rad_s": float(np.percentile(fin("walk2_max_joint_speed_rad_s"), 95)),
+        "walk2_mean_target_jump_fraction": float(np.mean(fin("walk2_target_jump_fraction"))),
+        "walk2_mean_effort_saturation": float(np.mean(fin("walk2_effort_saturation"))),
+    }
+
+
 __all__ = [
     "score_walk_episodes",
+    "score_walk_v2",
+    "WALK_V2_PROVISIONAL",
     "FIDELITY_MAX_ALTERED",
     "FIDELITY_MAX_RMS_RAD",
     "FIDELITY_TOL_RAD",

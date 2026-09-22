@@ -1156,8 +1156,14 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             0
         ][0]
         walk_action = self.walk_session.run(["action"], {"obs": _obs(self._last_action_walk)})[0][0]
-        stand_target = self.default_q + self.action_scale * stand_action
-        walk_target = self.default_q + self.action_scale * walk_action
+        # Same action map as the single-policy path: the trained clamp applies to each
+        # policy's target AND to the last_action it is fed back (deploy contract v2).
+        stand_fed, stand_target = policy_action_map(
+            stand_action, self.default_q, self.action_scale, self.action_clip
+        )
+        walk_fed, walk_target = policy_action_map(
+            walk_action, self.default_q, self.action_scale, self.action_clip
+        )
 
         prev_state = self.mode_state
         new_state, new_ticks, alpha = mode_step(
@@ -1183,10 +1189,10 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # that is (or is becoming) active owns a fresh last_action; the
         # other is held at zero so its next entry starts on-distribution.
         if active == "stand":
-            self._last_action_stand = stand_action.astype(np.float32, copy=False)
+            self._last_action_stand = stand_fed
             self._last_action_walk = np.zeros_like(self._last_action_walk)
         else:
-            self._last_action_walk = walk_action.astype(np.float32, copy=False)
+            self._last_action_walk = walk_fed
             self._last_action_stand = np.zeros_like(self._last_action_stand)
 
         # Legacy ``self._last_action`` kept coherent with the active policy
