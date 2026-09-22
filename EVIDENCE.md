@@ -55,7 +55,15 @@ trip. It has not happened.
 | A smoother walking policy exists in this recipe family | FALSE for both declared rungs | action_rate -0.25 and -0.5 never leave the stand-still plateau, `results/phoenix_v2/walk_dev/w5_*` |
 | The exact deploy stack executes the walking policy faithfully | SIM VERIFIED (limiter opened, recorded) | 0.0000 altered, 100 % fidelity and hardware-gate pass, no faults, 0.953 nominal / 0.859 DR, `results/phoenix_v2/walk_deploy/` |
 | Walking absorbs the controlled single-joint degradation | TRUE, so Stage W stops | primary score drop 0.031 at s = 0.5 against the 0.10 rule, `results/phoenix_v2/walk_strain_pilot/` |
-| Walking absorbs a global actuator weakening | FALSE | success 0.953 -> 0.719 at motor strength 0.75 on every joint, `results/phoenix_v2/walk_deploy/w2_open/d_actuator_weak/` |
+| Walking absorbs a global actuator weakening | FALSE, but that run is CONFOUNDED | its env config moves motor strength AND pins friction to 0.8 AND adds actuator latency 1-5 steps against a DR-off nominal, 64 episodes of one seed; superseded by the screen |
+| The controlled degradation may name a joint SET, floor rising with reach (0.50 one joint, 0.70 for two or more) | IMPLEMENTED | `MIN_SCALE_MULTI`, per-joint saturation latch, `tests/test_controlled_degradation.py` |
+| The degradation saturation latch's standing band is meaningless for walking | SIM VERIFIED | on NOMINAL walking, no degradation applied, per-joint p99 \|requested - q\| reaches 0.69 rad and 9 of 144 joint-sessions sustain the 0.175 rad condition for 0.5 s, one for 10.18 s; amendment 14, `intervention_screen_pinband_0p175/` |
+| A single joint at 0.50 degrades W2 walking | FALSE | walking-success drop 0.0104 against a 0.9219 nominal, three of four severities at or above nominal, `results/phoenix_v2/intervention_screen/` |
+| A whole leg at 0.70 degrades W2 walking enough to adapt to | FALSE | drop 0.1250 against the preregistered 0.15 bar |
+| Both rear legs at 0.70 degrade W2 walking measurably and safely | TRUE, and it is the selected intervention | walking success 0.6328 vs 0.9219, drop 0.2891, every seed >= 0.2734, no abort-band episodes; fidelity 0.9036 against a 0.90 bound is a thin margin |
+| The group monitor estimates the applied actuator scale | SIM VERIFIED | within 0.075 at an applied 0.70 and 0.095 at 0.75, monotone (0.775, 0.845), interval covers truth in 76 % / 88 % of detected sessions |
+| The group monitor separates nominal from degraded walking at session level | FALSE | frozen gate: false-flag 0.125 (bar 0.05), detection 0.708 (bar 0.80), correct extent 0.375 (bar 0.70); `results/phoenix_v2/monitor_gate/` |
+| Targeted adaptation beats broad randomisation for walking | NOT TESTED | the study stopped at the monitor gate before any arm was trained |
 
 ## Incumbent policy and deploy stack
 

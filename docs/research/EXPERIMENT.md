@@ -870,3 +870,64 @@ information (the group estimate moved monotonically, 0.806 to 0.956 for an appli
 recorded finding in that case is: **Phoenix could estimate actuator-response severity
 monotonically in simulation, but could not reliably distinguish nominal from degraded
 walking at the session level.**
+
+### Amendment 16 (2026-09-22): the monitor fails its frozen gate; targeted adaptation stops at Phase J
+
+The amendment 15.5 gate, applied once, to the session sets of amendment 15.4
+(`results/phoenix_v2/monitor_gate/shift_monitor.json`). Calibration 24 nominal sessions
+of 120 s (2856 windows per group, against the 114 the screening cells gave); validation
+24 held-out nominal, 24 degraded at `rear:0.70`, 24 held-out at `rear:0.75`. Every session
+cleared `min_usable`; the smallest had 10 usable windows, the nominal sets 119 each.
+
+| criterion | bar | result | verdict |
+|---|---|---|---|
+| G1 nominal false-flag rate | <= 0.05 | **0.1250** (3 of 24) | **FAIL** |
+| G2 detection of `rear` | >= 0.80 | **0.7083** | **FAIL** |
+| G3 reported group is `rear` | >= 0.70 | **0.3750** | **FAIL** |
+| G4a median severity bias | <= 0.10 | 0.0746 (estimate 0.775 for an applied 0.70) | PASS |
+| G4b reported range covers truth | >= 0.70 | 0.7647 (17 detected sessions) | PASS |
+
+**Three of five fail, so by the rule written before these sessions existed, targeted
+adaptation STOPS.** Phases K through P are not run: no conditioner is built, no targeted
+distribution is generated, and no training arm (no adaptation, broad DR, Phoenix targeted,
+oracle) is trained. The monitor is not retuned, no threshold is revisited, the hypothesis
+space is not re-cut and the session sets are not extended.
+
+**Deeper calibration helped, and was not enough.** Against the development pass on 20 s
+sessions, the false-flag rate fell from 0.50 to 0.125 and detection rose from 0.08 to
+0.708. The diagnosis in amendment 15.3 was therefore correct in direction and insufficient
+in size: the rule was not broken, the calibration was thin, and fixing the calibration did
+not close the gap. The three false alarms were `front`, `hips` and `leg_FL`, one session
+each, all groups the intervention never touched.
+
+**Two claims, reported separately, because the evidence separates them.**
+
+1. **Severity estimation works, and is the positive result of this phase.** The group
+   statistic recovered the applied scale to within 0.075 at the development severity and
+   0.095 at the held-out severity, monotonically (0.775 for an applied 0.70, 0.845 for an
+   applied 0.75), with its reported interval covering the truth in 76 % and 88 % of
+   detected sessions. It passed both halves of its criterion. The residual carries usable
+   information about how much actuator authority was lost.
+
+2. **Session-level detection and localisation do not work.** The detector fires on healthy
+   walking once in eight sessions, misses the degradation in three of ten, and names the
+   right six joints in fewer than four of ten. It cannot be trusted to decide *whether* to
+   adapt or *what* to adapt, which is what the Phoenix arm would have been conditioned on.
+
+Stated as the finding: **Phoenix could estimate actuator-response severity monotonically
+in simulation, but could not reliably distinguish nominal from degraded walking at the
+session level.** That is a more informative failure than "the monitor did not work", and
+it localises the remaining problem: the detection threshold, not the estimator.
+
+**What this does NOT say.** It does not test whether a monitor-targeted distribution beats
+broad randomisation; that comparison was never reached. It says nothing about hardware,
+which stayed BLOCKED throughout. It does not show that no detector could work on this
+signal, only that this one, frozen in advance, did not.
+
+**The next scientific decision, recorded and not acted on here.** The estimator passing
+while the detector fails points at the decision rule, not the residual. Any follow-up
+would have to preregister a different detector (for example one that scores a single
+preregistered group rather than selecting among twelve, which would remove the
+multiple-comparison load that produced all three false alarms) and re-run this same frozen
+gate on fresh seeds before any adaptation arm is trained. Nothing in the present study is
+reinterpreted to get a positive result.
