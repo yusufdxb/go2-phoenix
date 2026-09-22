@@ -179,6 +179,9 @@ def _run(args) -> int:
     env_cfg.scene.num_envs = args.num_envs
     env_cfg.sim.device = args.device
     env_cfg.seed = args.seed
+    # A session is one uninterrupted episode: never let the env's own time-out cut a
+    # longer run short (it resets the robot and ends that session's telemetry).
+    env_cfg.episode_length_s = max(float(env_cfg.episode_length_s), args.duration_s + 1.0)
     env = gym.make(container["env"]["task_name"], cfg=env_cfg)
     env.reset(seed=args.seed)
     u = env.unwrapped

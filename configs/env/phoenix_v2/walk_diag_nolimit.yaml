@@ -1,0 +1,7 @@
+# EXPLORATORY diagnostic after the Gate L failure (not a gate): the walking baseline with
+# the soft limiter removed, DR off, to see whether its gait depends on the limiter.
+defaults:
+  - walk_eval_nominal
+action:
+  rate_limit:
+    enabled: false

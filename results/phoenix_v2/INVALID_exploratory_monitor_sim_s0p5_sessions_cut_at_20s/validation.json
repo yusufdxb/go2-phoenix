@@ -1,0 +1,2410 @@
+{
+ "schema": "phoenix-v2-monitor-validation-sim/v1",
+ "s_train": 0.5,
+ "calibration_sessions": 10,
+ "conditions": {
+  "false_positive": {
+   "sessions": 20,
+   "rows": [
+    {
+     "session": "robot000.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RL_hip_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "DEGRADED",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.784438269525185,
+      "FR_thigh_joint": 0.9515439973955213,
+      "FR_calf_joint": 0.9826931134971326,
+      "FL_hip_joint": 0.7418967218725544,
+      "FL_thigh_joint": 2.6083719828638383,
+      "FL_calf_joint": 1.2142358515687588,
+      "RR_hip_joint": 0.7483492197116545,
+      "RR_thigh_joint": 0.9772706365510544,
+      "RR_calf_joint": 1.0053682819331051,
+      "RL_hip_joint": 0.8071266113849274,
+      "RL_thigh_joint": 1.5152249960349642,
+      "RL_calf_joint": 1.4411111937466181
+     },
+     "first_suspect_s": {
+      "RL_hip_joint": 6
+     },
+     "first_degraded_s": {
+      "RL_hip_joint": 10
+     }
+    },
+    {
+     "session": "robot001.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1655224789382126,
+      "FR_thigh_joint": 1.0614934615690557,
+      "FR_calf_joint": 1.0045748609455805,
+      "FL_hip_joint": 4.523791247082643,
+      "FL_thigh_joint": 0.9207398732146739,
+      "FL_calf_joint": 1.0220521325244833,
+      "RR_hip_joint": 1.766896952657008,
+      "RR_thigh_joint": 1.168946141967885,
+      "RR_calf_joint": 0.9245755907898392,
+      "RL_hip_joint": 1.5679333529442867,
+      "RL_thigh_joint": 0.7774782815468595,
+      "RL_calf_joint": 0.837455923719428
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot002.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RL_hip_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "DEGRADED",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.7933526859441997,
+      "FR_thigh_joint": 0.8494506078144857,
+      "FR_calf_joint": 0.9284688455746524,
+      "FL_hip_joint": 0.6719145673422764,
+      "FL_thigh_joint": 3.3456256916733578,
+      "FL_calf_joint": 1.319584988372441,
+      "RR_hip_joint": 0.6355763753349853,
+      "RR_thigh_joint": 0.9618677516359939,
+      "RR_calf_joint": 1.008627534485546,
+      "RL_hip_joint": 0.8023863664168196,
+      "RL_thigh_joint": 1.8682975422190098,
+      "RL_calf_joint": 1.6178502279744937
+     },
+     "first_suspect_s": {
+      "RL_hip_joint": 6
+     },
+     "first_degraded_s": {
+      "RL_hip_joint": 10
+     }
+    },
+    {
+     "session": "robot003.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RL_calf_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "DEGRADED"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.661758720460935,
+      "FR_thigh_joint": 2.5525444089629747,
+      "FR_calf_joint": 1.3798799033609823,
+      "FL_hip_joint": 1.4652497597488008,
+      "FL_thigh_joint": 0.6754329504955359,
+      "FL_calf_joint": 0.8269168601952734,
+      "RR_hip_joint": 1.2848044835925079,
+      "RR_thigh_joint": 0.9051373964363261,
+      "RR_calf_joint": 1.045000336472358,
+      "RL_hip_joint": 0.9690957273977575,
+      "RL_thigh_joint": 0.7372485036924037,
+      "RL_calf_joint": 0.7332647380050745
+     },
+     "first_suspect_s": {
+      "FL_thigh_joint": 6,
+      "FL_calf_joint": 6,
+      "RR_thigh_joint": 6,
+      "RL_calf_joint": 6
+     },
+     "first_degraded_s": {
+      "RL_calf_joint": 9
+     }
+    },
+    {
+     "session": "robot004.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1728994962871901,
+      "FR_thigh_joint": 1.095692646080849,
+      "FR_calf_joint": 1.0121260376925754,
+      "FL_hip_joint": 4.471731285698667,
+      "FL_thigh_joint": 0.8654168458724301,
+      "FL_calf_joint": 1.007595595973482,
+      "RR_hip_joint": 2.1215747503560602,
+      "RR_thigh_joint": 1.159815072988807,
+      "RR_calf_joint": 0.9265354800351335,
+      "RL_hip_joint": 1.5098974563722425,
+      "RL_thigh_joint": 0.7773015139787423,
+      "RL_calf_joint": 0.8257590752522266
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot005.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.244172025027192,
+      "FR_thigh_joint": 1.029191509851425,
+      "FR_calf_joint": 1.0063067478622094,
+      "FL_hip_joint": 5.816352975457969,
+      "FL_thigh_joint": 1.1299246242467382,
+      "FL_calf_joint": 1.0528137905374004,
+      "RR_hip_joint": 1.6010002760779898,
+      "RR_thigh_joint": 1.1222105336159123,
+      "RR_calf_joint": 0.9385423634721091,
+      "RL_hip_joint": 1.7609041726399537,
+      "RL_thigh_joint": 0.7692478649278922,
+      "RL_calf_joint": 0.8588512801645413
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot006.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8321200749008021,
+      "FR_thigh_joint": 0.9629457835520411,
+      "FR_calf_joint": 0.9752539778852849,
+      "FL_hip_joint": 0.9741571204519281,
+      "FL_thigh_joint": 2.2154724509046977,
+      "FL_calf_joint": 1.1483426917978294,
+      "RR_hip_joint": 1.0788136343610413,
+      "RR_thigh_joint": 1.0021461671972238,
+      "RR_calf_joint": 0.987352722756967,
+      "RL_hip_joint": 0.8625512643481366,
+      "RL_thigh_joint": 1.2250710150957689,
+      "RL_calf_joint": 1.234304047569679
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot007.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.6187792739271336,
+      "FR_thigh_joint": 1.6927431169305058,
+      "FR_calf_joint": 1.1611019861314902,
+      "FL_hip_joint": 1.711499101053952,
+      "FL_thigh_joint": 0.8265168039644057,
+      "FL_calf_joint": 0.9072849650775774,
+      "RR_hip_joint": 19.048741413708683,
+      "RR_thigh_joint": 0.9240295665949946,
+      "RR_calf_joint": 1.0152752464482482,
+      "RL_hip_joint": 1.2327828997410206,
+      "RL_thigh_joint": 0.7667294577627239,
+      "RL_calf_joint": 0.7752274245080075
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6,
+      "FL_thigh_joint": 6,
+      "FL_calf_joint": 6,
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot008.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.332513088299178,
+      "FR_thigh_joint": 1.345291040489578,
+      "FR_calf_joint": 1.1025012501993994,
+      "FL_hip_joint": 3.2349793221402243,
+      "FL_thigh_joint": 0.9257745193721083,
+      "FL_calf_joint": 0.9506621027128757,
+      "RR_hip_joint": 4.339881776087048,
+      "RR_thigh_joint": 1.0131859830856582,
+      "RR_calf_joint": 0.9747179904678331,
+      "RL_hip_joint": 1.4629512341102981,
+      "RL_thigh_joint": 0.753497544250669,
+      "RL_calf_joint": 0.8059172603812375
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot009.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.4665656451865592,
+      "FR_thigh_joint": 1.467992164931553,
+      "FR_calf_joint": 1.1179069730555335,
+      "FL_hip_joint": 2.033605770370054,
+      "FL_thigh_joint": 0.9112190095056596,
+      "FL_calf_joint": 0.9263686743292188,
+      "RR_hip_joint": 7.945551738974643,
+      "RR_thigh_joint": 0.9551530967201268,
+      "RR_calf_joint": 0.9974400460595948,
+      "RL_hip_joint": 1.3190382873273017,
+      "RL_thigh_joint": 0.7674203504418187,
+      "RL_calf_joint": 0.7969387731905769
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6,
+      "FL_thigh_joint": 6,
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot010.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8138215847261807,
+      "FR_thigh_joint": 0.9520549924508149,
+      "FR_calf_joint": 0.9785869234529228,
+      "FL_hip_joint": 0.9111469245860828,
+      "FL_thigh_joint": 2.2149934286892803,
+      "FL_calf_joint": 1.158416262971543,
+      "RR_hip_joint": 0.9785653009158936,
+      "RR_thigh_joint": 1.014454107211891,
+      "RR_calf_joint": 0.9856614604902869,
+      "RL_hip_joint": 0.843458200361153,
+      "RL_thigh_joint": 1.2736123506894041,
+      "RL_calf_joint": 1.2775196825016106
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot011.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.874838055763428,
+      "FR_thigh_joint": 0.9512458499871266,
+      "FR_calf_joint": 0.9670690767624359,
+      "FL_hip_joint": 1.1025588406058535,
+      "FL_thigh_joint": 1.8960268811105623,
+      "FL_calf_joint": 1.1415870645251842,
+      "RR_hip_joint": 1.279963404007477,
+      "RR_thigh_joint": 1.0376656160364104,
+      "RR_calf_joint": 0.9737610083759498,
+      "RL_hip_joint": 0.8993228082398674,
+      "RL_thigh_joint": 1.1363260491464815,
+      "RL_calf_joint": 1.1604512165657381
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot012.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.310845176311724,
+      "FR_thigh_joint": 1.268079031444358,
+      "FR_calf_joint": 1.082624102883047,
+      "FL_hip_joint": 2.795168063370949,
+      "FL_thigh_joint": 0.9751101284450359,
+      "FL_calf_joint": 0.9447393193439844,
+      "RR_hip_joint": 3.7065837708821783,
+      "RR_thigh_joint": 1.0215569796371113,
+      "RR_calf_joint": 0.9699415268164272,
+      "RL_hip_joint": 1.4154782371123655,
+      "RL_thigh_joint": 0.7601130238794345,
+      "RL_calf_joint": 0.8159861664873461
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot013.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.2443186891499929,
+      "FR_thigh_joint": 1.0205771489726918,
+      "FR_calf_joint": 1.0042061844056906,
+      "FL_hip_joint": 5.611561191462118,
+      "FL_thigh_joint": 1.131760856124484,
+      "FL_calf_joint": 1.0521054761492334,
+      "RR_hip_joint": 1.5921780799350802,
+      "RR_thigh_joint": 1.129349266507473,
+      "RR_calf_joint": 0.9367598224317633,
+      "RL_hip_joint": 1.750946001166592,
+      "RL_thigh_joint": 0.7692893312931792,
+      "RL_calf_joint": 0.8598439996489651
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot014.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.9214861283340217,
+      "FR_thigh_joint": 0.9446107653934765,
+      "FR_calf_joint": 0.958240054965076,
+      "FL_hip_joint": 1.3700265339988664,
+      "FL_thigh_joint": 2.1464743345380297,
+      "FL_calf_joint": 1.1567940774775207,
+      "RR_hip_joint": 1.436041806211531,
+      "RR_thigh_joint": 1.0019903906988021,
+      "RR_calf_joint": 0.9804950139993095,
+      "RL_hip_joint": 0.9866135911889504,
+      "RL_thigh_joint": 1.0669816817234947,
+      "RL_calf_joint": 1.1113264657385615
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot015.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.9170552357464337,
+      "FR_thigh_joint": 0.9366176088395847,
+      "FR_calf_joint": 0.9546405428240977,
+      "FL_hip_joint": 1.3948448732813266,
+      "FL_thigh_joint": 1.7167821943089263,
+      "FL_calf_joint": 1.1186459292201,
+      "RR_hip_joint": 1.4659718968409923,
+      "RR_thigh_joint": 1.055350142260996,
+      "RR_calf_joint": 0.9615128402101061,
+      "RL_hip_joint": 0.9822859575759659,
+      "RL_thigh_joint": 1.0334254458187058,
+      "RL_calf_joint": 1.0754693765567476
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot016.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RL_hip_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "DEGRADED",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8077721659072101,
+      "FR_thigh_joint": 0.8385494508960415,
+      "FR_calf_joint": 0.9182291217805165,
+      "FL_hip_joint": 0.666559871599889,
+      "FL_thigh_joint": 3.5442173993684776,
+      "FL_calf_joint": 1.3450003837422204,
+      "RR_hip_joint": 0.6369891132300922,
+      "RR_thigh_joint": 0.9522166236726191,
+      "RR_calf_joint": 1.0119661901935386,
+      "RL_hip_joint": 0.8039214729005563,
+      "RL_thigh_joint": 1.932521345986988,
+      "RL_calf_joint": 1.638450767109747
+     },
+     "first_suspect_s": {
+      "RL_hip_joint": 6
+     },
+     "first_degraded_s": {
+      "RL_hip_joint": 10
+     }
+    },
+    {
+     "session": "robot017.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "FR_thigh_joint",
+      "FR_calf_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "DEGRADED",
+      "FR_calf_joint": "DEGRADED",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8286802124319026,
+      "FR_thigh_joint": 0.6373723475990114,
+      "FR_calf_joint": 0.8222627367865305,
+      "FL_hip_joint": 0.6971974381755471,
+      "FL_thigh_joint": 3.907764902823388,
+      "FL_calf_joint": 1.5325921896978572,
+      "RR_hip_joint": 0.5897475194447974,
+      "RR_thigh_joint": 1.0720734692843652,
+      "RR_calf_joint": 0.9560505366076244,
+      "RL_hip_joint": 0.8270890878145066,
+      "RL_thigh_joint": 2.3642837836562602,
+      "RL_calf_joint": 1.8206022598548859
+     },
+     "first_suspect_s": {
+      "FR_thigh_joint": 6,
+      "FR_calf_joint": 6
+     },
+     "first_degraded_s": {
+      "FR_thigh_joint": 9,
+      "FR_calf_joint": 10
+     }
+    },
+    {
+     "session": "robot018.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.3363885882446627,
+      "FR_thigh_joint": 1.4118488212133993,
+      "FR_calf_joint": 1.1194211285457984,
+      "FL_hip_joint": 2.7004283838182754,
+      "FL_thigh_joint": 0.9698160887410212,
+      "FL_calf_joint": 0.9315834863104389,
+      "RR_hip_joint": 5.369205553950611,
+      "RR_thigh_joint": 0.9679998807826059,
+      "RR_calf_joint": 0.9904920628399803,
+      "RL_hip_joint": 1.3987626737837418,
+      "RL_thigh_joint": 0.7579080677387022,
+      "RL_calf_joint": 0.8069671495152335
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot019.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.2519631786521377,
+      "FR_thigh_joint": 1.014232710597313,
+      "FR_calf_joint": 1.0004670875560775,
+      "FL_hip_joint": 4.2624361593271765,
+      "FL_thigh_joint": 1.0641301417095796,
+      "FL_calf_joint": 1.0373577784931403,
+      "RR_hip_joint": 1.54169562648597,
+      "RR_thigh_joint": 1.157967846813047,
+      "RR_calf_joint": 0.9294682658568976,
+      "RL_hip_joint": 1.6910448517528098,
+      "RL_thigh_joint": 0.7679054497673858,
+      "RL_calf_joint": 0.8530992300659896
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    }
+   ],
+   "any_degraded": 5,
+   "global_shift_sessions": 0
+  },
+  "rr_thigh_1p0": {
+   "sessions": 10,
+   "rows": [
+    {
+     "session": "robot000.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.7971871003747335,
+      "FR_thigh_joint": 0.9376654675625111,
+      "FR_calf_joint": 0.9663999221672069,
+      "FL_hip_joint": 0.7853122946975435,
+      "FL_thigh_joint": 2.4307699534315184,
+      "FL_calf_joint": 1.198469283064203,
+      "RR_hip_joint": 0.8053798830766978,
+      "RR_thigh_joint": 0.9872924713839197,
+      "RR_calf_joint": 0.9968941270992058,
+      "RL_hip_joint": 0.8182997172388107,
+      "RL_thigh_joint": 1.4460334529250054,
+      "RL_calf_joint": 1.381456670380306
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot001.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8816045224824247,
+      "FR_thigh_joint": 0.9542406701424702,
+      "FR_calf_joint": 0.9694949590922242,
+      "FL_hip_joint": 1.1117421272590995,
+      "FL_thigh_joint": 2.439523565242649,
+      "FL_calf_joint": 1.1503134560096488,
+      "RR_hip_joint": 1.2645899541507912,
+      "RR_thigh_joint": 0.9868810550088413,
+      "RR_calf_joint": 0.9900380610784708,
+      "RL_hip_joint": 0.9121440102900088,
+      "RL_thigh_joint": 1.1455807853854103,
+      "RL_calf_joint": 1.179923333369907
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot002.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RL_thigh_joint",
+      "RL_calf_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "DEGRADED",
+      "RL_calf_joint": "DEGRADED"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.6279628887253483,
+      "FR_thigh_joint": 2.64526391564683,
+      "FR_calf_joint": 1.4043752287575761,
+      "FL_hip_joint": 1.4990074196873857,
+      "FL_thigh_joint": 0.683888912988031,
+      "FL_calf_joint": 0.8209414745818664,
+      "RR_hip_joint": 1.2694505823344016,
+      "RR_thigh_joint": 0.897211848237829,
+      "RR_calf_joint": 1.049213274010329,
+      "RL_hip_joint": 0.972639916127034,
+      "RL_thigh_joint": 0.7324553393349709,
+      "RL_calf_joint": 0.7336600511552495
+     },
+     "first_suspect_s": {
+      "FL_thigh_joint": 6,
+      "FL_calf_joint": 6,
+      "RR_thigh_joint": 6,
+      "RL_thigh_joint": 6,
+      "RL_calf_joint": 6
+     },
+     "first_degraded_s": {
+      "RL_calf_joint": 9,
+      "RL_thigh_joint": 10
+     }
+    },
+    {
+     "session": "robot003.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.39204516452693,
+      "FR_thigh_joint": 1.293832617835671,
+      "FR_calf_joint": 1.069019661066302,
+      "FL_hip_joint": 2.26451574094889,
+      "FL_thigh_joint": 0.9085815260791577,
+      "FL_calf_joint": 0.9400669861960949,
+      "RR_hip_joint": 4.218162417950992,
+      "RR_thigh_joint": 1.009926424503511,
+      "RR_calf_joint": 0.9725509040602027,
+      "RL_hip_joint": 1.3610629846913178,
+      "RL_thigh_joint": 0.7711074811548662,
+      "RL_calf_joint": 0.8042203582070271
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6,
+      "FL_thigh_joint": 6,
+      "FL_calf_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot004.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.2427969794792157,
+      "FR_thigh_joint": 1.0208338921258302,
+      "FR_calf_joint": 1.0018189993420599,
+      "FL_hip_joint": 5.657290419568462,
+      "FL_thigh_joint": 1.1327022689601343,
+      "FL_calf_joint": 1.0534173720207751,
+      "RR_hip_joint": 1.5635242841055104,
+      "RR_thigh_joint": 1.1252777045842892,
+      "RR_calf_joint": 0.9372269242081845,
+      "RL_hip_joint": 1.7634247801879877,
+      "RL_thigh_joint": 0.7703765687187478,
+      "RL_calf_joint": 0.8596247953068418
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot005.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.3759455138832277,
+      "FR_thigh_joint": 1.2509539230991003,
+      "FR_calf_joint": 1.0763731142098911,
+      "FL_hip_joint": 2.6128279101326433,
+      "FL_thigh_joint": 1.054885790975594,
+      "FL_calf_joint": 0.9479223977298875,
+      "RR_hip_joint": 3.2592690648221527,
+      "RR_thigh_joint": 0.9959344423486236,
+      "RR_calf_joint": 0.9781660181083844,
+      "RL_hip_joint": 1.4572751456123862,
+      "RL_thigh_joint": 0.7601329023855682,
+      "RL_calf_joint": 0.8208379332822962
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot006.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RL_calf_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "DEGRADED"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.660546800102632,
+      "FR_thigh_joint": 2.6916611302810765,
+      "FR_calf_joint": 1.3993762935586345,
+      "FL_hip_joint": 1.5029503553414898,
+      "FL_thigh_joint": 0.6863729286947511,
+      "FL_calf_joint": 0.8275950021863854,
+      "RR_hip_joint": 1.2990904487949164,
+      "RR_thigh_joint": 0.8905998980681327,
+      "RR_calf_joint": 1.0526626921312818,
+      "RL_hip_joint": 0.9835230226853955,
+      "RL_thigh_joint": 0.7349833366601697,
+      "RL_calf_joint": 0.7340211635350888
+     },
+     "first_suspect_s": {
+      "FL_thigh_joint": 6,
+      "FL_calf_joint": 6,
+      "RR_thigh_joint": 6,
+      "RL_calf_joint": 6
+     },
+     "first_degraded_s": {
+      "RL_calf_joint": 9
+     }
+    },
+    {
+     "session": "robot007.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RL_hip_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "DEGRADED",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8181148545384895,
+      "FR_thigh_joint": 0.8027607020974039,
+      "FR_calf_joint": 0.9134308138957682,
+      "FL_hip_joint": 0.6523000999502948,
+      "FL_thigh_joint": 3.86992766655148,
+      "FL_calf_joint": 1.4029120694441768,
+      "RR_hip_joint": 0.6138341905109431,
+      "RR_thigh_joint": 0.9706226725181217,
+      "RR_calf_joint": 1.0082827480482157,
+      "RL_hip_joint": 0.8040841881274184,
+      "RL_thigh_joint": 2.039030121804082,
+      "RL_calf_joint": 1.7166529865584021
+     },
+     "first_suspect_s": {
+      "RL_hip_joint": 6
+     },
+     "first_degraded_s": {
+      "RL_hip_joint": 10
+     }
+    },
+    {
+     "session": "robot008.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.285258944718676,
+      "FR_thigh_joint": 0.9484052648038356,
+      "FR_calf_joint": 0.9752549618236518,
+      "FL_hip_joint": 5.4871642347755945,
+      "FL_thigh_joint": 1.267201323176224,
+      "FL_calf_joint": 1.076110789169423,
+      "RR_hip_joint": 1.437182003046427,
+      "RR_thigh_joint": 1.1384893786611845,
+      "RR_calf_joint": 0.9330263156170248,
+      "RL_hip_joint": 1.8179730008518549,
+      "RL_thigh_joint": 0.7768662762998444,
+      "RL_calf_joint": 0.8765274245790915
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot009.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1643664348710865,
+      "FR_thigh_joint": 1.0662947996148575,
+      "FR_calf_joint": 1.0005644958814428,
+      "FL_hip_joint": 4.408935533613889,
+      "FL_thigh_joint": 0.879180367117165,
+      "FL_calf_joint": 1.0128548746125192,
+      "RR_hip_joint": 1.9516024527563656,
+      "RR_thigh_joint": 1.1751354158264617,
+      "RR_calf_joint": 0.9221000293563814,
+      "RL_hip_joint": 1.522231114399848,
+      "RL_thigh_joint": 0.7801886818263009,
+      "RL_calf_joint": 0.8299011463639967
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    }
+   ],
+   "any_degraded": 3,
+   "global_shift_sessions": 0
+  },
+  "rr_thigh_s_train": {
+   "sessions": 10,
+   "rows": [
+    {
+     "session": "robot000.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RR_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.3360343964947012,
+      "FR_thigh_joint": 0.9538706317856654,
+      "FR_calf_joint": 0.9866920142169345,
+      "FL_hip_joint": 36.51885652729365,
+      "FL_thigh_joint": 0.9903533848822863,
+      "FL_calf_joint": 1.0085975113553027,
+      "RR_hip_joint": 3.0158572310641003,
+      "RR_thigh_joint": 0.8153362437726734,
+      "RR_calf_joint": 1.0131693249006237,
+      "RL_hip_joint": 1.8161178216162843,
+      "RL_thigh_joint": 0.7466233752526663,
+      "RL_calf_joint": 0.8482550041656198
+     },
+     "first_suspect_s": {
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 10
+     }
+    },
+    {
+     "session": "robot001.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [
+      "FR_hip_joint",
+      "RR_thigh_joint",
+      "RL_hip_joint"
+     ],
+     "states": {
+      "FR_hip_joint": "GLOBAL_SHIFT",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "GLOBAL_SHIFT",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "GLOBAL_SHIFT",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.7485501539326286,
+      "FR_thigh_joint": 0.9171820370916705,
+      "FR_calf_joint": 0.9638873807788665,
+      "FL_hip_joint": 0.8732093845715082,
+      "FL_thigh_joint": 1.5640110588307445,
+      "FL_calf_joint": 1.0886464624130707,
+      "RR_hip_joint": 0.9945540565539501,
+      "RR_thigh_joint": 0.7311698205685908,
+      "RR_calf_joint": 1.0729539634292298,
+      "RL_hip_joint": 0.7957691924712271,
+      "RL_thigh_joint": 1.297066590692427,
+      "RL_calf_joint": 1.2864068408061464
+     },
+     "first_suspect_s": {
+      "FR_hip_joint": 6,
+      "RR_thigh_joint": 6,
+      "RL_hip_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 9
+     }
+    },
+    {
+     "session": "robot002.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RR_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.0037242833074642,
+      "FR_thigh_joint": 0.9266869509311682,
+      "FR_calf_joint": 0.9553426077003115,
+      "FL_hip_joint": 4.10376568856946,
+      "FL_thigh_joint": 1.1184472803637329,
+      "FL_calf_joint": 1.0358360500366486,
+      "RR_hip_joint": 2.715420985966692,
+      "RR_thigh_joint": 0.7848062158363944,
+      "RR_calf_joint": 1.0245572854500224,
+      "RL_hip_joint": 1.2449895330591554,
+      "RL_thigh_joint": 0.8529222956592359,
+      "RL_calf_joint": 0.9282383019314726
+     },
+     "first_suspect_s": {
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 10
+     }
+    },
+    {
+     "session": "robot003.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RR_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8209935018557896,
+      "FR_thigh_joint": 0.8732724811961589,
+      "FR_calf_joint": 0.938943148965723,
+      "FL_hip_joint": 1.2541345174642058,
+      "FL_thigh_joint": 1.5390998791610655,
+      "FL_calf_joint": 1.071151531229568,
+      "RR_hip_joint": 1.468433357597919,
+      "RR_thigh_joint": 0.750393942167663,
+      "RR_calf_joint": 1.0502357241468006,
+      "RL_hip_joint": 0.8922721918565204,
+      "RL_thigh_joint": 1.0875283377497493,
+      "RL_calf_joint": 1.1359307435447643
+     },
+     "first_suspect_s": {
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 9
+     }
+    },
+    {
+     "session": "robot004.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [
+      "FR_thigh_joint",
+      "FR_calf_joint",
+      "RR_hip_joint",
+      "RR_thigh_joint",
+      "RL_hip_joint"
+     ],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "GLOBAL_SHIFT",
+      "FR_calf_joint": "GLOBAL_SHIFT",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "GLOBAL_SHIFT",
+      "RR_thigh_joint": "GLOBAL_SHIFT",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "GLOBAL_SHIFT",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.8228762070668312,
+      "FR_thigh_joint": 0.6197041360323836,
+      "FR_calf_joint": 0.8297118831882765,
+      "FL_hip_joint": 0.6109864597922807,
+      "FL_thigh_joint": 2.73156959675679,
+      "FL_calf_joint": 1.4121662785397429,
+      "RR_hip_joint": 0.5501309290454356,
+      "RR_thigh_joint": 0.7880817027130909,
+      "RR_calf_joint": 1.0359921278217916,
+      "RL_hip_joint": 0.7886345836712995,
+      "RL_thigh_joint": 2.3467720409670476,
+      "RL_calf_joint": 1.8875523188206569
+     },
+     "first_suspect_s": {
+      "FR_thigh_joint": 6,
+      "FR_calf_joint": 6,
+      "RR_hip_joint": 6,
+      "RR_thigh_joint": 6,
+      "RL_hip_joint": 6
+     },
+     "first_degraded_s": {
+      "FR_thigh_joint": 9,
+      "RR_thigh_joint": 9
+     }
+    },
+    {
+     "session": "robot005.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RR_thigh_joint",
+      "RL_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "DEGRADED",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.4738365092452135,
+      "FR_thigh_joint": 1.1880447690634384,
+      "FR_calf_joint": 1.0614845061813194,
+      "FL_hip_joint": 13.93242860167781,
+      "FL_thigh_joint": 0.9099216211864808,
+      "FL_calf_joint": 0.9184867027872213,
+      "RR_hip_joint": 18.837064816313188,
+      "RR_thigh_joint": 0.6969170378357729,
+      "RR_calf_joint": 1.09109671550571,
+      "RL_hip_joint": 1.6451338503729769,
+      "RL_thigh_joint": 0.7284907491811374,
+      "RL_calf_joint": 0.8017972849637611
+     },
+     "first_suspect_s": {
+      "RR_thigh_joint": 6,
+      "RL_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 9,
+      "RL_thigh_joint": 10
+     }
+    },
+    {
+     "session": "robot006.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RR_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.2451488339056054,
+      "FR_thigh_joint": 0.9935079343725373,
+      "FR_calf_joint": 1.0113457194888302,
+      "FL_hip_joint": 36.51885652729365,
+      "FL_thigh_joint": 1.0390583584655513,
+      "FL_calf_joint": 1.0159246660063377,
+      "RR_hip_joint": 2.2770593475309795,
+      "RR_thigh_joint": 0.7982651168581345,
+      "RR_calf_joint": 1.0242893274785159,
+      "RL_hip_joint": 1.8414705680688308,
+      "RL_thigh_joint": 0.7452098156323881,
+      "RL_calf_joint": 0.8592257882580263
+     },
+     "first_suspect_s": {
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 10
+     }
+    },
+    {
+     "session": "robot007.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "FR_hip_joint",
+      "RR_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "DEGRADED",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 0.7740393827713848,
+      "FR_thigh_joint": 0.9024410118662493,
+      "FR_calf_joint": 0.9612980392955326,
+      "FL_hip_joint": 0.98876540228007,
+      "FL_thigh_joint": 1.4742388390850314,
+      "FL_calf_joint": 1.07857943222277,
+      "RR_hip_joint": 1.2404830513050582,
+      "RR_thigh_joint": 0.7576721964493838,
+      "RR_calf_joint": 1.0548755413918605,
+      "RL_hip_joint": 0.8136137183057159,
+      "RL_thigh_joint": 1.1991165558586734,
+      "RL_calf_joint": 1.2223604247550601
+     },
+     "first_suspect_s": {
+      "FR_hip_joint": 6,
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 9,
+      "FR_hip_joint": 10
+     }
+    },
+    {
+     "session": "robot008.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RR_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.2603413886462507,
+      "FR_thigh_joint": 1.1257082324939351,
+      "FR_calf_joint": 1.0434940706734335,
+      "FL_hip_joint": 36.51885652729365,
+      "FL_thigh_joint": 0.8410240935812627,
+      "FL_calf_joint": 0.9649177187985029,
+      "RR_hip_joint": 11.272035322673583,
+      "RR_thigh_joint": 0.7751458269422744,
+      "RR_calf_joint": 1.0379520726622036,
+      "RL_hip_joint": 1.6351579198786794,
+      "RL_thigh_joint": 0.7392586541499477,
+      "RL_calf_joint": 0.8152697625670713
+     },
+     "first_suspect_s": {
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 9
+     }
+    },
+    {
+     "session": "robot009.jsonl",
+     "fidelity": "PASS",
+     "degraded": [
+      "RR_thigh_joint",
+      "RL_thigh_joint"
+     ],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "DEGRADED",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "DEGRADED",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.6866194909552985,
+      "FR_thigh_joint": 1.3601543470327702,
+      "FR_calf_joint": 1.105333516826227,
+      "FL_hip_joint": 2.6930099266985157,
+      "FL_thigh_joint": 0.7896816095926412,
+      "FL_calf_joint": 0.8823418719249739,
+      "RR_hip_joint": 4.308295034076334,
+      "RR_thigh_joint": 0.6760299028528443,
+      "RR_calf_joint": 1.1175595570867465,
+      "RL_hip_joint": 1.3347581225758707,
+      "RL_thigh_joint": 0.7326979823035727,
+      "RL_calf_joint": 0.7753451385454264
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6,
+      "RR_thigh_joint": 6,
+      "RL_thigh_joint": 6
+     },
+     "first_degraded_s": {
+      "RR_thigh_joint": 9,
+      "RL_thigh_joint": 11
+     }
+    }
+   ],
+   "any_degraded": 8,
+   "global_shift_sessions": 2,
+   "localised": 5,
+   "false_joint_sessions": 3,
+   "median_time_to_suspect_s": 6,
+   "median_time_to_degraded_s": 10,
+   "s_hat_target_median": 0.7848062158363944
+  },
+  "fl_calf_s_train": {
+   "sessions": 10,
+   "rows": [
+    {
+     "session": "robot000.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1069115928042748,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7327453501132359,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.2891941853084805,
+      "RR_thigh_joint": 1.0366535683250198,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 4.009450659564703,
+      "RL_thigh_joint": 5.203756897510729,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot001.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1308322272813527,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7431284603644239,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.300382534180024,
+      "RR_thigh_joint": 1.019399534815796,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 4.058280826848237,
+      "RL_thigh_joint": 4.6918133965861175,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot002.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1304369545829691,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7424103655540712,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.3027777078741911,
+      "RR_thigh_joint": 1.018938300787235,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 4.059875535584732,
+      "RL_thigh_joint": 4.690220538397844,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot003.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.0697854449681288,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.735475509528446,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.2111825011686053,
+      "RR_thigh_joint": 1.0700855242412095,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 3.9552630379062856,
+      "RL_thigh_joint": 5.980200920294801,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot004.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1278515491821548,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7277225826085255,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.2893869711104025,
+      "RR_thigh_joint": 1.0125849451015334,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 4.009771653753395,
+      "RL_thigh_joint": 4.56237999211679,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot005.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.0995684424712335,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7419733104321046,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.2660110973873249,
+      "RR_thigh_joint": 1.05444515110793,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 3.9838346474137722,
+      "RL_thigh_joint": 5.688424135332555,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot006.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.0974721231476705,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7278857006373708,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.2838696069184525,
+      "RR_thigh_joint": 1.038045975389345,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 3.9846345343655414,
+      "RL_thigh_joint": 5.233216522804448,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot007.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.0978603053932663,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7285109921443479,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.284080823135811,
+      "RR_thigh_joint": 1.0384757572348122,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 3.9822440627943783,
+      "RL_thigh_joint": 5.247781651910689,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot008.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1152965919902953,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.7447509785696688,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.2782767720994934,
+      "RR_thigh_joint": 1.0477131471127958,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 4.040965878271828,
+      "RL_thigh_joint": 5.528496597698173,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot009.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1272974692909679,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": 0.727851256643121,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": 1.2849182943734951,
+      "RR_thigh_joint": 1.0127609042056673,
+      "RR_calf_joint": null,
+      "RL_hip_joint": 4.002367882355727,
+      "RL_thigh_joint": 4.562789293476892,
+      "RL_calf_joint": null
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    }
+   ],
+   "any_degraded": 0,
+   "global_shift_sessions": 0,
+   "localised": 0,
+   "false_joint_sessions": 0,
+   "median_time_to_suspect_s": null,
+   "median_time_to_degraded_s": null,
+   "s_hat_target_median": null
+  },
+  "rl_hip_s_train": {
+   "sessions": 10,
+   "rows": [
+    {
+     "session": "robot000.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1812645753557578,
+      "FR_thigh_joint": 1.377984917140464,
+      "FR_calf_joint": 1.002865512848861,
+      "FL_hip_joint": 0.8641618218799686,
+      "FL_thigh_joint": 1.1002086212870357,
+      "FL_calf_joint": 0.8169721095458102,
+      "RR_hip_joint": 1.026078920187317,
+      "RR_thigh_joint": 1.108379316603407,
+      "RR_calf_joint": 1.1905340345277777,
+      "RL_hip_joint": 1.7662309562963894,
+      "RL_thigh_joint": 1.6171221636609427,
+      "RL_calf_joint": 1.2243079212574357
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot001.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1990431076800065,
+      "FR_thigh_joint": 1.597564823015571,
+      "FR_calf_joint": 1.0386797002194958,
+      "FL_hip_joint": 0.7285282232134602,
+      "FL_thigh_joint": 1.279690147305274,
+      "FL_calf_joint": 0.9268857846165013,
+      "RR_hip_joint": 0.8931632805748345,
+      "RR_thigh_joint": 1.0584375113799462,
+      "RR_calf_joint": 1.2716659269563397,
+      "RL_hip_joint": 2.131205780111801,
+      "RL_thigh_joint": 2.158357368958517,
+      "RL_calf_joint": 1.5805185722025215
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot002.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.3970869564115258,
+      "FR_thigh_joint": 1.0579621055049295,
+      "FR_calf_joint": 1.035051420001626,
+      "FL_hip_joint": 6.062292914313542,
+      "FL_thigh_joint": 0.8474230496090858,
+      "FL_calf_joint": 0.9434510744833988,
+      "RR_hip_joint": 1.0532588370343068,
+      "RR_thigh_joint": 1.2371393073744426,
+      "RR_calf_joint": 0.9141849715148865,
+      "RL_hip_joint": 1.2417089621846604,
+      "RL_thigh_joint": 0.7764333882433738,
+      "RL_calf_joint": 0.8360543350533561
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot003.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.194839416374092,
+      "FR_thigh_joint": 1.6044592071987536,
+      "FR_calf_joint": 1.0398860425137662,
+      "FL_hip_joint": 0.7237349594554692,
+      "FL_thigh_joint": 1.2701341403865973,
+      "FL_calf_joint": 0.9345031176951581,
+      "RR_hip_joint": 0.8912344967737258,
+      "RR_thigh_joint": 1.0589397719599303,
+      "RR_calf_joint": 1.2776951419639544,
+      "RL_hip_joint": 2.1589630085345646,
+      "RL_thigh_joint": 2.2187166476285625,
+      "RL_calf_joint": 1.6075930992876275
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot004.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 2.5862154723901876,
+      "FR_thigh_joint": 1.7809057115883338,
+      "FR_calf_joint": 1.243567001646675,
+      "FL_hip_joint": 1.7411211274955747,
+      "FL_thigh_joint": 0.7818115192591193,
+      "FL_calf_joint": 0.8509276408055086,
+      "RR_hip_joint": 2.4294319534724766,
+      "RR_thigh_joint": 0.9661570980363718,
+      "RR_calf_joint": 1.01473227649507,
+      "RL_hip_joint": 0.9271188674916903,
+      "RL_thigh_joint": 0.7866318678224474,
+      "RL_calf_joint": 0.7943864886001915
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6,
+      "FL_thigh_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot005.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.3963214265720154,
+      "FR_thigh_joint": 1.0790353027132475,
+      "FR_calf_joint": 1.0565289401737878,
+      "FL_hip_joint": 9.726777463683987,
+      "FL_thigh_joint": 0.9772034297401888,
+      "FL_calf_joint": 0.969268968305099,
+      "RR_hip_joint": 1.0692740640632392,
+      "RR_thigh_joint": 1.1781292182064087,
+      "RR_calf_joint": 0.9304437774610506,
+      "RL_hip_joint": 1.3443480591364403,
+      "RL_thigh_joint": 0.7672316928951131,
+      "RL_calf_joint": 0.8531786765715073
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot006.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 2.716248783606493,
+      "FR_thigh_joint": 2.6286780345918763,
+      "FR_calf_joint": 1.4362069582717596,
+      "FL_hip_joint": 1.652348477777343,
+      "FL_thigh_joint": 0.6977246082442814,
+      "FL_calf_joint": 0.8009643025653463,
+      "RR_hip_joint": 7.216063904645923,
+      "RR_thigh_joint": 0.9190859104579776,
+      "RR_calf_joint": 1.0446174410999935,
+      "RL_hip_joint": 0.8459443542661218,
+      "RL_thigh_joint": 0.7652029898245718,
+      "RL_calf_joint": 0.7642596218130443
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6,
+      "FL_thigh_joint": 6,
+      "FL_calf_joint": 6,
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot007.jsonl",
+     "fidelity": "PASS",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "NOMINAL",
+      "FR_thigh_joint": "NOMINAL",
+      "FR_calf_joint": "NOMINAL",
+      "FL_hip_joint": "NOMINAL",
+      "FL_thigh_joint": "NOMINAL",
+      "FL_calf_joint": "NOMINAL",
+      "RR_hip_joint": "NOMINAL",
+      "RR_thigh_joint": "NOMINAL",
+      "RR_calf_joint": "NOMINAL",
+      "RL_hip_joint": "NOMINAL",
+      "RL_thigh_joint": "NOMINAL",
+      "RL_calf_joint": "NOMINAL"
+     },
+     "s_hat": {
+      "FR_hip_joint": 2.7267827129343347,
+      "FR_thigh_joint": 2.052411208486272,
+      "FR_calf_joint": 1.3124990700583947,
+      "FL_hip_joint": 1.644323902724337,
+      "FL_thigh_joint": 0.7557650757706493,
+      "FL_calf_joint": 0.8318189036792332,
+      "RR_hip_joint": 3.165896260932075,
+      "RR_thigh_joint": 0.9393172588309443,
+      "RR_calf_joint": 1.0299798188433944,
+      "RL_hip_joint": 0.8956464110497752,
+      "RL_thigh_joint": 0.7790696421425412,
+      "RL_calf_joint": 0.7832530496015457
+     },
+     "first_suspect_s": {
+      "FL_hip_joint": 6,
+      "FL_thigh_joint": 6,
+      "FL_calf_joint": 6,
+      "RR_thigh_joint": 6
+     },
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot008.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.1613047490111614,
+      "FR_thigh_joint": 1.2766840110962248,
+      "FR_calf_joint": 0.9747936434147482,
+      "FL_hip_joint": 1.112685771777603,
+      "FL_thigh_joint": 0.9226251217807699,
+      "FL_calf_joint": 0.8006951188889051,
+      "RR_hip_joint": 1.0758103853447345,
+      "RR_thigh_joint": 1.1446845445541713,
+      "RR_calf_joint": 1.1572973154776502,
+      "RL_hip_joint": 1.6178715240017392,
+      "RL_thigh_joint": 1.49168688746596,
+      "RL_calf_joint": 1.091755365345689
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    },
+    {
+     "session": "robot009.jsonl",
+     "fidelity": "FAIL",
+     "degraded": [],
+     "global_shift": [],
+     "states": {
+      "FR_hip_joint": "INSUFFICIENT_DATA",
+      "FR_thigh_joint": "INSUFFICIENT_DATA",
+      "FR_calf_joint": "INSUFFICIENT_DATA",
+      "FL_hip_joint": "INSUFFICIENT_DATA",
+      "FL_thigh_joint": "INSUFFICIENT_DATA",
+      "FL_calf_joint": "INSUFFICIENT_DATA",
+      "RR_hip_joint": "INSUFFICIENT_DATA",
+      "RR_thigh_joint": "INSUFFICIENT_DATA",
+      "RR_calf_joint": "INSUFFICIENT_DATA",
+      "RL_hip_joint": "INSUFFICIENT_DATA",
+      "RL_thigh_joint": "INSUFFICIENT_DATA",
+      "RL_calf_joint": "INSUFFICIENT_DATA"
+     },
+     "s_hat": {
+      "FR_hip_joint": 1.17032990523508,
+      "FR_thigh_joint": 1.2791770672077112,
+      "FR_calf_joint": 0.9761793096880316,
+      "FL_hip_joint": 1.1347730286480355,
+      "FL_thigh_joint": 0.9083972001813775,
+      "FL_calf_joint": 0.7978380774642861,
+      "RR_hip_joint": 1.1061910525340464,
+      "RR_thigh_joint": 1.1459281828134729,
+      "RR_calf_joint": 1.155873194095668,
+      "RL_hip_joint": 1.6085481100739032,
+      "RL_thigh_joint": 1.4812529427554328,
+      "RL_calf_joint": 1.0824667532437702
+     },
+     "first_suspect_s": {},
+     "first_degraded_s": {}
+    }
+   ],
+   "any_degraded": 0,
+   "global_shift_sessions": 0,
+   "localised": 0,
+   "false_joint_sessions": 0,
+   "median_time_to_suspect_s": null,
+   "median_time_to_degraded_s": null,
+   "s_hat_target_median": null
+  }
+ },
+ "gate": {
+  "false_positive_ok": false,
+  "localisation_ok": false,
+  "passed": false
+ }
+}

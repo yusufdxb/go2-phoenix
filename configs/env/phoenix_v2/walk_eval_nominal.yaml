@@ -1,0 +1,5 @@
+# Gate L evaluation (amendment 3): walking baseline, DR off, training command ranges.
+defaults:
+  - walk_flat
+domain_randomization:
+  enabled: false
