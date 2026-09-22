@@ -340,9 +340,45 @@ def score_walk_v2(
     }
 
 
+def walk_primary_score(
+    *,
+    grav: np.ndarray,
+    cmd: np.ndarray,
+    linv: np.ndarray,
+    valid: np.ndarray,
+    contact_term: np.ndarray,
+    dt: float,
+    max_lin_err_m_s: float = WALK_V2_PROVISIONAL["max_lin_err_m_s"],
+    settle_s: float = WALK_V2_PROVISIONAL["settle_s"],
+) -> np.ndarray:
+    """Stage W continuous primary score per episode, in [0, 1] (EXPERIMENT.md phase 2).
+
+    The stand score (fraction of the episode with no trunk contact and roll/pitch within
+    0.40 rad) with the Stage W addition: the step must also track the command, i.e. its
+    planar velocity error is at most ``max_lin_err_m_s``. Steps within ``settle_s`` of
+    episode start or of a command jump are scored on attitude and contact only, so the
+    settling transient cannot punish a policy that then tracks.
+    """
+    n_t, n_e = valid.shape
+    roll, pitch, _ = attitude_from_gravity(grav)
+    ok = (np.abs(roll) <= ROLL_PITCH_LIMIT_RAD) & (np.abs(pitch) <= ROLL_PITCH_LIMIT_RAD)
+    jump = np.zeros((n_t, n_e), bool)
+    jump[0] = True
+    jump[1:] = np.any(np.abs(np.diff(cmd, axis=0)) > 0.05, axis=-1)
+    since = np.zeros((n_t, n_e), int)
+    for k in range(1, n_t):
+        since[k] = np.where(jump[k], 0, since[k - 1] + 1)
+    settled = since >= int(round(settle_s / dt))
+    err = np.linalg.norm(linv[..., :2] - cmd[..., :2], axis=-1)
+    ok &= ~settled | (err <= max_lin_err_m_s)
+    ok &= ~contact_term[None, :] | valid  # steps after a trunk-contact end score zero
+    return (ok & valid).sum(axis=0) / n_t
+
+
 __all__ = [
     "score_walk_episodes",
     "score_walk_v2",
+    "walk_primary_score",
     "WALK_V2_PROVISIONAL",
     "FIDELITY_MAX_ALTERED",
     "FIDELITY_MAX_RMS_RAD",
