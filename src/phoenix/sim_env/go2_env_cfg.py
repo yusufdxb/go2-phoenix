@@ -358,6 +358,18 @@ def _apply_commands(env_cfg: Any, cmd: dict[str, Any]) -> None:
     # Isaac Lab's legged-locomotion baseline defaults.
     if "rel_standing_envs" in cmd and hasattr(vel_cmd, "rel_standing_envs"):
         vel_cmd.rel_standing_envs = float(cmd["rel_standing_envs"])
+    # Upstream samples a HEADING and derives ang_vel_z from the heading error every step
+    # (heading_command=True, rel_heading_envs=1.0), so the yaw command is a feedback
+    # signal, not a setpoint. ``heading_command: false`` samples ang_vel_z directly and
+    # holds it until resample, which is what a joystick on the robot sends. Wired
+    # 2026-09-22 (Phoenix v2 walking recipe W); before that ``heading_stiffness`` was
+    # declared in base.yaml and read by nothing (it equals the upstream 0.5 there).
+    if "heading_command" in cmd:
+        vel_cmd.heading_command = bool(cmd["heading_command"])
+        if not vel_cmd.heading_command:
+            vel_cmd.rel_heading_envs = 0.0
+    if "heading_stiffness" in cmd and hasattr(vel_cmd, "heading_control_stiffness"):
+        vel_cmd.heading_control_stiffness = float(cmd["heading_stiffness"])
 
 
 def _apply_rewards(env_cfg: Any, rewards: dict[str, Any]) -> None:
