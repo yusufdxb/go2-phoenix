@@ -1,0 +1,6 @@
+# Per-step arrays and per-robot bridge telemetry are large; they stay on the
+# workstation (paths recorded in docs/research/PHOENIX_V2_RESULTS.md). Summaries,
+# episode records and reports are tracked.
+*.npz
+**/bridge/
+**/bridge_records/
