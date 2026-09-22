@@ -174,8 +174,8 @@ Workstation only: `*/steps.npz`, `*/bridge/robot*.jsonl` (gate telemetry, schema
 ## Test count
 
 `PYTHONPATH=src PHOENIX_SKIP_HEAVY=1 pytest tests -m "not sim and not ros"`, 2026-09-22,
-after this work: 1732 passed, 17 skipped, 4 deselected, 0 failed (workstation with the
-checkpoint directory present).
+after the limiter work: 1732 passed, 17 skipped, 4 deselected, 0 failed. After the
+screening and monitor work later the same day: 1833 passed, 17 skipped, 0 failed.
 
 
 ## Addendum, 2026-09-22 (later): walking without the soft limiter
@@ -225,3 +225,104 @@ stopped Stage S (amendment 12): W2 absorbs RR_thigh at 0.5 (primary score drop 0
 program now has the two things it lacked, a faithful deployment contract and a valid
 walking baseline, and it is stopped by the intervention being too weak, not by its own
 machinery. Nothing here ran on the robot.
+
+## Addendum, 2026-09-22 (evening): intervention screening, and the monitor gate
+
+Amendments 13 to 16. Preregistration for the screen: `INTERVENTION_SCREENING.md`, written
+and committed before the first cell ran. Nothing below ran on the GO2: rechecked at the
+start of this work, the workstation has no `192.168.123.0/24` interface, the robot subnet
+routes to the default gateway and none of .161 / .18 / .15 answer. Hardware stays BLOCKED.
+
+### The endpoint had to change first
+
+The Stage W sensitivity endpoint (continuous primary score, bar 0.10) is nearly blind to
+this intervention class, and the evidence predates this work: in `walk_deploy/w2_open`,
+nominal scores 0.9531 walking success at primary score 1.0000 while the weak-actuator
+condition scores 0.7188 at 0.9858. A condition removing a quarter of the successful
+episodes moves that score by 0.014, so no intervention inside the permitted safety
+envelope could ever have reached 0.10. The primary endpoint became **walking success**
+(`score_walk_v2`, thresholds frozen in amendment 9, already the Gate W-H endpoint), bar a
+drop of 0.15, about ten binomial standard errors at 384 episodes per cell.
+
+### A safety latch was measuring itself
+
+The first pass of the screen (60 cells, kept at `intervention_screen_pinband_0p175/` and
+labelled invalid for selection) failed every C2/C3/C4 cell on safety holds of 0.206 to
+0.841. The degradation saturation latch fires when a degraded joint's target sits 0.175
+rad beyond its measured position for 0.5 s, a band reasoned about for standing. On that
+pass's own NOMINAL walking telemetry, **with no degradation applied at all**, per-joint
+p99 of `|requested - q|` reaches 0.69 rad and 9 of 144 joint-sessions sustain the latch
+condition for 0.5 s, one for 10.18 s. In the `leg_RR` 0.80 cell the trip count was 6 of
+144, no higher than nominal's 9. Splitting that cell: 294 of 384 episodes walked at 0.956
+against a 0.922 nominal, while the other 90 were stopped by the gate and scored 0.000.
+
+Sized by the rule amendments 2 and 7 used for the tracking watchdog (largest sustained
+value on nominal development runs, plus the same 1.25 margin, same 0.05 grid): the
+walking band is **0.65 rad**. The standing band is unchanged and remains the default.
+
+### Screening result (pass 2, walking band)
+
+Frozen W2 through the exact deploy stack, DR off, 384 episodes per cell, seeds 7001-7003.
+Nominal reference **0.9219** walking success.
+
+| family | joints | severity | walking success | drop | verdict |
+|---|---|---|---|---|---|
+| C1 `RR_thigh` | 1 | 0.80 to 0.50 | 0.9219 to 0.9115 | +0.000 to +0.010 | fails magnitude |
+| C2 `leg_RR` | 3 | 0.90 to 0.70 | 0.8932 to 0.7969 | +0.029 to +0.125 | fails magnitude |
+| **C3 `rear`** | **6** | **0.70** | **0.6328** | **+0.2891** | **SELECTED** |
+| C4 `all` | 12 | 0.80, 0.75 | 0.7214, 0.5781 | +0.201, +0.344 | qualifies, secondary |
+| C4 `all` | 12 | 0.70 | 0.4271 | +0.495 | fails not_catastrophic |
+
+Dose-response monotone in all four families (worst reversal 0.0052). **The single-joint
+intervention that stopped both earlier stages is not merely too weak: with the latch
+corrected it is indistinguishable from nominal**, moving walking success by 0.0104 at
+s = 0.50, with three of its four severities at or above nominal. Selected by the frozen
+rule (fewest joints, then least severe): both rear legs at 0.70, walking success 0.6328,
+every seed at least 0.2734 below nominal, failures spread across progress 109, height 45,
+tracking 43 and stand criteria 41, no abort-band episodes. Its fidelity pass rate, 0.9036
+against a 0.90 bound, is a thin margin and is stated as one. Held-out severity 0.75.
+
+### Monitor gate: FAILED, and the study stops there
+
+The per-joint health monitor was reframed for this intervention class
+(`phoenix.monitor.response_shift`): score a fixed space of twelve physical joint groups,
+flag a group that is persistently below its calibrated threshold and whose members moved
+together, report the largest flagged group. The rule, its configuration and the gate were
+frozen before any of the sessions that test them existed (amendment 15).
+
+Calibration 24 nominal sessions of 120 s (2856 windows per group, against the 114 the
+20 s screening cells gave); validation 24 held-out nominal, 24 degraded, 24 held-out
+severity.
+
+| criterion | bar | result | verdict |
+|---|---|---|---|
+| nominal false-flag rate | <= 0.05 | **0.1250** | **FAIL** |
+| detection of `rear` | >= 0.80 | **0.7083** | **FAIL** |
+| reported group is `rear` | >= 0.70 | **0.3750** | **FAIL** |
+| median severity bias | <= 0.10 | 0.0746 | PASS |
+| range covers truth | >= 0.70 | 0.7647 | PASS |
+
+Deeper calibration moved the false-flag rate from 0.50 to 0.125 and detection from 0.08 to
+0.708, and did not close the gap. **Targeted adaptation stops at Phase J**: no conditioner,
+no targeted distribution, and no training arm (no adaptation, broad DR, Phoenix targeted,
+oracle) was built or run. The monitor was not retuned.
+
+**Two claims, and they are different.** The group statistic **recovered the applied
+actuator scale** to within 0.075 at an applied 0.70 and 0.095 at 0.75, monotonically
+(0.775, 0.845), with its interval covering the truth in 76 % and 88 % of detected
+sessions. The **detector** fires on healthy walking once in eight sessions, misses the
+degradation three times in ten, and names the right six joints fewer than four times in
+ten.
+
+> **Phoenix could estimate actuator-response severity monotonically in simulation, but
+> could not reliably distinguish nominal from degraded walking at the session level.**
+
+That localises the remaining problem to the decision rule rather than the residual. It
+does not test targeted against broad randomisation; that comparison was never reached.
+
+### Status of the research question after this work
+
+Still unanswered, and still untested. The program now has what it lacked at the end of the
+previous addendum, an intervention that measurably and safely degrades the walking
+baseline, and it is stopped one phase later, at a monitor that can size the fault but
+cannot reliably find it.
