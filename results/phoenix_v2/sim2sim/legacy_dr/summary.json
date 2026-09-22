@@ -1,0 +1,1185 @@
+{
+ "schema": "phoenix-v2-sim2sim-deploy/v1",
+ "label": "legacy_dr",
+ "node": "phoenix_sim2sim_deploy",
+ "stage": "SIM2SIM",
+ "live": false,
+ "deploy_config": {
+  "path": "configs/sim2real/deploy_stand_h25.yaml",
+  "sha256": "df9a8bf8787db974d778767c24625a9c76e6914fa61e33a2e9a3bc4681fc2317",
+  "semantic_sha256": "92ea5ff7b4f939efee8aeecd60ad9410448de36dbaf023ba912cd842511feb32"
+ },
+ "artifacts": {
+  "policy.onnx": {
+   "path": "checkpoints/phoenix-stand-h25-lat-noise/policy.onnx",
+   "sha256": "5331dbb7c4b8194e7f2238c14b985ea16af2f47aa7130e04bade3a0f9e9289eb"
+  }
+ },
+ "gate_params": {
+  "live": false,
+  "kp": 25.0,
+  "kd": 0.5,
+  "hold_kp": 20.0,
+  "hold_kd": 1.0,
+  "watchdog_s": 0.2,
+  "estop_timeout_s": 0.5,
+  "lowstate_timeout_s": 0.2,
+  "stale_hold_s": 0.2,
+  "first_message_timeout_s": 15.0,
+  "joint_order": [
+   "FL_hip_joint",
+   "FR_hip_joint",
+   "RL_hip_joint",
+   "RR_hip_joint",
+   "FL_thigh_joint",
+   "FR_thigh_joint",
+   "RL_thigh_joint",
+   "RR_thigh_joint",
+   "FL_calf_joint",
+   "FR_calf_joint",
+   "RL_calf_joint",
+   "RR_calf_joint"
+  ],
+  "max_delta": 0.175,
+  "limiter_mode": "measured_q",
+  "limit_abort_band": 0.175,
+  "tracking_abort_rad": 0.0,
+  "tracking_abort_s": 0.2,
+  "require_real_deadman": null,
+  "standup_s": 0.0,
+  "standup_kp": 60.0,
+  "standup_kd": 5.0
+ },
+ "controlled_degradation": null,
+ "env_config": "configs/env/phoenix_v2/sim2sim_dr.yaml",
+ "seed": 2002,
+ "env_resolved": {
+  "env": {
+   "task_name": "Isaac-Velocity-Flat-Unitree-Go2-v0",
+   "num_envs": 4096,
+   "episode_length_s": 20.0,
+   "decimation": 4,
+   "sim_dt": 0.005
+  },
+  "robot": {
+   "name": "unitree_go2",
+   "usd_path": "{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
+   "init_state": {
+    "base_pos": [
+     0.0,
+     0.0,
+     0.4
+    ],
+    "base_rot": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "joint_pos": {
+     ".*L_hip_joint": 0.1,
+     ".*R_hip_joint": -0.1,
+     "FL_thigh_joint": 0.8,
+     "FR_thigh_joint": 0.8,
+     "RL_thigh_joint": 1.0,
+     "RR_thigh_joint": 1.0,
+     ".*_calf_joint": -1.5
+    }
+   },
+   "actuator": {
+    "stiffness": 25.0,
+    "damping": 0.5,
+    "velocity_limit": 21.0,
+    "effort_limit": 23.5
+   }
+  },
+  "command": {
+   "lin_vel_x": [
+    0.0,
+    0.0
+   ],
+   "lin_vel_y": [
+    0.0,
+    0.0
+   ],
+   "ang_vel_z": [
+    0.0,
+    0.0
+   ],
+   "heading_stiffness": 0.0,
+   "resample_time_s": 10.0,
+   "rel_standing_envs": 1.0
+  },
+  "observation": {
+   "include": [
+    "base_lin_vel",
+    "base_ang_vel",
+    "projected_gravity",
+    "velocity_command",
+    "joint_pos",
+    "joint_vel",
+    "last_action"
+   ],
+   "noise": {
+    "joint_pos": 0.01,
+    "joint_vel": 1.5,
+    "base_lin_vel": 0.1,
+    "base_ang_vel": 0.2,
+    "projected_gravity": 0.05
+   }
+  },
+  "domain_randomization": {
+   "enabled": true,
+   "friction_range": [
+    0.3,
+    1.5
+   ],
+   "restitution_range": [
+    0.0,
+    0.5
+   ],
+   "mass_offset_kg": [
+    -2.0,
+    2.0
+   ],
+   "motor_strength_scale": [
+    0.85,
+    1.15
+   ],
+   "actuator_latency_steps": [
+    1,
+    5
+   ]
+  },
+  "perturbation": {
+   "enabled": false,
+   "push_velocity_xy": 1.0,
+   "push_velocity_yaw": 0.5,
+   "push_interval_s": 7.0
+  },
+  "reward": {
+   "track_lin_vel_xy": 1.0,
+   "track_ang_vel_z": 0.5,
+   "ang_vel_xy": -0.05,
+   "lin_vel_z": -2.0,
+   "joint_acc": -5e-06,
+   "joint_torque": -0.0002,
+   "action_rate": -3.0,
+   "feet_air_time": 1.0,
+   "slew_sat_hinge": -25.0
+  },
+  "termination": {
+   "base_contact": true,
+   "pitch_threshold_rad": 0.8,
+   "roll_threshold_rad": 0.6,
+   "base_height_min": 0.15
+  },
+  "seed": 42,
+  "terrain": {
+   "type": "plane"
+  },
+  "action": {
+   "rate_limit": {
+    "enabled": false
+   }
+  }
+ },
+ "commit": "cf74882fc15f65e6a340a41314c7ba0944fc9a57",
+ "dirty": true,
+ "num_robots": 64,
+ "steps": 1000,
+ "dt_s": 0.02,
+ "thresholds": {
+  "roll_pitch_limit_rad": 0.4,
+  "fidelity_tol_rad": 0.001,
+  "fidelity_max_altered": 0.05,
+  "fidelity_max_rms_rad": 0.01,
+  "abort_band_rad": 0.175
+ },
+ "success_rate": 0.0,
+ "survival_rate": 0.0,
+ "timeout_rate_legacy": 0.0,
+ "mean_primary_score": 0.030578124999999998,
+ "fidelity_pass_rate": 0.0,
+ "safety_hold_episode_rate": 1.0,
+ "attitude_violation_episode_rate": 0.5,
+ "abort_band_episode_rate": 1.0,
+ "altered_fraction": 0.8855733082706767,
+ "rms_modification_rad": 1.3846807479858398,
+ "distortion_D": 0.7671498840314895,
+ "raw_out_of_range_fraction": 0.884202694235589,
+ "effort_saturation_fraction": 0.005325814536340852,
+ "at_hard_limit_fraction": 0.07146773182957393,
+ "max_abs_roll_rad": 0.7638688683509827,
+ "max_abs_pitch_rad": 0.5654972195625305,
+ "p99_tilt_rad": 0.6058974105119707,
+ "mean_base_height_m": 0.2850075364112854,
+ "mean_lin_vel_error_m_s": 0.6330857872962952,
+ "mean_yaw_rate_error_rad_s": 0.6078409552574158,
+ "per_joint": {
+  "FL_hip_joint": {
+   "altered_fraction": 0.9276315789473685,
+   "rms_modification_rad": 0.3567092716693878,
+   "max_modification_rad": 1.0628983974456787,
+   "raw_out_of_range_fraction": 0.9017857142857143,
+   "p99_abs_target_rate_rad_s": 7.243987059593201,
+   "max_abs_target_rate_rad_s": 9.5573148727417,
+   "p99_abs_applied_torque_nm": 6.05432357311249,
+   "max_abs_computed_torque_nm": 13.592618942260742,
+   "effort_saturation_fraction": 0.0,
+   "at_hard_limit_fraction": 0.010338345864661654,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 0.6955543196201328,
+   "mean_abs_posture_offset_rad": 0.2627301514148712
+  },
+  "FR_hip_joint": {
+   "altered_fraction": 0.5944548872180451,
+   "rms_modification_rad": 0.38871264457702637,
+   "max_modification_rad": 1.271575689315796,
+   "raw_out_of_range_fraction": 0.47885338345864664,
+   "p99_abs_target_rate_rad_s": 7.2867461729049685,
+   "max_abs_target_rate_rad_s": 10.542464256286621,
+   "p99_abs_applied_torque_nm": 5.625616407394409,
+   "max_abs_computed_torque_nm": 14.181387901306152,
+   "effort_saturation_fraction": 0.0,
+   "at_hard_limit_fraction": 0.0,
+   "min_distance_to_limit_rad": 0.1052929162979126,
+   "p99_abs_tracking_gap_rad": 1.1082205295562744,
+   "mean_abs_posture_offset_rad": 0.10914523154497147
+  },
+  "RL_hip_joint": {
+   "altered_fraction": 0.931390977443609,
+   "rms_modification_rad": 0.5187079310417175,
+   "max_modification_rad": 1.148244857788086,
+   "raw_out_of_range_fraction": 0.9097744360902256,
+   "p99_abs_target_rate_rad_s": 8.824605369567873,
+   "max_abs_target_rate_rad_s": 9.531213760375977,
+   "p99_abs_applied_torque_nm": 6.028832378387452,
+   "max_abs_computed_torque_nm": 12.76694107055664,
+   "effort_saturation_fraction": 0.0,
+   "at_hard_limit_fraction": 0.11701127819548872,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 0.8740242969989777,
+   "mean_abs_posture_offset_rad": 0.4882393777370453
+  },
+  "RR_hip_joint": {
+   "altered_fraction": 0.6254699248120301,
+   "rms_modification_rad": 0.5911851525306702,
+   "max_modification_rad": 1.6303889751434326,
+   "raw_out_of_range_fraction": 0.6094924812030075,
+   "p99_abs_target_rate_rad_s": 9.692070589065553,
+   "max_abs_target_rate_rad_s": 12.58362865447998,
+   "p99_abs_applied_torque_nm": 12.311687097549441,
+   "max_abs_computed_torque_nm": 19.7930850982666,
+   "effort_saturation_fraction": 0.0,
+   "at_hard_limit_fraction": 0.0,
+   "min_distance_to_limit_rad": 0.0729135274887085,
+   "p99_abs_tracking_gap_rad": 1.4052046489715577,
+   "mean_abs_posture_offset_rad": 0.13078594207763672
+  },
+  "FL_thigh_joint": {
+   "altered_fraction": 0.956766917293233,
+   "rms_modification_rad": 0.9883777499198914,
+   "max_modification_rad": 1.9950343370437622,
+   "raw_out_of_range_fraction": 0.9638157894736842,
+   "p99_abs_target_rate_rad_s": 21.1488005065918,
+   "max_abs_target_rate_rad_s": 23.35871124267578,
+   "p99_abs_applied_torque_nm": 11.15930508613587,
+   "max_abs_computed_torque_nm": 13.566606521606445,
+   "effort_saturation_fraction": 0.0,
+   "at_hard_limit_fraction": 0.0,
+   "min_distance_to_limit_rad": 0.08195173740386963,
+   "p99_abs_tracking_gap_rad": 1.846259814500809,
+   "mean_abs_posture_offset_rad": 0.7617664933204651
+  },
+  "FR_thigh_joint": {
+   "altered_fraction": 0.9177631578947368,
+   "rms_modification_rad": 0.2743498384952545,
+   "max_modification_rad": 0.875939667224884,
+   "raw_out_of_range_fraction": 0.9656954887218046,
+   "p99_abs_target_rate_rad_s": 17.55093908309937,
+   "max_abs_target_rate_rad_s": 19.611909866333008,
+   "p99_abs_applied_torque_nm": 9.063047981262212,
+   "max_abs_computed_torque_nm": 13.118152618408203,
+   "effort_saturation_fraction": 0.0,
+   "at_hard_limit_fraction": 0.0,
+   "min_distance_to_limit_rad": 0.32388293743133545,
+   "p99_abs_tracking_gap_rad": 0.8632735621929168,
+   "mean_abs_posture_offset_rad": 0.7575721740722656
+  },
+  "RL_thigh_joint": {
+   "altered_fraction": 0.9417293233082706,
+   "rms_modification_rad": 1.0225865840911865,
+   "max_modification_rad": 2.4043052196502686,
+   "raw_out_of_range_fraction": 0.9619360902255639,
+   "p99_abs_target_rate_rad_s": 22.922575416564943,
+   "max_abs_target_rate_rad_s": 23.719505310058594,
+   "p99_abs_applied_torque_nm": 12.599341564178467,
+   "max_abs_computed_torque_nm": 15.91621208190918,
+   "effort_saturation_fraction": 0.007988721804511278,
+   "at_hard_limit_fraction": 0.17434210526315788,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 2.2585974645614626,
+   "mean_abs_posture_offset_rad": 1.0629938840866089
+  },
+  "RR_thigh_joint": {
+   "altered_fraction": 0.8646616541353384,
+   "rms_modification_rad": 0.7612110376358032,
+   "max_modification_rad": 1.6640708446502686,
+   "raw_out_of_range_fraction": 0.9473684210526315,
+   "p99_abs_target_rate_rad_s": 17.817989044189456,
+   "max_abs_target_rate_rad_s": 18.894262313842773,
+   "p99_abs_applied_torque_nm": 13.290123710632326,
+   "max_abs_computed_torque_nm": 17.41066551208496,
+   "effort_saturation_fraction": 0.008928571428571428,
+   "at_hard_limit_fraction": 0.01644736842105263,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 1.427332329750061,
+   "mean_abs_posture_offset_rad": 0.6533211469650269
+  },
+  "FL_calf_joint": {
+   "altered_fraction": 0.9699248120300752,
+   "rms_modification_rad": 2.6356444358825684,
+   "max_modification_rad": 3.5819075107574463,
+   "raw_out_of_range_fraction": 0.9666353383458647,
+   "p99_abs_target_rate_rad_s": 18.627159481048583,
+   "max_abs_target_rate_rad_s": 18.62729835510254,
+   "p99_abs_applied_torque_nm": 14.174352941513087,
+   "max_abs_computed_torque_nm": 29.503711700439453,
+   "effort_saturation_fraction": 0.011748120300751879,
+   "at_hard_limit_fraction": 0.0018796992481203006,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 3.3880000567436217,
+   "mean_abs_posture_offset_rad": 0.20140299201011658
+  },
+  "FR_calf_joint": {
+   "altered_fraction": 0.9699248120300752,
+   "rms_modification_rad": 2.3955914974212646,
+   "max_modification_rad": 3.604769706726074,
+   "raw_out_of_range_fraction": 0.9699248120300752,
+   "p99_abs_target_rate_rad_s": 18.597719650268555,
+   "max_abs_target_rate_rad_s": 18.63136863708496,
+   "p99_abs_applied_torque_nm": 19.15468770980835,
+   "max_abs_computed_torque_nm": 26.728023529052734,
+   "effort_saturation_fraction": 0.011748120300751879,
+   "at_hard_limit_fraction": 0.06860902255639098,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 3.35815616607666,
+   "mean_abs_posture_offset_rad": 0.2957908809185028
+  },
+  "RL_calf_joint": {
+   "altered_fraction": 0.9699248120300752,
+   "rms_modification_rad": 1.5324617624282837,
+   "max_modification_rad": 2.3790087699890137,
+   "raw_out_of_range_fraction": 0.9671052631578947,
+   "p99_abs_target_rate_rad_s": 18.56725158691406,
+   "max_abs_target_rate_rad_s": 18.570322036743164,
+   "p99_abs_applied_torque_nm": 13.269545459747315,
+   "max_abs_computed_torque_nm": 28.949932098388672,
+   "effort_saturation_fraction": 0.011748120300751879,
+   "at_hard_limit_fraction": 0.42857142857142855,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 2.1501443910598756,
+   "mean_abs_posture_offset_rad": 0.5260233879089355
+  },
+  "RR_calf_joint": {
+   "altered_fraction": 0.9572368421052632,
+   "rms_modification_rad": 2.0976147651672363,
+   "max_modification_rad": 3.1210780143737793,
+   "raw_out_of_range_fraction": 0.9680451127819549,
+   "p99_abs_target_rate_rad_s": 18.410121059417726,
+   "max_abs_target_rate_rad_s": 18.449079513549805,
+   "p99_abs_applied_torque_nm": 11.223622827529907,
+   "max_abs_computed_torque_nm": 28.279264450073242,
+   "effort_saturation_fraction": 0.011748120300751879,
+   "at_hard_limit_fraction": 0.040413533834586464,
+   "min_distance_to_limit_rad": 0.0,
+   "p99_abs_tracking_gap_rad": 2.930056838989258,
+   "mean_abs_posture_offset_rad": 0.2741926312446594
+  }
+ },
+ "hardware_fidelity_gate": {
+  "pass_rate": 0.0,
+  "per_robot": [
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.833 > 0.05",
+     "FR_calf_joint altered_fraction 0.952 > 0.05",
+     "rms_distortion_rad 1.2242 > 0.01",
+     "authority_s 0.40 < 10.0"
+    ],
+    "altered_fraction": 0.8333333333333334,
+    "rms_distortion_rad": 1.2242098131676578,
+    "authority_s": 0.39999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.734 > 0.05",
+     "FR_calf_joint altered_fraction 0.938 > 0.05",
+     "rms_distortion_rad 0.9727 > 0.01",
+     "authority_s 0.30 < 10.0"
+    ],
+    "altered_fraction": 0.734375,
+    "rms_distortion_rad": 0.9726846793590309,
+    "authority_s": 0.3
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.776 > 0.05",
+     "FR_calf_joint altered_fraction 0.947 > 0.05",
+     "rms_distortion_rad 0.9773 > 0.01",
+     "authority_s 0.36 < 10.0"
+    ],
+    "altered_fraction": 0.7763157894736842,
+    "rms_distortion_rad": 0.9773158674461883,
+    "authority_s": 0.36
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.796 > 0.05",
+     "FR_thigh_joint altered_fraction 0.944 > 0.05",
+     "rms_distortion_rad 1.1728 > 0.01",
+     "authority_s 0.34 < 10.0"
+    ],
+    "altered_fraction": 0.7962962962962963,
+    "rms_distortion_rad": 1.172819958620624,
+    "authority_s": 0.33999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.744 > 0.05",
+     "FR_calf_joint altered_fraction 0.933 > 0.05",
+     "rms_distortion_rad 0.9994 > 0.01",
+     "authority_s 0.28 < 10.0"
+    ],
+    "altered_fraction": 0.7444444444444445,
+    "rms_distortion_rad": 0.9994214005491171,
+    "authority_s": 0.27999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.776 > 0.05",
+     "FR_calf_joint altered_fraction 0.947 > 0.05",
+     "rms_distortion_rad 1.1327 > 0.01",
+     "authority_s 0.36 < 10.0"
+    ],
+    "altered_fraction": 0.7763157894736842,
+    "rms_distortion_rad": 1.132716591894209,
+    "authority_s": 0.36
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.816 > 0.05",
+     "FR_thigh_joint altered_fraction 0.947 > 0.05",
+     "rms_distortion_rad 1.2019 > 0.01",
+     "authority_s 0.36 < 10.0"
+    ],
+    "altered_fraction": 0.8157894736842105,
+    "rms_distortion_rad": 1.201892531745256,
+    "authority_s": 0.36
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.681 > 0.05",
+     "FR_calf_joint altered_fraction 0.917 > 0.05",
+     "rms_distortion_rad 0.9442 > 0.01",
+     "authority_s 0.22 < 10.0"
+    ],
+    "altered_fraction": 0.6805555555555556,
+    "rms_distortion_rad": 0.9442314352741006,
+    "authority_s": 0.22
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.771 > 0.05",
+     "FR_thigh_joint altered_fraction 0.938 > 0.05",
+     "rms_distortion_rad 1.0632 > 0.01",
+     "authority_s 0.30 < 10.0"
+    ],
+    "altered_fraction": 0.7708333333333334,
+    "rms_distortion_rad": 1.0631999084804815,
+    "authority_s": 0.3
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.744 > 0.05",
+     "FR_thigh_joint altered_fraction 0.933 > 0.05",
+     "rms_distortion_rad 1.0274 > 0.01",
+     "authority_s 0.28 < 10.0"
+    ],
+    "altered_fraction": 0.7444444444444445,
+    "rms_distortion_rad": 1.0274428670379836,
+    "authority_s": 0.27999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.755 > 0.05",
+     "FR_thigh_joint altered_fraction 0.938 > 0.05",
+     "rms_distortion_rad 0.9861 > 0.01",
+     "authority_s 0.30 < 10.0"
+    ],
+    "altered_fraction": 0.7552083333333334,
+    "rms_distortion_rad": 0.986064926742441,
+    "authority_s": 0.3
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.743 > 0.05",
+     "FR_thigh_joint altered_fraction 0.917 > 0.05",
+     "rms_distortion_rad 1.0210 > 0.01",
+     "authority_s 0.22 < 10.0"
+    ],
+    "altered_fraction": 0.7430555555555556,
+    "rms_distortion_rad": 1.0209661729539794,
+    "authority_s": 0.22
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.812 > 0.05",
+     "FR_thigh_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.1856 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.8125,
+    "rms_distortion_rad": 1.1855619687166066,
+    "authority_s": 0.38
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.840 > 0.05",
+     "FR_calf_joint altered_fraction 0.958 > 0.05",
+     "rms_distortion_rad 1.2539 > 0.01",
+     "authority_s 0.46 < 10.0"
+    ],
+    "altered_fraction": 0.8402777777777778,
+    "rms_distortion_rad": 1.2539462091074818,
+    "authority_s": 0.45999999999999996
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.725 > 0.05",
+     "FR_thigh_joint altered_fraction 0.900 > 0.05",
+     "rms_distortion_rad 0.9544 > 0.01",
+     "authority_s 0.18 < 10.0"
+    ],
+    "altered_fraction": 0.725,
+    "rms_distortion_rad": 0.9544220997104533,
+    "authority_s": 0.18000000000000002
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.708 > 0.05",
+     "FR_calf_joint altered_fraction 0.929 > 0.05",
+     "rms_distortion_rad 0.9591 > 0.01",
+     "authority_s 0.26 < 10.0"
+    ],
+    "altered_fraction": 0.7083333333333334,
+    "rms_distortion_rad": 0.9591239798150244,
+    "authority_s": 0.26
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.740 > 0.05",
+     "FR_thigh_joint altered_fraction 0.938 > 0.05",
+     "rms_distortion_rad 1.0634 > 0.01",
+     "authority_s 0.30 < 10.0"
+    ],
+    "altered_fraction": 0.7395833333333334,
+    "rms_distortion_rad": 1.0634022931688583,
+    "authority_s": 0.3
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.750 > 0.05",
+     "FR_thigh_joint altered_fraction 0.933 > 0.05",
+     "rms_distortion_rad 1.0662 > 0.01",
+     "authority_s 0.28 < 10.0"
+    ],
+    "altered_fraction": 0.75,
+    "rms_distortion_rad": 1.066197288867514,
+    "authority_s": 0.27999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.825 > 0.05",
+     "FR_thigh_joint altered_fraction 0.952 > 0.05",
+     "rms_distortion_rad 1.2443 > 0.01",
+     "authority_s 0.40 < 10.0"
+    ],
+    "altered_fraction": 0.8253968253968254,
+    "rms_distortion_rad": 1.244252980102193,
+    "authority_s": 0.39999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.745 > 0.05",
+     "FR_thigh_joint altered_fraction 0.938 > 0.05",
+     "rms_distortion_rad 1.0467 > 0.01",
+     "authority_s 0.30 < 10.0"
+    ],
+    "altered_fraction": 0.7447916666666666,
+    "rms_distortion_rad": 1.0467018383545834,
+    "authority_s": 0.3
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.821 > 0.05",
+     "FR_thigh_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.2923 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.8208333333333333,
+    "rms_distortion_rad": 1.2922614028192485,
+    "authority_s": 0.38
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.667 > 0.05",
+     "FR_calf_joint altered_fraction 0.909 > 0.05",
+     "rms_distortion_rad 0.8818 > 0.01",
+     "authority_s 0.20 < 10.0"
+    ],
+    "altered_fraction": 0.6666666666666666,
+    "rms_distortion_rad": 0.8818048734038503,
+    "authority_s": 0.2
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.846 > 0.05",
+     "FR_calf_joint altered_fraction 0.962 > 0.05",
+     "rms_distortion_rad 1.3342 > 0.01",
+     "authority_s 0.50 < 10.0"
+    ],
+    "altered_fraction": 0.8461538461538461,
+    "rms_distortion_rad": 1.334206179562065,
+    "authority_s": 0.5
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.830 > 0.05",
+     "FR_calf_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.2569 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.8295454545454546,
+    "rms_distortion_rad": 1.2568580292577312,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.708 > 0.05",
+     "FR_calf_joint altered_fraction 0.917 > 0.05",
+     "rms_distortion_rad 0.8624 > 0.01",
+     "authority_s 0.22 < 10.0"
+    ],
+    "altered_fraction": 0.7083333333333334,
+    "rms_distortion_rad": 0.8623502437508469,
+    "authority_s": 0.22
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.804 > 0.05",
+     "FR_calf_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.0706 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.8041666666666667,
+    "rms_distortion_rad": 1.0706064125239068,
+    "authority_s": 0.38
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.810 > 0.05",
+     "FR_thigh_joint altered_fraction 0.952 > 0.05",
+     "rms_distortion_rad 1.2179 > 0.01",
+     "authority_s 0.40 < 10.0"
+    ],
+    "altered_fraction": 0.8095238095238095,
+    "rms_distortion_rad": 1.2179344546428168,
+    "authority_s": 0.39999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.688 > 0.05",
+     "FR_thigh_joint altered_fraction 0.917 > 0.05",
+     "rms_distortion_rad 0.9256 > 0.01",
+     "authority_s 0.22 < 10.0"
+    ],
+    "altered_fraction": 0.6875,
+    "rms_distortion_rad": 0.9256339049055873,
+    "authority_s": 0.22
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.812 > 0.05",
+     "FR_calf_joint altered_fraction 0.957 > 0.05",
+     "rms_distortion_rad 1.2687 > 0.01",
+     "authority_s 0.44 < 10.0"
+    ],
+    "altered_fraction": 0.8115942028985508,
+    "rms_distortion_rad": 1.2686944150662327,
+    "authority_s": 0.44
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.833 > 0.05",
+     "FR_thigh_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.2264 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.8333333333333334,
+    "rms_distortion_rad": 1.2264355376938578,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.787 > 0.05",
+     "FR_thigh_joint altered_fraction 0.944 > 0.05",
+     "rms_distortion_rad 1.1845 > 0.01",
+     "authority_s 0.34 < 10.0"
+    ],
+    "altered_fraction": 0.7870370370370371,
+    "rms_distortion_rad": 1.184523071285868,
+    "authority_s": 0.33999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.813 > 0.05",
+     "FR_calf_joint altered_fraction 0.952 > 0.05",
+     "rms_distortion_rad 1.1666 > 0.01",
+     "authority_s 0.40 < 10.0"
+    ],
+    "altered_fraction": 0.8134920634920635,
+    "rms_distortion_rad": 1.1665773129155672,
+    "authority_s": 0.39999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.796 > 0.05",
+     "FR_thigh_joint altered_fraction 0.944 > 0.05",
+     "rms_distortion_rad 1.0654 > 0.01",
+     "authority_s 0.34 < 10.0"
+    ],
+    "altered_fraction": 0.7962962962962963,
+    "rms_distortion_rad": 1.0653778416851414,
+    "authority_s": 0.33999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.826 > 0.05",
+     "FR_calf_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.2017 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.8257575757575758,
+    "rms_distortion_rad": 1.2017280321859858,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.767 > 0.05",
+     "FR_thigh_joint altered_fraction 0.933 > 0.05",
+     "rms_distortion_rad 1.0009 > 0.01",
+     "authority_s 0.28 < 10.0"
+    ],
+    "altered_fraction": 0.7666666666666667,
+    "rms_distortion_rad": 1.0009480636719548,
+    "authority_s": 0.27999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.760 > 0.05",
+     "FR_thigh_joint altered_fraction 0.938 > 0.05",
+     "rms_distortion_rad 1.1197 > 0.01",
+     "authority_s 0.30 < 10.0"
+    ],
+    "altered_fraction": 0.7604166666666666,
+    "rms_distortion_rad": 1.1197089244239993,
+    "authority_s": 0.3
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.760 > 0.05",
+     "FR_calf_joint altered_fraction 0.941 > 0.05",
+     "rms_distortion_rad 0.9839 > 0.01",
+     "authority_s 0.32 < 10.0"
+    ],
+    "altered_fraction": 0.7598039215686274,
+    "rms_distortion_rad": 0.9839423143649908,
+    "authority_s": 0.32
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.822 > 0.05",
+     "FR_calf_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.2011 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.821969696969697,
+    "rms_distortion_rad": 1.2011378805593727,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.756 > 0.05",
+     "FR_thigh_joint altered_fraction 0.929 > 0.05",
+     "rms_distortion_rad 1.0184 > 0.01",
+     "authority_s 0.26 < 10.0"
+    ],
+    "altered_fraction": 0.7559523809523809,
+    "rms_distortion_rad": 1.0183867586416284,
+    "authority_s": 0.26
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.726 > 0.05",
+     "FR_thigh_joint altered_fraction 0.929 > 0.05",
+     "rms_distortion_rad 1.0278 > 0.01",
+     "authority_s 0.26 < 10.0"
+    ],
+    "altered_fraction": 0.7261904761904762,
+    "rms_distortion_rad": 1.0278078126824073,
+    "authority_s": 0.26
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.811 > 0.05",
+     "FR_thigh_joint altered_fraction 0.947 > 0.05",
+     "rms_distortion_rad 1.1876 > 0.01",
+     "authority_s 0.36 < 10.0"
+    ],
+    "altered_fraction": 0.8114035087719298,
+    "rms_distortion_rad": 1.1876146303094928,
+    "authority_s": 0.36
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.772 > 0.05",
+     "FR_calf_joint altered_fraction 0.947 > 0.05",
+     "rms_distortion_rad 1.0423 > 0.01",
+     "authority_s 0.36 < 10.0"
+    ],
+    "altered_fraction": 0.7719298245614035,
+    "rms_distortion_rad": 1.042284853175559,
+    "authority_s": 0.36
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.811 > 0.05",
+     "FR_calf_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.2401 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.8106060606060606,
+    "rms_distortion_rad": 1.2400903384726365,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.772 > 0.05",
+     "FR_thigh_joint altered_fraction 0.933 > 0.05",
+     "rms_distortion_rad 1.0252 > 0.01",
+     "authority_s 0.28 < 10.0"
+    ],
+    "altered_fraction": 0.7722222222222223,
+    "rms_distortion_rad": 1.0252391745147837,
+    "authority_s": 0.27999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.821 > 0.05",
+     "FR_thigh_joint altered_fraction 0.952 > 0.05",
+     "rms_distortion_rad 1.2016 > 0.01",
+     "authority_s 0.40 < 10.0"
+    ],
+    "altered_fraction": 0.8214285714285714,
+    "rms_distortion_rad": 1.201611280252958,
+    "authority_s": 0.39999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.806 > 0.05",
+     "FR_calf_joint altered_fraction 0.958 > 0.05",
+     "rms_distortion_rad 1.2557 > 0.01",
+     "authority_s 0.46 < 10.0"
+    ],
+    "altered_fraction": 0.8055555555555556,
+    "rms_distortion_rad": 1.2557035753368089,
+    "authority_s": 0.45999999999999996
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.808 > 0.05",
+     "FR_calf_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.1849 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.8083333333333333,
+    "rms_distortion_rad": 1.1849095089604695,
+    "authority_s": 0.38
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.803 > 0.05",
+     "FR_calf_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.1722 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.803030303030303,
+    "rms_distortion_rad": 1.1721507240792028,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.667 > 0.05",
+     "FR_calf_joint altered_fraction 0.909 > 0.05",
+     "rms_distortion_rad 0.7636 > 0.01",
+     "authority_s 0.20 < 10.0"
+    ],
+    "altered_fraction": 0.6666666666666666,
+    "rms_distortion_rad": 0.763558778402066,
+    "authority_s": 0.2
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.796 > 0.05",
+     "FR_calf_joint altered_fraction 0.944 > 0.05",
+     "rms_distortion_rad 1.1590 > 0.01",
+     "authority_s 0.34 < 10.0"
+    ],
+    "altered_fraction": 0.7962962962962963,
+    "rms_distortion_rad": 1.1590051475358345,
+    "authority_s": 0.33999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.841 > 0.05",
+     "FR_calf_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.2429 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.8409090909090909,
+    "rms_distortion_rad": 1.242944482747366,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.833 > 0.05",
+     "FR_calf_joint altered_fraction 0.958 > 0.05",
+     "rms_distortion_rad 1.2633 > 0.01",
+     "authority_s 0.46 < 10.0"
+    ],
+    "altered_fraction": 0.8333333333333334,
+    "rms_distortion_rad": 1.2633076698052847,
+    "authority_s": 0.45999999999999996
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.837 > 0.05",
+     "FR_calf_joint altered_fraction 0.958 > 0.05",
+     "rms_distortion_rad 1.3037 > 0.01",
+     "authority_s 0.46 < 10.0"
+    ],
+    "altered_fraction": 0.8368055555555556,
+    "rms_distortion_rad": 1.3037366016706593,
+    "authority_s": 0.45999999999999996
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.841 > 0.05",
+     "FR_calf_joint altered_fraction 0.955 > 0.05",
+     "rms_distortion_rad 1.2261 > 0.01",
+     "authority_s 0.42 < 10.0"
+    ],
+    "altered_fraction": 0.8409090909090909,
+    "rms_distortion_rad": 1.2260864820841006,
+    "authority_s": 0.42
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.824 > 0.05",
+     "FR_thigh_joint altered_fraction 0.944 > 0.05",
+     "rms_distortion_rad 1.1682 > 0.01",
+     "authority_s 0.34 < 10.0"
+    ],
+    "altered_fraction": 0.8240740740740741,
+    "rms_distortion_rad": 1.1682140131520524,
+    "authority_s": 0.33999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.792 > 0.05",
+     "FR_calf_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.0919 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.7916666666666666,
+    "rms_distortion_rad": 1.0918757784552144,
+    "authority_s": 0.38
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.845 > 0.05",
+     "FR_calf_joint altered_fraction 0.952 > 0.05",
+     "rms_distortion_rad 1.2257 > 0.01",
+     "authority_s 0.40 < 10.0"
+    ],
+    "altered_fraction": 0.8452380952380952,
+    "rms_distortion_rad": 1.2256849285812408,
+    "authority_s": 0.39999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.750 > 0.05",
+     "FR_calf_joint altered_fraction 0.933 > 0.05",
+     "rms_distortion_rad 1.0466 > 0.01",
+     "authority_s 0.28 < 10.0"
+    ],
+    "altered_fraction": 0.75,
+    "rms_distortion_rad": 1.0465563226723262,
+    "authority_s": 0.27999999999999997
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.799 > 0.05",
+     "FR_thigh_joint altered_fraction 0.941 > 0.05",
+     "rms_distortion_rad 1.0967 > 0.01",
+     "authority_s 0.32 < 10.0"
+    ],
+    "altered_fraction": 0.7990196078431373,
+    "rms_distortion_rad": 1.0967068926435415,
+    "authority_s": 0.32
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.768 > 0.05",
+     "FR_thigh_joint altered_fraction 0.929 > 0.05",
+     "rms_distortion_rad 1.0600 > 0.01",
+     "authority_s 0.26 < 10.0"
+    ],
+    "altered_fraction": 0.7678571428571429,
+    "rms_distortion_rad": 1.0600085211771006,
+    "authority_s": 0.26
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.775 > 0.05",
+     "FR_calf_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.2081 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.775,
+    "rms_distortion_rad": 1.208060979417164,
+    "authority_s": 0.38
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.846 > 0.05",
+     "FR_thigh_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.2123 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.8458333333333333,
+    "rms_distortion_rad": 1.2123128284824438,
+    "authority_s": 0.38
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.745 > 0.05",
+     "FR_calf_joint altered_fraction 0.941 > 0.05",
+     "rms_distortion_rad 1.0370 > 0.01",
+     "authority_s 0.32 < 10.0"
+    ],
+    "altered_fraction": 0.7450980392156863,
+    "rms_distortion_rad": 1.0369782780870298,
+    "authority_s": 0.32
+   },
+   {
+    "verdict": "FAIL",
+    "reasons": [
+     "altered_fraction 0.787 > 0.05",
+     "FR_calf_joint altered_fraction 0.950 > 0.05",
+     "rms_distortion_rad 1.0942 > 0.01",
+     "authority_s 0.38 < 10.0"
+    ],
+    "altered_fraction": 0.7875,
+    "rms_distortion_rad": 1.09420573465161,
+    "authority_s": 0.38
+   }
+  ]
+ },
+ "gate_faults": [
+  "target_beyond_limit:FL_hip_joint",
+  "target_beyond_limit:FR_calf_joint",
+  "target_beyond_limit:FR_calf_joint,RL_calf_joint",
+  "target_beyond_limit:FR_calf_joint,RR_calf_joint",
+  "target_beyond_limit:RL_calf_joint",
+  "target_beyond_limit:RL_hip_joint",
+  "target_beyond_limit:RL_thigh_joint",
+  "target_beyond_limit:RR_thigh_joint,RL_thigh_joint"
+ ],
+ "wall_s": 36.713844776153564
+}

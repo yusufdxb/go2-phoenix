@@ -279,3 +279,25 @@ when walking success >= 0.90 (DR off) and >= 0.80 (DR on), standing success >= 0
 (DR off), and the simulated deployment path (v2 gate, clamp, true body velocity as an
 idealised odometry source) reaches walking success >= 0.90 (DR off). If the gate
 fails, report the failure; the recipe is not tuned against the evaluation seeds.
+
+### Amendment 4 (2026-09-22): Stage S stop rule triggered by the s_train pilot
+
+The preregistered pilot ran on the phase-0 incumbent (H25 under the frozen v2 deploy
+path, simulated deployment harness, nominal physics, 128 episodes per value, seed 3001,
+RR_thigh kp and kd scaled by the deploy gate exactly as the hardware degradation does):
+
+| s | primary score | drop vs s = 1.0 | success | safety latch |
+|---|---|---|---|---|
+| 1.0 | 1.000 | - | 128/128 | none |
+| 0.8 | 1.000 | 0.000 | 128/128 | none |
+| 0.7 | 1.000 | 0.000 | 128/128 | none |
+| 0.6 | 1.000 | 0.000 | 128/128 | none |
+| 0.5 | 0.958 | 0.042 | 121/128 | `degradation_joint_saturated` in 7/128 |
+
+No value reaches the 0.10 drop, and 0.5 is the smallest scale the controlled
+degradation permits (`MIN_SCALE`). By the stop rule written before the pilot, **Stage S
+stops: the incumbent absorbs this degradation; there is nothing to adapt to.** Phases
+1a (as a gate), 1b, 2 and 3 are not run for the stand policy. Anything run on the stand
+policy after this point is labelled exploratory and is not evidence for or against H1.
+Stage W (walking) is unaffected and repeats the protocol, pilot first, once a walking
+policy passes Gate L.
