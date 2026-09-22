@@ -194,4 +194,35 @@ in advance for all arms; calibration across days and a session-offset false-posi
 
 ## Amendments
 
-None yet.
+### Amendment 1 (2026-09-22, before any Phase B/C simulation run)
+
+**Limiter family chosen by the robot owner: command-rate limiter** (`clip_mode:
+prev_command`, `|q_sent[k] - q_sent[k-1]| <= dq_max`), applied before an unchanged
+absolute hard envelope (URDF joint limits, abort band 0.175 rad, E-stop, deadman,
+LowState/command watchdogs, hold/damp). Kp, Kd and action scale are NOT changed in the
+same step.
+
+**Offline finding recorded before simulation** (Phase A, `results/phoenix_v2/limiter_offline/`):
+Isaac Lab's `RslRlVecEnvWrapper(clip_actions=1.0)` clamps raw actions to [-1, 1] in
+training and evaluation; the exported ONNX and the deploy policy node do not. That clamp
+is part of the trained plant. Layer 2 ("after policy-node transformation") is therefore
+defined as `default + 0.25 * clip(raw, -1, 1)`, and the deploy node must apply the same
+clamp. Execution fidelity is measured between layer 2 and the sent target (layer 3).
+
+**Physical standing success, per 20 s simulated episode** (replaces "reached timeout"):
+no trunk contact; |roll| and |pitch| <= 0.40 rad on every step, computed from
+`projected_gravity_b` (no quaternion-order dependence; Isaac Lab 3.0 `root_quat_w` is
+xyzw, verified in the harness); no layer-2 request beyond the abort band; and the
+per-episode fidelity gate (altered <= 5 % of joint-samples overall and on every joint at
+1 mrad tolerance, RMS alteration <= 0.01 rad). The continuous primary score is unchanged
+(fraction of the episode with no trunk contact and roll/pitch within 0.40 rad).
+
+**Phase C selection rule for dq_max, fixed now.** Development data only: the incumbent
+checkpoint on (i) its training distribution (`stand_v3_h25`, DR on, seed 1001) and (ii)
+the nominal condition (DR off, seed 1002), 256 episodes each, grid
+{0.02, 0.035, 0.05, 0.075, 0.10, 0.175} rad/step. Choose the SMALLEST dq_max for which,
+on both conditions, the altered fraction is <= 1 % overall and <= 5 % on every joint, and
+the mean primary score is within 0.02 of the hard-envelope-only simulation reference.
+If no grid value passes, stop and report; do not widen the grid after seeing results.
+No held-out condition (degraded joints, evaluation seeds) is used for selection.
+The chosen value is frozen with its commit and config hash in Amendment 2.
