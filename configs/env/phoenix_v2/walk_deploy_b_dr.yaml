@@ -1,0 +1,7 @@
+# Phase 9 condition B training randomisation (amendment 9). Exact deploy stack around Isaac Lab:
+# the env's own soft limiter is OFF, the deploy ActuatorGate is the only limiter.
+defaults:
+  - walk_w1
+action:
+  rate_limit:
+    enabled: false
