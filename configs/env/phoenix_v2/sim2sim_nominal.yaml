@@ -1,0 +1,9 @@
+# Phase D: nominal simulated deployment path. The env applies the target it is given
+# (its own soft limiter OFF); the deploy ActuatorGate is the only limiter.
+defaults:
+  - ../stand_v3_h25
+domain_randomization:
+  enabled: false
+action:
+  rate_limit:
+    enabled: false

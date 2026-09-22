@@ -1,0 +1,7 @@
+# Phase D: the incumbent's training randomisation (friction, mass, gains, latency)
+# around the simulated deployment path; the deploy ActuatorGate is the only limiter.
+defaults:
+  - ../stand_v3_h25
+action:
+  rate_limit:
+    enabled: false

@@ -60,6 +60,7 @@ def parse_args(argv=None):
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--label", default=None)
     p.add_argument("--save-steps", action="store_true", help="save per-step arrays (npz)")
+    p.add_argument("--walk", action="store_true", help="also score Amendment 3 walking success")
     p.add_argument(
         "--bridge-records-envs",
         type=int,
@@ -248,6 +249,10 @@ def _run(args) -> int:
         joint_names=list(POLICY_JOINT_ORDER),
     )
     valid = alive_to_valid(alive)
+    if args.walk:
+        from phoenix.monitor.stand_metrics import score_walk_episodes
+
+        metrics.update(score_walk_episodes(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid, dt=dt))
     summary = {
         "schema": "phoenix-v2-sim-stand/v1",
         "label": args.label,
@@ -284,7 +289,8 @@ def _run(args) -> int:
         "label", "success_rate", "survival_rate", "mean_primary_score", "fidelity_pass_rate",
         "altered_fraction", "rms_modification_rad", "distortion_D", "raw_out_of_range_fraction",
         "effort_saturation_fraction", "attitude_violation_episode_rate", "max_abs_roll_rad",
-        "max_abs_pitch_rad", "quaternion_order_check", "wall_s")}, indent=1), flush=True)
+        "max_abs_pitch_rad", "quaternion_order_check", "wall_s")}
+        | {k: v for k, v in summary.items() if k.startswith("walk_")}, indent=1), flush=True)
     return 0
 
 
