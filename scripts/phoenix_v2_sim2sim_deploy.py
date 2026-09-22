@@ -74,6 +74,7 @@ def parse_args(argv=None):
         "(recorded in the manifest). The deploy contract still refuses walking configs.",
     )
     p.add_argument("--policy-onnx-override", type=Path, default=None)
+    p.add_argument("--walk-thresholds", type=Path, default=None)
     return p.parse_args(argv)
 
 
@@ -142,6 +143,12 @@ def _run(args) -> int:
         _gate_mod.WALKING_ENABLED = True  # this process only; see --walk
     dcfg = yaml.safe_load(args.deploy_config.read_text())
     problems = validate_deploy_contract(dcfg)
+    walk_block_lifted = []
+    if args.walk:
+        # SIMULATION ONLY: the walking refusal is the one problem this process may lift
+        # (hardware prerequisites, deploy_contract.WALKING_PREREQUISITES); recorded below.
+        walk_block_lifted = [p for p in problems if p.startswith("walking deploy configs are blocked")]
+        problems = [p for p in problems if p not in walk_block_lifted]
     if problems:
         raise SystemExit(f"deploy contract refuses {args.deploy_config}: {problems}")
     order = tuple(dcfg["joint_order"])
@@ -236,6 +243,7 @@ def _run(args) -> int:
         "seed": args.seed,
         "factorial_override": args.factorial,
         "walk_sim_override": bool(args.walk),
+        "walk_contract_refusal_lifted_in_sim": walk_block_lifted,
         "effective_action_clip": clip,
         "effective_limiter": limiter,
     }
@@ -252,7 +260,7 @@ def _run(args) -> int:
     shape = (T, N, 12)
     arrs = {
         k: np.zeros(shape, np.float32)
-        for k in ("raw", "req", "sent", "q0", "q1", "tau_c", "tau_a", "kp_sent")
+        for k in ("raw", "req", "sent", "q0", "q1", "qd1", "tau_c", "tau_a", "kp_sent")
     }
     grav = np.zeros((T, N, 3), np.float32)
     height = np.zeros((T, N), np.float32)
@@ -345,6 +353,7 @@ def _run(args) -> int:
             _, _, terminated, truncated, _ = env.step(action)
             d = (t2n(terminated) | t2n(truncated)).astype(bool)
             arrs["q1"][k] = t2n(robot.data.joint_pos)
+            arrs["qd1"][k] = t2n(robot.data.joint_vel)
             arrs["tau_c"][k] = t2n(robot.data.computed_torque)
             arrs["tau_a"][k] = t2n(robot.data.applied_torque)
             grav[k] = t2n(robot.data.projected_gravity_b)
@@ -379,6 +388,13 @@ def _run(args) -> int:
         first_end = np.where((~alive).any(axis=0), np.argmax(~alive, axis=0), T_)
         valid = np.arange(T_)[:, None] < first_end[None, :]
         metrics.update(score_walk_episodes(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid, dt=dt))
+        from phoenix.monitor.stand_metrics import score_walk_v2
+
+        wth = json.loads(args.walk_thresholds.read_text()) if args.walk_thresholds else None
+        metrics.update(score_walk_v2(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid,
+                                     height=height, qd=arrs["qd1"], req=arrs["req"],
+                                     tau_c=arrs["tau_c"], tau_a=arrs["tau_a"], dt=dt,
+                                     thresholds=wth))
     # The hardware fidelity gate, on the gate's own telemetry, per simulated robot.
     fid = []
     for e in range(N):
@@ -414,7 +430,7 @@ def _run(args) -> int:
         "label", "success_rate", "survival_rate", "mean_primary_score", "fidelity_pass_rate",
         "altered_fraction", "rms_modification_rad", "raw_out_of_range_fraction",
         "attitude_violation_episode_rate", "safety_hold_episode_rate", "mean_base_height_m",
-        "gate_faults", "wall_s")} | {k: v for k, v in summary.items() if k.startswith("walk_")} | {"hw_gate_pass_rate": summary["hardware_fidelity_gate"]["pass_rate"]},
+        "gate_faults", "wall_s")} | {k: v for k, v in summary.items() if k.startswith("walk")} | {"hw_gate_pass_rate": summary["hardware_fidelity_gate"]["pass_rate"]},
         indent=1), flush=True)
     return 0
 
