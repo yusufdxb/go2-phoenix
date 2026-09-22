@@ -1,0 +1,78 @@
+{
+ "regime": "stand",
+ "reference_rms": [
+  0.068212770316293,
+  0.15423201103092363,
+  0.18394604386230162,
+  0.07073223113154506,
+  0.10618318466431306,
+  0.1772979101764021,
+  0.050098942217577234,
+  0.1175074318798513,
+  0.35900264208327104,
+  0.1406654226550856,
+  0.23577253997346023,
+  0.36997947113036733
+ ],
+ "s_hat_quantile_lo": [
+  0.791827846367099,
+  0.6609403947509811,
+  0.832213648001421,
+  0.5870513206299733,
+  0.34694122633475866,
+  0.5512589988777129,
+  0.5857151137150998,
+  0.8935513958699427,
+  0.9537046229454055,
+  0.8264109884027143,
+  0.7433072964624263,
+  0.7437556071063911
+ ],
+ "threshold": [
+  0.791827846367099,
+  0.6609403947509811,
+  0.832213648001421,
+  0.5870513206299733,
+  0.34694122633475866,
+  0.5512589988777129,
+  0.5857151137150998,
+  0.8935513958699427,
+  0.9,
+  0.8264109884027143,
+  0.7433072964624263,
+  0.7437556071063911
+ ],
+ "n_windows": [
+  590,
+  590,
+  590,
+  590,
+  590,
+  590,
+  590,
+  590,
+  590,
+  590,
+  590,
+  590
+ ],
+ "alpha": 0.01,
+ "min_effect": 0.1,
+ "window": {
+  "window_ticks": 50,
+  "min_valid_fraction": 0.6,
+  "noise_floor_rad": 0.002
+ },
+ "source": [
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot000.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot001.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot002.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot003.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot004.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot005.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot006.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot007.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot008.jsonl",
+  "results/phoenix_v2/exploratory_monitor_sim_s0p5/calibration/bridge/robot009.jsonl"
+ ]
+}
