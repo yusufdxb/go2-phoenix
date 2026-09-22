@@ -20,6 +20,17 @@ Modes, in order of precedence
             the abort band, policy abort, stale LowState while still inside the
             stale window) and, NOT latched, for a stale or absent policy command.
             The non-latching command watchdog is the pre-existing behaviour.
+``standup`` (only when ``standup_s > 0``) the bridge is armed, the real deadman is
+            held, nothing is latched and the stand has not finished: ramp
+            linearly from the posture measured at the first such tick to
+            ``TRAINING_DEFAULT_JOINT_POS`` over ``standup_s`` at the standup
+            gains, then hold that stance until a policy command arrives. A
+            policy command during the ramp is not followed. Any fault, estop or
+            deadman release drops out of it by the precedence above and resets
+            it, so a re-arm ramps again from wherever the robot then is. Added
+            2026-09-21: stage F showed a folded start cannot rise under the
+            measured-q slew clip (kp x 0.175 rad caps each joint near 4.4 N m)
+            and is out of the policy's training distribution.
 ``policy``  follow the policy node's command, permuted to Unitree motor order,
             slew-clipped against the fresh measured position, then clipped to
             the hard joint limits.
@@ -76,6 +87,7 @@ from .deploy_contract import WALKING_ENABLED
 from .go2_model import (
     LIMIT_ABORT_BAND_RAD,
     POLICY_JOINT_ORDER,
+    TRAINING_DEFAULT_JOINT_POS,
     UNITREE_MOTOR_ORDER,
     limits_in_order,
     verify_joint_model,
@@ -96,6 +108,7 @@ class Mode(str, Enum):
     HOLD = "hold"
     DAMP = "damp"
     POLICY = "policy"
+    STANDUP = "standup"
 
 
 @dataclass(frozen=True)
@@ -115,6 +128,10 @@ class GateParams:
     limit_abort_band: float = LIMIT_ABORT_BAND_RAD
     #: ``None`` means "required exactly when live". A live gate cannot opt out.
     require_real_deadman: bool | None = None
+    #: 0 disables the standup ramp (the pre-2026-09-21 behaviour).
+    standup_s: float = 0.0
+    standup_kp: float = 60.0
+    standup_kd: float = 5.0
 
     def __post_init__(self) -> None:
         for name in (
@@ -127,7 +144,17 @@ class GateParams:
             value = getattr(self, name)
             if not np.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be positive and finite, got {value}")
-        for name in ("kp", "kd", "hold_kp", "hold_kd", "stale_hold_s", "limit_abort_band"):
+        for name in (
+            "kp",
+            "kd",
+            "hold_kp",
+            "hold_kd",
+            "stale_hold_s",
+            "limit_abort_band",
+            "standup_s",
+            "standup_kp",
+            "standup_kd",
+        ):
             value = getattr(self, name)
             if not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be non-negative and finite, got {value}")
@@ -175,6 +202,15 @@ class ActuatorGate:
         self._last_decoded: DecodedCommand | None = None
         self._last_processed_seq: int | None = None
         self._startup_default_seen = False
+
+        self._stand = np.asarray(
+            [TRAINING_DEFAULT_JOINT_POS[n] for n in UNITREE_MOTOR_ORDER], dtype=np.float64
+        )
+        if np.any(self._stand < self._lo) or np.any(self._stand > self._hi):
+            raise ValueError("training default stance is outside the hard joint limits")
+        self._standup_q0: np.ndarray | None = None
+        self._standup_start_ns: int | None = None
+        self._standup_done = False
 
         self._faults: list[str] = []
         self._damp_latched = False
@@ -366,6 +402,8 @@ class ActuatorGate:
             "limit_clip": None,
             "limit_margin": None,
             "policy": None if self._last_decoded is None else self._last_decoded.telemetry(),
+            "standup_alpha": None,
+            "standup_done": self._standup_done,
             "counters": dict(self.counters),
         }
         if self._last_decoded is not None:
@@ -414,8 +452,37 @@ class ActuatorGate:
             cause = "startup_default" if self._startup_default_seen else "no_policy_command"
         elif (now_ns - self._cmd_ns) / 1e9 > p.watchdog_s:
             cause = "command_stale"
+        elif p.standup_s > 0 and not self._standup_done:
+            cause = "standup_in_progress"
         else:
             mode = Mode.POLICY
+
+        standup_ok = (
+            p.standup_s > 0
+            and mode is Mode.HOLD
+            and cause in ("no_policy_command", "startup_default", "standup_in_progress")
+        )
+        if not standup_ok:
+            self._standup_q0 = None
+            self._standup_start_ns = None
+            if mode is not Mode.POLICY:
+                self._standup_done = False
+        else:
+            if self._standup_q0 is None or self._standup_start_ns is None:
+                self._standup_q0 = np.clip(q, self._lo, self._hi)
+                self._standup_start_ns = now_ns
+            alpha = min(1.0, (now_ns - self._standup_start_ns) / 1e9 / p.standup_s)
+            if alpha >= 1.0:
+                self._standup_done = True
+            mode = Mode.STANDUP
+            cause = None
+            standup_target = (1.0 - alpha) * self._standup_q0 + alpha * self._stand
+            rec["standup_alpha"] = float(alpha)
+
+        if mode is Mode.STANDUP:
+            final = np.clip(standup_target, self._lo, self._hi)
+            rec["limit_clip"] = [bool(v) for v in final != standup_target]
+            kp, kd = p.standup_kp, p.standup_kd
 
         if mode is Mode.POLICY:
             cmd = self._cmd
@@ -444,7 +511,7 @@ class ActuatorGate:
                 rec["policy"] = cmd.telemetry()
                 kp, kd = p.kp, p.kd
 
-        if mode is not Mode.POLICY:
+        if mode not in (Mode.POLICY, Mode.STANDUP):
             final = np.clip(q, self._lo, self._hi)
             rec["limit_clip"] = [bool(v) for v in final != q]
             kp, kd = (0.0, p.hold_kd) if mode is Mode.DAMP else (p.hold_kp, p.hold_kd)
@@ -456,7 +523,8 @@ class ActuatorGate:
 
         rec["mode"] = mode.value
         rec["publish"] = True
-        rec["hold_cause"] = cause if mode is not Mode.POLICY else None
+        rec["hold_cause"] = cause if mode is Mode.HOLD or mode is Mode.DAMP else None
+        rec["standup_done"] = self._standup_done
         rec["final_target_unitree"] = _floats(final)
         rec["limit_margin"] = _floats(np.minimum(final - self._lo, self._hi - final))
         rec["kp"] = float(kp)
