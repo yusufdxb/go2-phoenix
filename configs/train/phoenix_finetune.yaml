@@ -1,0 +1,52 @@
+# Phoenix v2 fine-tune: identical hyper-parameters for EVERY arm of the experiment
+# (broad randomisation and Phoenix-targeted), so the env overlay is the only
+# difference. Always invoked through scripts/phoenix_train_candidate.sh, which
+# passes --env-config (the arm's overlay), --resume (the incumbent checkpoint),
+# --seed and --run-name.
+#
+# CAVEAT: the incumbent H25 checkpoint's own training YAML was never committed,
+# so these values follow configs/train/ppo_stand_v3.yaml (the H25 lineage's last
+# committed recipe). docs/research/Phoenix_v2_audit.md records this gap.
+
+run:
+  name: "phoenix-v2-candidate"
+  output_dir: "checkpoints"
+  log_interval: 1
+  save_interval: 50
+  max_iterations: 300  # preregistered budget per arm per seed (docs/research/EXPERIMENT.md)
+  seed: 42
+  device: "cuda:0"
+
+env:
+  config: "configs/env/stand_v3_h25.yaml"  # always overridden by --env-config
+
+algorithm:
+  class_name: "PPO"
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  entropy_coef: 0.005
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 1.0e-3
+  schedule: "adaptive"
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+
+policy:
+  class_name: "ActorCritic"
+  init_noise_std: 0.05
+  actor_hidden_dims: [512, 256, 128]
+  critic_hidden_dims: [512, 256, 128]
+  activation: "elu"
+
+runner:
+  num_steps_per_env: 24
+  empirical_normalization: true
+
+logging:
+  tensorboard: true
+  wandb: false
+  wandb_project: "go2-phoenix"

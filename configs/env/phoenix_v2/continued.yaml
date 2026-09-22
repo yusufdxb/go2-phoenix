@@ -1,0 +1,4 @@
+# Arm A1 (control): the incumbent's own recipe, fine-tuned for the same budget as
+# every other arm. Separates "Phoenix helped" from "more training helped".
+defaults:
+  - ../stand_v3_h25

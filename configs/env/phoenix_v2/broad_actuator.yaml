@@ -1,0 +1,8 @@
+# Arm A2 (baseline): broad actuator randomisation. Every joint's stiffness and
+# damping scaled by U[0.5, 1.15] (the incumbent recipe used [0.85, 1.15]). The
+# lower end covers every preregistered degradation severity, so this arm has
+# seen the test condition; it just spent its samples on all 12 joints at once.
+defaults:
+  - ../stand_v3_h25
+domain_randomization:
+  motor_strength_scale: [0.5, 1.15]

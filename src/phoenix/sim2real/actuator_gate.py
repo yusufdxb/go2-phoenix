@@ -83,6 +83,7 @@ from .command_wire import (
     decode,
     wire_label,
 )
+from .degradation import DegradationSpec
 from .deploy_contract import WALKING_ENABLED
 from .go2_model import (
     LIMIT_ABORT_BAND_RAD,
@@ -132,6 +133,9 @@ class GateParams:
     standup_s: float = 0.0
     standup_kp: float = 60.0
     standup_kd: float = 5.0
+    #: Controlled experiment only (see :mod:`phoenix.sim2real.degradation`). Scales
+    #: one motor's kp/kd DOWN in POLICY mode; every other mode keeps nominal gains.
+    degradation: DegradationSpec | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -189,6 +193,7 @@ class ActuatorGate:
 
         self._q: np.ndarray | None = None
         self._dq: np.ndarray | None = None
+        self._tau: np.ndarray | None = None
         self._lowstate_ns: int | None = None
         self._stale_since_ns: int | None = None
 
@@ -242,7 +247,11 @@ class ActuatorGate:
 
     # --------------------------------------------------------------- inputs
     def on_lowstate(
-        self, now_ns: int, q_unitree: Sequence[float], dq_unitree: Sequence[float]
+        self,
+        now_ns: int,
+        q_unitree: Sequence[float],
+        dq_unitree: Sequence[float],
+        tau_est_unitree: Sequence[float] | None = None,
     ) -> None:
         q = np.asarray(q_unitree, dtype=np.float64).reshape(-1)
         dq = np.asarray(dq_unitree, dtype=np.float64).reshape(-1)
@@ -256,6 +265,13 @@ class ActuatorGate:
             return
         self._q = q
         self._dq = dq
+        # tau_est is recorded for the actuator monitor only; no safety decision
+        # reads it, so a malformed value is dropped rather than latched.
+        self._tau = None
+        if tau_est_unitree is not None:
+            tau = np.asarray(tau_est_unitree, dtype=np.float64).reshape(-1)
+            if tau.shape == (12,):
+                self._tau = tau
         self._lowstate_ns = int(now_ns)
         band = self.params.limit_abort_band
         impossible = (q < self._lo - band) | (q > self._hi + band)
@@ -366,7 +382,9 @@ class ActuatorGate:
         """Decide this tick's motor command. Returns a JSON-ready record.
 
         ``record["publish"]`` says whether to send a LowCmd; when it is true,
-        ``final_target_unitree``, ``kp`` and ``kd`` are that command.
+        ``final_target_unitree``, ``kp_unitree`` and ``kd_unitree`` are that command
+        (``kp``/``kd`` are the mode's scalar gains; the vectors differ from them only
+        on a controlled-degradation joint in POLICY mode).
         """
         now_ns = int(now_ns)
         p = self.params
@@ -384,6 +402,7 @@ class ActuatorGate:
             "lowstate_fresh": False,
             "q_unitree": None,
             "dq_unitree": None,
+            "tau_est_unitree": None,
             "estop_value": self._estop_value,
             "estop_age_s": None if self._estop_ns is None else (now_ns - self._estop_ns) / 1e9,
             "estop_state": None,
@@ -397,6 +416,9 @@ class ActuatorGate:
             "final_target_unitree": None,
             "kp": None,
             "kd": None,
+            "kp_unitree": None,
+            "kd_unitree": None,
+            "degradation": None,
             "slew_clip": None,
             "slew_margin": None,
             "limit_clip": None,
@@ -424,6 +446,7 @@ class ActuatorGate:
         rec["lowstate_fresh"] = fresh
         rec["q_unitree"] = _floats(q)
         rec["dq_unitree"] = _floats(self._dq)
+        rec["tau_est_unitree"] = _floats(self._tau)
         if fresh:
             self._stale_since_ns = None
         else:
@@ -527,8 +550,30 @@ class ActuatorGate:
         rec["standup_done"] = self._standup_done
         rec["final_target_unitree"] = _floats(final)
         rec["limit_margin"] = _floats(np.minimum(final - self._lo, self._hi - final))
+        # ``kp``/``kd`` stay the scalar gains of the mode (consumers group on them);
+        # ``kp_unitree``/``kd_unitree`` are what each motor was actually sent.
+        kp_vec = np.full(12, float(kp))
+        kd_vec = np.full(12, float(kd))
+        applied = mode is Mode.POLICY and p.degradation is not None
+        if applied:
+            assert p.degradation is not None
+            kp_vec = kp_vec * p.degradation.kp_scale_vector()
+            kd_vec = kd_vec * p.degradation.kd_scale_vector()
         rec["kp"] = float(kp)
         rec["kd"] = float(kd)
+        rec["kp_unitree"] = _floats(kp_vec)
+        rec["kd_unitree"] = _floats(kd_vec)
+        if p.degradation is not None:
+            rec["degradation"] = {
+                "joint": p.degradation.joint,
+                "applied": bool(applied),
+                "kp_scale_unitree": _floats(
+                    p.degradation.kp_scale_vector() if applied else np.ones(12)
+                ),
+                "kd_scale_unitree": _floats(
+                    p.degradation.kd_scale_vector() if applied else np.ones(12)
+                ),
+            }
         rec["faults"] = list(self._faults)
         rec["fault"] = self.fault
         rec["counters"] = dict(self.counters)

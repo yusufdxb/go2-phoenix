@@ -1,0 +1,11 @@
+# Evaluation condition: all randomisation off, RR_thigh stiffness AND damping at
+# exactly 0.6 x nominal in every env (zero-width targeted range, no nominal envs).
+# The same intervention as the hardware controlled degradation RR_thigh:0.6.
+defaults:
+  - ../stand_nodr
+domain_randomization:
+  targeted_actuator:
+    nominal_fraction: 0.0
+    scale_damping: true
+    joints:
+      RR_thigh_joint: [0.6, 0.6]

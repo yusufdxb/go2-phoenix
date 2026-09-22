@@ -1,0 +1,12 @@
+# Arm A4 (ablation, not a deployable method): the targeted distribution built
+# from the TRUE applied scale (RR_thigh 0.6) instead of the monitor's estimate.
+# Isolates estimator error from the value of targeting. Same width as the
+# Phoenix arm's default (2 x 0.05 margin + observed spread): here +/- 0.08.
+defaults:
+  - ../stand_v3_h25
+domain_randomization:
+  targeted_actuator:
+    nominal_fraction: 0.5
+    scale_damping: true
+    joints:
+      RR_thigh_joint: [0.52, 0.68]

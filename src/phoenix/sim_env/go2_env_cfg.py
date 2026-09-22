@@ -92,6 +92,8 @@ _APPLIED_DR_KEYS = (
     "mass_offset_kg",
     "motor_strength_scale",
     "actuator_latency_steps",
+    "targeted_actuator",
+    "targeted_actuator_seed",
 )
 
 # Keys inside the (wired) ``perturbation`` block that ``_apply_perturbation``
@@ -444,6 +446,82 @@ def scale_explicit_actuator_gains(
             actuator.damping[env_ids] = actuator.damping[env_ids] * fac
 
 
+def scale_targeted_actuator_gains(
+    env: Any,
+    env_ids: Any,
+    asset_cfg: Any,
+    targeted: dict[str, Any] | None = None,
+    seed: int = 0,
+) -> None:
+    """Phoenix CONDITION step, sim side: scale ONE (or two) joints' actuator gains.
+
+    ``targeted`` is the ``domain_randomization.targeted_actuator`` block written by
+    :mod:`phoenix.condition.distribution`; the per-env factors come from its pure
+    :func:`~phoenix.condition.distribution.targeted_scale_factors`, so the exact
+    sampling rule is unit-tested without Isaac. Startup mode only (the multiply is
+    in place, like :func:`scale_explicit_actuator_gains`, and would compound on
+    every reset). It runs after the parent recipe's motor-strength term, so it
+    multiplies on top of it. NOT run in this repository's CI: needs Isaac Lab.
+    """
+    import numpy as np
+    import torch
+
+    from phoenix.condition.distribution import TargetedActuatorSpec, targeted_scale_factors
+
+    if not targeted:
+        return
+    spec = TargetedActuatorSpec.from_yaml_block(targeted)
+    asset = env.scene[asset_cfg.name]
+    if env_ids is None:
+        env_ids = torch.arange(asset.num_instances, device=asset.device)
+    rng = np.random.default_rng(seed)
+    found: set[str] = set()
+    for actuator in asset.actuators.values():
+        names = list(actuator.joint_names)
+        mine = {k: v for k, v in spec.joints.items() if k in names}
+        if not mine:
+            continue
+        found.update(mine)
+        sub = TargetedActuatorSpec(
+            joints=mine, nominal_fraction=spec.nominal_fraction, scale_damping=spec.scale_damping
+        )
+        stiff, damp = targeted_scale_factors(len(env_ids), names, sub, rng)
+        actuator.stiffness[env_ids] = actuator.stiffness[env_ids] * torch.as_tensor(
+            stiff, dtype=actuator.stiffness.dtype, device=asset.device
+        )
+        actuator.damping[env_ids] = actuator.damping[env_ids] * torch.as_tensor(
+            damp, dtype=actuator.damping.dtype, device=asset.device
+        )
+    missing = set(spec.joints) - found
+    if missing:
+        raise KeyError(f"targeted_actuator joints not found in any actuator: {sorted(missing)}")
+
+
+def _prepare_targeted_actuator_term(env_cfg: Any, dr: dict[str, Any]) -> None:
+    """Create ``events.phoenix_targeted_actuator`` when the overlay asks for it.
+
+    Deliberately NOT switched off by ``domain_randomization.enabled: false``: the
+    evaluation conditions of the experiment are "all randomisation off, this one
+    joint at this scale", which is exactly an eval overlay on ``stand_nodr`` with a
+    zero-width targeted range and ``nominal_fraction: 0``.
+    """
+    if "targeted_actuator" not in dr:
+        return
+    from isaaclab.managers import EventTermCfg as EventTerm  # type: ignore[import]
+    from isaaclab.managers import SceneEntityCfg  # type: ignore[import]
+
+    events = _events_root(env_cfg)
+    events.phoenix_targeted_actuator = EventTerm(
+        func=scale_targeted_actuator_gains,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "targeted": dict(dr["targeted_actuator"]),
+            "seed": int(dr.get("targeted_actuator_seed", 0)),
+        },
+    )
+
+
 def _prepare_dr_event_terms(env_cfg: Any, dr: dict[str, Any]) -> None:
     """Pre-create Phoenix-owned DR event terms that upstream GO2 cfg omits.
 
@@ -698,6 +776,8 @@ def build_env_cfg(config: str | Path | PhoenixConfig) -> ManagerBasedRLEnvCfg:
     # (e.g. scale_motor_strength). Must run before _apply_domain_randomization.
     _prepare_dr_event_terms(cfg, data.get("domain_randomization", {}))
     _apply_domain_randomization(cfg, data.get("domain_randomization", {}))
+    # After the parent's motor-strength term, so the targeted factor multiplies on top.
+    _prepare_targeted_actuator_term(cfg, data.get("domain_randomization", {}))
     _apply_actuator_latency(cfg, data.get("domain_randomization", {}))
     _apply_perturbation(cfg, data.get("perturbation", {}))
     _apply_rewards(cfg, data.get("reward", {}))
