@@ -9,6 +9,7 @@ export PYTHONUNBUFFERED=1
 RUN="${1:?run dir}"; OUT="${2:?out}"; shift 2
 for it in "$@"; do
   d="$OUT/it$(printf %04d "$it")"
+  mkdir -p "$OUT"
   [ -f "$d/summary.json" ] && continue
   PYTHONPATH=src python scripts/phoenix_v2_sim_stand.py --checkpoint "$RUN/model_$it.pt" --walk \
     --env-config configs/env/phoenix_v2/walk_w_eval_nominal.yaml --num-envs "${NUM_ENVS:-128}" \

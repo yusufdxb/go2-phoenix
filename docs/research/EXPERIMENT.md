@@ -492,3 +492,38 @@ success, and only it sees the final seeds (6001-6003).
 Stage W stops with the finding that this flat-ground PPO recipe (Isaac Lab GO2 flat task,
 clamp [-1, 1], scale 0.25, no soft limiter) did not produce a symmetric walking baseline
 within the declared budget. No further locomotion variables are tried in this study.
+
+### Amendment 9 (2026-09-22): W2 passes dev Gate W-H; thresholds and candidate frozen
+
+W2 (W1 recipe, 3000 iterations, seed 42, 36 min, deterministic match to W1-full through
+iteration 1499) on the development seeds, hard envelope only: walking success **0.941**
+(DR off, 5001), **0.918** (DR on, 5002), stand **1.000** (5003). Gate W-H (0.90 / 0.80 /
+0.90) PASSES, so amendment 8.2 takes branch (a). Checkpoint `model_2999.pt`, sha256
+`94790929ea9f8a78...`, run `checkpoints/phoenix-walk-w2/2026-09-22_13-34-53`.
+
+Directionally (`results/phoenix_v2/walk_diag/w2_nominal/directional.json`) it is
+symmetric: strong forward +0.701 -> +0.697 (segment success 0.987), strong backward
+-0.703 -> -0.694 (1.000), both mild bins 1.000. Forward emerged between iterations 1600
+and 1800 and converged by about 2000 (`results/phoenix_v2/walk_curve/w2/`).
+
+**Walking success thresholds frozen** at the values `WALK_V2_PROVISIONAL` has carried
+since before W1 (they were never changed after seeing a result): planar error <= 0.25
+m/s, yaw-rate error <= 0.30 rad/s, settle 1.0 s, progress ratio >= 0.80, minimum base
+height >= 0.20 m, effort saturation <= 1 %, joint speed <= 30 rad/s, plus the amendment 1
+stand criteria (no trunk contact, |roll| and |pitch| <= 0.40 rad, no abort-band request,
+per-episode execution fidelity, no safety hold, full episode length).
+
+**Final-seed evaluation** (once, this candidate): 6001 DR off, 6002 DR on, 6003 zero
+command, 256 episodes, hard envelope only.
+
+**Phase 7 for W2**: the amendment 6.2 rule on development seeds 5101 (DR) and 5102
+(nominal), grid unchanged {0.02, 0.035, 0.05, 0.075, 0.10, 0.175}; if no value passes,
+the rule says the policy has no admissible limiter and is not deployed. Gate W-L then
+runs on fresh seeds 6011-6013 with the selected bound.
+
+**Phase 9 held-out conditions, fixed now** (exact deploy stack, seeds 6101+): (A) nominal;
+(B) training randomisation; (C) held-out friction, static and dynamic 0.2 and 1.8
+(training 0.3 to 1.5); (D) held-out actuator scale, motor strength 0.75 and 1.25
+(training 0.85 to 1.15); (E) held-out command combinations, vx and vy and yaw rate all
+near their corners simultaneously (|vx| in [0.7, 0.9], |vy| in [0.4, 0.5], |wz| in
+[0.7, 0.9], signs drawn independently).
