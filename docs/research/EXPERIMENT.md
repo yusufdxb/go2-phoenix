@@ -257,3 +257,25 @@ hold if any joint's `|sent - q|` stays above `tracking_abort_rad` for 0.2 s.
 largest 0.2 s-sustained `|sent - q|` on any joint in the dq_max = 0.075 development runs
 (nominal and DR, saved per step). If that value exceeds 0.94 rad (effort limit 23.5 N m
 / kp 25), the abort is reported as unable to add protection beyond motor saturation.
+
+### Amendment 3 (2026-09-22, before any walking policy is trained)
+
+**Stage W baseline (Phase L), recipe fixed now.** The smallest legitimate walking
+baseline, not a locomotion contribution: `Isaac-Velocity-Flat-Unitree-Go2-v0` through
+`configs/env/phoenix_v2/walk_flat.yaml` (the repository's `base.yaml` velocity ranges
+vx [-1, 1] m/s, vy [-0.6, 0.6] m/s, yaw rate [-1, 1] rad/s, 2 % standing envs, its DR and
+observation noise) with the frozen limiter in the MDP (`prev_command`, 0.075 rad/step)
+and the [-1, 1] action clamp; PPO recipe `configs/train/ppo_walk_v2.yaml` (the v3b flat
+recipe, 1500 iterations, 4096 envs, seed 42). Trained from scratch: no stand weights.
+
+**Gate L, fixed now.** 256 episodes of 20 s per condition, evaluation seeds 4001 (DR off)
+and 4002 (training DR), commands drawn from the training ranges and resampled every
+10 s. Per-episode walking success: no trunk contact; |roll| and |pitch| <= 0.40 rad on
+every step; the execution-fidelity gate against the layer-2 request; mean planar
+velocity error <= 0.25 m/s and mean yaw-rate error <= 0.30 rad/s, each excluding the
+first 1.0 s after episode start and after each command resample. Standing check: the
+same policy under zero command meets the Amendment 1 standing success. Gate L passes
+when walking success >= 0.90 (DR off) and >= 0.80 (DR on), standing success >= 0.90
+(DR off), and the simulated deployment path (v2 gate, clamp, true body velocity as an
+idealised odometry source) reaches walking success >= 0.90 (DR off). If the gate
+fails, report the failure; the recipe is not tuned against the evaluation seeds.
