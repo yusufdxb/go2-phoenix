@@ -83,7 +83,7 @@ from .command_wire import (
     decode,
     wire_label,
 )
-from .degradation import RAMP_S, SATURATION_LATCH_S, DegradationSpec
+from .degradation import DEGRADATION_PIN_BAND_RAD, RAMP_S, SATURATION_LATCH_S, DegradationSpec
 from .deploy_contract import WALKING_ENABLED
 from .go2_model import (
     LIMIT_ABORT_BAND_RAD,
@@ -94,7 +94,13 @@ from .go2_model import (
     verify_joint_model,
 )
 from .motor_crc import PHOENIX_FOR_MOTOR
-from .safety import MAX_DELTA_PER_STEP_RAD, estop_is_active, per_step_clip_array
+from .safety import (
+    LIMITER_MODES,
+    MAX_DELTA_PER_STEP_RAD,
+    estop_is_active,
+    per_step_clip_array,
+    rate_limit_array,
+)
 
 #: Node names of the two real deadman adapters in this package
 #: (``wireless_estop_node`` and ``deadman_joy_node``). Nothing else may arm a
@@ -126,7 +132,16 @@ class GateParams:
     first_message_timeout_s: float
     joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
     max_delta: float = MAX_DELTA_PER_STEP_RAD
+    #: Soft limiter family, see :data:`phoenix.sim2real.safety.LIMITER_MODES`. The
+    #: default keeps the incumbent behaviour for configs that predate Phoenix v2.
+    limiter_mode: str = "measured_q"
     limit_abort_band: float = LIMIT_ABORT_BAND_RAD
+    #: Effort protection that replaces the torque cap the measured-q clip used to
+    #: impose, WITHOUT rewriting any command: if any joint's ``|sent - q|`` stays above
+    #: this for ``tracking_abort_s``, latch hold. 0 disables it (incumbent configs,
+    #: whose measured-q clip bounds ``|sent - q|`` by ``max_delta`` already).
+    tracking_abort_rad: float = 0.0
+    tracking_abort_s: float = 0.2
     #: ``None`` means "required exactly when live". A live gate cannot opt out.
     require_real_deadman: bool | None = None
     #: 0 disables the standup ramp (the pre-2026-09-21 behaviour).
@@ -155,6 +170,8 @@ class GateParams:
             "hold_kd",
             "stale_hold_s",
             "limit_abort_band",
+            "tracking_abort_rad",
+            "tracking_abort_s",
             "standup_s",
             "standup_kp",
             "standup_kd",
@@ -162,12 +179,29 @@ class GateParams:
             value = getattr(self, name)
             if not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be non-negative and finite, got {value}")
+        if self.limiter_mode not in LIMITER_MODES:
+            raise ValueError(f"limiter_mode must be one of {LIMITER_MODES}, got {self.limiter_mode!r}")
         if self.live and self.require_real_deadman is False:
             raise ValueError("a live gate cannot disable the real-deadman requirement")
 
     @property
     def deadman_required(self) -> bool:
         return self.live if self.require_real_deadman is None else bool(self.require_real_deadman)
+
+
+def limiter_params_from_config(cfg: Any) -> dict[str, Any]:
+    """The soft-limiter fields of :class:`GateParams` from a deploy config mapping.
+
+    One parser for the ROS bridge and for the simulated deployment path, so both run
+    the limiter the config declares. No ``limiter:`` block means the incumbent.
+    """
+    limiter = dict((cfg or {}).get("limiter") or {})
+    return {
+        "limiter_mode": str(limiter.get("mode", "measured_q")),
+        "max_delta": float(limiter.get("max_delta_per_step", MAX_DELTA_PER_STEP_RAD)),
+        "tracking_abort_rad": float(limiter.get("tracking_abort_rad", 0.0)),
+        "tracking_abort_s": float(limiter.get("tracking_abort_s", 0.2)),
+    }
 
 
 def _names(mask: np.ndarray) -> str:
@@ -219,6 +253,9 @@ class ActuatorGate:
 
         self._policy_since_ns: int | None = None
         self._deg_pinned_since_ns: int | None = None
+        #: Last target actually published (any mode): the command-rate limiter's anchor.
+        self._prev_sent: np.ndarray | None = None
+        self._tracking_since_ns: int | None = None
 
         self._faults: list[str] = []
         self._damp_latched = False
@@ -415,8 +452,14 @@ class ActuatorGate:
             "cmd_kind": None,
             "cmd_is_new": False,
             "cmd_age_s": None if self._cmd_ns is None else (now_ns - self._cmd_ns) / 1e9,
-            "requested_target_unitree": None,
+            # Schema v2: the policy node's output as the bridge received it (was the
+            # misleading ``requested_target_unitree``), then after the soft limiter, then
+            # after the hard envelope (what the motors were told).
+            "node_target_unitree": None,
+            "soft_target_unitree": None,
             "final_target_unitree": None,
+            "limiter_mode": p.limiter_mode,
+            "tracking_error_max_rad": None,
             "kp": None,
             "kd": None,
             "kp_unitree": None,
@@ -514,7 +557,7 @@ class ActuatorGate:
             cmd = self._cmd
             assert cmd is not None  # POLICY is only reachable with a command
             requested = cmd.target[self._perm]
-            rec["requested_target_unitree"] = _floats(requested)
+            rec["node_target_unitree"] = _floats(requested)
             beyond = (requested < self._lo - p.limit_abort_band) | (
                 requested > self._hi + p.limit_abort_band
             )
@@ -523,13 +566,26 @@ class ActuatorGate:
                 mode = Mode.HOLD
                 cause = self.fault
             else:
-                slewed = np.asarray(
-                    per_step_clip_array(requested, q, p.max_delta), dtype=np.float64
-                )
+                if p.limiter_mode == "prev_command":
+                    # Anchor: the target sent on the previous tick, whatever mode sent
+                    # it, so the stand-up to policy handover is rate-limited too.
+                    anchor = self._prev_sent if self._prev_sent is not None else q
+                else:
+                    anchor = q
+                if p.limiter_mode == "prev_command":
+                    slewed = np.asarray(rate_limit_array(requested, anchor, p.max_delta))
+                else:
+                    slewed = np.asarray(
+                        per_step_clip_array(requested, q, p.max_delta), dtype=np.float64
+                    )
                 final = np.clip(slewed, self._lo, self._hi)
+                rec["soft_target_unitree"] = _floats(slewed)
                 if p.degradation is not None:
                     j = p.degradation.motor_index
-                    if abs(requested[j] - q[j]) >= p.max_delta:
+                    # "Pinned": the policy asks the degraded joint for at least the pin
+                    # band beyond where it is, i.e. the leg is not following. The band is
+                    # its own constant so a different soft limiter cannot move it.
+                    if abs(requested[j] - q[j]) >= DEGRADATION_PIN_BAND_RAD:
                         if self._deg_pinned_since_ns is None:
                             self._deg_pinned_since_ns = now_ns
                         elif (now_ns - self._deg_pinned_since_ns) / 1e9 >= SATURATION_LATCH_S:
@@ -537,7 +593,18 @@ class ActuatorGate:
                     else:
                         self._deg_pinned_since_ns = None
                 rec["slew_clip"] = [bool(v) for v in slewed != requested]
-                rec["slew_margin"] = _floats(p.max_delta - np.abs(requested - q))
+                rec["slew_margin"] = _floats(p.max_delta - np.abs(requested - anchor))
+                gap = np.abs(final - q)
+                rec["tracking_error_max_rad"] = float(gap.max())
+                if p.tracking_abort_rad > 0:
+                    over = gap > p.tracking_abort_rad
+                    if over.any():
+                        if self._tracking_since_ns is None:
+                            self._tracking_since_ns = now_ns
+                        elif (now_ns - self._tracking_since_ns) / 1e9 >= p.tracking_abort_s:
+                            self._latch(f"tracking_error_exceeded:{_names(over)}")
+                    else:
+                        self._tracking_since_ns = None
                 rec["limit_clip"] = [bool(v) for v in final != slewed]
                 rec["cmd_is_new"] = cmd.seq != self._last_processed_seq
                 self._last_processed_seq = cmd.seq
@@ -545,7 +612,9 @@ class ActuatorGate:
                 rec["cmd_kind"] = cmd.kind
                 rec["policy"] = cmd.telemetry()
                 kp, kd = p.kp, p.kd
-                if self.fault is not None and self.fault.startswith("degradation_joint_saturated"):
+                if self.fault is not None and self.fault.startswith(
+                    ("degradation_joint_saturated", "tracking_error_exceeded")
+                ):
                     mode = Mode.HOLD
                     cause = self.fault
 
@@ -575,6 +644,8 @@ class ActuatorGate:
         else:
             self._policy_since_ns = None
             self._deg_pinned_since_ns = None
+            self._tracking_since_ns = None
+        self._prev_sent = np.asarray(final, dtype=np.float64).copy()
         applied = mode is Mode.POLICY and p.degradation is not None
         ramp = 0.0
         kp_scale: np.ndarray = np.ones(12)
@@ -604,4 +675,10 @@ class ActuatorGate:
         return rec
 
 
-__all__ = ["REAL_DEADMAN_NODE_NAMES", "ActuatorGate", "GateParams", "Mode"]
+__all__ = [
+    "REAL_DEADMAN_NODE_NAMES",
+    "ActuatorGate",
+    "GateParams",
+    "Mode",
+    "limiter_params_from_config",
+]

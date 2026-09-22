@@ -51,7 +51,12 @@ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray
 from unitree_go.msg import LowCmd, LowState
 
-from phoenix.sim2real.actuator_gate import REAL_DEADMAN_NODE_NAMES, ActuatorGate, GateParams
+from phoenix.sim2real.actuator_gate import (
+    REAL_DEADMAN_NODE_NAMES,
+    ActuatorGate,
+    GateParams,
+    limiter_params_from_config,
+)
 from phoenix.sim2real.bridge_telemetry import (
     HARDWARE_SLEW_METRIC,
     HARDWARE_SLEW_METRIC_DEFINITION,
@@ -113,6 +118,12 @@ class BridgeConfig:
     standup_kp: float = 60.0
     standup_kd: float = 5.0
     degradation: DegradationSpec | None = None
+    #: Soft limiter (deploy config ``limiter:`` block; absent = the incumbent measured-q
+    #: clip at 0.175 rad). See :data:`phoenix.sim2real.safety.LIMITER_MODES`.
+    limiter_mode: str = "measured_q"
+    max_delta: float = MAX_DELTA_PER_STEP_RAD
+    tracking_abort_rad: float = 0.0
+    tracking_abort_s: float = 0.2
     extra: dict[str, Any] = field(default_factory=dict)
 
     def gate_params(self) -> GateParams:
@@ -132,6 +143,10 @@ class BridgeConfig:
             standup_kp=self.standup_kp,
             standup_kd=self.standup_kd,
             degradation=self.degradation,
+            limiter_mode=self.limiter_mode,
+            max_delta=self.max_delta,
+            tracking_abort_rad=self.tracking_abort_rad,
+            tracking_abort_s=self.tracking_abort_s,
         )
 
 
@@ -370,8 +385,10 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
     lowstate_timeout_s = 0.2
     first_message_timeout_s = 15.0
     joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
+    limiter = limiter_params_from_config({})
     if args.config.exists():
         cfg = _load_deploy_config(args.config)
+        limiter = limiter_params_from_config(cfg)
         rate_hz = float(cfg.get("control", {}).get("rate_hz", rate_hz))
         t = cfg.get("topics", {})
         cmd_topic = t.get("joint_command", cmd_topic)
@@ -428,6 +445,7 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
             if getattr(args, "experiment_degradation", None)
             else None
         ),
+        **limiter,
     )
 
 

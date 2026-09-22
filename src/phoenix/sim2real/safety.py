@@ -109,6 +109,34 @@ def per_step_clip_array(target, current, max_delta: float = MAX_DELTA_PER_STEP_R
     return np.clip(target_arr, current_arr - max_delta, current_arr + max_delta)
 
 
+#: Soft limiter families the deploy stack implements (Phoenix v2, amendment 1).
+#: ``measured_q`` is the incumbent: target clipped to ``measured_q +/- max_delta``,
+#: which at kp=25 is also a ~4.4 N m torque cap and rewrote 88.8 % of H25's live
+#: requests. ``prev_command`` is the command-rate limiter:
+#: ``|sent[k] - sent[k-1]| <= max_delta``. Neither is the hard envelope; joint limits,
+#: the abort band, E-stop, deadman and watchdogs apply after either one, unchanged.
+LIMITER_MODES: tuple[str, ...] = ("measured_q", "prev_command")
+
+#: Isaac Lab's ``RslRlVecEnvWrapper(clip_actions=1.0)`` clamps every raw policy output
+#: to [-1, 1] before the action term and before ``last_action`` is observed, in PPO
+#: training and in evaluation. The clamp is part of the plant every Phoenix policy was
+#: trained on; the exported ONNX does not contain it, so the deploy node must apply it
+#: (to the joint target AND to the ``last_action`` it feeds back).
+TRAINED_ACTION_CLIP: float = 1.0
+
+
+def rate_limit_array(target, prev_sent, max_delta: float):
+    """Command-rate limiter: clip ``target`` to ``prev_sent +/- max_delta`` element-wise.
+
+    ``prev_sent`` is the target actually sent on the previous control tick (any mode),
+    not a measurement, so sensor noise and actuator lag cannot pull the command.
+    """
+    import numpy as np
+
+    prev = np.asarray(prev_sent, dtype=np.float64)
+    return np.clip(np.asarray(target, dtype=np.float64), prev - max_delta, prev + max_delta)
+
+
 def is_ready_to_command_motion(
     *,
     now_ns: int,
