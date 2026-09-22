@@ -41,6 +41,10 @@ SCHEMA = "phoenix-deploy-fidelity/v1"
 @dataclass(frozen=True)
 class FidelityThresholds:
     max_altered_fraction: float = 0.05
+    #: The same limit on every single joint: an average over twelve joints can hide one
+    #: joint whose targets are rewritten most of the time, and that joint is where the
+    #: monitor would then see nothing.
+    max_joint_altered_fraction: float = 0.05
     max_rms_distortion_rad: float = 0.01
     min_authority_s: float = 10.0
     #: A change smaller than 1 mrad is below what the gate calls material. The
@@ -121,6 +125,12 @@ def fidelity_report(
         reasons.append(
             f"altered_fraction {report['altered_fraction']:.3f} > "
             f"{thresholds.max_altered_fraction}"
+        )
+    worst = max(report["per_joint"].items(), key=lambda kv: kv[1]["altered_fraction"])
+    if worst[1]["altered_fraction"] > thresholds.max_joint_altered_fraction:
+        reasons.append(
+            f"{worst[0]} altered_fraction {worst[1]['altered_fraction']:.3f} > "
+            f"{thresholds.max_joint_altered_fraction}"
         )
     if report["rms_distortion_rad"] > thresholds.max_rms_distortion_rad:
         reasons.append(

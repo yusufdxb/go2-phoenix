@@ -23,6 +23,7 @@ from phoenix.validate.candidate_gate import (
     bootstrap_diff_ci,
     candidate_gate,
     compare_arms,
+    welch_diff_ci,
 )
 from phoenix.validate.promotion import promotion_problems
 
@@ -100,8 +101,9 @@ def test_scale_factors_touch_only_targeted_joint_in_targeted_envs():
     spec = TargetedActuatorSpec(joints={"RR_thigh_joint": (0.5, 0.7)}, nominal_fraction=0.25)
     stiff, damp = targeted_scale_factors(8, UNITREE_MOTOR_ORDER, spec, np.random.default_rng(0))
     j = UNITREE_MOTOR_ORDER.index("RR_thigh_joint")
-    assert np.all(stiff[:2] == 1.0)
-    assert np.all((stiff[2:, j] >= 0.5) & (stiff[2:, j] <= 0.7))
+    targeted = stiff[:, j] != 1.0
+    assert targeted.sum() == 6  # 8 envs, 25 % nominal
+    assert np.all((stiff[targeted, j] >= 0.5) & (stiff[targeted, j] <= 0.7))
     assert np.all(np.delete(stiff, j, axis=1) == 1.0)
     assert np.array_equal(stiff, damp)
 
@@ -230,3 +232,19 @@ def test_promotion_requires_promote_for_the_locked_checkpoint():
     assert promotion_problems({**dec, "decision": "REJECT"}, lock)
     assert promotion_problems(dec, {"artifacts": {"checkpoint": {"sha256": "d" * 64}}})
     assert promotion_problems(dec, {"artifacts": {}})
+
+
+def test_welch_ci_matches_hand_computation():
+    a, b = [0.7, 0.72, 0.69, 0.71, 0.7], [0.6, 0.62, 0.58, 0.61, 0.6]
+    d, lo, hi, df = welch_diff_ci(a, b)
+    se = np.sqrt(np.var(a, ddof=1) / 5 + np.var(b, ddof=1) / 5)
+    assert d == pytest.approx(0.102)
+    assert 7 <= df <= 8  # floored to the df=7 quantile, 2.365
+    assert hi - d == pytest.approx(2.365 * se)
+    assert lo > 0
+
+
+def test_welch_ci_zero_variance_and_small_samples():
+    assert welch_diff_ci([1.0, 1.0], [0.5, 0.5])[:3] == (0.5, 0.5, 0.5)
+    with pytest.raises(ValueError):
+        welch_diff_ci([1.0], [1.0, 2.0])

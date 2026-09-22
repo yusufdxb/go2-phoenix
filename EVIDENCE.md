@@ -1,130 +1,61 @@
-# Evidence Index
+# Evidence ledger
 
-Last reviewed: 2026-06-20 (stand-v3-h25 slew fix finalized). This page exists so a reviewer can see, at a glance,
-what is **verified by reproducible artifact**, what is **inferred from
-indirect evidence**, and what is **not yet validated** in this repo. If a
-claim in the README is not listed here as Verified, treat it as Inferred or
-Not validated until proven otherwise.
+Last reviewed 2026-09-22. Every claim in the README maps to a row here. Status words:
 
-## Verified
+* **IMPLEMENTED**: code exists and its unit tests pass.
+* **OFFLINE VERIFIED**: checked against recorded data or files, no simulator or robot run.
+* **SIM VERIFIED**: measured in Isaac Lab.
+* **HARDWARE VERIFIED**: measured on the GO2.
+* **NOT YET VERIFIED**: none of the above.
 
-Claims with a reproducible artifact in this repo or a captured log.
+"Closed-loop validated" is reserved for a full GO2 → training → candidate → GO2 round
+trip. It has not happened.
 
-- **235 unit tests green in CI**: `pytest tests -m "not sim and not ros"`. Coverage
-  listed in [README §Tests](README.md#tests). CI configured to lazy-import torch
-  (commit `f235171`).
-- **ONNX↔torch parity gate**: `verify_deploy` reports max abs-diff
-  **3.8e-06** on the stand-v2 candidate, against a 1e-4 tolerance. Serialized
-  at [`docs/pre_lab_gates_2026-04-17.md`](docs/pre_lab_gates_2026-04-17.md).
-  Caveat (audit 2026-05-21): this gate compares ONNX vs TorchScript exports
-  of the *same* `_ExportablePolicy` wrapper, so it verifies runtime numeric
-  parity but **cannot** catch a wrong wrapper. The audit found that
-  `export._load_normalizer` searched for checkpoint keys rsl_rl 3.x never
-  writes (the `EmpiricalNormalization` buffers live inside `actor_state_dict`
-  as `obs_normalizer._mean/_var`), so every pre-2026-05-21 export silently
-  dropped observation normalization despite `empirical_normalization: true`
-  in every training config. Fixed in branch `audit-fix/skeptic-2026-05-21`;
-  all checkpoints must be re-exported and re-parity-checked, and the
-  corrected export must be re-verified on hardware before any Gate-7 retry.
-- **Stand-v2 sim rollout**: 16 / 16 success @ 20.0 s mean length, 4096-env
-  PPO. Raw metrics at
-  [`docs/pre_lab_stand_rollout_2026-04-17.json`](docs/pre_lab_stand_rollout_2026-04-17.json).
-- **Stand-v3-h25 slew-saturation fix (2026-06-16/20)**: the month-long Gate-7
-  saturation was root-caused to Isaac's `randomize_actuator_gains` zeroing
-  explicit (DCMotor) actuator gains; replaced with a custom
-  `scale_explicit_actuator_gains` startup term. The winning recipe
-  (`configs/env/stand_v3_h25.yaml`: `action_rate -3` + per-motor
-  `slew_sat_hinge -25` + full `[0.85,1.15]` actuator DR, 800-iter fine-tune)
-  evaluated at **32/32 success, slew 3.30% nominal / 2.91% under full DR**
-  (gate is <5%), 16 envs x 32 episodes via `phoenix.training.evaluate` on
-  `stand_nodr.yaml` / `stand_v3_h25.yaml`. ONNX-torch parity **4.77e-06**.
-  The 800-iter checkpoint is the deliverable; a 1500-iter run of the same
-  config regressed slew to 5.31% (return traded up), so training is
-  early-stopped at 800. **Every slew percentage in this entry (3.30, 2.91,
-  5.31) was produced by the LEGACY INCORRECT metric** (raw action deltas vs
-  0.175, `legacy_raw_action_delta_saturation_rate`), not by the
-  deploy-equivalent clip-activation metric that replaced it on 2026-09-11.
-  They are not comparable to a hardware slew number or to any figure produced
-  after that date; see `docs/superseded_results.md` section 2. Deliverable at
-  `checkpoints/phoenix-stand-v3-h25-final/` (weights gitignored, local only).
-- **v3b flat-velocity sim eval**: 0.091 m/s lin_err, 0.087 rad/s ang_err,
-  32 / 32 success on `Isaac-Velocity-Flat-Unitree-Go2-v0`, 16 envs × 32
-  episodes, after the warp-array `flat_tracking_error` fix. Reproduce with
-  `phoenix.training.evaluate`.
-- **v4 negative result**: written up as a negative result at
-  [`checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md`](checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md);
-  v4 was not shipped.
-- **Slew-saturation root-cause analysis**: four training runs (v3b
-  fine-tune, slewhinge w=-50, slewhinge w=-5, scratch w=-50) all converge
-  to the same 0.57-0.66 m/s lin_err band. Full table in README; full
-  analysis at [`docs/retrain_flat_scratch_2026-04-19.md`](docs/retrain_flat_scratch_2026-04-19.md).
-- **Hardware deploy chain ran live, 2026-04-18**: `ros2_policy_node`,
-  `lowcmd_bridge_node`, estop, parity gates all ran on the GO2 end-to-end.
-  Outcome: 30.23% per-step slew saturation specifically at `cmd_vel = 0`,
-  which directly motivated stand-v2.
-- **Mode-switch runtime**: `policy.mode_switch.enabled` flag, hysteresis +
-  25-tick linear blend, unit-tested; runtime path is implemented
-  and tested, but see "Not validated" below for hardware status.
-- **Fail-closed safety semantics**: every safety gate (`estop_publisher_missing`,
-  `estop_heartbeat_stale`, `external_estop`, `sensor_missing`, `sensor_stale`)
-  is a free function in `src/phoenix/sim2real/safety.py` with unit tests in
-  `tests/test_safety.py`. Slew cap shared between policy node and bridge via
-  `per_step_clip_array(...)`.
+## Phoenix v2 loop
 
-## Inferred
+| Claim | Status | Evidence |
+|---|---|---|
+| The monitor separates policy request, policy-node clip, sent target and measured response | IMPLEMENTED, OFFLINE VERIFIED | `phoenix.monitor.layers`; `tests/test_monitor.py`; checked on the real F1 log (bridge input equals policy-node target on every tick) |
+| Safety-altered samples are excluded from the residual | IMPLEMENTED | `tracking_pairs`, tests on policy-node and bridge clips |
+| `s_hat` recovers an injected gain scale within 5 % | IMPLEMENTED, OFFLINE VERIFIED on synthetic telemetry and on the one-joint model only | `tests/test_monitor.py`, `tests/test_toy_model.py` |
+| Persistence 8/10, hysteresis, global-shift veto, INSUFFICIENT_DATA instead of NOMINAL | IMPLEMENTED | `tests/test_monitor.py` |
+| No false DEGRADED on a 120-window nominal run | OFFLINE VERIFIED on synthetic data only | `test_no_false_positive_on_long_nominal_run` |
+| Monitor detects and localises a real degradation | NOT YET VERIFIED | needs phase 1 |
+| Deployment-fidelity gate (aggregate and per-joint limits) | IMPLEMENTED, OFFLINE VERIFIED on the 2026-09-21/22 GO2 logs | F1: FAIL, 88.8 % altered, RMS 0.80 rad, 0.56 s authority |
+| Live health vector beside a running robot (tails `bridge.jsonl`, read-only) | IMPLEMENTED; NOT YET VERIFIED during a robot session | `phoenix.monitor.live`, `scripts/phoenix_live_monitor.py`, `tests/test_live_monitor.py` |
+| Simulator rollouts in the bridge record format | IMPLEMENTED (pure adapter); not wired into `evaluate.py` | `phoenix.monitor.sim_records`, `tests/test_sim_records.py` |
+| Health report becomes a targeted overlay the env factory consumes | IMPLEMENTED, OFFLINE VERIFIED through the real config loader | `tests/test_condition_validate.py`, `tests/test_phoenix_loop_cli.py` |
+| The sim `targeted_actuator` event scales only the targeted joint | NOT YET VERIFIED in Isaac Lab (the factor sampling is unit-tested) | `scale_targeted_actuator_gains` |
+| Candidate gate and promotion rule | IMPLEMENTED, OFFLINE VERIFIED on synthetic evaluations | `tests/test_condition_validate.py` |
+| Controlled degradation: one joint, gains only down, policy mode only, 2 s ramp-in, saturation latch, triple-locked plus telemetry required, logged per tick, sent gains equal logged gains | IMPLEMENTED | `tests/test_controlled_degradation.py` |
+| Controlled degradation behaves as designed on the GO2 | NOT YET VERIFIED | never run on hardware |
+| Targeted fine-tuning beats broad randomisation | NOT YET VERIFIED | experiment not run |
 
-Claims supported by indirect evidence but not directly measured.
+## Incumbent policy and deploy stack
 
-- **"Phoenix loop" generalizes sim → real → fine-tune → real.** The
-  *architecture* exists end-to-end (env, training, ONNX export, ROS 2
-  deploy, failure detector + parquet logger, replay, adaptation). The loop
-  has **not closed once on real failure data**: see "Not validated".
-- **stand-v2 will hold the robot upright on hardware.** Inferred from sim
-  rollout (16/16) + parity gate (3.8e-06) + the 2026-04-20 dryrun showing
-  16.67% slew sat localized to rear thighs (posture-mismatch, not policy
-  fault). Not yet a live 10s × 3 stand.
-- **The 2026-04-19 single-policy path is exhausted.** Supported by 4
-  converging negative runs, not by a formal exploration of the
-  reward-weight space.
-- **Mode-switch on hardware = stand-v2 at cmd=0, v3b for nonzero.** Logic is
-  unit-tested in sim; behavior on hardware is inferred from the two
-  sub-policies' individual behavior, not measured as a switched system.
+| Claim | Status | Evidence |
+|---|---|---|
+| Incumbent is H25 stand, `phoenix-stand-h25-lat-noise/2026-06-22_21-08-20/model_799`, trained on zero velocity commands only | OFFLINE VERIFIED | configs and weight-lineage check, audit H1 |
+| Walking is refused in the deploy path | IMPLEMENTED | deploy contract, policy node, actuator gate, audit H2 |
+| ONNX / TorchScript / checkpoint parity for the locked H25 artifacts, max_abs <= 1.7e-6 (tol 1e-5) | OFFLINE VERIFIED, also on the real F1 inputs | lock file, `parity_gate.json`, stage A |
+| H25 survives 20 s in sim without trunk contact ("32/32") | SIM VERIFIED | that is the whole meaning of the old success metric, audit H5 |
+| H25 holds attitude in sim | NOT YET VERIFIED | the evaluator reads Isaac Lab 3.0 xyzw quaternions as wxyz; attitude flags are corrupted, audit H6 |
+| H25 stands on the GO2 | NOT YET VERIFIED | the one live attempt (F1, 2026-09-22) faulted after 0.58 s on `target_beyond_limit:RR_thigh_joint` from a folded start |
+| The robot executes the policy's requests | FALSE for the incumbent | 88.8 % altered on hardware, 59.7 % in sim, audit H4 |
+| Stand-up ramp to the training stance before policy authority | IMPLEMENTED, never run with motors live | `9df76d7` |
+| Staged hardware gates A to H | IMPLEMENTED; A to E GO and F NO-GO on 2026-09-21/22 | payload stage records (kept out of git) |
 
-## Not validated
+## Test suite
 
-Claims that require hardware time or untaken experiments. Treat as **not yet
-true**.
+`PYTHONPATH=src PHOENIX_SKIP_HEAVY=1 pytest tests -m "not sim and not ros"` on
+2026-09-22: 1700 passed, 18 skipped, 1 failed. The failure,
+`test_bundle_staging_refuses_evidence_from_another_commit`, needs a gitignored
+`parity_gate.json` that is absent from a fresh checkout; it is not caused by v2.
+Without `PYTHONPATH=src` an editable install elsewhere can shadow this checkout.
 
-- **Gate 7**: 10 s live stand x3 on real GO2 in low-level mode. Pending hardware.
-  The sim-side blocker is now resolved: the stand-v3-h25 deliverable clears the
-  <5% slew gate in sim (3.30% / 2.91%) after the actuator-gain DR fix. That
-  gate was scored with the LEGACY INCORRECT slew definition, so it has to be
-  re-scored with the deploy-equivalent metric before it counts as cleared. Live
-  hardware retry still owed (the workstation now goes to the lab; no T7 staging).
-- **Gate 8**: flat walking on real GO2 with v3b. Not attempted.
-- **Failure-curriculum adaptation against real-robot parquets.**
-  `adaptation.yaml` ships with `failure_sample_fraction: 0.0`; the headline
-  adaptation result (16.64 / 100% on slippery) is **plain warm-start PPO**,
-  not the failure curriculum. The reset bridge is wired and unit-tested but
-  has never been driven by real captures.
-- **Adapt result generalization.** The `phoenix-adapt` numbers are sim-on-sim
-  (slippery overlay) and have not been tested against unseen disturbances or
-  on the real robot.
-- **Halton replay reconstruction in Isaac Sim.** Pure-numpy translation in
-  `replay/apply_variations.py` is unit-tested; the Isaac-Sim
-  mass/friction/init-velocity hand-off in `replay/reconstruct.py` has been
-  exercised locally but has no hardware-rollout comparison.
-- **Cross-terrain transfer of v3b.** Trained and evaluated on flat-v0 only.
-  Rough-v0 was retired after the 2026-04-14 dryrun showed 99.5% slew sat
-  (LEGACY INCORRECT definition).
+## Superseded
 
-## Artifacts
-
-- Sim eval metrics: `docs/pre_lab_gates_2026-04-17.md`,
-  `docs/pre_lab_stand_rollout_2026-04-17.json`
-- Negative results: `checkpoints/phoenix-flat-v4/NEGATIVE_RESULT.md`,
-  `docs/retrain_flat_scratch_2026-04-19.md`
-- Design specs: `docs/superpowers/specs/2026-04-19-phoenix-gate8-mode-switch-design.md`
-- Deploy runbook: `docs/deploy_mode_switch_runbook.md`
-- Demo videos: `media/side_by_side.mp4`, `media/side_by_side_adapt.mp4`
-- Hardware logs (parquet) live on T7 portable storage, not in this repo.
+Earlier claims (failure replay loop, reliability shield, stand-v3 slew percentages under
+the legacy metric, the April hardware slew figure) are indexed in
+[`docs/legacy/README.md`](docs/legacy/README.md) and
+[`docs/superseded_results.md`](docs/superseded_results.md).

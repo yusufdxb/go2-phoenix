@@ -268,6 +268,15 @@ def test_fidelity_counts_policy_node_alterations():
     assert rep["verdict"] == "FAIL"
 
 
+def test_fidelity_catches_one_bad_joint_that_the_average_hides():
+    recs = records(600)
+    for r in recs[1:]:  # one joint altered by 2 mrad on every tick: 1/12 = 8 % overall
+        r["policy"]["requested_target"][4] -= 0.002
+    rep = fidelity_report(from_records(recs), PREREGISTERED)
+    assert rep["verdict"] == "FAIL"
+    assert any(r.startswith(tuple(UNITREE_MOTOR_ORDER)) for r in rep["reasons"])
+
+
 def test_fidelity_with_no_policy_ticks_fails():
     rep = fidelity_report(from_records(records(50, mode="hold")))
     assert rep["verdict"] == "FAIL" and rep["policy_ticks"] == 0

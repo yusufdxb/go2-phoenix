@@ -1,4 +1,8 @@
-"""Failure-curriculum fine-tuning.
+"""LEGACY (Phoenix v2): the failure-seeded curriculum belongs conceptually to Ashfall.
+Phoenix v2 fine-tunes through ``training.ppo_runner --resume`` with a targeted env
+overlay instead. See docs/legacy/README.md.
+
+Failure-curriculum fine-tuning.
 
 The adaptation loop warm-starts a policy from a baseline checkpoint and
 continues PPO training, but with a fraction of rollouts seeded from real

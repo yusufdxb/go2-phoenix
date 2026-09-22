@@ -24,7 +24,10 @@ Why this is safe to have in the final actuator gate
 * It applies in POLICY mode only. HOLD, DAMP and STANDUP keep their nominal gains,
   so an estop, a deadman release, a latched fault or a stale LowState behave exactly
   as without it.
-* Bounded: ``MIN_SCALE`` = 0.5. One joint at a time.
+* Bounded: ``MIN_SCALE`` = 0.5. One joint at a time. Ramped in over ``RAMP_S`` after
+  policy authority begins.
+* Watched: if the degraded joint stays pinned at the slew limit for
+  ``SATURATION_LATCH_S`` the gate latches HOLD (``degradation_joint_saturated``).
 * Off by default and impossible to enable by accident: it needs the CLI spec AND
   the environment variable :data:`ARM_ENV` set to :data:`ARM_VALUE` AND a stage
   label starting with :data:`STAGE_PREFIX`. Any one missing refuses startup.
@@ -45,6 +48,14 @@ import numpy as np
 from .go2_model import UNITREE_MOTOR_ORDER
 
 MIN_SCALE = 0.5
+#: The scale is ramped in linearly over this long after policy authority begins, so
+#: the hand-off from the stand-up gains (kp 60) or a fresh arm is not a gain step.
+RAMP_S = 2.0
+#: Latch HOLD when the degraded joint's target stays pinned at the slew limit for this
+#: long: under the measured-q clip that joint's restoring torque is capped at
+#: ``s * kp * 0.175`` N m, so a pinned joint is a leg that is sagging, and no other rule
+#: in the gate fires until the joint crosses its hard limit.
+SATURATION_LATCH_S = 0.5
 ARM_ENV = "PHOENIX_EXPERIMENT"
 ARM_VALUE = "controlled_degradation"
 STAGE_PREFIX = "X"
@@ -124,6 +135,8 @@ __all__ = [
     "ARM_ENV",
     "ARM_VALUE",
     "MIN_SCALE",
+    "RAMP_S",
+    "SATURATION_LATCH_S",
     "STAGE_PREFIX",
     "DegradationSpec",
     "activation_problems",

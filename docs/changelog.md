@@ -2,6 +2,23 @@
 
 Release-style summary of past Phoenix milestones.
 
+## 2026-09-22: Phoenix v2, one research question
+
+Narrowed the project to hardware-aware adaptation: measure a persistent per-joint change
+in actuator response on the robot, build a targeted Isaac Lab actuator distribution from
+it, fine-tune, gate on degraded improvement and nominal non-inferiority, redeploy.
+
+- New `phoenix.monitor`, `phoenix.condition`, `phoenix.validate`,
+  `phoenix.sim2real.degradation`, sim event `targeted_actuator`, `scripts/phoenix_loop.py`.
+- Audit of the incumbent (`docs/research/Phoenix_v2_audit.md`): stand-only policy, 88.8 %
+  of its targets altered on the only live run, 59.7 % in simulation; deployment fidelity
+  is now a gate.
+- Bridge telemetry now records `tau_est` and per-motor gains.
+- Failure replay, the reliability shield and the v1 demo moved out of the narrative
+  (`docs/legacy/README.md`); no code deleted.
+- Tests: 1700 passed, 18 skipped, 1 pre-existing environment failure. Nothing run on
+  Isaac Lab or the robot.
+
 ## 2026-05-17: sweep + harness system
 
 Added a 12-cell sim-side benchmark sweep over friction range, lateral push,

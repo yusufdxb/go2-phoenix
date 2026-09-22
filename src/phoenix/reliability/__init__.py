@@ -1,4 +1,7 @@
-"""Runtime reliability layer for a learned GO2 policy.
+"""LEGACY (Phoenix v2): the reliability-shield research line, sim only, kept for
+reproducibility and out of the Phoenix story. See docs/legacy/README.md.
+
+Runtime reliability layer for a learned GO2 policy.
 
 This package builds the *predictive* counterpart to the rule-based
 :class:`phoenix.real_world.failure_detector.FailureDetector`. Where the

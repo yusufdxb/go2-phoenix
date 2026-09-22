@@ -1,5 +1,8 @@
 # Native (C++) Runtime Audit, go2-phoenix deploy path
 
+> Historical document (v1 project scope). Figures such as the "32/32" sim result are
+> superseded; see `docs/research/Phoenix_v2_audit.md` and `EVIDENCE.md`.
+
 **Scope.** Read-only architecture audit of the deployment path, done to establish what a native C++
 runtime must reproduce bit-for-bit and what should stay in Python. Target architecture: Python trains
 and evaluates, C++ executes on the robot, a deterministic native safety layer holds final authority.
@@ -240,7 +243,7 @@ RELIABLE subscriber against a BEST_EFFORT publisher gets nothing. The deadman no
 | **Config parsing (YAML), argparse, logging setup** | **Python** | Startup-only. No real-time argument. YAML in C++ costs a dependency and buys nothing. Emit a validated flat binary/JSON from Python instead. |
 | **`TrajectoryLogger` parquet writing** | **Python** | Off critical path in principle, but see parity risk R14: it is currently called *synchronously inside the 50 Hz tick*. Move it off-thread, don't rewrite it in C++. |
 | **Shield telemetry publish** (`_publish_shield_telemetry`) | **Python** | Pure observability. Publishing it natively is fine but there is no determinism argument. |
-| **`verify_deploy.py`, `export.py`, `bench_export.py`** | **Python** | Offline tooling. Porting these is pure resume optics. |
+| **`verify_deploy.py`, `export.py`, `bench_export.py`** | **Python** | Offline tooling. Porting these adds no runtime value. |
 | **`reliability/ood_monitor.py` (fit-time scorers), `metrics.py`, `features.py`, `study.py`, `replication.py`, `oracle_screen.py`** | **Python** | Offline fitting/analysis, float64, Ledoit-Wolf, SVD. Explicitly designed to be fit offline and deployed as constants (`deploy.py:9-14`). Porting is actively harmful, the C++ side should consume the artifact, never fit it. |
 | **`ShieldRuntime` + `TemporalFilter`** (`reliability/runtime.py`, `ood_monitor.py:238-283`) | **Python** | Note: **the deploy path does not use these.** `DeployShield.step` bypasses the temporal filter entirely (`deploy.py:262-274`, `filtered_score = raw`). They exist for the offline study. Do not port. |
 | **`failure_detector.py` (`FailureDetector`)** | **Python** | Only `FailureThresholds` (the dataclass of constants) is used on-robot (`ros2_policy_node.py:295,449`); the stateful detector is offline replay tooling. Port the two constants, not the class. |

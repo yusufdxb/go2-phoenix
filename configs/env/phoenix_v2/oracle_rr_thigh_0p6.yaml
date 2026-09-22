@@ -1,7 +1,8 @@
-# Arm A4 (ablation, not a deployable method): the targeted distribution built
-# from the TRUE applied scale (RR_thigh 0.6) instead of the monitor's estimate.
-# Isolates estimator error from the value of targeting. Same width as the
-# Phoenix arm's default (2 x 0.05 margin + observed spread): here +/- 0.08.
+# Arm A4 (ablation, not a deployable method): the targeted distribution centred on
+# the TRUE applied scale instead of the monitor's estimate. Isolates estimator error
+# from the value of targeting. PLACEHOLDER for s_train = 0.6: per EXPERIMENT.md the
+# centre is s_train and the width is the median width of the A3 overlays, both fixed
+# after the A3 overlays are built and before any arm trains.
 defaults:
   - ../stand_v3_h25
 domain_randomization:

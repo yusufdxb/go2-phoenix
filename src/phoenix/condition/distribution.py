@@ -177,8 +177,9 @@ def targeted_scale_factors(
     """Per-env, per-joint multiplicative factors ``(stiffness, damping)``, shape ``(N, J)``.
 
     Pure numpy so the exact sampling rule is unit-tested; the Isaac Lab startup
-    event only multiplies the actuator tensors by these. Envs ``[0, n_nominal)``
-    stay at 1.0; the rest draw the targeted joints uniformly from their ranges.
+    event only multiplies the actuator tensors by these. A random ``nominal_fraction``
+    of the envs stays at 1.0; the rest draw the targeted joints uniformly from their
+    ranges.
     A joint named in the spec but absent from ``joint_names`` is an error: a typo
     must not silently train the parent recipe.
     """
@@ -188,9 +189,12 @@ def targeted_scale_factors(
         raise KeyError(f"targeted joints not in the actuator: {missing}")
     stiff = np.ones((num_envs, len(names)))
     n_nom = int(round(spec.nominal_fraction * num_envs))
+    # A random subset, not a contiguous block: on generated terrain env index
+    # correlates with terrain type.
+    targeted = np.sort(rng.permutation(num_envs)[n_nom:])
     for joint, (lo, hi) in spec.joints.items():
         j = names.index(joint)
-        stiff[n_nom:, j] = rng.uniform(lo, hi, num_envs - n_nom)
+        stiff[targeted, j] = rng.uniform(lo, hi, targeted.size)
     damp = stiff.copy() if spec.scale_damping else np.ones_like(stiff)
     return stiff, damp
 

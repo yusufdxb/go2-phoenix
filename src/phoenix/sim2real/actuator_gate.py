@@ -83,7 +83,7 @@ from .command_wire import (
     decode,
     wire_label,
 )
-from .degradation import DegradationSpec
+from .degradation import RAMP_S, SATURATION_LATCH_S, DegradationSpec
 from .deploy_contract import WALKING_ENABLED
 from .go2_model import (
     LIMIT_ABORT_BAND_RAD,
@@ -216,6 +216,9 @@ class ActuatorGate:
         self._standup_q0: np.ndarray | None = None
         self._standup_start_ns: int | None = None
         self._standup_done = False
+
+        self._policy_since_ns: int | None = None
+        self._deg_pinned_since_ns: int | None = None
 
         self._faults: list[str] = []
         self._damp_latched = False
@@ -524,6 +527,15 @@ class ActuatorGate:
                     per_step_clip_array(requested, q, p.max_delta), dtype=np.float64
                 )
                 final = np.clip(slewed, self._lo, self._hi)
+                if p.degradation is not None:
+                    j = p.degradation.motor_index
+                    if abs(requested[j] - q[j]) >= p.max_delta:
+                        if self._deg_pinned_since_ns is None:
+                            self._deg_pinned_since_ns = now_ns
+                        elif (now_ns - self._deg_pinned_since_ns) / 1e9 >= SATURATION_LATCH_S:
+                            self._latch(f"degradation_joint_saturated:{p.degradation.joint}")
+                    else:
+                        self._deg_pinned_since_ns = None
                 rec["slew_clip"] = [bool(v) for v in slewed != requested]
                 rec["slew_margin"] = _floats(p.max_delta - np.abs(requested - q))
                 rec["limit_clip"] = [bool(v) for v in final != slewed]
@@ -533,6 +545,9 @@ class ActuatorGate:
                 rec["cmd_kind"] = cmd.kind
                 rec["policy"] = cmd.telemetry()
                 kp, kd = p.kp, p.kd
+                if self.fault is not None and self.fault.startswith("degradation_joint_saturated"):
+                    mode = Mode.HOLD
+                    cause = self.fault
 
         if mode not in (Mode.POLICY, Mode.STANDUP):
             final = np.clip(q, self._lo, self._hi)
@@ -552,13 +567,25 @@ class ActuatorGate:
         rec["limit_margin"] = _floats(np.minimum(final - self._lo, self._hi - final))
         # ``kp``/``kd`` stay the scalar gains of the mode (consumers group on them);
         # ``kp_unitree``/``kd_unitree`` are what each motor was actually sent.
-        kp_vec = np.full(12, float(kp))
-        kd_vec = np.full(12, float(kd))
+        kp_vec: np.ndarray = np.full(12, float(kp))
+        kd_vec: np.ndarray = np.full(12, float(kd))
+        if mode is Mode.POLICY:
+            if self._policy_since_ns is None:
+                self._policy_since_ns = now_ns
+        else:
+            self._policy_since_ns = None
+            self._deg_pinned_since_ns = None
         applied = mode is Mode.POLICY and p.degradation is not None
+        ramp = 0.0
+        kp_scale: np.ndarray = np.ones(12)
+        kd_scale: np.ndarray = np.ones(12)
         if applied:
-            assert p.degradation is not None
-            kp_vec = kp_vec * p.degradation.kp_scale_vector()
-            kd_vec = kd_vec * p.degradation.kd_scale_vector()
+            assert p.degradation is not None and self._policy_since_ns is not None
+            ramp = min(1.0, (now_ns - self._policy_since_ns) / 1e9 / RAMP_S)
+            kp_scale = 1.0 - ramp * (1.0 - p.degradation.kp_scale_vector())
+            kd_scale = 1.0 - ramp * (1.0 - p.degradation.kd_scale_vector())
+            kp_vec = kp_vec * kp_scale
+            kd_vec = kd_vec * kd_scale
         rec["kp"] = float(kp)
         rec["kd"] = float(kd)
         rec["kp_unitree"] = _floats(kp_vec)
@@ -567,12 +594,9 @@ class ActuatorGate:
             rec["degradation"] = {
                 "joint": p.degradation.joint,
                 "applied": bool(applied),
-                "kp_scale_unitree": _floats(
-                    p.degradation.kp_scale_vector() if applied else np.ones(12)
-                ),
-                "kd_scale_unitree": _floats(
-                    p.degradation.kd_scale_vector() if applied else np.ones(12)
-                ),
+                "ramp": float(ramp),
+                "kp_scale_unitree": _floats(kp_scale),
+                "kd_scale_unitree": _floats(kd_scale),
             }
         rec["faults"] = list(self._faults)
         rec["fault"] = self.fault

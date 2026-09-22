@@ -1,4 +1,8 @@
-"""Reconstruct real-world failure episodes in Isaac Sim.
+"""LEGACY (Phoenix v2): failure replay belongs conceptually to Ashfall. Kept working and
+tested; not part of the Phoenix loop. ``trajectory_reader`` is still used by
+``sim2real.verify_deploy``. See docs/legacy/README.md.
+
+Reconstruct real-world failure episodes in Isaac Sim.
 
 Given a Parquet trajectory written by :class:`phoenix.real_world.TrajectoryLogger`,
 this module:

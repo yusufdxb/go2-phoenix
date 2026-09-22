@@ -1,0 +1,11 @@
+# Arm A2j (control for "narrowing"): the right joint, a wide range. RR_thigh stiffness
+# and damping U[0.5, 1.0] on half the envs, on top of the incumbent recipe, the same
+# structure as the Phoenix arm with the measured range replaced by the full range.
+defaults:
+  - ../stand_v3_h25
+domain_randomization:
+  targeted_actuator:
+    nominal_fraction: 0.5
+    scale_damping: true
+    joints:
+      RR_thigh_joint: [0.5, 1.0]
