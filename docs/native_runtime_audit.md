@@ -1,7 +1,7 @@
 # Native (C++) Runtime Audit, go2-phoenix deploy path
 
 > Historical document (v1 project scope). Figures such as the "32/32" sim result are
-> superseded; see `docs/research/Phoenix_v2_audit.md` and `EVIDENCE.md`.
+> superseded; see `EVIDENCE.md`.
 
 **Scope.** Read-only architecture audit of the deployment path, done to establish what a native C++
 runtime must reproduce bit-for-bit and what should stay in Python. Target architecture: Python trains

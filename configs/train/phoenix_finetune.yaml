@@ -6,7 +6,7 @@
 #
 # CAVEAT: the incumbent H25 checkpoint's own training YAML was never committed,
 # so these values follow configs/train/ppo_stand_v3.yaml (the H25 lineage's last
-# committed recipe). docs/research/Phoenix_v2_audit.md records this gap.
+# committed recipe). EVIDENCE.md records this gap.
 
 run:
   name: "phoenix-v2-candidate"
