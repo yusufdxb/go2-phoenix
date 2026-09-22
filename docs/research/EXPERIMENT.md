@@ -559,3 +559,42 @@ no further locomotion variable is tried in this study (amendment 8.5 stands).
 
 Hardware, rechecked at this point: no 192.168.123.0/24 interface exists on the
 workstation and none of .161 / .18 / .15 answer. Hardware phases stay BLOCKED.
+
+### Amendment 11 (2026-09-22): the W5 ladder fails; Stage W continues in simulation on W2
+
+**W5 ladder result.** Rung 1 (`action_rate` -0.25) and rung 2 (-0.5), 3000 iterations
+each, seed 42, everything else as W2: both FAIL dev Gate W-H with walking success
+0.000 / 0.000 and stand 1.000. Neither left the stand-still plateau that W2 escaped
+between iterations 1600 and 1800; their joint-step jump fractions (1.9 % and 0.7 % above
+0.075 rad) are free, because a standing policy is trivially smooth. No rung satisfies
+both promotion conditions, so by amendment 10 no smoother walking candidate exists in
+this study and no further locomotion variable is tried (amendment 8.5 stands).
+
+**Deployability finding (Stage W).** In this recipe family a flat-ground policy either
+tracks the command with bang-bang joint targets (W2: p99 per-tick target change 0.42 rad,
+maximum 0.500 rad, the full span the clamp allows) or is smooth and does not walk (W5).
+W2's own p99 target rate, 21 rad/s, is the same order as the actuator's velocity limit
+(sim 30 rad/s, GO2 datasheet 21 rad/s), while measured joint speed stays at p99 6.9 rad/s:
+the PD plant low-passes the command. A command-rate limiter chosen on standing data is
+therefore not a seatbelt for walking; it is a second controller. This is reported as a
+result, not repaired by widening the frozen grid.
+
+**How the program continues.** Hardware is blocked three ways: the GO2 subnet does not
+exist on the workstation, `deploy_contract.WALKING_ENABLED` is False, and the walking
+prerequisites (validated odometry above all) have no hardware evidence. The adaptation
+study therefore continues **in simulation only**, on W2 as the Stage W baseline, and
+every result it produces is labelled SIM VERIFIED and carries the two limits above: W2
+is not deployable under the frozen limiter rule, and no hardware run exists. The deploy
+path used for it is the exact one (ONNX Runtime, deploy observation builder,
+`policy_action_map`, command wire, `ActuatorGate`) with the gate's rate bound opened to
+0.6 rad/step, which never binds (0.0000 altered targets, `results/phoenix_v2/walk_deploy/`),
+recorded in every manifest as `limiter_max_delta_override`.
+
+**Stage W s_train pilot, as preregistered** (phase 1): W2 through that path, nominal
+physics, RR_thigh gain scaled by the deploy gate exactly as on hardware, s in
+{1.0, 0.8, 0.7, 0.6, 0.5}, 128 episodes, seed 3101. Endpoint: the Stage W continuous
+primary score (`phoenix.monitor.stand_metrics.walk_primary_score`: the fraction of the
+episode with no trunk contact, roll and pitch within 0.40 rad, and, outside the 1 s
+settling windows, planar velocity error within the frozen 0.25 m/s bound). `s_train` is
+the largest s whose score drops by at least 0.10 against s = 1.0; if none does, Stage W
+stops with the same finding the stand stage reached.

@@ -279,9 +279,13 @@ def _run(args) -> int:
         from phoenix.monitor.stand_metrics import score_walk_episodes
 
         metrics.update(score_walk_episodes(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid, dt=dt))
-        from phoenix.monitor.stand_metrics import score_walk_v2
+        from phoenix.monitor.stand_metrics import score_walk_v2, walk_primary_score
 
         wth = json.loads(args.walk_thresholds.read_text()) if args.walk_thresholds else None
+        wps = walk_primary_score(grav=grav, cmd=cmd, linv=linv, valid=valid,
+                                 contact_term=contact_term, dt=dt)
+        metrics["walk_primary_score_mean"] = float(wps.mean())
+        metrics["walk_primary_score_per_episode"] = [float(v) for v in wps]
         metrics.update(score_walk_v2(episodes, linv=linv, angv=angv, cmd=cmd, valid=valid,
                                      height=height, qd=qd1, req=req, tau_c=tau_c, tau_a=tau_a,
                                      dt=dt, thresholds=wth))
