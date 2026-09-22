@@ -153,7 +153,8 @@ class GateParams:
     standup_kp: float = 60.0
     standup_kd: float = 5.0
     #: Controlled experiment only (see :mod:`phoenix.sim2real.degradation`). Scales
-    #: one motor's kp/kd DOWN in POLICY mode; every other mode keeps nominal gains.
+    #: one motor's kp/kd, or a named joint set's, DOWN in POLICY mode; every other
+    #: mode keeps nominal gains.
     degradation: DegradationSpec | None = None
 
     def __post_init__(self) -> None:
@@ -256,7 +257,8 @@ class ActuatorGate:
         self._standup_done = False
 
         self._policy_since_ns: int | None = None
-        self._deg_pinned_since_ns: int | None = None
+        #: Per-motor index -> ns at which that degraded joint first went pinned.
+        self._deg_pinned_since_ns: dict[int, int] = {}
         #: Last target actually published (any mode): the command-rate limiter's anchor.
         self._prev_sent: np.ndarray | None = None
         self._tracking_since_ns: int | None = None
@@ -585,17 +587,22 @@ class ActuatorGate:
                 final = np.clip(slewed, self._lo, self._hi)
                 rec["soft_target_unitree"] = _floats(slewed)
                 if p.degradation is not None:
-                    j = p.degradation.motor_index
-                    # "Pinned": the policy asks the degraded joint for at least the pin
+                    # "Pinned": the policy asks a degraded joint for at least the pin
                     # band beyond where it is, i.e. the leg is not following. The band is
                     # its own constant so a different soft limiter cannot move it.
-                    if abs(requested[j] - q[j]) >= DEGRADATION_PIN_BAND_RAD:
-                        if self._deg_pinned_since_ns is None:
-                            self._deg_pinned_since_ns = now_ns
-                        elif (now_ns - self._deg_pinned_since_ns) / 1e9 >= SATURATION_LATCH_S:
-                            self._latch(f"degradation_joint_saturated:{p.degradation.joint}")
-                    else:
-                        self._deg_pinned_since_ns = None
+                    # Tracked PER JOINT, so a wider degraded set cannot dilute the watch:
+                    # any one affected joint sagging for the latch time is enough.
+                    for name, j in zip(
+                        p.degradation.joints, p.degradation.motor_indices, strict=True
+                    ):
+                        if abs(requested[j] - q[j]) >= DEGRADATION_PIN_BAND_RAD:
+                            since = self._deg_pinned_since_ns.get(j)
+                            if since is None:
+                                self._deg_pinned_since_ns[j] = now_ns
+                            elif (now_ns - since) / 1e9 >= SATURATION_LATCH_S:
+                                self._latch(f"degradation_joint_saturated:{name}")
+                        else:
+                            self._deg_pinned_since_ns.pop(j, None)
                 rec["slew_clip"] = [bool(v) for v in slewed != requested]
                 rec["slew_margin"] = _floats(p.max_delta - np.abs(requested - anchor))
                 gap = np.abs(final - q)
@@ -647,7 +654,7 @@ class ActuatorGate:
                 self._policy_since_ns = now_ns
         else:
             self._policy_since_ns = None
-            self._deg_pinned_since_ns = None
+            self._deg_pinned_since_ns.clear()
             self._tracking_since_ns = None
         self._prev_sent = np.asarray(final, dtype=np.float64).copy()
         applied = mode is Mode.POLICY and p.degradation is not None
@@ -668,6 +675,7 @@ class ActuatorGate:
         if p.degradation is not None:
             rec["degradation"] = {
                 "joint": p.degradation.joint,
+                "joints": list(p.degradation.joints),
                 "applied": bool(applied),
                 "ramp": float(ramp),
                 "kp_scale_unitree": _floats(kp_scale),

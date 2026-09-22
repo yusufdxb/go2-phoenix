@@ -635,3 +635,79 @@ not. A follow-up study would have to preregister a stronger or multi-joint inter
 (and justify it against the hardware-safety bound that fixes `MIN_SCALE` at 0.5) and a
 more sensitive endpoint than the 0.10 drop, before any of it is run. Nothing in the
 present study is reinterpreted to get a positive result.
+
+### Amendment 13 (2026-09-22, before any screening run): intervention screening, Stage W
+
+Both stages stopped at the same rule, and amendment 12 recorded that the evidence points
+at the intervention rather than at Phoenix's machinery. This amendment opens the
+follow-up that amendment 12 said a follow-up would have to preregister. The full protocol
+is `docs/research/INTERVENTION_SCREENING.md`, committed before the first screening cell
+ran; this entry is the formal amendment and states only what changes.
+
+**13.1 W2 is frozen.** No retrain, resume or re-export for the duration.
+`model_2999.pt` sha256 `94790929ea9f8a78...`, ONNX `fd0d3f3087365453...`, train yaml
+`b9dba652ec30b917...`, resolved env `b1bc6fc7bde9150c...`, training commit `20b46c9`,
+contract v3. The immutable reference is the existing `W2` row of
+`results/phoenix_v2/walk_ledger.jsonl`; no new row is written.
+
+**13.2 The sensitivity endpoint changes, before the screening runs.** The Stage W
+continuous primary score (`walk_primary_score`, bar 0.10) is demoted to a secondary
+metric. It is nearly blind to this intervention class, and the evidence is entirely from
+runs that predate this amendment: `walk_deploy/w2_open` nominal 0.9531 walking success at
+primary score 1.0000, versus `d_actuator_weak` 0.7188 at 0.9858. A condition that removes
+a quarter of the successful episodes moves that score by 0.014, because it scores step
+time inside a 0.40 rad attitude bound and a 0.25 m/s settled tracking bound, neither of
+which a weakened robot violates for most of an episode. No intervention inside the
+permitted safety envelope can reach 0.10 on it, so retaining it would guarantee a stop
+irrespective of the physics.
+
+**New primary endpoint: walking success** (`walk2_success_rate`, `score_walk_v2`), whose
+thresholds were frozen in amendment 9 and are not touched here, and which is already the
+Gate W-H endpoint. **New sensitivity bar: a drop of at least 0.15** against the
+screening's own nominal on matched seeds; at 384 episodes per cell the pooled binomial
+standard error near p = 0.9 is 0.0153, so the bar is about 10 standard errors.
+
+**13.3 The controlled degradation may name a joint SET, with a floor that rises with
+reach** (robot owner's decision). `MIN_SCALE` stays 0.50 for a one-joint spec; the new
+`MIN_SCALE_MULTI` is **0.70** for two or more joints, every affected joint taking the
+same scale. Nothing else in the gate is weakened: reduction only, POLICY mode only, 2 s
+ramp, triple-locked arming, per-tick logging, and the hard limits, abort band, tracking
+watchdog, E-stop, deadman and freshness rules unchanged. The saturation latch is now
+tracked **per joint**, so a wider set cannot dilute it. No value below a floor is
+screened, for any reason.
+
+**13.4 Families, severities, seeds.** A nested extent ladder crossed with severity:
+C1 `RR_thigh` (1 joint) at 0.8/0.7/0.6/0.5; C2 `leg_RR` (3); C3 `rear` (6); C4 `all` (12),
+each at 0.90/0.85/0.80/0.75/0.70. One shared nominal cell. C5 (latency) is **not**
+screened: the deployment layer has no reversible latency mechanism, and a response lag is
+a different question from delivered authority. Screening development seeds **7001-7003**,
+128 robots per seed; **7101 and above** reserved for confirmatory and held-out use.
+
+**13.5 Base physics is DR off for every screening cell**, so the intervention is the only
+variable. This supersedes the exploratory global-0.75 figure quoted in amendment 12:
+`walk_deploy_d_actuator_weak.yaml` changes motor strength **and** pins friction to 0.8
+**and** adds actuator latency 1-5 steps, against a DR-off nominal, on 64 episodes of one
+seed. **That 0.953 -> 0.719 result is confounded and is not a dose-response point.**
+
+**13.6 Selection rule, frozen before results.** A cell qualifies on all of: pooled drop
+>= 0.15; the drop >= 0.15 in each of the three seeds; pooled walking success remaining
+>= 0.40; safety hold <= 0.15, attitude violation <= 0.30, abort band == 0, fidelity
+>= 0.90; and its family monotone within 0.05 across adjacent severities. Among qualifying
+cells, take the fewest affected joints, then the least severe severity, tie-broken by the
+smaller monotonicity violation. Preferring fewer joints is recorded as a choice made for
+interpretability and safety envelope, not for scientific advantage; the opposite
+consideration is that a joint subset gives the targeted arm an axis broad randomisation
+lacks, so **if C4 also qualifies it is carried as a preregistered secondary
+intervention**. The grid points immediately milder and immediately stronger than the
+selected severity are held out.
+
+**13.7 Stop rule.** If no cell qualifies, the adaptation experiment stops with the
+finding that no safe actuator intervention within the tested envelope produced the
+required measurable degradation. No floor is lowered, no family added, no threshold
+revisited, and the endpoint is not changed a second time.
+
+**13.8 Hardware.** Rechecked 2026-09-22 at the start of this work: no
+`192.168.123.0/24` interface on the workstation (`eno1` 192.168.8.189/24, `wlp9s0`), the
+robot subnet routes to the default gateway, and .161 / .18 / .15 do not answer. Hardware
+phases stay BLOCKED, not failed. The screening and anything following it are SIM VERIFIED
+at best until that changes.
