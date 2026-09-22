@@ -226,3 +226,34 @@ the mean primary score is within 0.02 of the hard-envelope-only simulation refer
 If no grid value passes, stop and report; do not widen the grid after seeing results.
 No held-out condition (degraded joints, evaluation seeds) is used for selection.
 The chosen value is frozen with its commit and config hash in Amendment 2.
+
+### Amendment 2 (2026-09-22, after the Phase B/C development sweep, before any held-out run)
+
+**dq_max = 0.075 rad/step (3.75 rad/s at 50 Hz), frozen.** Source:
+`results/phoenix_v2/sim_limiter/*/summary.json` (incumbent checkpoint, 256 episodes per
+cell, dev seeds 1001 DR / 1002 nominal). Applying Amendment 1's rule:
+
+| dq_max | DR altered | DR worst joint | DR score (hard-only 0.9703) | nominal altered | nominal score (hard-only 1.000) | rule |
+|---|---|---|---|---|---|---|
+| 0.020 | 2.88 % | 13.2 % | 0.9995 | 2.48 % | 1.000 | fails altered |
+| 0.035 | 1.00 % | 2.3 % | 0.9930 (+0.023) | 0.88 % | 1.000 | fails "within 0.02" |
+| 0.050 | 0.50 % | 1.3 % | 0.9971 (+0.027) | 0.42 % | 1.000 | fails "within 0.02" |
+| **0.075** | **0.28 %** | **0.6 %** | **0.9894 (+0.019)** | **0.20 %** | **1.000** | **passes** |
+| 0.100 | 0.17 % | 0.3 % | 0.9628 (-0.008) | 0.12 % | 1.000 | passes |
+| 0.175 | 0.05 % | 0.1 % | 0.9620 (-0.008) | 0.04 % | 1.000 | passes |
+
+Reading of the rule, stated openly: "within 0.02 of the hard-only reference" was applied
+as written, two-sided. The small bounds (0.035, 0.05) fail it because they IMPROVE the
+DR score by more than 0.02: at those bounds the limiter acts as a low-pass filter on a
+policy whose raw output is outside [-1, 1] on 84 % of samples, which changes closed-loop
+behaviour, the thing the rule exists to exclude. A one-sided reading ("not worse by more
+than 0.02") would have chosen 0.035. The choice between the readings was made after
+seeing the table; both are reported, and 0.075 is the literal one.
+
+**Tracking abort (effort protection), rule fixed before its data is read.** With the
+measured-q clip gone, `|sent - q|` is no longer bounded by 0.175 rad. The gate latches
+hold if any joint's `|sent - q|` stays above `tracking_abort_rad` for 0.2 s.
+`tracking_abort_rad` = the smallest multiple of 0.05 rad that is at least 1.25 x the
+largest 0.2 s-sustained `|sent - q|` on any joint in the dq_max = 0.075 development runs
+(nominal and DR, saved per step). If that value exceeds 0.94 rad (effort limit 23.5 N m
+/ kp 25), the abort is reported as unable to add protection beyond motor saturation.
