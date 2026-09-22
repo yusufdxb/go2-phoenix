@@ -31,6 +31,23 @@ trip. It has not happened.
 | Controlled degradation behaves as designed on the GO2 | NOT YET VERIFIED | never run on hardware |
 | Targeted fine-tuning beats broad randomisation | NOT YET VERIFIED | experiment not run |
 
+## Phoenix v2 deployment fidelity (2026-09-22, `docs/research/PHOENIX_V2_RESULTS.md`)
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Training and sim evaluation clamp raw actions to [-1, 1]; the shipped ONNX and the pre-v2 deploy node did not (target or fed-back `last_action`) | OFFLINE VERIFIED | Isaac Lab source; ONNX graph ops; 42-80 % of real raw outputs outside [-1, 1] |
+| The measured-q replay reproduces the recorded GO2 targets | OFFLINE VERIFIED | max error 4.8e-8 rad, 4 runs, `results/phoenix_v2/limiter_offline/` |
+| Command-rate limiter (0.075 rad/step) + clamp, tracking abort, telemetry schema v2 | IMPLEMENTED | `tests/test_phoenix_v2_limiter.py`, `deploy_stand_h25_v2.yaml` + lock |
+| Isaac Lab `root_quat_w` is xyzw | SIM VERIFIED | quaternion check in every `results/phoenix_v2/sim_limiter/*/summary.json` |
+| H25 stands with the measured-q clip at 35.7 % altered, 0/256 fidelity, 0.168 m | SIM VERIFIED | `results/phoenix_v2/sim_limiter/nominal_measured_q_0p175` |
+| H25 stands with the v2 limiter: 256/256 physical success, 0.20 % altered | SIM VERIFIED | `results/phoenix_v2/sim_limiter/nominal_prev_command_0p075` |
+| Through the exact deploy code (obs builder, ONNX, action map, wire, ActuatorGate): v2 64/64, legacy 0/64 with `target_beyond_limit` | SIM VERIFIED | `results/phoenix_v2/sim2sim/`, factorial in `sim2sim_factorial/` |
+| Actor parity by an independent numpy forward pass, max 6.0e-6 on 4882 real observations | OFFLINE VERIFIED | `results/phoenix_v2/parity/` |
+| The v2 path executes H25 faithfully on the GO2 | NOT YET VERIFIED | not run: robot unreachable |
+| H25 absorbs RR_thigh gain reduction to 0.5 (score drop 0.042) | SIM VERIFIED | `results/phoenix_v2/strain_pilot/`; stage S stopped by rule (EXPERIMENT.md amendment 4) |
+| The monitor passes its sim validation gate | FALSE in an exploratory run | 5/20 nominal false positives, 5/10 localisation, `exploratory_monitor_sim_s0p5/` |
+| A walking policy passes Gate L | FALSE for the only one trained | 0/256, 31 % rate-limited, `results/phoenix_v2/gate_l/` |
+
 ## Incumbent policy and deploy stack
 
 | Claim | Status | Evidence |
@@ -39,7 +56,7 @@ trip. It has not happened.
 | Walking is refused in the deploy path | IMPLEMENTED | deploy contract, policy node, actuator gate, audit H2 |
 | ONNX / TorchScript / checkpoint parity for the locked H25 artifacts, max_abs <= 1.7e-6 (tol 1e-5) | OFFLINE VERIFIED, also on the real F1 inputs | lock file, `parity_gate.json`, stage A |
 | H25 survives 20 s in sim without trunk contact ("32/32") | SIM VERIFIED | that is the whole meaning of the old success metric, audit H5 |
-| H25 holds attitude in sim | NOT YET VERIFIED | the evaluator reads Isaac Lab 3.0 xyzw quaternions as wxyz; attitude flags are corrupted, audit H6 |
+| H25 holds attitude in sim | SIM VERIFIED with the v2 limiter (0/256 violations nominal); under its trained measured-q clip 1/256 nominal and 10.5 % of DR episodes violate 0.40 rad | `results/phoenix_v2/sim_limiter/`; attitude from projected gravity. The legacy evaluator's wxyz reading is still in `evaluate.py` and not used by v2 |
 | H25 stands on the GO2 | NOT YET VERIFIED | the one live attempt (F1, 2026-09-22) faulted after 0.58 s on `target_beyond_limit:RR_thigh_joint` from a folded start |
 | The robot executes the policy's requests | FALSE for the incumbent | 88.8 % altered on hardware, 59.7 % in sim, audit H4 |
 | Stand-up ramp to the training stance before policy authority | IMPLEMENTED, never run with motors live | `9df76d7` |
@@ -48,9 +65,10 @@ trip. It has not happened.
 ## Test suite
 
 `PYTHONPATH=src PHOENIX_SKIP_HEAVY=1 pytest tests -m "not sim and not ros"` on
-2026-09-22: 1700 passed, 18 skipped, 1 failed. The failure,
-`test_bundle_staging_refuses_evidence_from_another_commit`, needs a gitignored
-`parity_gate.json` that is absent from a fresh checkout; it is not caused by v2.
+2026-09-22 after the v2 limiter work: see the latest count in
+`docs/research/PHOENIX_V2_RESULTS.md`. Earlier the same day: 1700 passed, 18 skipped,
+1 failed (`test_bundle_staging_refuses_evidence_from_another_commit`, which needs a
+gitignored `parity_gate.json`; it passes when the checkpoint directory is present).
 Without `PYTHONPATH=src` an editable install elsewhere can shadow this checkout.
 
 ## Superseded
