@@ -172,7 +172,7 @@ def test_tracking_abort_replaces_the_effort_cap_without_rewriting_commands() -> 
         rec = step(g, 0.02 * (k + 1), target, seq=k + 1, q_u=q)  # the joint never moves
         faults.append(rec["fault"])
     assert faults[0] is None
-    assert any(f and f.startswith("tracking_error_exceeded") for f in faults)
+    assert any(f and f.startswith("catastrophic_tracking_error") for f in faults)
     assert rec["mode"] == "hold"
 
 

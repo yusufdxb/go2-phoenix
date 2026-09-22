@@ -1,0 +1,3 @@
+# Recipe W evaluation (amendment 6.4), training DR, hard envelope only. Seeds: dev 5002, final 6002.
+defaults:
+  - walk_w1
