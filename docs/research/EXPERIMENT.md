@@ -777,3 +777,96 @@ unchanged.
 band. The first pass is kept, not deleted, under
 `results/phoenix_v2/intervention_screen_pinband_0p175/`, and is reported as the evidence
 for this amendment. No screening threshold or rule is changed with it.
+
+### Amendment 15 (2026-09-22): intervention frozen; the monitor rule and its gate, before any gate run
+
+Phases G to J. Written after the screen selected, and **before any of the 120 s monitor
+sessions it governs exist**. Nothing below may be changed once the first of those sessions
+has run; a failure is reported as a failure.
+
+**15.1 The intervention, frozen (Phase G).**
+
+| field | value |
+|---|---|
+| family | C3, both rear legs |
+| target expression | `rear:0.70` |
+| joints | RR_hip, RR_thigh, RR_calf, RL_hip, RL_thigh, RL_calf |
+| severity | 0.70 on kp and kd, uniform over the six |
+| floor that bounded it | `MIN_SCALE_MULTI` = 0.70 |
+| simulator implementation | deploy `ActuatorGate`, the same object as on the robot, via `--degrade rear:0.70 --allow-degradation --degradation-pin-band 0.65` |
+| hardware implementation | the same, behind the triple lock; hardware is BLOCKED, so unexercised |
+| development severity | 0.70 |
+| held-out severity, reserved and unused | 0.75 |
+| secondary intervention, preregistered | C4 `all:0.80` and `all:0.75` |
+| selection evidence | `results/phoenix_v2/intervention_screen/screening.{json,md}` |
+
+Walking success 0.6328 against a nominal 0.9219, a drop of 0.2891, every seed at least
+0.2734. Selection is not revisited now that training is about to begin.
+
+**15.2 The monitor is reframed around persistent actuator-response change (Phase H).**
+`phoenix.monitor.health` asks which single motor is bad and treats a many-joint change as
+a veto (`GLOBAL_SHIFT`), which `condition.distribution.build_targeted_spec` then refuses.
+That question is both unanswerable here and no longer the right one: on nominal W2 walking
+telemetry undegraded joints score anywhere from 0.75 to 1.63, and with one joint truly at
+0.80 it was the lowest-scoring joint in a minority of sessions; and the screen eliminated
+the single-joint family outright.
+
+`phoenix.monitor.response_shift` instead scores each of a FIXED hypothesis space of
+physically meaningful joint groups: the per-window median of `s_hat` over the group's
+joints, then the median over windows. A group flags when it is persistently below its
+calibrated threshold AND its members moved together (the interquartile spread of member
+medians is inside its calibrated nominal range). The reported answer is the LARGEST
+flagged group, which is the widest extent the evidence supports.
+
+**Hypothesis space, frozen: the twelve multi-joint groups** (`all`, `rear`, `front`,
+`diag_a`, `diag_b`, `leg_FR/FL/RR/RL`, `hips`, `thighs`, `calfs`). The twelve singletons
+are dropped: they are the noisiest candidates in this regime and no screened family can
+produce one. Every candidate costs false-alarm budget, so the space is small and fixed in
+advance rather than searched.
+
+**Configuration, frozen:** `alpha` 0.05, `min_effect` 0.06, persistence 7 of the last 10
+windows, `min_usable` 8 windows, `spread_quantile` 0.90, `min_spread_bound` 0.10, 1 s
+windows, at least 60 % valid samples per joint-window.
+
+**15.3 Why the rule is frozen UNCHANGED despite a 0.50 development false-flag rate.**
+On the screening's 20 s sessions the detector flagged something in half of held-out
+nominal sessions. That is a calibration-depth artifact, not a fault in the rule, and the
+diagnosis is recorded here because it is what justifies changing nothing: no group's
+threshold was clamped by the `min_effect` floor, and the observed per-window alarm rate on
+held-out nominal sessions was **0.105 to 0.351 against the 0.05 the threshold was set
+for**, because that threshold was a 5 % quantile estimated from about 114 windows. With an
+honestly estimated 0.05, the 7-of-10 persistence rule puts a session-level false alarm
+near 1e-6 across twelve groups. The single remedy applied is therefore **more and longer
+calibration sessions**, and no threshold, quantile, persistence count or aggregation is
+touched.
+
+**15.4 Calibration and validation sessions (Phase I).** Frozen W2, exact deploy stack, DR
+off, 120 s per session (about 119 windows, against the 19 the screening cells gave), one
+independent session per simulated robot, 12 robots per run, walking latch band 0.65 rad.
+Calibration, nominal validation and degraded sets are seed-disjoint, and the evaluator
+refuses overlapping calibration and validation sets.
+
+| set | seeds | sessions | condition |
+|---|---|---|---|
+| calibration | 7101, 7102 | 24 | nominal |
+| nominal validation | 7103, 7104 | 24 | nominal |
+| degraded | 7105, 7106 | 24 | `rear:0.70` |
+| held-out severity | 7107, 7108 | 24 | `rear:0.75`, reported not gated |
+
+**15.5 The gate, frozen (Phase J).** Applied ONCE, to the sets above. All four required:
+
+* **G1 false alarms.** Session-level nominal false-flag rate (any group flagged) **<= 0.05**.
+* **G2 detection.** The selected group `rear` reaches SHIFTED in **>= 0.80** of degraded sessions.
+* **G3 extent.** The reported group is `rear` in **>= 0.70** of degraded sessions.
+* **G4 severity usefulness.** Median severity estimate within **0.10** of the applied 0.70,
+  and the reported `[lo, hi]` contains 0.70 in **>= 0.70** of detected sessions.
+
+**If any of the four fails, targeted adaptation STOPS at Phase J.** The monitor is not
+retuned to pass, no threshold is revisited, the hypothesis space is not re-cut, and the
+session sets are not extended. Two claims are then reported separately, because the
+development evidence already separates them: that the residual carries usable severity
+information (the group estimate moved monotonically, 0.806 to 0.956 for an applied 0.70 to
+0.90), and that the detector could not operationalise it at the session level. The
+recorded finding in that case is: **Phoenix could estimate actuator-response severity
+monotonically in simulation, but could not reliably distinguish nominal from degraded
+walking at the session level.**
