@@ -13,7 +13,9 @@ import pytest
 from phoenix.sim2real.degradation import (
     ARM_ENV,
     ARM_VALUE,
+    JOINT_GROUPS,
     MIN_SCALE,
+    MIN_SCALE_MULTI,
     RAMP_S,
     SATURATION_LATCH_S,
     DegradationSpec,
@@ -302,3 +304,134 @@ def test_message_gains_are_the_checksummed_gains(bridge_module):  # noqa: F811
     assert [c.kp for c in m] == kp and [c.kd for c in m] == kd
     raw = build_raw_from_motor_values([c.q for c in m], [c.kp for c in m], [c.kd for c in m])
     assert msg.crc == compute_crc(raw)
+
+
+# ------------------------------------------------- the multi-joint form (amendment 13)
+LEG_RR = tuple(j for j in UNITREE_MOTOR_ORDER if j.startswith("RR_"))
+LEG_IDX = [UNITREE_MOTOR_ORDER.index(j) for j in LEG_RR]
+LEG_SPEC = DegradationSpec(LEG_RR, 0.8, 0.8)
+
+
+def test_multi_joint_floor_is_higher_than_the_single_joint_floor():
+    assert MIN_SCALE_MULTI > MIN_SCALE
+    # 0.5 is legal for one joint and illegal for a set, which is the whole point.
+    assert DegradationSpec(RR_THIGH, MIN_SCALE, MIN_SCALE).min_scale == MIN_SCALE
+    with pytest.raises(ValueError):
+        DegradationSpec(LEG_RR, MIN_SCALE, MIN_SCALE)
+    with pytest.raises(ValueError):
+        DegradationSpec(LEG_RR, MIN_SCALE_MULTI - 0.01, 1.0)
+    assert DegradationSpec(LEG_RR, MIN_SCALE_MULTI, MIN_SCALE_MULTI).min_scale == MIN_SCALE_MULTI
+
+
+def test_multi_joint_spec_scales_exactly_its_set_and_nothing_else():
+    kp, kd = LEG_SPEC.kp_scale_vector(), LEG_SPEC.kd_scale_vector()
+    assert set(LEG_SPEC.joints) == set(LEG_RR)
+    assert sorted(LEG_SPEC.motor_indices) == sorted(LEG_IDX)
+    assert np.all(kp[LEG_IDX] == 0.8) and np.all(kd[LEG_IDX] == 0.8)
+    assert np.all(np.delete(kp, LEG_IDX) == 1.0) and np.all(np.delete(kd, LEG_IDX) == 1.0)
+    assert kp.max() <= 1.0  # a reduction only, never a boost
+
+
+def test_single_element_set_normalises_to_the_historical_single_joint_spec():
+    assert DegradationSpec((RR_THIGH,), 0.6, 0.6) == SPEC
+    assert DegradationSpec((RR_THIGH,), 0.6, 0.6).min_scale == MIN_SCALE
+
+
+def test_motor_index_refuses_a_multi_joint_spec():
+    assert SPEC.motor_index == J
+    with pytest.raises(ValueError):
+        _ = LEG_SPEC.motor_index
+
+
+@pytest.mark.parametrize(
+    ("text", "n", "scale"),
+    [
+        ("leg_RR:0.8", 3, 0.8),
+        ("rear:0.75", 6, 0.75),
+        ("all:0.75", 12, 0.75),
+        ("thighs:0.9", 4, 0.9),
+        ("RR_hip+RR_thigh:0.8", 2, 0.8),
+    ],
+)
+def test_parse_spec_group_forms(text, n, scale):
+    spec = parse_spec(text)
+    assert len(spec.joints) == n
+    assert spec.kp_scale == scale == spec.kd_scale
+    assert spec.min_scale == MIN_SCALE_MULTI
+
+
+def test_parse_spec_rejects_a_group_below_the_multi_joint_floor():
+    with pytest.raises(ValueError):
+        parse_spec("all:0.5")
+    with pytest.raises(ValueError):
+        parse_spec("leg_RR:0.69")
+
+
+def test_parse_spec_rejects_duplicates_and_unknown_names():
+    with pytest.raises(ValueError):
+        parse_spec("RR_thigh+RR_thigh:0.8")
+    with pytest.raises(ValueError):
+        parse_spec("RR_thigh+bogus:0.8")
+
+
+def test_every_named_group_is_a_real_physical_grouping():
+    for name, joints in JOINT_GROUPS.items():
+        assert len(joints) == len(set(joints)), name
+        assert set(joints) <= set(UNITREE_MOTOR_ORDER), name
+        assert len(joints) >= 2, name
+    assert set(JOINT_GROUPS["all"]) == set(UNITREE_MOTOR_ORDER)
+    assert set(JOINT_GROUPS["rear"]) == set(JOINT_GROUPS["leg_RR"]) | set(JOINT_GROUPS["leg_RL"])
+    assert set(JOINT_GROUPS["thighs"]) == {j for j in UNITREE_MOTOR_ORDER if "_thigh_" in j}
+
+
+def test_multi_joint_scale_ramps_in_on_its_whole_set_and_never_moves_a_target():
+    ref = armed()
+    r0 = run_policy(ref, 0.01, RAMP_S + 0.2)
+    recs = run_policy(armed(degradation=LEG_SPEC), 0.01, RAMP_S + 0.2)
+    assert all(r["mode"] == "policy" for r in recs)
+    assert [r["final_target_unitree"] for r in recs] == [r["final_target_unitree"] for r in r0]
+    assert recs[0]["kp_unitree"] == [25.0] * 12  # ramp starts at nominal
+    last = recs[-1]
+    assert last["degradation"]["ramp"] == 1.0 and last["degradation"]["applied"] is True
+    assert sorted(last["degradation"]["joints"]) == sorted(LEG_RR)
+    for r in recs:
+        kp, kd = np.asarray(r["kp_unitree"]), np.asarray(r["kd_unitree"])
+        assert kp.max() <= 25.0 and kd.max() <= 0.5  # never above nominal, any tick
+        assert np.all(np.delete(kp, LEG_IDX) == 25.0)
+        assert np.all(np.delete(kd, LEG_IDX) == 0.5)
+        assert len(set(np.round(kp[LEG_IDX], 9))) == 1  # one scale over the whole set
+    assert np.allclose(np.asarray(last["kp_unitree"])[LEG_IDX], 20.0)
+    assert np.allclose(np.asarray(last["kd_unitree"])[LEG_IDX], 0.4)
+
+
+@pytest.mark.parametrize("joint", LEG_RR)
+def test_any_single_pinned_joint_in_the_set_latches_hold(joint):
+    """The watch is per joint: a wider set must not dilute it."""
+    idx = UNITREE_MOTOR_ORDER.index(joint)
+    sagged = DEFAULT_U.copy()
+    sagged[idx] -= 0.3
+    recs = run_policy(armed(degradation=LEG_SPEC), 0.01, SATURATION_LATCH_S + 0.2, q_u=sagged)
+    faults = [r["fault"] for r in recs]
+    assert f"degradation_joint_saturated:{joint}" in faults
+    assert recs[-1]["mode"] == "hold" and recs[-1]["kp_unitree"] == [20.0] * 12
+
+
+def test_multi_joint_degradation_keeps_nominal_gains_outside_policy_mode():
+    for mode_setup, expect_kp in (
+        (dict(), 20.0),  # no policy command -> hold
+        (dict(standup_s=1.0), 60.0),  # standup ramp
+    ):
+        gate = armed(degradation=LEG_SPEC, **mode_setup)
+        rec = gate.tick(ns(0.02))
+        assert rec["kp_unitree"] == [expect_kp] * 12
+        assert rec["degradation"]["applied"] is False
+
+
+def test_multi_joint_spec_serialises_with_its_set_and_floor():
+    d = LEG_SPEC.to_dict()
+    assert sorted(d["joints"]) == sorted(LEG_RR)
+    assert d["kp_scale"] == d["kd_scale"] == 0.8
+    assert d["min_scale"] == MIN_SCALE_MULTI
+    import json
+
+    assert json.loads(json.dumps(d))["min_scale"] == MIN_SCALE_MULTI
