@@ -598,3 +598,40 @@ episode with no trunk contact, roll and pitch within 0.40 rad, and, outside the 
 settling windows, planar velocity error within the frozen 0.25 m/s bound). `s_train` is
 the largest s whose score drops by at least 0.10 against s = 1.0; if none does, Stage W
 stops with the same finding the stand stage reached.
+
+### Amendment 12 (2026-09-22): Stage W stops at the s_train pilot, the same rule as Stage S
+
+The preregistered pilot ran on W2 through the exact deploy path (nominal physics,
+128 episodes per value, seed 3101, RR_thigh kp and kd scaled by the deploy gate exactly
+as the hardware degradation does, `results/phoenix_v2/walk_strain_pilot/`):
+
+| s | Stage W primary score | drop vs 1.0 | walking success | safety-hold episodes | fidelity pass | mean planar error |
+|---|---|---|---|---|---|---|
+| 1.0 | 0.9888 | - | 0.9375 | 0/128 | 1.000 | 0.095 m/s |
+| 0.8 | 0.9780 | 0.0108 | 0.9219 | 2/128 | 0.984 | 0.105 m/s |
+| 0.7 | 0.9775 | 0.0113 | 0.9141 | 4/128 | 0.969 | 0.109 m/s |
+| 0.6 | 0.9709 | 0.0179 | 0.9062 | 5/128 | 0.961 | 0.110 m/s |
+| 0.5 | 0.9579 | 0.0309 | 0.8906 | 9/128 | 0.930 | 0.120 m/s |
+
+No value reaches the 0.10 drop, and 0.5 is the smallest scale the controlled degradation
+permits (`MIN_SCALE`, a hardware-safety bound). **By the stop rule written before the
+pilot, Stage W stops: the walking baseline absorbs this degradation too, so there is
+nothing for a targeted distribution to repair.** Phases 1a, 1b, 2 and 3 are not run for
+walking. The effect is real but small and monotone in severity (safety-hold episodes
+0 to 7 %, fidelity 100 to 93 %, tracking 0.095 to 0.120 m/s); it is simply far below the
+preregistered bar.
+
+**Both stages of the study have now stopped at the same place, for the same reason**: the
+one controlled degradation this program is allowed to apply, a single joint's PD gains
+scaled to at least 0.5, does not move either policy's preregistered endpoint by 0.10.
+The central hypothesis is therefore still untested, and is not refuted: the study never
+reached the comparison it was designed to make.
+
+**Next scientific decision, recorded, not acted on here.** The evidence points at the
+intervention, not at Phoenix's machinery. In the same deploy path, a GLOBAL actuator
+weakening to 0.75 on every joint did move walking substantially (success 0.953 -> 0.719,
+`results/phoenix_v2/walk_deploy/w2_open/d_actuator_weak/`), while one joint at 0.5 did
+not. A follow-up study would have to preregister a stronger or multi-joint intervention
+(and justify it against the hardware-safety bound that fixes `MIN_SCALE` at 0.5) and a
+more sensitive endpoint than the 0.10 drop, before any of it is run. Nothing in the
+present study is reinterpreted to get a positive result.

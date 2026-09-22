@@ -76,6 +76,14 @@ def parse_args(argv=None):
     p.add_argument("--policy-onnx-override", type=Path, default=None)
     p.add_argument("--walk-thresholds", type=Path, default=None)
     p.add_argument(
+        "--telemetry-envs",
+        type=int,
+        default=None,
+        help="write bridge telemetry for only the first N simulated robots (default: all). "
+        "The per-robot files are ~2 MB each; the hardware fidelity gate is then computed "
+        "on those N only, and the count is recorded in the summary.",
+    )
+    p.add_argument(
         "--limiter-max-delta-override",
         type=float,
         default=None,
@@ -260,9 +268,10 @@ def _run(args) -> int:
     }
     tel_dir = out / "bridge"
     tel_dir.mkdir()
+    n_tel = N if args.telemetry_envs is None else max(0, min(int(args.telemetry_envs), N))
     writers = [
         TelemetryWriter(tel_dir / f"robot{e:03d}.jsonl", {**manifest_common, "robot": e})
-        for e in range(N)
+        for e in range(n_tel)
     ]
     ns = lambda k: int(round((k + 1) * dt * 1e9))  # noqa: E731
     gates = [ActuatorGate(params, 0) for _ in range(N)]
@@ -343,7 +352,7 @@ def _run(args) -> int:
                 g.on_estop(now, False)
                 g.on_command(now, label, data)
                 rec = g.tick(now)
-                if not ended[e]:
+                if not ended[e] and e < n_tel:
                     writers[e].write_tick(rec)
                 final_p[e] = np.asarray(rec["final_target_unitree"])[inv]
                 kp_p[e] = np.asarray(rec["kp_unitree"])[inv]
@@ -379,9 +388,10 @@ def _run(args) -> int:
                     hit = t2n(u.termination_manager.get_term(name)).astype(bool)
                     contact_term |= hit & d & ~ended
                 for e in np.flatnonzero(d & ~ended):
-                    writers[e].close({"reason": "episode_end"})
+                    if e < n_tel:
+                        writers[e].close({"reason": "episode_end"})
                 ended |= d
-    for e in range(N):
+    for e in range(n_tel):
         writers[e].close({"reason": "duration_complete"})
     env.close()
 
@@ -412,7 +422,7 @@ def _run(args) -> int:
                                      thresholds=wth))
     # The hardware fidelity gate, on the gate's own telemetry, per simulated robot.
     fid = []
-    for e in range(N):
+    for e in range(n_tel):
         rep = fidelity_report(read_bridge_telemetry(tel_dir / f"robot{e:03d}.jsonl"))
         fid.append({k: rep.get(k) for k in ("verdict", "reasons", "altered_fraction",
                                             "rms_distortion_rad", "authority_s")})
@@ -428,8 +438,9 @@ def _run(args) -> int:
         "steps": T,
         "dt_s": dt,
         **metrics,
+        "telemetry_robots": n_tel,
         "hardware_fidelity_gate": {
-            "pass_rate": float(np.mean([f["verdict"] == "PASS" for f in fid])),
+            "pass_rate": float(np.mean([f["verdict"] == "PASS" for f in fid])) if fid else None,
             "per_robot": fid,
         },
         "gate_faults": faults,
@@ -437,8 +448,9 @@ def _run(args) -> int:
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=1, default=str))
     with (out / "episodes.jsonl").open("w") as fh:
-        for ep, f in zip(episodes, fid):
-            fh.write(json.dumps({**ep, "hardware_fidelity": f["verdict"]}) + "\n")
+        for i, ep in enumerate(episodes):
+            extra = {"hardware_fidelity": fid[i]["verdict"]} if i < len(fid) else {}
+            fh.write(json.dumps({**ep, **extra}) + "\n")
     if args.save_steps:
         np.savez_compressed(out / "steps.npz", grav=grav, alive=alive, hold=hold, **arrs)
     print(json.dumps({k: summary[k] for k in (
