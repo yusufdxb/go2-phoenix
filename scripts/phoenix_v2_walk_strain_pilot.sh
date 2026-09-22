@@ -18,7 +18,7 @@ for s in 1.0 0.8 0.7 0.6 0.5; do
     --deploy-config configs/sim2real/deploy_walk_w2_sim.yaml \
     --env-config configs/env/phoenix_v2/walk_deploy_a_nominal.yaml --num-envs "$N" \
     --seed 3101 --limiter-max-delta-override "${DQ:-0.6}" \
-    --out "$OUT/$name" --label "$name" "${extra[@]}" 2>&1 | grep -v Warp | sed -n '/^{/,/^}/p' \
+    --telemetry-envs "${TEL:-4}" --out "$OUT/$name" --label "$name" "${extra[@]}" 2>&1 | grep -v Warp | sed -n '/^{/,/^}/p' \
     | python3 -c "
 import json,sys
 s=json.load(sys.stdin)
