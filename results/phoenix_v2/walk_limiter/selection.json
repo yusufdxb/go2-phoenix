@@ -1,0 +1,126 @@
+{
+ "rule": "amendment 6.2",
+ "metric": "walk2_success_rate",
+ "hard_only_reference": {
+  "dr": 0.92578125,
+  "nominal": 0.90234375
+ },
+ "rows": [
+  {
+   "dq_max": 0.02,
+   "dr": {
+    "altered": 0.28740460999222545,
+    "worst_joint_altered": 0.3852909368091418,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.92578125,
+    "seed": 5101
+   },
+   "nominal": {
+    "altered": 0.35980613087456137,
+    "worst_joint_altered": 0.4398954104451937,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.90234375,
+    "seed": 5102
+   },
+   "passes_one_sided": false,
+   "passes_two_sided": false
+  },
+  {
+   "dq_max": 0.035,
+   "dr": {
+    "altered": 0.21406608737610747,
+    "worst_joint_altered": 0.2585408643728439,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.92578125,
+    "seed": 5101
+   },
+   "nominal": {
+    "altered": 0.3082705805014191,
+    "worst_joint_altered": 0.37653667350288733,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.90234375,
+    "seed": 5102
+   },
+   "passes_one_sided": false,
+   "passes_two_sided": false
+  },
+  {
+   "dq_max": 0.05,
+   "dr": {
+    "altered": 0.196890625,
+    "worst_joint_altered": 0.25570703125,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.92578125,
+    "seed": 5101
+   },
+   "nominal": {
+    "altered": 0.2850511988207806,
+    "worst_joint_altered": 0.3826465007605338,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.90234375,
+    "seed": 5102
+   },
+   "passes_one_sided": false,
+   "passes_two_sided": false
+  },
+  {
+   "dq_max": 0.075,
+   "dr": {
+    "altered": 0.19088193439885215,
+    "worst_joint_altered": 0.2915005468722436,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.92578125,
+    "seed": 5101
+   },
+   "nominal": {
+    "altered": 0.237052397395862,
+    "worst_joint_altered": 0.36121795628131614,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.90234375,
+    "seed": 5102
+   },
+   "passes_one_sided": false,
+   "passes_two_sided": false
+  },
+  {
+   "dq_max": 0.1,
+   "dr": {
+    "altered": 0.16712172767685637,
+    "worst_joint_altered": 0.28963832940014267,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.92578125,
+    "seed": 5101
+   },
+   "nominal": {
+    "altered": 0.19365462542133874,
+    "worst_joint_altered": 0.32599430701243964,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.90234375,
+    "seed": 5102
+   },
+   "passes_one_sided": false,
+   "passes_two_sided": false
+  },
+  {
+   "dq_max": 0.175,
+   "dr": {
+    "altered": 0.07387393391062555,
+    "worst_joint_altered": 0.18677454635259252,
+    "walk2_success_rate": 0.00390625,
+    "delta_vs_hard_only": -0.921875,
+    "seed": 5101
+   },
+   "nominal": {
+    "altered": 0.084982421875,
+    "worst_joint_altered": 0.1998046875,
+    "walk2_success_rate": 0.0,
+    "delta_vs_hard_only": -0.90234375,
+    "seed": 5102
+   },
+   "passes_one_sided": false,
+   "passes_two_sided": false
+  }
+ ],
+ "selected_one_sided": null,
+ "selected_two_sided_reported": null
+}

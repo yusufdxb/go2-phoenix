@@ -1,0 +1,6 @@
+# Phoenix v2 Stage W recipe W5 (amendment 10): W2 with action_rate weight -0.5 (smoothness
+# pressure in the OBJECTIVE, not a limiter in the MDP). One dimension changed from W2.
+defaults:
+  - walk_w1
+reward:
+  action_rate: -0.5

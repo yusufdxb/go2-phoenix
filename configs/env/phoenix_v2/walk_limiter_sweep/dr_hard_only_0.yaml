@@ -1,0 +1,7 @@
+# Phase 7 walking limiter selection (amendment 6.2/9), development seeds only.
+# Condition: dr. Limiter: hard only 0 rad/step. Policy: W2.
+defaults:
+  - ../walk_w1
+action:
+  rate_limit:
+    enabled: false
