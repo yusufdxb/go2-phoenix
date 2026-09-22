@@ -53,7 +53,6 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 
-from .safety import MAX_DELTA_PER_STEP_RAD
 
 #: The policy's joint order: Isaac Lab's GO2 articulation order, grouped by joint
 #: type. Identical to ``joint_order`` in every ``configs/sim2real/deploy*.yaml``
@@ -144,7 +143,10 @@ JOINT_POSITION_LIMITS_RAD: dict[str, tuple[float, float]] = {
 
 #: See the module docstring: a target beyond a hard limit by more than one slew
 #: cap cannot come from a legal measured state, so it aborts instead of clipping.
-LIMIT_ABORT_BAND_RAD: float = MAX_DELTA_PER_STEP_RAD
+#: Part of the ABSOLUTE hard envelope. Its value is the historical slew cap, but it is
+#: deliberately its own constant (Phoenix v2, 2026-09-22): choosing a different soft
+#: limiter or rate bound must never move the abort line. Asserted in tests.
+LIMIT_ABORT_BAND_RAD: float = 0.175
 
 #: Unitree's low-level stand example poses, in Unitree motor order
 #: (``go2_stand_example.cpp`` ``target_pos_1_`` folded and ``target_pos_2_``

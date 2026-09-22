@@ -128,7 +128,8 @@ from .observation import (
     projected_gravity_from_quat,
     resolve_base_lin_vel,
 )
-from .safety import MAX_DELTA_PER_STEP_RAD, per_step_clip_array
+from .action_map import node_soft_limit, policy_action_map
+from .safety import MAX_DELTA_PER_STEP_RAD
 from .telemetry import (
     CONTACT_FORCE_UNITS_RAW_COUNTS,
     OdomSample,
@@ -359,6 +360,15 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             )
         self._authority_s = authority_s
         self.action_scale = float(cfg["control"]["action_scale"])
+        # Phoenix v2: the trained plant's action clamp (None = legacy, no clamp) and the
+        # soft-limiter family; both default to the incumbent for pre-v2 configs.
+        clip = cfg["control"].get("action_clip")
+        self.action_clip: float | None = None if clip is None else float(clip)
+        limiter_cfg = cfg.get("limiter") or {}
+        self.limiter_mode = str(limiter_cfg.get("mode", "measured_q"))
+        self.limiter_max_delta = float(
+            limiter_cfg.get("max_delta_per_step", MAX_DELTA_PER_STEP_RAD)
+        )
         self.rate_hz = float(cfg["control"]["rate_hz"])
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
         # Fail-closed timeouts. estop must be heartbeated well inside
@@ -847,9 +857,12 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
             outputs = self.session.run(self._shield_outputs, {"obs": obs})
             action = outputs[0][0]
-            self._last_action = action.astype(np.float32, copy=False)
-
-            target = self.default_q + self.action_scale * action
+            # Layer 1 is ``action`` (logged as raw_action). The clamp, when configured,
+            # applies to BOTH the target and the fed-back last_action, as in training.
+            fed_back, target = policy_action_map(
+                action, self.default_q, self.action_scale, self.action_clip
+            )
+            self._last_action = fed_back
 
             if self.shield is not None:
                 target = self._apply_shield(outputs[1][0], target)
@@ -1239,9 +1252,14 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.shield_pub.publish(msg)
 
     def _clip_to_limits(self, target: np.ndarray, q: np.ndarray) -> np.ndarray:
-        # Single source of truth lives in phoenix.sim2real.safety so the
-        # bridge and the policy node provably share the slew-rate cap.
-        return per_step_clip_array(target, q, MAX_DELTA_PER_STEP_RAD).astype(np.float32, copy=False)
+        # Single source of truth lives in phoenix.sim2real.action_map / safety so the
+        # bridge and the policy node provably share the soft-limiter constants.
+        return node_soft_limit(
+            target,
+            q,
+            getattr(self, "limiter_mode", "measured_q"),
+            getattr(self, "limiter_max_delta", MAX_DELTA_PER_STEP_RAD),
+        )
 
     def _next_seq(self) -> int:
         self._seq = getattr(self, "_seq", 0) + 1

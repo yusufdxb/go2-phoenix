@@ -56,6 +56,10 @@ RAMP_S = 2.0
 #: ``s * kp * 0.175`` N m, so a pinned joint is a leg that is sagging, and no other rule
 #: in the gate fires until the joint crosses its hard limit.
 SATURATION_LATCH_S = 0.5
+#: "Pinned" means the policy asks the degraded joint for at least this much beyond its
+#: measured position. The historical slew cap value, kept fixed when the soft limiter
+#: changed to a command-rate limiter (Phoenix v2 amendment 1) so the latch is unchanged.
+DEGRADATION_PIN_BAND_RAD = 0.175
 ARM_ENV = "PHOENIX_EXPERIMENT"
 ARM_VALUE = "controlled_degradation"
 STAGE_PREFIX = "X"

@@ -7,9 +7,11 @@ Unitree motor order:
 1. ``raw_action``      the ONNX policy output (unitless, policy scale).
 2. ``requested``       ``default_q + action_scale * raw_action``: what the policy
                        asked the joint to do, in radians (wire ``requested_target``).
-   ``policy_node_target``  the same after the policy node's slew clip (wire
-                       ``target``; the bridge logs it as ``requested_target_unitree``,
-                       a misleading name kept for file compatibility).
+   ``policy_node_target``  the policy node's output (wire ``target``): after its
+                       slew clip in v1 files, equal to ``requested`` when the node
+                       applies no soft limiter (v2). The bridge logs it as
+                       ``node_target_unitree`` (v2) or, in v1 files, under the
+                       misleading name ``requested_target_unitree``.
 3. ``sent``            the target the bridge actually wrote to ``LowCmd`` after the
                        policy node's slew clip, the bridge's own slew clip and the
                        hard-limit clip (``final_target_unitree``), together with the
@@ -146,7 +148,13 @@ def from_records(records: Iterable[Mapping[str, Any]]) -> CommandLayers:
             _policy_to_motor(pol.get("requested_target")) if is_policy else _arr(None)
         )
         node_target = _policy_to_motor(pol.get("target")) if is_policy else _arr(None)
-        bridge_in = rec.get("requested_target_unitree") if is_policy else None
+        # Schema v2 names it ``node_target_unitree``; v1 files carry the same value
+        # under the misleading ``requested_target_unitree``.
+        bridge_in = (
+            rec.get("node_target_unitree", rec.get("requested_target_unitree"))
+            if is_policy
+            else None
+        )
         if bridge_in is not None and np.all(np.isfinite(node_target)):
             if not np.allclose(_arr(bridge_in), node_target, atol=1e-9, rtol=0.0):
                 raise ValueError(

@@ -131,6 +131,52 @@ def validate_deploy_contract(cfg: Mapping[str, Any]) -> list[str]:
         problems.append(str(exc))
     if not policy.get("onnx_path"):
         problems.append("policy.onnx_path is missing")
+    problems.extend(_limiter_problems(cfg))
+    return problems
+
+
+def _limiter_problems(cfg: Mapping[str, Any]) -> list[str]:
+    """Phoenix v2: the soft limiter and the trained action clamp are declared or absent.
+
+    Absent means the incumbent (measured-q clip, no action clamp). Declared means every
+    constant is explicit: a command-rate limiter without the tracking abort would drop
+    the only effort protection the incumbent clip provided, so that is refused.
+    """
+    from .safety import LIMITER_MODES, TRAINED_ACTION_CLIP
+
+    problems: list[str] = []
+    limiter = cfg.get("limiter")
+    control = cfg.get("control") or {}
+    clip = control.get("action_clip")
+    if clip is not None and (
+        not isinstance(clip, (int, float)) or isinstance(clip, bool) or clip != TRAINED_ACTION_CLIP
+    ):
+        problems.append(
+            f"control.action_clip must equal the training clamp {TRAINED_ACTION_CLIP}, got {clip!r}"
+        )
+    if limiter is None:
+        return problems
+    mode = limiter.get("mode")
+    if mode not in LIMITER_MODES:
+        problems.append(f"limiter.mode must be one of {list(LIMITER_MODES)}, got {mode!r}")
+    delta = limiter.get("max_delta_per_step")
+    if not isinstance(delta, (int, float)) or isinstance(delta, bool) or not 0 < delta <= 0.175:
+        problems.append(f"limiter.max_delta_per_step must be in (0, 0.175], got {delta!r}")
+    if mode == "prev_command":
+        abort = limiter.get("tracking_abort_rad")
+        if not isinstance(abort, (int, float)) or isinstance(abort, bool) or abort <= 0:
+            problems.append(
+                "limiter.tracking_abort_rad must be a positive number with a command-rate "
+                f"limiter (it replaces the measured-q clip's effort bound), got {abort!r}"
+            )
+        hold = limiter.get("tracking_abort_s")
+        if not isinstance(hold, (int, float)) or isinstance(hold, bool) or hold <= 0:
+            problems.append(f"limiter.tracking_abort_s must be positive, got {hold!r}")
+        if clip != TRAINED_ACTION_CLIP:
+            problems.append(
+                "a command-rate limiter config must declare control.action_clip: "
+                f"{TRAINED_ACTION_CLIP} (the trained plant's action clamp)"
+            )
     return problems
 
 

@@ -56,7 +56,15 @@ from .go2_model import UNITREE_MOTOR_ORDER
 from .motor_crc import PHOENIX_FOR_MOTOR
 from .safety import MAX_DELTA_PER_STEP_RAD, per_step_clip_array
 
-TELEMETRY_SCHEMA = "phoenix-bridge-telemetry/v1"
+#: v2 (Phoenix v2, 2026-09-22): tick records name the policy node's output
+#: ``node_target_unitree`` (v1: the misleading ``requested_target_unitree``), add
+#: ``soft_target_unitree`` (after the soft limiter), ``limiter_mode`` and
+#: ``tracking_error_max_rad``. v1 files stay readable.
+TELEMETRY_SCHEMA = "phoenix-bridge-telemetry/v2"
+READABLE_TELEMETRY_SCHEMAS: tuple[str, ...] = (
+    "phoenix-bridge-telemetry/v1",
+    "phoenix-bridge-telemetry/v2",
+)
 HARDWARE_SLEW_METRIC = "final_target_vs_policy_request_clip_activation_v1"
 HARDWARE_SLEW_METRIC_DEFINITION = (
     "100 * mean over tick rows with mode=='policy' and cmd_is_new, and over the 12 joints, "
@@ -145,8 +153,10 @@ def read_telemetry(
                 end = obj
     if manifest is None:
         raise ValueError(f"{path}: no manifest record")
-    if manifest.get("schema") != TELEMETRY_SCHEMA:
-        raise ValueError(f"{path}: schema {manifest.get('schema')!r} != {TELEMETRY_SCHEMA!r}")
+    if manifest.get("schema") not in READABLE_TELEMETRY_SCHEMAS:
+        raise ValueError(
+            f"{path}: schema {manifest.get('schema')!r} not in {READABLE_TELEMETRY_SCHEMAS!r}"
+        )
     manifest["_unparseable_lines"] = bad
     return manifest, ticks, end
 
@@ -292,6 +302,7 @@ def summarize(manifest: Mapping[str, Any], ticks: list[dict[str, Any]]) -> dict[
 
 
 __all__ = [
+    "READABLE_TELEMETRY_SCHEMAS",
     "HARDWARE_SLEW_METRIC",
     "HARDWARE_SLEW_METRIC_DEFINITION",
     "TELEMETRY_SCHEMA",
