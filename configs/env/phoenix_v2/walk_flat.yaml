@@ -1,0 +1,10 @@
+# Phoenix v2 Stage W baseline (EXPERIMENT.md amendment 3): flat-ground velocity tracking
+# with the frozen command-rate limiter in the MDP. base.yaml supplies the velocity ranges,
+# DR and observation noise; flat.yaml the Flat-v0 task.
+defaults:
+  - ../flat
+action:
+  rate_limit:
+    enabled: true
+    clip_mode: prev_command
+    max_delta_per_step: 0.075
