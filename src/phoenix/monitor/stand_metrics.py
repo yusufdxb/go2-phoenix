@@ -176,7 +176,64 @@ def score_stand_rollout(
     return metrics, episodes
 
 
+WALK_MAX_LIN_ERR_M_S = 0.25
+WALK_MAX_YAW_ERR_RAD_S = 0.30
+WALK_SETTLE_S = 1.0
+
+
+def score_walk_episodes(
+    episodes: list[dict[str, Any]],
+    *,
+    linv: np.ndarray,
+    angv: np.ndarray,
+    cmd: np.ndarray,
+    valid: np.ndarray,
+    dt: float,
+) -> dict[str, Any]:
+    """Add Amendment 3 walking success to stand-scored episodes (in place) and summarise.
+
+    Tracking errors exclude the first ``WALK_SETTLE_S`` after episode start and after
+    every command change. Walking success = stand success (no trunk contact, attitude,
+    abort band, fidelity) AND mean planar error <= 0.25 m/s AND mean yaw-rate error
+    <= 0.30 rad/s.
+    """
+    T, N = valid.shape
+    settle = int(round(WALK_SETTLE_S / dt))
+    changed = np.zeros((T, N), bool)
+    changed[0] = True
+    changed[1:] = np.any(np.abs(np.diff(cmd, axis=0)) > 1e-6, axis=-1)
+    since = np.zeros((T, N), int)
+    for k in range(T):
+        since[k] = np.where(changed[k], 0, since[k - 1] + 1 if k else 0)
+    use = valid & (since >= settle)
+    lin_err = np.linalg.norm(linv[..., :2] - cmd[..., :2], axis=-1)
+    yaw_err = np.abs(angv[..., 2] - cmd[..., 2])
+    speed = np.linalg.norm(cmd[..., :2], axis=-1)
+    for e, ep in enumerate(episodes):
+        u = use[:, e]
+        le = float(lin_err[u, e].mean()) if u.any() else float("inf")
+        ye = float(yaw_err[u, e].mean()) if u.any() else float("inf")
+        ep["mean_lin_vel_error_m_s"] = le
+        ep["mean_yaw_rate_error_rad_s"] = ye
+        ep["mean_cmd_speed_m_s"] = float(speed[u, e].mean()) if u.any() else 0.0
+        ep["walk_success"] = bool(
+            ep["success"] and le <= WALK_MAX_LIN_ERR_M_S and ye <= WALK_MAX_YAW_ERR_RAD_S
+        )
+    return {
+        "walk_thresholds": {
+            "max_lin_err_m_s": WALK_MAX_LIN_ERR_M_S,
+            "max_yaw_err_rad_s": WALK_MAX_YAW_ERR_RAD_S,
+            "settle_s": WALK_SETTLE_S,
+        },
+        "walk_success_rate": float(np.mean([ep["walk_success"] for ep in episodes])),
+        "walk_mean_lin_vel_error_m_s": float(lin_err[use].mean()),
+        "walk_mean_yaw_rate_error_rad_s": float(yaw_err[use].mean()),
+        "walk_mean_cmd_speed_m_s": float(speed[use].mean()),
+    }
+
+
 __all__ = [
+    "score_walk_episodes",
     "FIDELITY_MAX_ALTERED",
     "FIDELITY_MAX_RMS_RAD",
     "FIDELITY_TOL_RAD",

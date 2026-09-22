@@ -352,3 +352,20 @@ def test_telemetry_reader_accepts_v1_and_v2(tmp_path) -> None:
     bad.write_text(json.dumps({"record": "manifest", "schema": "other/v9"}) + "\n")
     with pytest.raises(ValueError):
         read_telemetry(bad)
+
+
+def test_walk_scoring_excludes_settle_and_checks_tracking() -> None:
+    from phoenix.monitor.stand_metrics import score_walk_episodes
+
+    T, N, dt = 200, 2, 0.02
+    cmd = np.zeros((T, N, 3))
+    cmd[:, :, 0] = 0.5
+    cmd[100:, :, 0] = 1.0  # resample at 2 s
+    linv = cmd.copy()
+    linv[:, 1, 0] += 0.4  # env 1 tracks badly
+    linv[100:140, 0, 0] = 0.0  # env 0 lags only inside the 1 s settle window
+    eps = [{"success": True}, {"success": True}]
+    out = score_walk_episodes(eps, linv=linv, angv=np.zeros((T, N, 3)), cmd=cmd,
+                              valid=np.ones((T, N), bool), dt=dt)
+    assert eps[0]["walk_success"] and not eps[1]["walk_success"]
+    assert out["walk_success_rate"] == 0.5
