@@ -527,3 +527,35 @@ runs on fresh seeds 6011-6013 with the selected bound.
 (training 0.85 to 1.15); (E) held-out command combinations, vx and vy and yaw rate all
 near their corners simultaneously (|vx| in [0.7, 0.9], |vy| in [0.4, 0.5], |wz| in
 [0.7, 0.9], signs drawn independently).
+
+### Amendment 10 (2026-09-22): W2 passes Gate W-H on final seeds but has no admissible limiter
+
+**Gate W-H, final seeds, once, hard envelope only** (`results/phoenix_v2/walk_final/w2/`):
+walking success **0.9023** (6001, gate 0.90), **0.8906** (6002, gate 0.80), stand
+**1.0000** (6003, gate 0.90). PASS. Phoenix has a walking policy that does not depend on
+downstream target shaping.
+
+**Phase 7 (`results/phoenix_v2/walk_limiter/`, dev seeds 5101/5102, amendment 6.2 rule):
+the admissible set is EMPTY.** Altered fraction per bound (DR / nominal): 0.02 28.7 /
+36.0 %, 0.035 21.4 / 30.8 %, 0.05 19.7 / 28.5 %, 0.075 19.1 / 23.7 %, 0.10 16.7 /
+19.4 %, 0.175 7.4 / 8.5 %, against the 1 % limit; walking success falls from 0.926 / 0.902
+(hard envelope only) to 0.000 at every bound. W2's own target rate is the reason: median
+per-tick target change 0 rad, p99 0.42 rad, maximum 0.500 rad, which is the full span the
+[-1, 1] clamp allows at action scale 0.25, and raw outputs are outside [-1, 1] on 66 % of
+steps. The policy is bang-bang, so a stand-derived command-rate bound is not a seatbelt
+for it. **By the rule, W2 is not deployed.** It stays the reference walking baseline.
+
+**W5, smoothness in the objective (one dimension, declared ladder).** W2's recipe with a
+larger `action_rate` weight, the term whose quantity IS the per-tick target change
+(`action_rate_l2` on the clamped action; target change = 0.25 x action change). Ladder,
+in order: `-0.25` (5x), then `-0.5` (10x); 3000 iterations, seed 42, everything else
+identical, grid for the limiter unchanged. **Promotion rule, fixed now:** take the
+SMALLEST penalty in the ladder whose policy (i) passes dev Gate W-H and (ii) has a
+non-empty admissible limiter set under amendment 6.2 on dev seeds 5101/5102. Then its
+final-seed Gate W-H and Gate W-L run once, and Phase 9 follows. If neither rung
+satisfies both, Stage W reports: a flat-ground policy trained with no soft limiter meets
+the walking gate but cannot be executed within a stand-derived command-rate envelope, and
+no further locomotion variable is tried in this study (amendment 8.5 stands).
+
+Hardware, rechecked at this point: no 192.168.123.0/24 interface exists on the
+workstation and none of .161 / .18 / .15 answer. Hardware phases stay BLOCKED.

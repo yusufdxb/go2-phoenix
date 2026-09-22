@@ -1,0 +1,9 @@
+# Phase 7 walking limiter selection (amendment 6.2/9), development seeds only.
+# Condition: dr. Limiter: prev command 0p035 rad/step. Policy: W2.
+defaults:
+  - ../walk_w1
+action:
+  rate_limit:
+    enabled: true
+    clip_mode: prev_command
+    max_delta_per_step: 0.035
