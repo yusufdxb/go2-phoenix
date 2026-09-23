@@ -931,3 +931,102 @@ preregistered group rather than selecting among twelve, which would remove the
 multiple-comparison load that produced all three false alarms) and re-run this same frozen
 gate on fresh seeds before any adaptation arm is trained. Nothing in the present study is
 reinterpreted to get a positive result.
+
+### Amendment 17 (2026-09-22): detector v2, one preregistered attempt, before any of its sessions exist
+
+Detector v1 failed the amendment 15.5 gate at three of five criteria while its severity
+estimator passed both of its (amendment 16). This is ONE further attempt at the decision
+rule. It is written and committed **before any session it is validated on has been
+generated**, and it is the last: if it fails, the Phoenix adaptation line stops and no
+detector v3 is built in this study.
+
+Nothing else moves. W2 is unchanged, the frozen intervention (`rear:0.70`) is unchanged,
+the frozen intervention screen is untouched, the gate thresholds are the amendment 15.5
+ones, and no adaptation policy is trained before the gate passes.
+
+**17.1 Why v1 failed, and what that licenses changing.** v1 thresholded twelve groups
+independently on per-WINDOW quantiles and reported the largest that flagged. Its three
+false alarms were all groups the intervention never touched. Two defects: a
+multiple-comparison load of twelve tests per session with no family-wise control, and
+calibration at window level for a gate that measures a SESSION-level rate, with the
+observed per-window alarm rate on held-out nominal running 0.105 to 0.351 against the
+0.05 its thresholds were set for. v2 changes the decision rule only. **The severity
+estimator is reused unchanged**: it is the part that passed, and it is not redesigned.
+
+**17.2 Architecture, frozen (`phoenix.monitor.response_shift_v2`).**
+
+*Stage 1, detection.* Session statistic `S = median over the session's windows of (median
+over all twelve joints of s_hat)`. A session is SHIFTED when `S < tau_global`, where
+`tau_global` is the `alpha` quantile of `S` over NOMINAL DEVELOPMENT SESSIONS, floored so
+it is never closer to 1 than `min_effect`. Calibrating at session level is what makes the
+false-alarm rate the quantity the gate measures. Taking the median over windows IS the
+persistence rule: a session flags only when more than half its windows are below the bound.
+
+*Stage 2, extent, only if stage 1 fired.* Five groups, frozen: `all`, `front`, `rear`,
+`left`, `right`, i.e. the whole robot and its two complementary anatomical bisections.
+Each group's session statistic is standardised against its own nominal development
+distribution, `z_g = (mu_g - S_g) / sigma_g`, so groups of different sizes are comparable.
+The reported group is `argmax_g z_g` subject to `z_g > tau_fw`; if nothing clears it the
+extent is UNRESOLVED and no group is named.
+
+*Family-wise control.* `tau_fw` is the `1 - alpha_fw` quantile of `max_g z_g` over the
+nominal development sessions, i.e. the null distribution of the most extreme group, which
+is what "take the best group" actually tests. This replaces v1's independent per-group
+thresholding, and it is derived from development sessions only.
+
+*Group selection is by evidence, not by size.* A group's statistic is a median over its
+members, so a whole-robot change moves `all` fully while a rear-only change moves it
+halfway, and the larger group also has the smaller `sigma_g`. No size preference or
+tie-break is wired in. **Nothing privileges `rear`**, and 17.5 checks that directly.
+
+*Severity mapping, unchanged from v1:* the selected group's session shift, with the
+2.5/97.5 percentile of its per-window series as the reported range.
+
+*Configuration, frozen:* `alpha` 0.05, `min_effect` 0.04, `alpha_fw` 0.05,
+`window_quantile` 0.5, `min_usable` 8 windows, `min_sigma` 0.01, 1 s windows, at least
+60 % valid samples per joint-window.
+
+**17.3 Excluded hypotheses, and why.** The four individual legs are excluded: a leg is
+three of twelve joints and a median over twelve does not move when a quarter of them do,
+at any severity, so stage 1 can never fire on a single-leg change and a single-leg
+hypothesis would raise `tau_fw` for every other group while never being selectable. The
+screen also eliminated the one-leg family as an intervention (C2 `leg_RR` reached 0.1250
+against the 0.15 bar). Diagonal pairs and the per-joint classes are excluded because no
+screened family produced them. The twelve singletons are excluded as in v1.
+
+**17.4 Declared limitation, before the gate.** Because stage 1 aggregates with a median,
+**v2 detects an actuator-response shift affecting at least half the robot and cannot
+detect one confined to a single leg**, at any severity. That is a property of the
+aggregate, not a tuning choice. v2 is not a general fault detector. The selected
+intervention affects exactly six of twelve, as does the specificity condition.
+
+**17.5 Sessions, on fresh seeds.** No session used in detector development or in the
+failed v1 gate (7101-7108) is reused. 120 s, DR off, frozen W2, exact deploy stack,
+walking latch band 0.65 rad.
+
+| set | seeds | sessions | condition |
+|---|---|---|---|
+| calibration (development) | 7109, 7110 | 48 | nominal |
+| nominal validation | 7111, 7112 | 24 | nominal |
+| degraded, **gated** | 7113, 7114 | 24 | `rear:0.70` |
+| held-out severity | 7115, 7116 | 24 | `rear:0.75` |
+| **specificity** | 7117, 7118 | 24 | `front:0.70` |
+
+The specificity set degrades the FRONT legs. It exists to check that v2 infers the
+affected group from telemetry rather than defaulting to the study's selected answer. It is
+**reported, not gated**: the verdict is read from the `rear:0.70` set alone, as amendment
+15.5 specifies. A `front:0.70` session reported as `rear` would be a serious finding and
+is reported as one whatever the gate says.
+
+**17.6 The gate, unchanged from amendment 15.5**, applied ONCE to the sets above, with the
+verdict read from the `rear:0.70` condition: nominal false-flag <= 0.05; detection
+>= 0.80; reported group correct >= 0.70; median severity bias <= 0.10; reported range
+covers the applied scale in >= 0.70 of detected sessions. All five required.
+
+**17.7 Outcomes, fixed now.** If v2 PASSES, the study proceeds immediately to the
+adaptation comparison: monitor output to a targeted actuator distribution, then
+matched-compute no-adaptation versus broad DR versus Phoenix targeted, with an optional
+oracle-targeted diagnostic kept clearly secondary. If v2 FAILS, **the Phoenix adaptation
+line stops**; no detector v3 is built in this study, no threshold is revisited, and the
+reported finding is that actuator-response magnitude was estimable while reliable
+condition detection and localisation were not achieved.
