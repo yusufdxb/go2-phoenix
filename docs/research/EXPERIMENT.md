@@ -1030,3 +1030,79 @@ oracle-targeted diagnostic kept clearly secondary. If v2 FAILS, **the Phoenix ad
 line stops**; no detector v3 is built in this study, no threshold is revisited, and the
 reported finding is that actuator-response magnitude was estimable while reliable
 condition detection and localisation were not achieved.
+
+### Amendment 18 (2026-09-22): detector v2 fails its gate; the Phoenix adaptation line stops
+
+The amendment 17.6 gate, applied once, verdict read from the `rear:0.70` set as specified
+(`results/phoenix_v2/monitor_gate_v2/shift_monitor_v2.json`). Calibration 48 nominal
+development sessions of 120 s on seeds 7109-7110; validation on 7111-7118, none of which
+took any part in detector development or in the failed v1 gate.
+
+| criterion | bar | v1 | v2 | verdict |
+|---|---|---|---|---|
+| G1 nominal false-flag | <= 0.05 | 0.1250 | **0.0833** | **FAIL** |
+| G2 detection | >= 0.80 | 0.7083 | **0.3750** | **FAIL** |
+| G3 reported group correct | >= 0.70 | 0.3750 | **0.3750** | **FAIL** |
+| G4a median severity bias | <= 0.10 | 0.0746 | 0.0821 | PASS |
+| G4b range covers truth | >= 0.70 | 0.7647 | 0.8889 | PASS |
+
+**Three of five fail, so by amendment 17.7 the Phoenix adaptation line STOPS.** No
+detector v3 is built in this study, no threshold is revisited, and no adaptation arm is
+trained. Phases K through P are not run.
+
+**v2 traded sensitivity for specificity and cleared neither bar.** False alarms improved
+(0.125 to 0.083, still above 0.05); detection regressed badly (0.708 to 0.375). Two
+mechanisms, both diagnosable from the artifacts, and neither is repaired here.
+
+**1. The declared limitation was the binding constraint.** Amendment 17.4 stated before
+the run that a median over twelve joints only moves once half of them have, and that the
+selected intervention sits exactly at that boundary (six of twelve). It bound: the nominal
+stage-1 statistic has median 1.0514 and threshold 0.9560, while the degraded sessions'
+statistic has median **1.0083**, above the threshold. The six degraded joints pull the
+twelve-joint median only to the midpoint, so most degraded sessions never fire stage 1.
+The held-out milder severity behaves the same way (detection 0.500 at `rear:0.75`).
+
+**2. The standardisation was destroyed by heavy tails in `s_hat`.** The authority ratio
+`R_j / rms_j` is unbounded above and does blow up: nominal session statistics reach
+**22.91** and specificity sessions 10.83. Stage 2 standardised with a mean and a standard
+deviation, which those outliers inflate, and unevenly: `sigma` came out 0.654 for `rear`
+but **3.145** for `front`, a factor of five. A group with an inflated `sigma` can never
+produce a competitive `z`, so `front` was structurally unable to win regardless of the
+telemetry. A robust scale would have been the right choice; making that change now would
+be building detector v3 against a failed gate, which amendment 17.7 forbids.
+
+**3. The specificity check failed, and it is the most serious finding here.** The
+`front:0.70` set was **never** correctly identified: 0 of 24 sessions reported `front`.
+Eleven fired stage 1, of which nine were UNRESOLVED and **two were reported as `rear`**,
+the study's selected intervention. By mechanism 2 this is a variance-estimation artifact
+rather than a physical bias, but the consequence stands: on this evidence the detector
+cannot be trusted to say WHICH part of the robot changed, and it can name the wrong one.
+Any conditioner driven by it would have built a targeted distribution around the wrong
+joints. This was reported, not gated, exactly as preregistered, and it does not alter the
+verdict, which the `rear:0.70` set already determined.
+
+**What survives, and what does not.**
+
+*Severity estimation passed again, at two severities, in both detectors.* v2 estimated
+0.782 for an applied 0.70 (bias 0.082, range covering truth in 89 % of detected sessions)
+and **0.754 for an applied 0.75** (bias 0.004, coverage 100 %). Across v1 and v2 that is
+four independent severity criteria met. **The claim is conditional**: severity is read off
+the selected group, so it is only meaningful when localisation is right. In the
+specificity set, where localisation was wrong, the estimate was 0.919 against an applied
+0.70 and covered the truth in 0 % of sessions. Severity estimation is a capability that
+depends on a detector this study did not achieve.
+
+*Detection and localisation failed in both detectors, for different reasons.* v1 by
+multiple-comparison load and window-level calibration; v2 by an aggregate too coarse for a
+half-robot change and a non-robust standardisation. Two preregistered attempts, two
+failures, different mechanisms.
+
+**The recorded finding.** Phoenix could estimate actuator-response magnitude accurately
+and monotonically in simulation, conditional on knowing which joints changed, but two
+preregistered detectors could not reliably distinguish nominal from degraded walking at
+the session level, and the second could not identify which part of the robot had changed.
+**The central hypothesis, that a monitor-targeted actuator distribution beats broad
+randomisation, was never tested.** It is not refuted; the study never reached it.
+
+**Stage W closes here.** No further locomotion, intervention, monitor or adaptation
+variable is tried in this study.

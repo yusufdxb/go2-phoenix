@@ -63,7 +63,10 @@ trip. It has not happened.
 | Both rear legs at 0.70 degrade W2 walking measurably and safely | TRUE, and it is the selected intervention | walking success 0.6328 vs 0.9219, drop 0.2891, every seed >= 0.2734, no abort-band episodes; fidelity 0.9036 against a 0.90 bound is a thin margin |
 | The group monitor estimates the applied actuator scale | SIM VERIFIED | within 0.075 at an applied 0.70 and 0.095 at 0.75, monotone (0.775, 0.845), interval covers truth in 76 % / 88 % of detected sessions |
 | The group monitor separates nominal from degraded walking at session level | FALSE | frozen gate: false-flag 0.125 (bar 0.05), detection 0.708 (bar 0.80), correct extent 0.375 (bar 0.70); `results/phoenix_v2/monitor_gate/` |
-| Targeted adaptation beats broad randomisation for walking | NOT TESTED | the study stopped at the monitor gate before any arm was trained |
+| Detector v2 (hierarchical, family-wise controlled) passes the same gate | FALSE | false-flag 0.0833 (bar 0.05), detection 0.3750 (0.80), correct group 0.3750 (0.70); `results/phoenix_v2/monitor_gate_v2/` |
+| The monitor identifies WHICH part of the robot changed | FALSE | a front-leg degradation was never reported as `front` (0 of 24) and was reported as `rear` in 2 sessions; amendment 18 |
+| The monitor estimates the applied actuator scale, GIVEN correct localisation | SIM VERIFIED, conditional | v2: bias 0.082 at an applied 0.70 (coverage 0.889) and 0.004 at 0.75 (coverage 1.000); v1: bias 0.075. Where localisation was wrong the estimate was 0.919 for an applied 0.70, coverage 0.000 |
+| Targeted adaptation beats broad randomisation for walking | NOT TESTED | two preregistered detectors failed their gate; no arm was ever trained |
 
 ## Incumbent policy and deploy stack
 
