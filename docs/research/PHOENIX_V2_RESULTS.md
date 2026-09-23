@@ -326,3 +326,67 @@ Still unanswered, and still untested. The program now has what it lacked at the 
 previous addendum, an intervention that measurably and safely degrades the walking
 baseline, and it is stopped one phase later, at a monitor that can size the fault but
 cannot reliably find it.
+
+## Addendum, 2026-09-22 (night): detector v2, and the close of Stage W
+
+Amendments 17 and 18. One further preregistered attempt at the decision rule, committed
+before any of its sessions existed, and declared in advance to be the last.
+
+Detector v1 failed by multiple-comparison load (twelve independently thresholded groups)
+and by calibrating at window level for a gate that measures a session-level rate. v2 is
+hierarchical: stage 1 decides nominal versus shift on ONE aggregate (the median over
+twelve joints, then over the session's windows) against a session-level threshold; stage 2
+runs only if stage 1 fires, over five frozen groups (`all`, `front`, `rear`, `left`,
+`right`), standardised and controlled by a single family-wise max-statistic threshold. The
+severity estimator was reused unchanged, being the part that passed.
+
+Fresh seeds throughout (7109-7118); no session from v1 development or its failed gate was
+reused. Gate thresholds unchanged.
+
+| criterion | bar | v1 | v2 | verdict |
+|---|---|---|---|---|
+| nominal false-flag | <= 0.05 | 0.1250 | **0.0833** | **FAIL** |
+| detection | >= 0.80 | 0.7083 | **0.3750** | **FAIL** |
+| reported group correct | >= 0.70 | 0.3750 | **0.3750** | **FAIL** |
+| median severity bias | <= 0.10 | 0.0746 | 0.0821 | PASS |
+| range covers truth | >= 0.70 | 0.7647 | 0.8889 | PASS |
+
+**v2 traded sensitivity for specificity and cleared neither bar.** Two mechanisms:
+
+* **The limitation declared before the run bound.** A median over twelve joints only moves
+  once half of them have, and the selected intervention affects exactly six of twelve. The
+  nominal stage-1 statistic has median 1.0514 against a threshold of 0.9560, while the
+  degraded sessions sit at 1.0083, above it. Most degraded sessions never fire stage 1.
+* **The standardisation was destroyed by heavy tails.** `s_hat` is unbounded above and
+  reaches 22.91 on a nominal session. Stage 2 standardised with a mean and standard
+  deviation, which those outliers inflate unevenly (`sigma` 0.654 for `rear`, 3.145 for
+  `front`), so `front` was structurally unable to win whatever the telemetry said. A
+  robust scale was the right choice and is not applied here, because that would be
+  building a third detector against a failed gate.
+
+**The specificity check failed, and it matters most.** A `front:0.70` degradation was
+never identified as `front` (0 of 24 sessions) and was reported as `rear`, the study's own
+selected intervention, in two. A conditioner driven by this would have built its targeted
+distribution around the wrong joints.
+
+**Severity estimation passed again**, at both severities: 0.782 for an applied 0.70 and
+**0.754 for an applied 0.75** (bias 0.004, range covering truth in every detected session).
+Four severity criteria met across two detectors. The claim is **conditional on correct
+localisation**: in the specificity set, where localisation was wrong, the estimate was
+0.919 against an applied 0.70 and covered the truth in 0 % of sessions.
+
+### Stage W closes
+
+> Phoenix could estimate actuator-response magnitude accurately and monotonically in
+> simulation, conditional on knowing which joints changed, but two preregistered detectors
+> could not reliably distinguish nominal from degraded walking at the session level, and
+> the second could not identify which part of the robot had changed.
+
+**The central hypothesis, that a monitor-targeted actuator distribution improves behaviour
+under changed actuation more than broad randomisation, was never tested.** It is not
+refuted. The program reached a valid walking baseline, a deployment contract verified
+against the live plant, and an intervention that measurably and safely degrades that
+baseline, and then stopped at the monitor, twice, for two different and understood reasons.
+
+No adaptation arm was ever trained. Nothing in this study ran on the GO2: the robot subnet
+did not exist on the workstation at any point during it.
