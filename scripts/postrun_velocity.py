@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(repo_root / "src"))
 
-    from phoenix.velocity.contract import MANIFEST_NAME, build_manifest
+    from phoenix.velocity.contract import CommandRanges, MANIFEST_NAME, build_manifest
     from phoenix.velocity.env_cfg import ACTUATOR_DAMPING, ACTUATOR_STIFFNESS
     from phoenix.velocity.spec import default_spec, spec_from_dict
 
@@ -95,7 +95,50 @@ def main(argv: list[str] | None = None) -> int:
         seed = spec.seed
         ckpt_sha = _sha256(latest.resolve())
 
-        curriculum_ranges = spec.commands.final_ranges()
+        # Arm label: explicit arm_label.txt (written by train_velocity.py
+        # --arm-label) takes priority; the pre-fix clip=1.0 control run never
+        # wrote one, so it is identified by its fixed run name.
+        arm_label_path = run_root / "arm_label.txt"
+        if arm_label_path.exists():
+            arm_label = arm_label_path.read_text().strip()
+        elif run_root.name == "walk_v1_seed42":
+            arm_label = "clip1-control"
+        else:
+            arm_label = "unknown"
+        seed_entry["arm"] = arm_label
+
+        # Command ranges ACTUALLY trained, not assumed from the spec. A
+        # curriculum that stalls below the final ranges (2026-09-25: seed 42
+        # curriculum arm stuck at level 0) must not have its manifest silently
+        # claim it trained on the final ranges -- that is exactly what a
+        # deploy-side command-range safety gate reads. Preference order:
+        #   1. curriculum_final_state.json (real widest_ranges_reached, written
+        #      by train_velocity.py at the end of every run that has this fix)
+        #   2. spec.commands.final_ranges() ONLY if curriculum was disabled
+        #      (CommandCurriculum.from_spec starts at level=num_levels, i.e.
+        #      final ranges, from iteration 0 -- so this is still the truth)
+        #   3. otherwise: unknown, narrow initial ranges reported, flagged
+        curriculum_state_path = run_root / "curriculum_final_state.json"
+        if curriculum_state_path.exists():
+            cur_state = json.loads(curriculum_state_path.read_text())
+            curriculum_ranges = CommandRanges.from_mapping(cur_state["widest_ranges_reached"])
+            seed_entry["curriculum_final_state"] = cur_state
+            seed_entry["command_ranges_source"] = "curriculum_final_state.json (actual widest reached)"
+        elif not spec.curriculum.enabled:
+            curriculum_ranges = spec.commands.final_ranges()
+            seed_entry["command_ranges_source"] = "curriculum disabled: final ranges from iteration 0"
+        else:
+            curriculum_ranges = spec.commands.initial_ranges()
+            seed_entry["command_ranges_source"] = (
+                "UNKNOWN final curriculum state (no curriculum_final_state.json, e.g. a pre-fix or "
+                "crashed run) -- reporting the NARROW initial ranges as a conservative floor, do not "
+                "trust this for a command-range safety gate"
+            )
+            logger.warning(
+                "%s: no curriculum_final_state.json and curriculum was enabled; manifest commands "
+                "reported as the conservative initial (narrow) ranges, not the possibly-wider truth",
+                run_root,
+            )
         deploy_block = {
             "kp": ACTUATOR_STIFFNESS,
             "kd": ACTUATOR_DAMPING,

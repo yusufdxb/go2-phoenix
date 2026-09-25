@@ -50,6 +50,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     p.add_argument("--smoke", action="store_true", help="Use spec.smoke_spec() instead of default_spec()")
+    p.add_argument(
+        "--curriculum",
+        choices=["on", "off"],
+        default="on",
+        help=(
+            "on (default): performance-gated command-range curriculum, starts at "
+            "the narrow initial ranges. off: CurriculumSpec.enabled=False, which "
+            "starts CommandCurriculum at level=num_levels so the env trains on the "
+            "FINAL command ranges from iteration 0 (matches stock Isaac Lab Go2, "
+            "which has no curriculum at all). 2026-09-25: seed 42 got stuck at "
+            "level 0 (yaw_score 0.31 < 0.5 threshold at iteration ~1972 despite low "
+            "termination and decent absolute tracking error), which would fail "
+            "gate_v2's command-range coverage check if it never advances."
+        ),
+    )
+    p.add_argument(
+        "--arm-label",
+        type=str,
+        default=None,
+        help="Free-text label recorded in the manifest/curriculum-state file (e.g. clip100-nocurriculum)",
+    )
     p.add_argument("--headless", action="store_true", default=True)
     p.add_argument("--device", type=str, default=None)
     return p.parse_args(argv)
@@ -94,7 +115,43 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         spec = spec.replace(action=dataclasses.replace(spec.action, clip_actions=args.action_clip))
     if args.save_interval is not None:
         spec = spec.replace(ppo=dataclasses.replace(spec.ppo, save_interval=args.save_interval))
+    if args.curriculum == "off":
+        spec = spec.replace(curriculum=dataclasses.replace(spec.curriculum, enabled=False))
     spec = spec.replace(ppo=dataclasses.replace(spec.ppo, experiment_name=args.run_name))
+
+    run_name = args.run_name
+    log_root = args.output_dir / run_name
+
+    # Resume must keep the ORIGINAL arm's config, not whatever this invocation's
+    # CLI/code defaults happen to be (a watchdog relaunch must not silently
+    # change curriculum on/off or clip_actions mid-run). If a prior spec.json
+    # exists for this run, the arm-defining fields must match exactly.
+    if args.resume is not None:
+        # log_root/spec.json is only written on a CLEAN finish (see the
+        # latest.pt block below); a crash-resume (the case this check exists
+        # for) never wrote it, so look at the run's timestamped subdirs
+        # instead and take the earliest (the original invocation's own spec).
+        prior_specs = sorted(log_root.glob("*/spec.json"))
+        prior_spec_path = prior_specs[0] if prior_specs else None
+        if prior_spec_path is not None and prior_spec_path.exists():
+            import json as _json
+
+            prior = _json.loads(prior_spec_path.read_text())
+            mismatches = []
+            if bool(prior["curriculum"]["enabled"]) != bool(spec.curriculum.enabled):
+                mismatches.append(
+                    f"curriculum.enabled: prior={prior['curriculum']['enabled']} this run={spec.curriculum.enabled}"
+                )
+            if abs(float(prior["action"]["clip_actions"]) - float(spec.action.clip_actions)) > 1e-9:
+                mismatches.append(
+                    f"action.clip_actions: prior={prior['action']['clip_actions']} this run={spec.action.clip_actions}"
+                )
+            if mismatches:
+                raise ValueError(
+                    f"resume config mismatch for {run_name}: "
+                    + "; ".join(mismatches)
+                    + " -- a resumed run must use the SAME arm config as the original invocation"
+                )
 
     problems = spec.validate()
     if problems:
@@ -104,17 +161,26 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     if args.device is not None:
         env_cfg.sim.device = args.device
 
-    run_name = args.run_name
-    log_root = args.output_dir / run_name
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_dir = log_root / stamp
     log_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Run log dir: %s", log_dir)
     (log_dir / "spec.json").write_text(spec.to_json())
+    if args.arm_label:
+        (log_root / "arm_label.txt").write_text(args.arm_label)
 
     print("[phoenix.velocity] before gym.make", flush=True)
     env = gym.make(TASK_ID, cfg=env_cfg, render_mode=None)
     print("[phoenix.velocity] after gym.make, wrapping", flush=True)
+
+    # Keep a direct reference to the live curriculum object (set by
+    # VelocityCommandCurriculum.__init__ as an attribute on the unwrapped env)
+    # so its ACTUAL widest-ranges-reached can be recorded after training, not
+    # assumed from the spec. Grabbed before RslRlVecEnvWrapper in case wrapping
+    # changes attribute access.
+    from phoenix.velocity.isaac_terms import ENV_CURRICULUM_ATTR
+
+    curriculum_obj = getattr(env.unwrapped, ENV_CURRICULUM_ATTR, None)
 
     # Post-construction realized dump: what the live event manager / actuators
     # ACTUALLY carry, not what the cfg asked for. See reference_phoenix_unwired_config_blocks.
@@ -176,6 +242,19 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         logger.warning("Interrupted, writing final checkpoint.")
     elapsed = time.time() - start
     logger.info("Training wall-time: %.1fs (%.3f it/s)", elapsed, num_learning_iterations / max(elapsed, 1e-6))
+
+    # Record the curriculum's ACTUAL state (widest ranges reached, level), not
+    # the ranges assumed from the spec. A curriculum that stalls below the
+    # final ranges (2026-09-25: seed 42 stuck at level 0, yaw_score 0.31 < 0.5
+    # threshold at iteration ~1972) must not have its manifest silently claim
+    # it trained on the final ranges -- that is exactly what a deploy-side
+    # command-range safety gate reads to decide what commands are safe.
+    # Written unconditionally (even after a KeyboardInterrupt) so a crash still
+    # leaves the truth on disk for postrun to read.
+    if curriculum_obj is not None:
+        curriculum_state_path = log_root / "curriculum_final_state.json"
+        curriculum_state_path.write_text(json.dumps(curriculum_obj.manifest_dict(), indent=2))
+        logger.info("curriculum final state written: %s", curriculum_state_path)
 
     latest = log_root / "latest.pt"
     ckpts = sorted(log_dir.glob("model_*.pt"), key=lambda p: int(p.stem.split("_")[-1]))

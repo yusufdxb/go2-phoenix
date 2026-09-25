@@ -25,7 +25,17 @@ export OMNI_KIT_ACCEPT_EULA=YES
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 
+# 2026-09-25: seed 42 (curriculum on) stalled at level 0 -- yaw_score 0.31 <
+# 0.5 threshold at iteration ~1972, despite low termination rate (0.042) and
+# decent absolute tracking error (lin_err 0.158, yaw_err 0.180). The
+# normalized-against-standstill score gate is too strict on the narrow level-0
+# yaw range to ever pass. Seed 42 keeps running as the curriculum arm (left
+# untouched); seeds 43/44 train on the FINAL command ranges from iteration 0
+# with --curriculum off, matching stock Isaac Lab Go2 (no curriculum at all,
+# reached track_lin_vel_xy_exp 1.43 by iteration 1000 in our positive control).
 SEEDS=(42 43 44)
+declare -A CURRICULUM_BY_SEED=([42]="on" [43]="off" [44]="off")
+declare -A ARM_LABEL_BY_SEED=([42]="clip100-curriculum" [43]="clip100-nocurriculum" [44]="clip100-nocurriculum")
 # num_envs=8192 chosen over 4096/16384 by measured throughput (2026-09-25):
 # 4096 envs: 0.62s/iter, ~157-162k env-steps/s
 # 8192 envs: 0.92s/iter, ~213k env-steps/s (+35% over 4096)
@@ -96,6 +106,8 @@ for SEED in "${SEEDS[@]}"; do
         --max-iterations "$MAX_ITER" \
         --save-interval "$SAVE_INTERVAL" \
         --action-clip "$ACTION_CLIP" \
+        --curriculum "${CURRICULUM_BY_SEED[$SEED]}" \
+        --arm-label "${ARM_LABEL_BY_SEED[$SEED]}" \
         "${RESUME_ARGS[@]}" \
         --headless \
         2>&1 | tee -a "logs/train_${RUN_NAME}.log"

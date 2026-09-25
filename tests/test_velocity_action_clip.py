@@ -40,6 +40,36 @@ def test_smoke_spec_still_validates_clean() -> None:
     assert s.smoke_spec().validate() == []
 
 
+def test_curriculum_disabled_starts_at_final_ranges() -> None:
+    # 2026-09-25: seed 42 (curriculum on) stalled at level 0 (yaw_score 0.31 <
+    # 0.5 threshold at iteration ~1972) despite low termination rate and decent
+    # absolute tracking error -- the normalized-against-standstill score gate
+    # is too strict on the narrow level-0 yaw range. The --curriculum off arm
+    # must train on the FINAL ranges from iteration 0, like stock Isaac Lab Go2
+    # (no curriculum at all). CommandCurriculum.from_spec sets level=num_levels
+    # when spec.enabled is False, so .ranges is exactly final_ranges().
+    from phoenix.velocity.curriculum import CommandCurriculum
+
+    spec = s.default_spec().replace(
+        curriculum=dataclasses.replace(s.default_spec().curriculum, enabled=False)
+    )
+    cur = CommandCurriculum.from_spec(spec.commands, spec.curriculum, tracking_std=0.5, num_envs=8192)
+    assert cur.level == cur.max_level
+    assert cur.ranges.lin_vel_x == spec.commands.final_lin_vel_x
+    assert cur.ranges.lin_vel_y == spec.commands.final_lin_vel_y
+    assert cur.ranges.ang_vel_z == spec.commands.final_ang_vel_z
+
+
+def test_curriculum_enabled_starts_at_initial_ranges() -> None:
+    from phoenix.velocity.curriculum import CommandCurriculum
+
+    spec = s.default_spec()
+    assert spec.curriculum.enabled is True
+    cur = CommandCurriculum.from_spec(spec.commands, spec.curriculum, tracking_std=0.5, num_envs=8192)
+    assert cur.level == 0
+    assert cur.ranges.lin_vel_x == spec.commands.initial_lin_vel_x
+
+
 def test_trunk_bodies_is_base_only_not_head() -> None:
     # 2026-09-25 bug (fixed): TRUNK_BODIES used to include "Head_.*". Head_upper/
     # Head_lower are near-massless (0.001 kg) bodies rigidly fixed to the base;
