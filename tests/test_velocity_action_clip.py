@@ -94,6 +94,33 @@ def test_entropy_coef_matches_stock_go2_ppo_cfg() -> None:
     assert s.default_spec().ppo.entropy_coef == 0.01
 
 
+def test_with_reward_weight_isolates_one_term() -> None:
+    # 2026-09-25: sim2sim found seed42@3000 drives FR/RL calves to their hard
+    # limit during CCW yaw. joint_pos_limits weight raised toward the
+    # legged_gym/unitree_rl_gym convention (-10.0) for an isolated arm (seed
+    # 46) via this method, WITHOUT changing default_spec() (a resumed run,
+    # e.g. seed 45, must keep its own original -1.0).
+    default = s.default_spec()
+    assert default.reward("joint_pos_limits").weight == -1.0
+
+    bumped = default.with_reward_weight("joint_pos_limits", -10.0)
+    assert bumped.reward("joint_pos_limits").weight == -10.0
+    assert bumped.validate() == []
+
+    # Original untouched (immutability), and only the named term changed.
+    assert default.reward("joint_pos_limits").weight == -1.0
+    for a, b in zip(default.rewards, bumped.rewards):
+        if a.name != "joint_pos_limits":
+            assert a == b
+
+
+def test_with_reward_weight_rejects_unknown_name() -> None:
+    import pytest
+
+    with pytest.raises(KeyError):
+        s.default_spec().with_reward_weight("not_a_real_term", -1.0)
+
+
 def test_trunk_bodies_is_base_only_not_head() -> None:
     # 2026-09-25 bug (fixed): TRUNK_BODIES used to include "Head_.*". Head_upper/
     # Head_lower are near-massless (0.001 kg) bodies rigidly fixed to the base;

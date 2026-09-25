@@ -15,6 +15,19 @@ Metrics (see task spec item 7):
   * fraction of joint-steps within 5% of a soft limit
   * torque headroom per actuator group: peak |tau| / effort_limit
   * action-clip rate: fraction of |raw action| components > 1.0 (pre rsl_rl clip)
+
+2026-09-25 addition: the random-command joint_near_limit_fraction above
+averages over all 12 joints and whatever commands the env happens to sample,
+which HIDES a real, narrow failure the sim2sim agent found directly: with
+random commands most steps do not stress any one joint, so an isolated
+per-joint, per-command violation gets diluted into an unremarkable-looking
+average. seed42@3000 drove FR/RL calves to their HARD position limit during
+counter-clockwise yaw (+0.6 rad/s, worse at +0.8), 0.25-0.31 rad past the
+stop. Added: per-calf-joint hard-limit proximity (fraction of steps ANY calf
+is within 0.05 rad of its HARD limit, not the 0.9-factor soft one), measured
+under a FIXED-command sweep (yaw +0.6/+0.8/-0.6 rad/s, vx 0.5 m/s) that
+forces the exact commands the gate's fixed scenarios use, not random
+sampling, so this eval and the gate measure the same thing.
 """
 
 from __future__ import annotations
@@ -216,11 +229,66 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         },
         "action_clip_rate": clip_rate_sum / max(steps_done, 1),
     }
+    result["fixed_command_sweep"] = _fixed_command_sweep(unwrapped, actor, spec)
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2))
     logger.info("eval written -> %s", args.out)
     env.close()
     return 0
+
+
+def _fixed_command_sweep(unwrapped, actor, spec, num_steps: int = 250) -> dict:
+    """Force fixed commands (matching the gate's scenarios) and measure
+    per-calf-joint HARD-limit proximity directly, instead of relying on
+    random commands to happen to stress the right joint. Writes directly to
+    the UniformVelocityCommand term's vel_command_b buffer every step so the
+    env's own resampling never overrides it mid-sweep.
+    """
+    import torch
+
+    from phoenix.velocity.contract import JOINT_ORDER
+    from phoenix.velocity.mdp import as_torch
+
+    calf_idx = [i for i, j in enumerate(JOINT_ORDER) if j.endswith("_calf_joint")]
+    robot = unwrapped.scene["robot"]
+    hard_limits = as_torch(robot.data.joint_pos_limits)  # (envs, joints, 2)
+    cmd_term = unwrapped.command_manager.get_term("base_velocity")
+    device = unwrapped.device
+    n = unwrapped.num_envs
+
+    scenarios = {
+        "yaw_p0.6": (0.0, 0.0, 0.6),
+        "yaw_p0.8": (0.0, 0.0, 0.8),
+        "yaw_m0.6": (0.0, 0.0, -0.6),
+        "vx_0.5": (0.5, 0.0, 0.0),
+    }
+    out: dict = {}
+    for name, (vx, vy, wz) in scenarios.items():
+        obs_dict, _ = unwrapped.reset()
+        fixed = torch.tensor([vx, vy, wz], device=device).expand(n, 3).clone()
+        cmd_term.vel_command_b[:] = fixed
+        near_hard_any_step = torch.zeros(n, dtype=torch.bool, device=device)
+        max_overshoot_rad = 0.0
+        with torch.no_grad():
+            for _ in range(num_steps):
+                obs = obs_dict["policy"]
+                action = actor(obs)
+                action_clipped = action.clamp(-spec.action.clip_actions, spec.action.clip_actions)
+                obs_dict, _rew, terminated, truncated, extras = unwrapped.step(action_clipped)
+                cmd_term.vel_command_b[:] = fixed  # re-force every step
+                q = as_torch(robot.data.joint_pos)[:, calf_idx]
+                lo = hard_limits[:, calf_idx, 0]
+                hi = hard_limits[:, calf_idx, 1]
+                near = ((q - lo).abs() < 0.05) | ((hi - q).abs() < 0.05)
+                near_hard_any_step |= near.any(dim=1)
+                overshoot = torch.clamp(lo - q, min=0.0) + torch.clamp(q - hi, min=0.0)
+                max_overshoot_rad = max(max_overshoot_rad, float(overshoot.max()))
+        out[name] = {
+            "fraction_envs_calf_near_hard_limit": float(near_hard_any_step.float().mean()),
+            "max_calf_hard_limit_overshoot_rad": max_overshoot_rad,
+        }
+    return out
 
 
 if __name__ == "__main__":

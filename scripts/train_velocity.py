@@ -32,6 +32,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--max-iterations", type=int, default=None)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--action-clip", type=float, default=None, help="override ActionSpec.clip_actions")
+    p.add_argument(
+        "--joint-pos-limits-weight",
+        type=float,
+        default=None,
+        help=(
+            "override the joint_pos_limits reward weight (default_spec() keeps "
+            "-1.0). 2026-09-25: sim2sim found seed42@3000 drives FR/RL calves "
+            "to their hard limit during CCW yaw; legged_gym/unitree_rl_gym "
+            "convention is -10.0 with the same 0.9 soft-limit factor Phoenix "
+            "already has (see spec.py's joint_pos_limits term)."
+        ),
+    )
     p.add_argument("--save-interval", type=int, default=None, help="override PPOSpec.save_interval (checkpoint cadence)")
     p.add_argument("--run-name", type=str, required=True)
     p.add_argument("--output-dir", type=Path, default=Path("checkpoints/velocity"))
@@ -117,6 +129,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         spec = spec.replace(ppo=dataclasses.replace(spec.ppo, save_interval=args.save_interval))
     if args.curriculum == "off":
         spec = spec.replace(curriculum=dataclasses.replace(spec.curriculum, enabled=False))
+    if args.joint_pos_limits_weight is not None:
+        spec = spec.with_reward_weight("joint_pos_limits", args.joint_pos_limits_weight)
     spec = spec.replace(ppo=dataclasses.replace(spec.ppo, experiment_name=args.run_name))
 
     run_name = args.run_name
@@ -146,6 +160,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                 mismatches.append(
                     f"action.clip_actions: prior={prior['action']['clip_actions']} this run={spec.action.clip_actions}"
                 )
+            prior_jpl = next((r["weight"] for r in prior["rewards"] if r["name"] == "joint_pos_limits"), None)
+            this_jpl = spec.reward("joint_pos_limits").weight
+            if prior_jpl is not None and abs(float(prior_jpl) - float(this_jpl)) > 1e-9:
+                mismatches.append(f"joint_pos_limits weight: prior={prior_jpl} this run={this_jpl}")
             if mismatches:
                 raise ValueError(
                     f"resume config mismatch for {run_name}: "

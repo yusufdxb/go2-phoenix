@@ -390,6 +390,20 @@ def default_reward_terms() -> tuple[RewardTermSpec, ...]:
             "rad beyond the soft joint limits (0.9 x hard range), summed",
             "gaits that ride the mechanical joint stops",
         ),
+        # 2026-09-25: default kept at -1.0 here (do not change default_spec(),
+        # a resumed run must keep its own original weight). The sim2sim agent
+        # found seed42@3000 drives FR/RL calves to their upper hard limit
+        # during counter-clockwise yaw (+0.6, worse at +0.8), targets 0.25-0.31
+        # rad past the stop, 20-30 steps past Isaac's own soft limit. The soft
+        # limit factor is already correct (UNITREE_GO2_CFG,
+        # ~/Sim/IsaacLab/source/isaaclab_assets/isaaclab_assets/robots/
+        # unitree.py:168, soft_joint_pos_limit_factor=0.9, inherited since
+        # env_cfg.py only overrides scene.robot.actuators, not the whole robot
+        # asset), matching the legged_gym / unitree_rl_gym convention; the gap
+        # is the reward WEIGHT, -1.0 here versus that convention's -10.0. Used
+        # via VelocityTaskSpec.with_reward_weight for the isolated seed 46 arm
+        # (clip100-curriculum-limitpen); see train_velocity.py
+        # --joint-pos-limits-weight.
         RewardTermSpec(
             "stand_still",
             "phoenix:stand_still_joint_deviation_l1",
@@ -537,6 +551,21 @@ class VelocityTaskSpec:
 
     def replace(self, **changes: Any) -> VelocityTaskSpec:
         return dataclasses.replace(self, **changes)
+
+    def with_reward_weight(self, name: str, weight: float) -> VelocityTaskSpec:
+        """A copy with ONE reward term's weight changed, others untouched.
+
+        Used to isolate a single per-arm change (e.g. joint_pos_limits weight
+        for the 2026-09-25 calf-limit finding) without touching
+        default_spec(), so an unrelated run resumed later keeps its own
+        original weight instead of silently picking up a new global default.
+        """
+        if name not in {t.name for t in self.rewards}:
+            raise KeyError(name)
+        new_rewards = tuple(
+            dataclasses.replace(t, weight=float(weight)) if t.name == name else t for t in self.rewards
+        )
+        return self.replace(rewards=new_rewards)
 
     def to_dict(self) -> dict[str, Any]:
         out = _jsonable(dataclasses.asdict(self))

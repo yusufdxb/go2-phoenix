@@ -120,6 +120,19 @@ def _score(m: dict) -> float:
     headroom = max(v["peak_over_limit"] for v in m["torque_headroom"].values())
     h = m["standing_base_height_m"]["mean"] or 0.0
     height_penalty = abs(h - 0.30) if h else 1.0
+    # 2026-09-25: the random-command joint_near_limit_fraction (averaged over
+    # all 12 joints and whatever commands happen to be sampled) hid the real
+    # per-joint failure sim2sim found (seed42@3000 drove FR/RL calves to their
+    # HARD limit during CCW yaw). fixed_command_sweep directly measures this;
+    # weighted heavily (5x) since it is a specific, reproducible hardware-limit
+    # violation, not a general tracking-quality signal.
+    sweep = m.get("fixed_command_sweep") or {}
+    calf_hard_limit_penalty = max(
+        (v.get("fraction_envs_calf_near_hard_limit", 0.0) for v in sweep.values()), default=0.0
+    )
+    calf_overshoot_penalty = max(
+        (v.get("max_calf_hard_limit_overshoot_rad", 0.0) for v in sweep.values()), default=0.0
+    )
     return (
         10.0 * m["fall_rate"]
         + lin_err
@@ -127,6 +140,8 @@ def _score(m: dict) -> float:
         + m["joint_near_limit_fraction"]
         + max(0.0, headroom - 0.9)
         + 0.5 * height_penalty
+        + 5.0 * calf_hard_limit_penalty
+        + 20.0 * calf_overshoot_penalty
     )
 
 

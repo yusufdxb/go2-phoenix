@@ -18,9 +18,19 @@ export OMNI_KIT_ACCEPT_EULA=YES
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 
+# 2026-09-25: sim2sim (feat/phoenix-walk-v1-sim2sim @ba7b437) found
+# seed42@3000 drives FR/RL calves to their upper hard limit during
+# counter-clockwise yaw (+0.6, worse at +0.8), targets 0.25-0.31 rad past the
+# stop. Changed seed 46 from curriculum=off to curriculum=on (matching 45)
+# PLUS --joint-pos-limits-weight -10.0 (legged_gym/unitree_rl_gym convention;
+# Phoenix's soft_joint_pos_limit_factor is already 0.9, matching that
+# convention, see UNITREE_GO2_CFG in ~/Sim/IsaacLab/source/isaaclab_assets/
+# isaaclab_assets/robots/unitree.py:168 and spec.py's joint_pos_limits term),
+# so 45 vs 46 isolates that ONE change. Seed 45 already running, untouched.
 SEEDS=(45 46)
-declare -A CURRICULUM_BY_SEED=([45]="on" [46]="off")
-declare -A ARM_LABEL_BY_SEED=([45]="v2-curriculum" [46]="v2-nocurriculum")
+declare -A CURRICULUM_BY_SEED=([45]="on" [46]="on")
+declare -A ARM_LABEL_BY_SEED=([45]="v2-curriculum" [46]="v2-curriculum-limitpen")
+declare -A JOINT_POS_LIMITS_WEIGHT_BY_SEED=([45]="" [46]="-10.0")
 MAX_ITER=9000
 NUM_ENVS=8192
 SAVE_INTERVAL=250
@@ -72,6 +82,11 @@ for SEED in "${SEEDS[@]}"; do
         echo "=================================================================="
     fi
 
+    JPL_ARGS=()
+    if [[ -n "${JOINT_POS_LIMITS_WEIGHT_BY_SEED[$SEED]}" ]]; then
+        JPL_ARGS=(--joint-pos-limits-weight "${JOINT_POS_LIMITS_WEIGHT_BY_SEED[$SEED]}")
+    fi
+
     "$PY" scripts/train_velocity.py \
         --run-name "$RUN_NAME" \
         --seed "$SEED" \
@@ -81,6 +96,7 @@ for SEED in "${SEEDS[@]}"; do
         --action-clip "$ACTION_CLIP" \
         --curriculum "${CURRICULUM_BY_SEED[$SEED]}" \
         --arm-label "${ARM_LABEL_BY_SEED[$SEED]}" \
+        "${JPL_ARGS[@]}" \
         "${RESUME_ARGS[@]}" \
         --headless \
         2>&1 | tee -a "logs/train_${RUN_NAME}.log"
