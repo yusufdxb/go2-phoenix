@@ -1,0 +1,793 @@
+{
+  "definitions": {
+    "executed": "final_target_unitree permuted to policy order (post node + bridge clip)",
+    "failure": "first tick at/after handoff with a fault other than ['bridge_shutdown', 'lowstate_stale']",
+    "handoff": "first policy tick",
+    "illegal_target": "target beyond a hard URDF limit by more than 0.175 rad (go2_model.LIMIT_ABORT_BAND_RAD, the bridge abort band)",
+    "modified_joint_tick": "|executed - raw_request| > 1e-05 rad",
+    "policy_tick": "bridge tick with mode == 'policy'",
+    "raw_request": "policy.requested_target = default + 0.25 * raw_action, policy order",
+    "slew_cap_rad_per_step": 0.175
+  },
+  "generator": "scripts/forensics_h25_f1.py",
+  "schema": "phoenix-h25-forensics/v1",
+  "sessions": {
+    "B_01355b2": {
+      "abort_request": null,
+      "attitude": {
+        "max_abs_pitch_rad": 0.016678510004719684,
+        "max_abs_roll_rad": 0.023035007641942818
+      },
+      "bridge_flags": {
+        "limit_clip_joint_tick_rate": 0.0,
+        "limit_clip_per_joint_policy_ticks": {},
+        "slew_clip_joint_tick_rate": 0.35327361910855193
+      },
+      "code_sha": "01355b22d9fe7586879ac98240a7656455315e44",
+      "commanded_vs_executed": {
+        "exe_target_t_minus_measured_q_t_plus_1_rad": {
+          "max_abs": 0.17512111663818364,
+          "mean_abs": 0.16259108774325837,
+          "rms": 0.165195241396381
+        },
+        "raw_request_minus_measured_q_rad": {
+          "max_abs": 2.259772300720215,
+          "mean_abs": 0.8367995135303397,
+          "rms": 1.122201730727291
+        }
+      },
+      "end_record": {
+        "faults": [
+          "bridge_shutdown",
+          "lowstate_stale"
+        ],
+        "reason": "sigint",
+        "record": "end",
+        "utc": "2026-09-21T23:53:02.985299Z"
+      },
+      "existing_summary": {
+        "bridge_slew_clip_pct": 35.32690246516613,
+        "end_to_end_clip_pct": 83.21543408360128,
+        "first_fault": "bridge_shutdown",
+        "limit_clip_counts": {},
+        "policy_new_command_ticks": 1555,
+        "policy_node_slew_clip_pct": 83.21543408360128,
+        "policy_ticks": 1563,
+        "policy_window_s": 31.23996176
+      },
+      "failure_bridge_tick": null,
+      "failure_faults": null,
+      "handoff_bridge_tick": 29,
+      "handoff_to_failure_s": null,
+      "handoff_utc": "2026-09-21T23:52:31.504667Z",
+      "illegal_targets": {
+        "bridge_received_beyond_abort_band_joint_ticks": 0,
+        "first_raw_illegal": {
+          "abort_threshold_rad": -0.66276,
+          "beyond_limit_by_rad": 0.3306698486900329,
+          "bridge_tick": 32,
+          "hard_limit_rad": -0.83776,
+          "joint": "FL_calf_joint",
+          "policy_tick_index": 3,
+          "source": "raw_request",
+          "t_since_handoff_s": 0.059832192,
+          "target_rad": -0.507090151309967
+        },
+        "raw_illegal_by_joint": {
+          "FL_calf_joint": 1560,
+          "FR_calf_joint": 1559,
+          "RL_calf_joint": 1558,
+          "RR_calf_joint": 1560
+        },
+        "raw_request_beyond_abort_band_joint_ticks": 6237,
+        "raw_request_beyond_hard_limit_joint_ticks": 6239
+      },
+      "limit_clip_counts_by_mode": {},
+      "live": false,
+      "mode_counts": {
+        "damp": 10,
+        "hold": 27,
+        "policy": 1563,
+        "silent": 1
+      },
+      "modification": {
+        "joint_tick_rate_bridge": 0.23896353166986564,
+        "joint_tick_rate_policy_node": 0.8321603753465557,
+        "joint_tick_rate_total": 0.8321603753465557,
+        "magnitude_exe_minus_raw_rad": {
+          "max_abs": 2.084772300720215,
+          "mean_abs": 0.6742082769397189,
+          "rms": 0.9980395777695339
+        },
+        "n_joint_ticks": 18756,
+        "per_joint_total": {
+          "FL_calf_joint": 0.999360204734485,
+          "FL_hip_joint": 0.0,
+          "FL_thigh_joint": 0.9974408189379399,
+          "FR_calf_joint": 0.999360204734485,
+          "FR_hip_joint": 0.9980806142034548,
+          "FR_thigh_joint": 0.999360204734485,
+          "RL_calf_joint": 0.9987204094689699,
+          "RL_hip_joint": 0.9980806142034548,
+          "RL_thigh_joint": 0.9961612284069098,
+          "RR_calf_joint": 0.999360204734485,
+          "RR_hip_joint": 1.0,
+          "RR_thigh_joint": 0.0
+        },
+        "tick_rate_total_any_joint": 1.0
+      },
+      "n_ticks": 1601,
+      "observation_fed": {
+        "base_lin_vel_fed_max_abs": 0.0,
+        "velocity_command_fed_max_abs": 0.0
+      },
+      "path": "20260921_01355b22d9fe/B_20260921T235229Z/bridge.jsonl",
+      "phoenix_evaluation": {
+        "live": false,
+        "locomotion_success": false,
+        "outcome": "safety_intervention",
+        "reasons": [
+          "FAIL: 6237 illegal joint target(s) beyond hard limit + 0.175",
+          "FAIL: modification_rate=0.8321603753465557 (modification_rate warn 0.01 fail 0.05)",
+          "FAIL: action_saturation_rate=0.9151204947750053 (action_saturation_rate warn 0.01 fail 0.05)",
+          "FAIL: deploy_slew_activation_rate=0.8321603753465557 (deploy_slew_activation_rate warn 0.01 fail 0.05)"
+        ],
+        "verdict": "FAIL"
+      },
+      "policy_ticks": 1563,
+      "policy_window_first_to_last_s": 31.23996176,
+      "raw_action": {
+        "fraction_elements_abs_gt_1": 0.9151204947750053,
+        "fraction_ticks_any_abs_gt_1": 0.999360204734485,
+        "max_abs": 8.86825180053711,
+        "max_abs_per_tick_first5": [
+          0.845,
+          1.366,
+          2.588,
+          3.981,
+          5.413
+        ],
+        "max_abs_per_tick_last5": [
+          8.862,
+          8.865,
+          8.864,
+          8.864,
+          8.865
+        ],
+        "note": "training clamps actions to [-1, 1] (RslRlVecEnvWrapper clip_actions=1.0) and feeds the CLAMPED action back as last_action; the deploy node clamps neither"
+      },
+      "sha256": "151d4a589fe4170e2d31999d7a478b70d019186358cb27f4e1637b4195c8ec8d",
+      "stage": "B",
+      "stance_at_handoff": {
+        "max_abs_rad": 0.2835642099380493,
+        "measured_q_beyond_hard_limit_joints": [],
+        "measured_q_minus_training_default_rad": {
+          "FL_calf_joint": -0.0427,
+          "FL_hip_joint": -0.09,
+          "FL_thigh_joint": -0.1074,
+          "FR_calf_joint": 0.0316,
+          "FR_hip_joint": 0.0914,
+          "FR_thigh_joint": -0.0225,
+          "RL_calf_joint": 0.0196,
+          "RL_hip_joint": -0.1423,
+          "RL_thigh_joint": -0.2323,
+          "RR_calf_joint": 0.0349,
+          "RR_hip_joint": 0.1582,
+          "RR_thigh_joint": -0.2836
+        }
+      }
+    },
+    "B_9df76d7_ramp": {
+      "abort_request": null,
+      "attitude": {
+        "max_abs_pitch_rad": 0.11928018026945682,
+        "max_abs_roll_rad": 0.014035559883588506
+      },
+      "bridge_flags": {
+        "limit_clip_joint_tick_rate": 0.0,
+        "limit_clip_per_joint_policy_ticks": {},
+        "slew_clip_joint_tick_rate": 0.1826717883055911
+      },
+      "code_sha": "9df76d7f3dcb2577a64b2dcf234940e1e4e51b28",
+      "commanded_vs_executed": {
+        "exe_target_t_minus_measured_q_t_plus_1_rad": {
+          "max_abs": 0.17509083449840546,
+          "mean_abs": 0.15625278003006288,
+          "rms": 0.16023152843146923
+        },
+        "raw_request_minus_measured_q_rad": {
+          "max_abs": 1.364417552947998,
+          "mean_abs": 0.5127967377050175,
+          "rms": 0.655721438813506
+        }
+      },
+      "end_record": {
+        "faults": [
+          "bridge_shutdown",
+          "lowstate_stale"
+        ],
+        "reason": "sigint",
+        "record": "end",
+        "utc": "2026-09-22T00:19:14.039564Z"
+      },
+      "existing_summary": {
+        "bridge_slew_clip_pct": 18.23586118251928,
+        "end_to_end_clip_pct": 66.71486718080548,
+        "first_fault": "bridge_shutdown",
+        "limit_clip_counts": {
+          "FL_calf_joint": 39,
+          "FR_calf_joint": 39,
+          "RL_calf_joint": 39,
+          "RR_calf_joint": 39
+        },
+        "policy_new_command_ticks": 1556,
+        "policy_node_slew_clip_pct": 66.71486718080548,
+        "policy_ticks": 1562,
+        "policy_window_s": 31.219782368
+      },
+      "failure_bridge_tick": null,
+      "failure_faults": null,
+      "handoff_bridge_tick": 31,
+      "handoff_to_failure_s": null,
+      "handoff_utc": "2026-09-22T00:18:42.576192Z",
+      "illegal_targets": {
+        "bridge_received_beyond_abort_band_joint_ticks": 0,
+        "first_raw_illegal": null,
+        "raw_illegal_by_joint": {},
+        "raw_request_beyond_abort_band_joint_ticks": 0,
+        "raw_request_beyond_hard_limit_joint_ticks": 0
+      },
+      "limit_clip_counts_by_mode": {
+        "damp": {
+          "FL_calf_joint": 10,
+          "FR_calf_joint": 10,
+          "RL_calf_joint": 10,
+          "RR_calf_joint": 10
+        },
+        "hold": {
+          "FL_calf_joint": 29,
+          "FR_calf_joint": 29,
+          "RL_calf_joint": 29,
+          "RR_calf_joint": 29
+        }
+      },
+      "live": false,
+      "mode_counts": {
+        "damp": 10,
+        "hold": 29,
+        "policy": 1562,
+        "silent": 1
+      },
+      "modification": {
+        "joint_tick_rate_bridge": 0.1826717883055911,
+        "joint_tick_rate_policy_node": 0.6671468203158344,
+        "joint_tick_rate_total": 0.6671468203158344,
+        "magnitude_exe_minus_raw_rad": {
+          "max_abs": 1.1894176006317139,
+          "mean_abs": 0.35654397572597835,
+          "rms": 0.5286874481353356
+        },
+        "n_joint_ticks": 18744,
+        "per_joint_total": {
+          "FL_calf_joint": 1.0,
+          "FL_hip_joint": 1.0,
+          "FL_thigh_joint": 0.0,
+          "FR_calf_joint": 1.0,
+          "FR_hip_joint": 0.002560819462227913,
+          "FR_thigh_joint": 1.0,
+          "RL_calf_joint": 1.0,
+          "RL_hip_joint": 1.0,
+          "RL_thigh_joint": 0.0,
+          "RR_calf_joint": 1.0,
+          "RR_hip_joint": 1.0,
+          "RR_thigh_joint": 0.003201024327784891
+        },
+        "tick_rate_total_any_joint": 1.0
+      },
+      "n_ticks": 1602,
+      "observation_fed": {
+        "base_lin_vel_fed_max_abs": 0.0,
+        "velocity_command_fed_max_abs": 0.0
+      },
+      "path": "20260922_9df76d7f3dcb/B_20260922T001841Z/bridge.jsonl",
+      "phoenix_evaluation": {
+        "live": false,
+        "locomotion_success": false,
+        "outcome": "excessive_intervention",
+        "reasons": [
+          "FAIL: modification_rate=0.6671468203158344 (modification_rate warn 0.01 fail 0.05)",
+          "FAIL: action_saturation_rate=0.41672001707212974 (action_saturation_rate warn 0.01 fail 0.05)",
+          "FAIL: deploy_slew_activation_rate=0.6671468203158344 (deploy_slew_activation_rate warn 0.01 fail 0.05)"
+        ],
+        "verdict": "FAIL"
+      },
+      "policy_ticks": 1562,
+      "policy_window_first_to_last_s": 31.219782368,
+      "raw_action": {
+        "fraction_elements_abs_gt_1": 0.41672001707212974,
+        "fraction_ticks_any_abs_gt_1": 1.0,
+        "max_abs": 2.7319252490997314,
+        "max_abs_per_tick_first5": [
+          2.201,
+          2.723,
+          2.732,
+          2.678,
+          2.629
+        ],
+        "max_abs_per_tick_last5": [
+          2.53,
+          2.532,
+          2.53,
+          2.529,
+          2.529
+        ],
+        "note": "training clamps actions to [-1, 1] (RslRlVecEnvWrapper clip_actions=1.0) and feeds the CLAMPED action back as last_action; the deploy node clamps neither"
+      },
+      "sha256": "8c2230b20734c90382fb91f28d46bc6cf94e8bbb5c9fe370d10ae0f9572b56e2",
+      "stage": "B",
+      "stance_at_handoff": {
+        "max_abs_rad": 1.3361968994140625,
+        "measured_q_beyond_hard_limit_joints": [
+          "FL_calf_joint",
+          "FR_calf_joint",
+          "RL_calf_joint",
+          "RR_calf_joint"
+        ],
+        "measured_q_minus_training_default_rad": {
+          "FL_calf_joint": -1.3362,
+          "FL_hip_joint": -0.1244,
+          "FL_thigh_joint": 0.494,
+          "FR_calf_joint": -1.298,
+          "FR_hip_joint": 0.1269,
+          "FR_thigh_joint": 0.4848,
+          "RL_calf_joint": -1.2997,
+          "RL_hip_joint": 0.2824,
+          "RL_thigh_joint": 0.2834,
+          "RR_calf_joint": -1.3352,
+          "RR_hip_joint": -0.2133,
+          "RR_thigh_joint": 0.312
+        }
+      }
+    },
+    "B_cc13103": {
+      "abort_request": null,
+      "attitude": {
+        "max_abs_pitch_rad": 0.01607875485038621,
+        "max_abs_roll_rad": 0.02159503270667004
+      },
+      "bridge_flags": {
+        "limit_clip_joint_tick_rate": 0.0,
+        "limit_clip_per_joint_policy_ticks": {},
+        "slew_clip_joint_tick_rate": 0.34324381926683717
+      },
+      "code_sha": "cc131039b662dc697b3014c714af36b631f2a686",
+      "commanded_vs_executed": {
+        "exe_target_t_minus_measured_q_t_plus_1_rad": {
+          "max_abs": 0.17512111663818364,
+          "mean_abs": 0.16260994897814104,
+          "rms": 0.16520714273146847
+        },
+        "raw_request_minus_measured_q_rad": {
+          "max_abs": 2.260042905807495,
+          "mean_abs": 0.836792161548272,
+          "rms": 1.1221649582929458
+        }
+      },
+      "end_record": {
+        "faults": [
+          "bridge_shutdown",
+          "lowstate_stale"
+        ],
+        "reason": "sigint",
+        "record": "end",
+        "utc": "2026-09-21T23:55:59.771913Z"
+      },
+      "existing_summary": {
+        "bridge_slew_clip_pct": 34.31498079385403,
+        "end_to_end_clip_pct": 83.21596244131456,
+        "first_fault": "bridge_shutdown",
+        "limit_clip_counts": {},
+        "policy_new_command_ticks": 1562,
+        "policy_node_slew_clip_pct": 83.21596244131456,
+        "policy_ticks": 1564,
+        "policy_window_s": 31.26049568
+      },
+      "failure_bridge_tick": null,
+      "failure_faults": null,
+      "handoff_bridge_tick": 30,
+      "handoff_to_failure_s": null,
+      "handoff_utc": "2026-09-21T23:55:28.267084Z",
+      "illegal_targets": {
+        "bridge_received_beyond_abort_band_joint_ticks": 0,
+        "first_raw_illegal": {
+          "abort_threshold_rad": -0.66276,
+          "beyond_limit_by_rad": 0.33096256710052485,
+          "bridge_tick": 33,
+          "hard_limit_rad": -0.83776,
+          "joint": "FL_calf_joint",
+          "policy_tick_index": 3,
+          "source": "raw_request",
+          "t_since_handoff_s": 0.060068544,
+          "target_rad": -0.5067974328994751
+        },
+        "raw_illegal_by_joint": {
+          "FL_calf_joint": 1561,
+          "FR_calf_joint": 1560,
+          "RL_calf_joint": 1559,
+          "RR_calf_joint": 1561
+        },
+        "raw_request_beyond_abort_band_joint_ticks": 6241,
+        "raw_request_beyond_hard_limit_joint_ticks": 6243
+      },
+      "limit_clip_counts_by_mode": {},
+      "live": false,
+      "mode_counts": {
+        "damp": 10,
+        "hold": 28,
+        "policy": 1564,
+        "silent": 1
+      },
+      "modification": {
+        "joint_tick_rate_bridge": 0.2427536231884058,
+        "joint_tick_rate_policy_node": 0.8321611253196931,
+        "joint_tick_rate_total": 0.8321611253196931,
+        "magnitude_exe_minus_raw_rad": {
+          "max_abs": 2.085042953491211,
+          "mean_abs": 0.6741821050179451,
+          "rms": 0.9980008899413848
+        },
+        "n_joint_ticks": 18768,
+        "per_joint_total": {
+          "FL_calf_joint": 0.9993606138107417,
+          "FL_hip_joint": 0.0,
+          "FL_thigh_joint": 0.9974424552429667,
+          "FR_calf_joint": 0.9993606138107417,
+          "FR_hip_joint": 0.9980818414322251,
+          "FR_thigh_joint": 0.9993606138107417,
+          "RL_calf_joint": 0.9987212276214834,
+          "RL_hip_joint": 0.9980818414322251,
+          "RL_thigh_joint": 0.9961636828644501,
+          "RR_calf_joint": 0.9993606138107417,
+          "RR_hip_joint": 1.0,
+          "RR_thigh_joint": 0.0
+        },
+        "tick_rate_total_any_joint": 1.0
+      },
+      "n_ticks": 1603,
+      "observation_fed": {
+        "base_lin_vel_fed_max_abs": 0.0,
+        "velocity_command_fed_max_abs": 0.0
+      },
+      "path": "20260921_cc131039b662/B_20260921T235526Z/bridge.jsonl",
+      "phoenix_evaluation": {
+        "live": false,
+        "locomotion_success": false,
+        "outcome": "safety_intervention",
+        "reasons": [
+          "FAIL: 6241 illegal joint target(s) beyond hard limit + 0.175",
+          "FAIL: modification_rate=0.8321611253196931 (modification_rate warn 0.01 fail 0.05)",
+          "FAIL: action_saturation_rate=0.9151214833759591 (action_saturation_rate warn 0.01 fail 0.05)",
+          "FAIL: deploy_slew_activation_rate=0.8321611253196931 (deploy_slew_activation_rate warn 0.01 fail 0.05)"
+        ],
+        "verdict": "FAIL"
+      },
+      "policy_ticks": 1564,
+      "policy_window_first_to_last_s": 31.26049568,
+      "raw_action": {
+        "fraction_elements_abs_gt_1": 0.9151214833759591,
+        "fraction_ticks_any_abs_gt_1": 0.9993606138107417,
+        "max_abs": 8.86933422088623,
+        "max_abs_per_tick_first5": [
+          0.846,
+          1.365,
+          2.587,
+          3.981,
+          5.411
+        ],
+        "max_abs_per_tick_last5": [
+          8.858,
+          8.857,
+          8.858,
+          8.858,
+          8.859
+        ],
+        "note": "training clamps actions to [-1, 1] (RslRlVecEnvWrapper clip_actions=1.0) and feeds the CLAMPED action back as last_action; the deploy node clamps neither"
+      },
+      "sha256": "08b4d9903078983cb50805fc9bc86467c1efe5fed0ee45b3018cb820097c1f10",
+      "stage": "B",
+      "stance_at_handoff": {
+        "max_abs_rad": 0.28347349166870117,
+        "measured_q_beyond_hard_limit_joints": [],
+        "measured_q_minus_training_default_rad": {
+          "FL_calf_joint": -0.0427,
+          "FL_hip_joint": -0.09,
+          "FL_thigh_joint": -0.1075,
+          "FR_calf_joint": 0.0317,
+          "FR_hip_joint": 0.0913,
+          "FR_thigh_joint": -0.0227,
+          "RL_calf_joint": 0.0196,
+          "RL_hip_joint": -0.1424,
+          "RL_thigh_joint": -0.2324,
+          "RR_calf_joint": 0.0348,
+          "RR_hip_joint": 0.1582,
+          "RR_thigh_joint": -0.2835
+        }
+      }
+    },
+    "E": {
+      "code_sha": "cc131039b662dc697b3014c714af36b631f2a686",
+      "end_record": {
+        "faults": [
+          "bridge_shutdown",
+          "lowstate_stale"
+        ],
+        "reason": "sigint",
+        "record": "end",
+        "utc": "2026-09-22T00:10:03.525505Z"
+      },
+      "existing_summary": {
+        "bridge_slew_clip_pct": null,
+        "end_to_end_clip_pct": null,
+        "first_fault": "bridge_shutdown",
+        "limit_clip_counts": {
+          "FL_calf_joint": 573,
+          "FR_calf_joint": 573,
+          "RL_calf_joint": 573,
+          "RR_calf_joint": 573
+        },
+        "policy_new_command_ticks": 0,
+        "policy_node_slew_clip_pct": null,
+        "policy_ticks": 0,
+        "policy_window_s": 0.0
+      },
+      "first_measured_q_minus_training_stance_rad": {
+        "FL_calf_joint": -1.3078,
+        "FL_hip_joint": -0.0515,
+        "FL_thigh_joint": 0.4507,
+        "FR_calf_joint": -1.2645,
+        "FR_hip_joint": 0.0335,
+        "FR_thigh_joint": 0.4467,
+        "RL_calf_joint": -1.2794,
+        "RL_hip_joint": 0.2714,
+        "RL_thigh_joint": 0.2647,
+        "RR_calf_joint": -1.3069,
+        "RR_hip_joint": -0.2594,
+        "RR_thigh_joint": 0.2777
+      },
+      "limit_clip_counts_by_mode": {
+        "damp": {
+          "FL_calf_joint": 10,
+          "FR_calf_joint": 10,
+          "RL_calf_joint": 10,
+          "RR_calf_joint": 10
+        },
+        "hold": {
+          "FL_calf_joint": 563,
+          "FR_calf_joint": 563,
+          "RL_calf_joint": 563,
+          "RR_calf_joint": 563
+        }
+      },
+      "live": true,
+      "mode_counts": {
+        "damp": 10,
+        "hold": 563,
+        "silent": 1
+      },
+      "n_ticks": 574,
+      "path": "20260921_cc131039b662/E_20260922T000950Z/bridge.jsonl",
+      "policy_ticks": 0,
+      "sha256": "009ecbb93dc1aff78378bb40d5b6fa853c7671bf43575003e89346528d65c275",
+      "stage": "E"
+    },
+    "F1": {
+      "abort_request": {
+        "abort_band_rad": 0.175,
+        "beyond_limit_by_rad": 0.18884770288467412,
+        "bridge_received_target_rad": -0.7124477028846741,
+        "bridge_tick": 122,
+        "hard_limit_rad": -0.5236,
+        "joint": "RR_thigh_joint",
+        "raw_policy_request_rad": -0.80098557472229
+      },
+      "attitude": {
+        "max_abs_pitch_rad": 0.11601751149633327,
+        "max_abs_roll_rad": 0.11074932392412698
+      },
+      "bridge_flags": {
+        "limit_clip_joint_tick_rate": 0.008620689655172414,
+        "limit_clip_per_joint_policy_ticks": {
+          "RR_thigh_joint": 3
+        },
+        "slew_clip_joint_tick_rate": 0.27298850574712646
+      },
+      "code_sha": "cc131039b662dc697b3014c714af36b631f2a686",
+      "commanded_vs_executed": {
+        "exe_target_t_minus_measured_q_t_plus_1_rad": {
+          "max_abs": 0.18798904418945311,
+          "mean_abs": 0.14009509469696452,
+          "rms": 0.14772173205751796
+        },
+        "raw_request_minus_measured_q_rad": {
+          "max_abs": 2.4081801772117615,
+          "mean_abs": 0.7670175974824648,
+          "rms": 0.9379311845502216
+        }
+      },
+      "end_record": {
+        "faults": [
+          "target_beyond_limit:RR_thigh_joint",
+          "policy_abort:authority_window_complete",
+          "bridge_shutdown",
+          "lowstate_stale"
+        ],
+        "reason": "sigint",
+        "record": "end",
+        "utc": "2026-09-22T00:12:02.895260Z"
+      },
+      "existing_summary": {
+        "bridge_slew_clip_pct": 27.298850574712645,
+        "end_to_end_clip_pct": 88.79310344827586,
+        "first_fault": "target_beyond_limit:RR_thigh_joint",
+        "limit_clip_counts": {
+          "FL_calf_joint": 91,
+          "FR_calf_joint": 1564,
+          "RL_calf_joint": 1564,
+          "RR_calf_joint": 91,
+          "RR_thigh_joint": 1474
+        },
+        "policy_new_command_ticks": 29,
+        "policy_node_slew_clip_pct": 88.79310344827586,
+        "policy_ticks": 29,
+        "policy_window_s": 0.56000928
+      },
+      "failure_bridge_tick": 122,
+      "failure_faults": [
+        "target_beyond_limit:RR_thigh_joint"
+      ],
+      "handoff_bridge_tick": 93,
+      "handoff_to_failure_s": 0.579963648,
+      "handoff_utc": "2026-09-22T00:11:32.837955Z",
+      "illegal_targets": {
+        "bridge_received_beyond_abort_band_joint_ticks": 0,
+        "first_raw_illegal": {
+          "abort_threshold_rad": 1.2222,
+          "beyond_limit_by_rad": 0.1827450635910035,
+          "bridge_tick": 101,
+          "hard_limit_rad": 1.0472,
+          "joint": "FR_hip_joint",
+          "policy_tick_index": 8,
+          "source": "raw_request",
+          "t_since_handoff_s": 0.15975472,
+          "target_rad": 1.2299450635910034
+        },
+        "raw_illegal_by_joint": {
+          "FL_hip_joint": 19,
+          "FR_hip_joint": 21,
+          "RR_calf_joint": 15,
+          "RR_hip_joint": 9,
+          "RR_thigh_joint": 2
+        },
+        "raw_request_beyond_abort_band_joint_ticks": 66,
+        "raw_request_beyond_hard_limit_joint_ticks": 89
+      },
+      "limit_clip_counts_by_mode": {
+        "damp": {
+          "FR_calf_joint": 10,
+          "RL_calf_joint": 10,
+          "RR_thigh_joint": 10
+        },
+        "hold": {
+          "FL_calf_joint": 91,
+          "FR_calf_joint": 1554,
+          "RL_calf_joint": 1554,
+          "RR_calf_joint": 91,
+          "RR_thigh_joint": 1461
+        },
+        "policy": {
+          "RR_thigh_joint": 3
+        }
+      },
+      "live": true,
+      "mode_counts": {
+        "damp": 10,
+        "hold": 1554,
+        "policy": 29,
+        "silent": 1
+      },
+      "modification": {
+        "joint_tick_rate_bridge": 0.27298850574712646,
+        "joint_tick_rate_policy_node": 0.8879310344827587,
+        "joint_tick_rate_total": 0.8879310344827587,
+        "magnitude_exe_minus_raw_rad": {
+          "max_abs": 2.2331801772117617,
+          "mean_abs": 0.6085094440612301,
+          "rms": 0.8032428145045494
+        },
+        "n_joint_ticks": 348,
+        "per_joint_total": {
+          "FL_calf_joint": 1.0,
+          "FL_hip_joint": 1.0,
+          "FL_thigh_joint": 0.0,
+          "FR_calf_joint": 1.0,
+          "FR_hip_joint": 1.0,
+          "FR_thigh_joint": 1.0,
+          "RL_calf_joint": 1.0,
+          "RL_hip_joint": 1.0,
+          "RL_thigh_joint": 0.7931034482758621,
+          "RR_calf_joint": 1.0,
+          "RR_hip_joint": 0.8620689655172413,
+          "RR_thigh_joint": 1.0
+        },
+        "tick_rate_total_any_joint": 1.0
+      },
+      "n_ticks": 1594,
+      "observation_fed": {
+        "base_lin_vel_fed_max_abs": 0.0,
+        "velocity_command_fed_max_abs": 0.0
+      },
+      "path": "20260921_cc131039b662/F1_20260922T001048Z/bridge.jsonl",
+      "phoenix_evaluation": {
+        "live": true,
+        "locomotion_success": false,
+        "outcome": "safety_intervention",
+        "reasons": [
+          "FAIL: 66 illegal joint target(s) beyond hard limit + 0.175",
+          "FAIL: safety layer took authority: ['target_beyond_limit:RR_thigh_joint']",
+          "FAIL: episode did not reach its planned end",
+          "FAIL: modification_rate=0.8879310344827587 (modification_rate warn 0.01 fail 0.05)",
+          "FAIL: action_saturation_rate=0.6896551724137931 (action_saturation_rate warn 0.01 fail 0.05)",
+          "FAIL: deploy_slew_activation_rate=0.8879310344827587 (deploy_slew_activation_rate warn 0.01 fail 0.05)"
+        ],
+        "verdict": "FAIL"
+      },
+      "policy_ticks": 29,
+      "policy_window_first_to_last_s": 0.56000928,
+      "raw_action": {
+        "fraction_elements_abs_gt_1": 0.6896551724137931,
+        "fraction_ticks_any_abs_gt_1": 1.0,
+        "max_abs": 9.674447059631348,
+        "max_abs_per_tick_first5": [
+          2.196,
+          2.727,
+          2.846,
+          2.941,
+          3.054
+        ],
+        "max_abs_per_tick_last5": [
+          9.332,
+          9.421,
+          9.499,
+          9.57,
+          9.674
+        ],
+        "note": "training clamps actions to [-1, 1] (RslRlVecEnvWrapper clip_actions=1.0) and feeds the CLAMPED action back as last_action; the deploy node clamps neither"
+      },
+      "sha256": "361543db031682bc95db106e98312a2193d090efd9051416279e251d00e8fc02",
+      "stage": "F",
+      "stance_at_handoff": {
+        "max_abs_rad": 1.3047609329223633,
+        "measured_q_beyond_hard_limit_joints": [
+          "FL_calf_joint",
+          "FR_calf_joint",
+          "RL_calf_joint",
+          "RR_calf_joint"
+        ],
+        "measured_q_minus_training_default_rad": {
+          "FL_calf_joint": -1.2953,
+          "FL_hip_joint": -0.0514,
+          "FL_thigh_joint": 0.4504,
+          "FR_calf_joint": -1.2633,
+          "FR_hip_joint": 0.0337,
+          "FR_thigh_joint": 0.4468,
+          "RL_calf_joint": -1.2788,
+          "RL_hip_joint": 0.2715,
+          "RL_thigh_joint": 0.2647,
+          "RR_calf_joint": -1.3048,
+          "RR_hip_joint": -0.2597,
+          "RR_thigh_joint": 0.2777
+        }
+      }
+    }
+  }
+}
