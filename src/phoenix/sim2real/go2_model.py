@@ -146,6 +146,46 @@ JOINT_POSITION_LIMITS_RAD: dict[str, tuple[float, float]] = {
 #: cap cannot come from a legal measured state, so it aborts instead of clipping.
 LIMIT_ABORT_BAND_RAD: float = MAX_DELTA_PER_STEP_RAD
 
+#: Per-joint continuous torque limit, in newton-meters, used to bound the
+#: commanded POSITION target so the resulting PD torque
+#: ``tau = Kp*(target-q) - Kd*dq`` cannot exceed the motor's rating.
+#:
+#: Hip and thigh joints share the GO2's standard actuator: 23.5 N m continuous,
+#: the same number Isaac Lab used for every joint before the calf fix below.
+#: The calf joint uses a stronger actuator: 45.43 N m / 15.7 rad/s. Source:
+#: Isaac Lab PR #7479 (merged 2026-09-04, closed the 2026-03-16 UNITREE_GO2_CFG
+#: bug that gave every joint including the calf the weaker 23.5 N m / 30 rad/s
+#: DCMotor group -- see docs/hardware/ and
+#: Projects/go2-phoenix/ANALYSIS_2026-09-24_why-phoenix-failed-vs-proven-stacks.md
+#: row "Calf actuator"). This replaces the pre-2026-09-24 deploy-time safety net
+#: (a measured-q +-0.175 rad/step slew clip, an approximately 4.4 N m cap at
+#: kp=25 that starved loaded legs on 2026-09-21 stage F1) with the actual motor
+#: envelope.
+JOINT_TORQUE_LIMITS_NM: dict[str, float] = {
+    "FL_hip_joint": 23.5,
+    "FR_hip_joint": 23.5,
+    "RL_hip_joint": 23.5,
+    "RR_hip_joint": 23.5,
+    "FL_thigh_joint": 23.5,
+    "FR_thigh_joint": 23.5,
+    "RL_thigh_joint": 23.5,
+    "RR_thigh_joint": 23.5,
+    "FL_calf_joint": 45.43,
+    "FR_calf_joint": 45.43,
+    "RL_calf_joint": 45.43,
+    "RR_calf_joint": 45.43,
+}
+
+
+def torque_limits_in_order(order: Sequence[str]) -> np.ndarray:
+    """Return the per-joint torque limit (N m) as a float64 array in ``order``.
+
+    Raises ``KeyError`` for a name that is not a GO2 leg joint, matching
+    :func:`limits_in_order`.
+    """
+    return np.asarray([JOINT_TORQUE_LIMITS_NM[n] for n in order], dtype=np.float64)
+
+
 #: Unitree's low-level stand example poses, in Unitree motor order
 #: (``go2_stand_example.cpp`` ``target_pos_1_`` folded and ``target_pos_2_``
 #: standing). Used only as sanity fixtures: a limit table that rejected Unitree's
@@ -226,6 +266,7 @@ def verify_default_pose(default_joint_pos: Mapping[str, float]) -> list[str]:
 __all__ = [
     "JOINT_LIMITS_PROVENANCE",
     "JOINT_POSITION_LIMITS_RAD",
+    "JOINT_TORQUE_LIMITS_NM",
     "LIMIT_ABORT_BAND_RAD",
     "POLICY_JOINT_ORDER",
     "TRAINING_DEFAULT_JOINT_POS",
@@ -233,6 +274,7 @@ __all__ = [
     "UNITREE_EXAMPLE_STAND_POSE",
     "UNITREE_MOTOR_ORDER",
     "limits_in_order",
+    "torque_limits_in_order",
     "verify_default_pose",
     "verify_joint_model",
 ]

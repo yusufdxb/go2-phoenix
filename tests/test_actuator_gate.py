@@ -25,6 +25,7 @@ from phoenix.sim2real.command_wire import (
 )
 from phoenix.sim2real.go2_model import (
     JOINT_POSITION_LIMITS_RAD,
+    JOINT_TORQUE_LIMITS_NM,
     POLICY_JOINT_ORDER,
     TRAINING_DEFAULT_JOINT_POS,
     UNITREE_EXAMPLE_FOLDED_POSE,
@@ -32,7 +33,7 @@ from phoenix.sim2real.go2_model import (
     limits_in_order,
 )
 from phoenix.sim2real.motor_crc import phoenix_to_unitree
-from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
+from phoenix.sim2real.safety import DEFAULT_POSITION_CLIP_MARGIN_RAD, DEFAULT_SUSTAINED_CLIP_TICKS
 
 ORDER = POLICY_JOINT_ORDER
 T0 = 5_000_000_000
@@ -40,6 +41,7 @@ DEFAULT_P = np.asarray([TRAINING_DEFAULT_JOINT_POS[n] for n in ORDER])
 DEFAULT_U = np.asarray(phoenix_to_unitree(DEFAULT_P))
 LO_U, HI_U = limits_in_order(UNITREE_MOTOR_ORDER)
 ZERO12 = np.zeros(12)
+MARGIN = DEFAULT_POSITION_CLIP_MARGIN_RAD
 
 
 def ns(seconds: float) -> int:
@@ -148,25 +150,71 @@ def test_permutation_is_applied_by_name() -> None:
         assert rec["final_target_unitree"][k] == pytest.approx(target[ORDER.index(name)])
 
 
-# ------------------------------------------------------------- slew clip
+# ----------------------------------------------------------- torque clip
+# Replaces the pre-2026-09-24 measured-q +-0.175 rad/step slew clip: the
+# actuator gate now bounds the commanded target so the PD torque
+# tau = Kp*(target-q) - Kd*dq cannot exceed the real motor limits
+# (go2_model.JOINT_TORQUE_LIMITS_NM), not an arbitrary position delta.
+KP_DEFAULT, KD_DEFAULT = 25.0, 0.5
+
+
 @pytest.mark.parametrize("sign", [+1.0, -1.0])
 @pytest.mark.parametrize("j", range(12))
-def test_slew_clip_is_per_joint_and_only_that_joint(j: int, sign: float) -> None:
+def test_torque_clip_is_per_joint_and_only_that_joint(j: int, sign: float) -> None:
+    # 2026-09-25: a target beyond the hard stop is clipped, not an abort
+    # trigger (see test_overshoot_past_hard_limit_is_clipped_not_latched
+    # below), so this no longer needs to stay inside any "abort band": the
+    # torque bound is clipped again into [lo+margin, hi-margin] whether or
+    # not it lands past the joint's hard range (a single tick never trips
+    # the sustained-clip latch either, see DEFAULT_SUSTAINED_CLIP_TICKS).
+    name = ORDER[j]
+    limit = JOINT_TORQUE_LIMITS_NM[name]
+    lo, hi = JOINT_POSITION_LIMITS_RAD[name]
+    torque_delta = limit / KP_DEFAULT + 0.05
     gate = armed()
-    target = DEFAULT_P.copy()
-    target[j] += sign * 0.1  # small, inside limits
     target_big = DEFAULT_P.copy()
-    target_big[j] += sign * 0.4
+    target_big[j] += sign * torque_delta
     send(gate, 0.0, target_big)
     rec = gate.tick(ns(0.01))
     k = u_index(j)
-    assert rec["mode"] == "policy"
-    lo, hi = JOINT_POSITION_LIMITS_RAD[ORDER[j]]
-    expected = np.clip(DEFAULT_U[k] + sign * MAX_DELTA_PER_STEP_RAD, lo, hi)
-    assert rec["final_target_unitree"][k] == pytest.approx(expected)
+    assert rec["mode"] == "policy", rec["fault"]
+    torque_bound = DEFAULT_U[k] + sign * (limit / KP_DEFAULT)
+    expected = np.clip(torque_bound, lo + MARGIN, hi - MARGIN)
+    assert rec["final_target_unitree"][k] == pytest.approx(expected, abs=1e-9)
     assert rec["slew_clip"] == [i == k for i in range(12)]
-    assert rec["slew_margin"][k] == pytest.approx(MAX_DELTA_PER_STEP_RAD - 0.4)
     assert rec["fault"] is None
+
+
+def test_torque_clip_respects_damping_velocity_term() -> None:
+    """A nonzero measured dq shifts the torque-limited target range (Kd term)."""
+    gate = armed()
+    j = ORDER.index("FL_hip_joint")
+    k = u_index(j)
+    dq = np.zeros(12)
+    dq[k] = 4.0  # rad/s, joint moving toward +q
+    gate.on_lowstate(ns(0.0), DEFAULT_U, dq)
+    limit = JOINT_TORQUE_LIMITS_NM["FL_hip_joint"]
+    # tau = Kp*(t-q) - Kd*dq <= limit  =>  t <= q + (limit + Kd*dq)/Kp
+    torque_delta = (limit + KD_DEFAULT * dq[k]) / KP_DEFAULT
+    target = DEFAULT_P.copy()
+    target[j] += torque_delta + 0.05
+    send(gate, 0.0, target)
+    rec = gate.tick(ns(0.01))
+    assert rec["mode"] == "policy", rec["fault"]
+    expected_hi = DEFAULT_U[k] + torque_delta
+    lo, hi = JOINT_POSITION_LIMITS_RAD["FL_hip_joint"]
+    expected = np.clip(expected_hi, lo + MARGIN, hi - MARGIN)
+    assert rec["final_target_unitree"][k] == pytest.approx(expected, abs=1e-9)
+    assert rec["fault"] is None
+
+
+def test_small_target_inside_torque_limit_is_not_clipped() -> None:
+    gate = armed()
+    target = DEFAULT_P + 0.05  # well inside every joint's torque envelope
+    send(gate, 0.0, target)
+    rec = gate.tick(ns(0.01))
+    assert rec["slew_clip"] == [False] * 12 and rec["limit_clip"] == [False] * 12
+    assert np.allclose(rec["final_target_unitree"], phoenix_to_unitree(target))
 
 
 # ------------------------------------------------------------ joint limits
@@ -184,43 +232,156 @@ def test_small_overshoot_is_clipped_to_the_hard_limit(j: int, side: str) -> None
     send(gate, 0.0, target)
     rec = gate.tick(ns(0.01))
     assert rec["mode"] == "policy", rec["fault"]
-    assert rec["final_target_unitree"][k] == pytest.approx(lo if side == "lower" else hi)
+    expected = (lo + MARGIN) if side == "lower" else (hi - MARGIN)
+    assert rec["final_target_unitree"][k] == pytest.approx(expected)
     assert rec["limit_clip"] == [i == k for i in range(12)]
-    assert rec["limit_margin"][k] == pytest.approx(0.0)
+    assert rec["limit_margin"][k] == pytest.approx(MARGIN, abs=1e-9)
     assert rec["fault"] is None
 
 
+# ----------------------------------------- past-the-stop: clip, don't abort
+# 2026-09-25 sim2sim gate finding: a good walking policy (seed42@3000)
+# routinely requests calf targets 0.25-0.31 rad past the calf's hard upper
+# limit during counter-clockwise yaw (5 of 600 steps at +0.6 rad/s). A PD
+# position controller commanding past a mechanical stop to press against it
+# is normal; proven stacks (rl_sar, Unitree's own deployers) do not abort on
+# it. The old target-beyond-limit-by-0.175-rad abort (exactly how stage F1
+# ended) is replaced with: clip into the hard range with a small inward
+# margin, and reserve the latching abort for MEASURED overshoot, a non-finite
+# command, or SUSTAINED clipping (below).
 @pytest.mark.parametrize("side", ["lower", "upper"])
 @pytest.mark.parametrize("j", range(12))
-def test_target_beyond_abort_band_latches_hold(j: int, side: str) -> None:
+def test_overshoot_past_hard_limit_is_clipped_not_latched(j: int, side: str) -> None:
     name = ORDER[j]
     lo, hi = JOINT_POSITION_LIMITS_RAD[name]
     gate = armed()
     target = DEFAULT_P.copy()
+    # 0.2 rad past the stop: bigger than the old abort band (0.175), well
+    # past the sim2sim gate's observed 0.25-0.31 rad calf overshoot's
+    # neighbourhood, still a single isolated tick. On hip/thigh joints (small
+    # torque headroom relative to their wide range around the default pose)
+    # the torque clip engages first and the target never reaches the
+    # position boundary at all; on the calf (see
+    # test_sim2sim_calf_overshoot_magnitude_is_clipped_not_latched) the
+    # position clip is what dominates. Either way: never latched, never
+    # beyond the hard range.
     target[j] = lo - 0.2 if side == "lower" else hi + 0.2
     send(gate, 0.0, target)
     rec = gate.tick(ns(0.01))
-    assert rec["mode"] == "hold"
-    assert rec["fault"] == f"target_beyond_limit:{name}"
-    assert np.allclose(rec["final_target_unitree"], DEFAULT_U)
-    # Latched: a perfectly valid command afterwards does not restore authority.
+    assert rec["mode"] == "policy", rec["fault"]
+    assert rec["fault"] is None
+    k = u_index(j)
+    final = rec["final_target_unitree"][k]
+    assert lo <= final <= hi
+    # A perfectly valid command right after fully restores normal tracking:
+    # nothing was latched by the single clipped or torque-limited tick.
     send(gate, 0.02, DEFAULT_P, seq=2)
-    assert gate.tick(ns(0.03))["mode"] == "hold"
+    rec2 = gate.tick(ns(0.03))
+    assert rec2["mode"] == "policy" and rec2["fault"] is None
 
 
-def test_final_target_always_within_limits_and_one_slew_step() -> None:
+def test_sim2sim_calf_overshoot_magnitude_is_clipped_not_latched() -> None:
+    """The literal 2026-09-25 finding: calf targets 0.25-0.31 rad past the
+    calf's hard upper limit during CCW yaw. Reproduced directly (not just the
+    generic 0.2 rad case above), single tick, must not latch."""
+    j = ORDER.index("RR_calf_joint")
+    name = ORDER[j]
+    lo, hi = JOINT_POSITION_LIMITS_RAD[name]
+    gate = armed()
+    target = DEFAULT_P.copy()
+    target[j] = hi + 0.28
+    send(gate, 0.0, target)
+    rec = gate.tick(ns(0.01))
+    assert rec["mode"] == "policy", rec["fault"]
+    assert rec["fault"] is None
+    k = u_index(j)
+    assert rec["final_target_unitree"][k] == pytest.approx(hi - MARGIN, abs=1e-9)
+
+
+def test_sustained_clipping_latches_hold() -> None:
+    """A joint clipped for DEFAULT_SUSTAINED_CLIP_TICKS consecutive ticks
+    signals a genuinely broken policy (cannot be steered off the stop), not a
+    normal brief press, and latches."""
+    j = ORDER.index("RR_calf_joint")
+    name = ORDER[j]
+    lo, hi = JOINT_POSITION_LIMITS_RAD[name]
+    gate = armed()
+    target = DEFAULT_P.copy()
+    target[j] = hi + 0.28
+    for seq in range(1, DEFAULT_SUSTAINED_CLIP_TICKS):
+        t = 0.01 * seq
+        gate.on_lowstate(ns(t), DEFAULT_U, ZERO12)
+        send(gate, t, target, seq=seq)
+        rec = gate.tick(ns(t + 0.005))
+        assert rec["mode"] == "policy", (seq, rec["fault"])
+    # The Nth consecutive clipped tick latches.
+    t = 0.01 * DEFAULT_SUSTAINED_CLIP_TICKS
+    gate.on_lowstate(ns(t), DEFAULT_U, ZERO12)
+    send(gate, t, target, seq=DEFAULT_SUSTAINED_CLIP_TICKS)
+    rec = gate.tick(ns(t + 0.005))
+    assert rec["mode"] == "hold"
+    assert rec["fault"] == f"sustained_clip_exceeded:{name}"
+    # Latched: a perfectly valid command afterwards does not restore authority.
+    gate.on_lowstate(ns(1.0), DEFAULT_U, ZERO12)
+    send(gate, 1.0, DEFAULT_P, seq=DEFAULT_SUSTAINED_CLIP_TICKS + 1)
+    assert gate.tick(ns(1.01))["mode"] == "hold"
+
+
+def test_sustained_clipping_resets_on_an_unclipped_tick() -> None:
+    """Alternating clipped / unclipped ticks never accumulate: only
+    CONSECUTIVE clipped ticks count."""
+    j = ORDER.index("RR_calf_joint")
+    name = ORDER[j]
+    lo, hi = JOINT_POSITION_LIMITS_RAD[name]
+    gate = armed()
+    past_stop = DEFAULT_P.copy()
+    past_stop[j] = hi + 0.28
+    for seq in range(1, 3 * DEFAULT_SUSTAINED_CLIP_TICKS):
+        t = 0.01 * seq
+        gate.on_lowstate(ns(t), DEFAULT_U, ZERO12)
+        target = past_stop if seq % 2 else DEFAULT_P
+        send(gate, t, target, seq=seq)
+        rec = gate.tick(ns(t + 0.005))
+        assert rec["mode"] == "policy", (seq, rec["fault"])
+    assert rec["fault"] is None
+
+
+def test_non_finite_target_still_latches() -> None:
+    """A NaN/Inf commanded target still latches immediately: it cannot come
+    from any legal policy output, clamped or not. Rejected at decode() time
+    (command_wire.decode raises non_finite_target), before it ever reaches
+    the POLICY-mode clip path; see also test_nan_command_latches_hold."""
+    gate = armed()
+    target = DEFAULT_P.copy()
+    target[0] = float("nan")
+    send(gate, 0.0, target)
+    rec = gate.tick(ns(0.01))
+    assert rec["mode"] == "hold"
+    assert rec["fault"] == "command_rejected:non_finite_target"
+    assert np.allclose(rec["final_target_unitree"], DEFAULT_U)
+
+
+def test_final_target_always_within_limits_and_torque_bound() -> None:
+    torque_u = np.asarray([JOINT_TORQUE_LIMITS_NM[n] for n in UNITREE_MOTOR_ORDER])
     rng = np.random.default_rng(0)
     for trial in range(400):
         q = rng.uniform(LO_U, HI_U)
-        gate = armed(q_u=q)
+        gate = armed(q_u=q)  # dq measured is zero
+        # Requests within one hard-limit abort band of the joint range, plus
+        # some deliberately far outside it (never a legal measured state, so
+        # those must land in "hold", checked below rather than "policy").
         req_u = rng.uniform(LO_U - 0.17, HI_U + 0.17)
         req_p = np.asarray([req_u[UNITREE_MOTOR_ORDER.index(n)] for n in ORDER])
         send(gate, 0.0, req_p, seq=trial)
         rec = gate.tick(ns(0.01))
-        assert rec["mode"] == "policy"
+        if rec["mode"] != "policy":
+            assert rec["mode"] == "hold" and rec["fault"] is not None
+            continue
         final = np.asarray(rec["final_target_unitree"])
         assert np.all(final >= LO_U) and np.all(final <= HI_U)
-        assert np.all(np.abs(final - q) <= MAX_DELTA_PER_STEP_RAD + 1e-12)
+        # tau = Kp*(final - q) with dq=0; must never exceed the joint's torque limit.
+        tau = KP_DEFAULT * (final - q)
+        assert np.all(np.abs(tau) <= torque_u + 1e-9)
 
 
 # ----------------------------------------------------- malformed commands

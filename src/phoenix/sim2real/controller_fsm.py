@@ -48,6 +48,7 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -55,6 +56,7 @@ import numpy as np
 from .fix_stand import FixStand, FixStandError, FixStandParams
 from .handoff import HandoffCriteria, HandoffMonitor, HandoffSample, HandoffStatus
 from .intervention import InterventionRecorder, SafetyFilter, tick_record
+from .safety import DEFAULT_POSITION_CLIP_MARGIN_RAD, DEFAULT_SUSTAINED_CLIP_TICKS, clip_actions
 
 
 class State(str, Enum):
@@ -80,6 +82,14 @@ class FsmParams:
     action_scale: float = 0.25
     policy_kp: float = 25.0
     policy_kd: float = 0.5
+    #: Raw policy actions are clamped to [-action_clip, action_clip] before
+    #: scaling. MUST equal the checkpoint's training clip_actions value; see
+    #: phoenix.sim2real.deploy_manifest (deploy.action_clip). The default of
+    #: 1.0 here is a back-compat / test convenience only, matching the H25
+    #: stand checkpoint's training_clip=1.0; a real bring-up must construct
+    #: this from fsm_params_from_manifest, which refuses to run without an
+    #: explicit deploy.action_clip in the checkpoint manifest.
+    action_clip: float = 1.0
     hold_kp: float = 20.0
     hold_kd: float = 1.0
     damp_kd: float = 1.0
@@ -96,12 +106,29 @@ class FsmParams:
     live_intervention_max_fraction: float = 0.5
     #: Largest |command| per axis the deploy allows (vx, vy, wz). Velocity mode only.
     max_command: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: 2026-09-25: a target beyond a hard joint stop is clipped into the hard
+    #: range with this small inward margin, not aborted (a PD controller
+    #: pressing past a stop is normal). See safety.DEFAULT_POSITION_CLIP_MARGIN_RAD.
+    position_clip_margin: float = DEFAULT_POSITION_CLIP_MARGIN_RAD
+    #: Consecutive ticks a joint may be clipped before that latches as a
+    #: genuinely broken policy. See safety.DEFAULT_SUSTAINED_CLIP_TICKS.
+    sustained_clip_ticks: int = DEFAULT_SUSTAINED_CLIP_TICKS
 
     def __post_init__(self) -> None:
-        for name in ("rate_hz", "action_scale", "sensor_timeout_s", "precheck_timeout_s"):
+        for name in (
+            "rate_hz",
+            "action_scale",
+            "sensor_timeout_s",
+            "precheck_timeout_s",
+            "action_clip",
+        ):
             value = float(getattr(self, name))
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"FsmParams.{name} must be positive and finite")
+        if not math.isfinite(self.position_clip_margin) or self.position_clip_margin < 0:
+            raise ValueError("FsmParams.position_clip_margin must be non-negative and finite")
+        if self.sustained_clip_ticks < 1:
+            raise ValueError("FsmParams.sustained_clip_ticks must be >= 1")
         if len(self.max_command) != 3 or any(
             (not math.isfinite(float(v))) or float(v) < 0 for v in self.max_command
         ):
@@ -186,7 +213,13 @@ class ControllerFSM:
         self._fs_params = fix_stand_params or FixStandParams(rate_hz=self.params.rate_hz)
         self.fix_stand = FixStand(self.order, self._fs_params)
         self.handoff = HandoffMonitor(self.order, self.fix_stand.target, handoff_criteria)
-        self.safety = SafetyFilter(self.order)
+        self.safety = SafetyFilter(
+            self.order,
+            kp=self.params.policy_kp,
+            kd=self.params.policy_kd,
+            position_clip_margin=self.params.position_clip_margin,
+            sustained_clip_ticks=self.params.sustained_clip_ticks,
+        )
         self.recorder = InterventionRecorder(
             self.params.live_intervention_window, self.params.live_intervention_max_fraction
         )
@@ -212,6 +245,7 @@ class ControllerFSM:
         self._stop_damp = False
         self._authority_start_ns: int | None = None
         self.policy_calls = 0
+        self._action_saturation_ticks = 0
         self.transitions: list[tuple[int, str, str, str]] = []
 
     # ------------------------------------------------------------- operator
@@ -461,9 +495,7 @@ class ControllerFSM:
         ):
             self._fault("handoff_criteria_not_met:" + ";".join(status.failing[:2]), t)
             return self._tick_fault(inp)
-        return self._stand_output(
-            "stance_verified" if status.ready else "verifying_stance", status
-        )
+        return self._stand_output("stance_verified" if status.ready else "verifying_stance", status)
 
     def _tick_ready(self, inp: FsmInputs) -> FsmOutput:
         t = int(inp.t_ns)
@@ -529,27 +561,49 @@ class ControllerFSM:
             self._fault(f"observation_invalid:{exc}", t)
             return self._tick_fault(inp)
         self.policy_calls += 1
-        action = np.asarray(self._policy(obs), dtype=np.float64).reshape(-1)
-        if action.shape != (self.n,) or not np.all(np.isfinite(action)):
+        raw_action = np.asarray(self._policy(obs), dtype=np.float64).reshape(-1)
+        if raw_action.shape != (self.n,) or not np.all(np.isfinite(raw_action)):
             self._fault("policy_output_invalid", t)
             return self._tick_fault(inp)
+        # Clamp to [-action_clip, action_clip] BEFORE scaling. action_clip
+        # MUST equal the checkpoint's training clip_actions value (2026-09-24:
+        # moved from 1.0 to 100.0, the legged_gym/rl_sar/robot_lab convention;
+        # at action_scale=0.25 a clip of 1.0 pinned the policy at the clamp on
+        # nearly every step). It is read from the checkpoint manifest
+        # (phoenix.sim2real.deploy_manifest, deploy.action_clip) by whoever
+        # builds this FsmParams for a real deploy, via fsm_params_from_manifest;
+        # a manifest missing that field refuses to build FsmParams at all.
+        # The 2026-09-21 stage F1 failure traced to an unclamped raw action of
+        # -7.2 on RR_thigh reaching the target-scaling arithmetic with no bound
+        # at all. This is a second, independent bound from the torque clip
+        # below: the torque clip protects the motors from ANY target (including
+        # a bug downstream of this clamp, or a legitimate large action under
+        # the new clip=100 convention); this clamp only catches a genuine
+        # outlier (NaN-adjacent, runaway network output), not everyday policy
+        # authority.
+        action, saturated = clip_actions(raw_action, self.params.action_clip)
+        sat_fraction = float(np.mean(saturated))
+        if sat_fraction > 0.0:
+            self._action_saturation_ticks += 1
         scaled = self.fix_stand.target + p.action_scale * action
-        result = self.safety.apply(scaled, q)
+        result = self.safety.apply(scaled, q, inp.dq)
         record = tick_record(
             t_ns=t,
             order=self.order,
-            raw_action=action,
+            raw_action=raw_action,
             scaled_target=scaled,
             safety_target=result.final_target,
             final_target=result.final_target,
             reasons=result.reasons,
             source="fsm",
         )
+        record["action_saturated"] = [bool(v) for v in saturated]
+        record["action_saturation_fraction"] = sat_fraction
         self.recorder.add(record, illegal=result.illegal)
-        # last_action is the policy's own raw output, as in training, even when clipped.
+        # last_action is the CLIPPED action, as in training (rsl_rl clips before env.step).
         self._last_action = action
         if result.illegal:
-            self._fault("illegal_target", t)
+            self._fault(result.fault_reason or "illegal_target", t)
             out = self._tick_fault(inp)
             out.intervention = record
             return out
@@ -604,6 +658,10 @@ class ControllerFSM:
             "stand_only": self.stand_only,
             "policy_configured": self._policy is not None,
             "policy_calls": self.policy_calls,
+            "action_saturation_ticks": self._action_saturation_ticks,
+            "action_saturation_rate": (
+                self._action_saturation_ticks / self.policy_calls if self.policy_calls else None
+            ),
             "transitions": [
                 {"t_ns": t, "from": a, "to": b, "why": why} for t, a, b, why in self.transitions
             ],
@@ -623,11 +681,52 @@ def fsm_params_from_mapping(data: Mapping[str, Any] | None) -> FsmParams:
     return FsmParams(**data)
 
 
+def fsm_params_from_manifest(
+    manifest_path: str | Path, data: Mapping[str, Any] | None = None
+) -> FsmParams:
+    """Build ``FsmParams`` for a REAL deploy: everything ``fsm_params_from_mapping``
+    accepts, plus ``action_clip`` (and ``policy_kp``/``policy_kd`` when the
+    manifest states them) read from the checkpoint manifest's ``deploy`` block.
+
+    This is the production entry point for the "deploy clip must equal the
+    training clip" rule: it calls
+    :func:`phoenix.sim2real.deploy_manifest.load_deploy_manifest`, which
+    raises :class:`~phoenix.sim2real.deploy_manifest.ManifestError` (uncaught,
+    on purpose) if ``deploy.action_clip`` is missing, so a bring-up with no
+    manifest, or a manifest that never got the new field, refuses to
+    construct an FsmParams at all rather than silently falling back to
+    ``FsmParams.action_clip``'s dataclass default.
+
+    ``data`` may not itself set ``action_clip``, ``policy_kp`` or
+    ``policy_kd``: those come from the manifest exclusively, so there is
+    exactly one place a real deploy's clip and gains can be set.
+    """
+    from pathlib import Path as _Path
+
+    from .deploy_manifest import load_deploy_manifest
+
+    manifest = load_deploy_manifest(_Path(manifest_path))
+    data = dict(data or {})
+    for locked in ("action_clip", "policy_kp", "policy_kd"):
+        if locked in data:
+            raise ValueError(
+                f"fsm_params_from_manifest: {locked} must come from the checkpoint "
+                f"manifest ({manifest_path}), not from the caller's data mapping"
+            )
+    data["action_clip"] = manifest.action_clip
+    if manifest.kp is not None:
+        data["policy_kp"] = manifest.kp
+    if manifest.kd is not None:
+        data["policy_kd"] = manifest.kd
+    return fsm_params_from_mapping(data)
+
+
 __all__ = [
     "ControllerFSM",
     "FsmInputs",
     "FsmOutput",
     "FsmParams",
     "State",
+    "fsm_params_from_manifest",
     "fsm_params_from_mapping",
 ]

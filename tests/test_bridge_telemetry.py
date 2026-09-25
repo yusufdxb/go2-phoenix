@@ -94,10 +94,11 @@ def test_slew_metric_counts_each_command_once_and_matches_hand_count(tmp_path) -
     gate.on_lowstate(T0, DEFAULT_U, np.zeros(12))
     gate.on_estop(T0, False)
     rows = []
-    # Command 1: two joints far beyond one slew step -> 2 of 12 clipped.
+    # Command 1: two joints far beyond their torque-limit boundary (kp=25,
+    # hip/thigh limit 23.5 Nm => clip point at +/-0.94 rad) -> 2 of 12 clipped.
     big = DEFAULT_P.copy()
-    big[0] += 0.5
-    big[5] -= 0.5
+    big[0] += 1.0
+    big[5] -= 1.0
     label, data = _cmd(big, seq=1)
     gate.on_command(T0 + 1, label, data)
     rows.append(gate.tick(T0 + 10_000_000))

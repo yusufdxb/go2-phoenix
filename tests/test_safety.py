@@ -7,14 +7,18 @@ import numpy as np
 import pytest
 
 from phoenix.sim2real.safety import (
+    ACTION_CLIP,
     MAX_DELTA_PER_STEP_RAD,
+    clip_actions,
     deadman_should_estop,
     estop_is_active,
+    expected_torque,
     is_ready_to_command_motion,
     per_step_clip,
     per_step_clip_array,
     sensor_is_stale,
     startup_state,
+    torque_limited_target_array,
 )
 
 # 1 ms in nanoseconds. Tests use a synthetic clock so behaviour is exact.
@@ -129,7 +133,7 @@ def test_deadman_estopped_when_button_released() -> None:
 
 
 def test_deadman_estopped_when_input_stale_even_with_button_held() -> None:
-    # Most realistic failure mode: gamepad disconnect — last reported state
+    # Most realistic failure mode: gamepad disconnect , last reported state
     # was "held" but no fresh inputs are arriving.
     now = 1_000 * MS
     assert (
@@ -379,7 +383,7 @@ def test_startup_abort_names_all_missing_topics() -> None:
 
 
 def test_startup_ready_before_timeout_even_if_slow() -> None:
-    # 14s elapsed < 15s timeout, all seen — ready, not abort.
+    # 14s elapsed < 15s timeout, all seen , ready, not abort.
     state, reason = startup_state(
         **_startup_kw(
             now_ns=14_000 * MS,
@@ -389,3 +393,96 @@ def test_startup_ready_before_timeout_even_if_slow() -> None:
         )
     )
     assert (state, reason) == ("ready", None)
+
+
+# ---------------- clip_actions ----------------------------------------------
+
+
+def test_clip_actions_passes_through_inside_range() -> None:
+    action = np.asarray([-0.9, 0.0, 0.5, 1.0, -1.0])
+    clipped, saturated = clip_actions(action)
+    assert np.allclose(clipped, action)
+    assert not saturated.any()
+
+
+def test_clip_actions_clamps_and_flags_saturation() -> None:
+    # The 2026-09-21 stage F1 failure: a raw action of -7.2 on one joint with
+    # no clamp at all. clip_actions is the fix: everything outside [-1, 1] is
+    # clamped and flagged.
+    action = np.asarray([-7.2, 0.3, 3.5, -1.0000001, 1.0])
+    clipped, saturated = clip_actions(action)
+    assert np.allclose(clipped, [-1.0, 0.3, 1.0, -1.0, 1.0])
+    assert list(saturated) == [True, False, True, True, False]
+
+
+def test_clip_actions_respects_custom_limit() -> None:
+    clipped, saturated = clip_actions(np.asarray([2.0, -2.0]), limit=0.25)
+    assert np.allclose(clipped, [0.25, -0.25])
+    assert saturated.all()
+
+
+def test_action_clip_constant_matches_training_clip_actions() -> None:
+    # Matches training's clip_actions=1.0 (evaluate.py:223, fine_tune.py:265,
+    # reconstruct.py:224, ppo_runner.py:124).
+    assert ACTION_CLIP == 1.0
+
+
+# ---------------- torque_limited_target_array -------------------------------
+
+
+def test_torque_limited_target_array_passes_small_targets() -> None:
+    q = np.zeros(3)
+    dq = np.zeros(3)
+    target = np.asarray([0.01, -0.02, 0.0])
+    clipped = torque_limited_target_array(target, q, dq, kp=25.0, kd=0.5, torque_limit=23.5)
+    assert np.allclose(clipped, target)
+
+
+def test_torque_limited_target_array_clips_to_the_torque_boundary() -> None:
+    q = np.zeros(1)
+    dq = np.zeros(1)
+    kp, limit = 25.0, 23.5
+    target = np.asarray([100.0])  # absurd, must be clipped
+    clipped = torque_limited_target_array(target, q, dq, kp=kp, kd=0.5, torque_limit=limit)
+    assert clipped[0] == pytest.approx(limit / kp)
+    tau = expected_torque(clipped, q, dq, kp, 0.5)
+    assert tau[0] == pytest.approx(limit)
+
+
+def test_torque_limited_target_array_shifts_with_measured_velocity() -> None:
+    # tau = Kp*(t-q) - Kd*dq: a joint already moving toward +q (dq > 0)
+    # subtracts a positive damping term from tau, so a LARGER position delta
+    # is needed to reach the same torque ceiling than when dq == 0.
+    q = np.zeros(1)
+    kp, kd, limit = 25.0, 0.5, 23.5
+    target = np.asarray([100.0])
+    clipped_static = torque_limited_target_array(target, q, [0.0], kp, kd, limit)
+    clipped_moving = torque_limited_target_array(target, q, [4.0], kp, kd, limit)
+    assert clipped_moving[0] > clipped_static[0]
+
+
+def test_torque_limited_target_array_is_symmetric() -> None:
+    q = np.zeros(1)
+    dq = np.zeros(1)
+    kp, limit = 25.0, 23.5
+    hi = torque_limited_target_array([100.0], q, dq, kp, 0.5, limit)
+    lo = torque_limited_target_array([-100.0], q, dq, kp, 0.5, limit)
+    assert hi[0] == pytest.approx(-lo[0])
+
+
+def test_torque_limited_target_array_per_joint_limits() -> None:
+    # Calf's real torque limit (45.43 Nm) is much larger than hip/thigh's
+    # (23.5 Nm); the same absurd target clips further for the calf.
+    q = np.zeros(2)
+    dq = np.zeros(2)
+    target = np.asarray([100.0, 100.0])
+    clipped = torque_limited_target_array(
+        target, q, dq, kp=25.0, kd=0.5, torque_limit=[23.5, 45.43]
+    )
+    assert clipped[1] > clipped[0]
+
+
+def test_expected_torque_matches_pd_law() -> None:
+    q, dq, target, kp, kd = 0.5, -1.0, 0.6, 20.0, 0.4
+    tau = expected_torque([target], [q], [dq], kp, kd)
+    assert tau[0] == pytest.approx(kp * (target - q) - kd * dq)
