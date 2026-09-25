@@ -11,7 +11,7 @@ from phoenix.training.evaluate import parse_args
 
 
 def outcome(**kwargs):
-    return EpisodeOutcome(
+    values = dict(
         policy_id="sha256:abc",
         evaluation_seed=19,
         episode_id=0,
@@ -20,8 +20,12 @@ def outcome(**kwargs):
         episode_length_steps=10,
         control_dt_s=0.02,
         episode_return=3.0,
-        **kwargs,
+        outcome_class="base_contact",
+        verdict="FAIL",
+        legacy_success=False,
     )
+    values.update(kwargs)
+    return EpisodeOutcome(**values)
 
 
 def test_roundtrip_preserves_unknowns_and_independent_seeds(tmp_path):

@@ -15,8 +15,7 @@ PYTHONPATH=src python scripts/sim2sim_gate.py \
 ```
 
 Needs `mujoco`, `onnxruntime`, `numpy`, `pyyaml`, and for video `imageio[ffmpeg]`.
-The workstation venv that has them: `~/Projects/go2-positive-control/.venv/bin/python`
-(numpy 1.26.4, mujoco 3.14.0, onnxruntime 1.23.2). CPU only. A full run (9 scenarios,
+The gate runs on CPU. A full run (9 scenarios,
 about 125 simulated seconds at 1 kHz, plus video) takes about 30 s of wall time.
 
 Exit code: `0` PASS, `1` FAIL, `3` DIAGNOSTIC (a gate setting was overridden, so no
@@ -44,7 +43,7 @@ normalization must be inside the graph (as `phoenix.sim2real.export` writes it).
 1. `phoenix-checkpoint-manifest/v1` (the normal case, from
    `phoenix.velocity.contract.build_manifest`). The observation is
    `phoenix.velocity.observation.build_actor_observation` (45-D) and the targets
-   `actions_to_joint_targets` after a clamp to `[-1, 1]`. The manifest is validated
+   `actions_to_joint_targets` after the manifest's action clip. The manifest is validated
    with `validate_manifest_for_mode(..., "velocity")` against the gate's required
    command envelope; any problem fails the gate. Optional deploy block:
 
@@ -89,15 +88,15 @@ sha256, the commit that last touched it), `policy` (ONNX and manifest sha256), `
 
 ## Gate v3 (default)
 
-`configs/sim2sim/gate_v3.yaml`, committed alone at `65485bd`. It is POST-HOC for the
-walk-v1 checkpoints (written after seeing v2 pass the collapsed seed42/seed44 @8999
-checkpoints, which never move) and PREREGISTERED for the next training run. It is v2
+`configs/sim2sim/gate_v3.yaml` was introduced after v2 passed the collapsed
+seed42/seed44 @8999 checkpoints. It is post hoc for those checkpoints and was
+set before the seed46 run. It is v2
 plus one blocking SAFETY check, `responsiveness`: in `forward_0p3`, `forward_0p5` and
 `yaw_0p6` the achieved mean of vx (or wz) over the tracking window must have the
 command's sign and be >= 0.5 x |command| (0.15 m/s, 0.25 m/s, 0.30 rad/s). A fall fails
 it. The check value is the achieved fraction `sign(cmd) * mean / |cmd|`.
 
-v3 results (code at da2ae72; values are the responsiveness fractions for fwd 0.3, fwd 0.5, yaw 0.6):
+v3 results (responsiveness fractions for fwd 0.3, fwd 0.5, yaw 0.6):
 
 | policy | v3 SAFETY | responsiveness | other SAFETY failures |
 |---|---|---|---|
@@ -122,22 +121,22 @@ v3 results (code at da2ae72; values are the responsiveness fractions for fwd 0.3
   0.035 rad into the MuJoCo soft stop), present with 20 ms latency, larger at +0.8
   rad/s (targets 0.313 rad past the stop). Absent for clockwise yaw (-0.6, -0.8: margin
   >= 0.16 rad) and at +0.3 rad/s.
-- Why Isaac reports 0.0011: `scripts/eval_velocity.py` (trainer branch) counts joints
+- Why Isaac reports 0.0011: `scripts/eval_velocity.py` counts joints
   within 5 % of the SOFT range of the SOFT limits, averaged over all 12 joints, all envs
   and randomly sampled commands. The gate counts control steps where ANY calf is within
   0.05 rad of the HARD limit, in one scenario (pure +0.6 rad/s turn in place). The
   gate's band lies entirely outside Isaac's soft range. Not comparable numbers.
-- Hardware consequence: at +0.6 rad/s the requested calf target exceeds the hard limit
-  by more than this branch's deploy abort band (`LIMIT_ABORT_BAND_RAD` 0.175) on 5 of
-  600 steps (19 at +0.8). On the robot that trips `target_beyond_limit` and latches, the
-  F1 mechanism. Verdict: real policy behavior, likely to appear on hardware in CCW
-  turns; not a model or threshold artifact.
+- Deploy consequence: at +0.6 rad/s the requested calf target exceeds the hard limit
+  by more than the earlier H25 abort band (`LIMIT_ABORT_BAND_RAD` 0.175) on 5 of
+  600 steps (19 at +0.8). The current deploy path clips such requests and
+  latches only on sustained clipping. The candidate still fails the near-limit
+  gate. The behavior is a policy result, not a model or threshold artifact.
 - Not verified: the same trace in Isaac at a fixed +0.6 rad/s command (GPU reserved).
 
-## Gate v2 (preregistered, approved by Yusuf)
+## Gate v2
 
-`configs/sim2sim/gate_v2.yaml`, committed alone at `4355f7c` before any Phoenix walking
-checkpoint existed. Same plant, scenarios and numbers as v1; checks split into tiers.
+`configs/sim2sim/gate_v2.yaml` was set before the walk-v1 checkpoint evaluation.
+It uses the same plant, scenarios and numbers as v1, with checks split into tiers.
 
 - SAFETY (blocking, the verdict): no fall and finite actions in every scenario;
   pre-clip saturation <= 0.05 measured as `|raw| >= deploy.action_clip` (no clip =
@@ -152,11 +151,10 @@ checkpoint existed. Same plant, scenarios and numbers as v1; checks split into t
 Report: `verdict` is the SAFETY verdict; `failures` are SAFETY failures;
 `performance_failures` and `tiers.performance.{rows, named, verdict}` hold the rest.
 
-## Gate v1 (preregistered, kept intact)
+## Gate v1
 
-Thresholds and scenarios are in `configs/sim2sim/gate_v1.yaml`, committed at `e3bd88b`
-before any policy was run through the gate. Do not edit them after seeing a result; a
-changed gate is a new file.
+Thresholds and scenarios are in `configs/sim2sim/gate_v1.yaml`. They were set
+before any policy was run through the gate. A changed gate requires a new file.
 
 Scenarios: `stand_20s`, `forward_0p3`, `forward_0p5`, `lateral_0p2`, `yaw_0p6`,
 `lateral_step` (0.3 m/s lateral steps with a sign flip), `friction_0p4`,
@@ -192,7 +190,7 @@ action|, |raw| > 1 rate, planar displacement, tracked mean vx/vy/wz, time to fal
   maps, not a manifest that names the policy's joints in the wrong order; that is
   established by the manifest being written from the training config.
 
-## Validation under gate v2 (2026-09-24, code at 31611a2)
+## Validation under gate v2 (2026-09-24)
 
 | policy | SAFETY verdict | performance |
 |---|---|---|
@@ -200,10 +198,10 @@ action|, |raw| > 1 rate, planar displacement, tracked mean vx/vy/wz, time to fal
 | rl_sar go2/himloco | PASS | FAIL: turn_in_place 0.597 > 0.20 (stand_yaw_drift 0.012 PASS) |
 | Phoenix H25 stand | FAIL: manifest, envelope x3, stand height 0.229 m, pre-clip saturation 0.82 to 0.98 in all 9 scenarios | FAIL |
 
-Results: `~/Projects/go2-positive-control/results/final_31611a2/{v1,v2}/`. The v1 rerun
-at 31611a2 reproduces the v1 numbers below exactly.
+The v1 rerun reproduced the v1 numbers below. Raw generated videos and
+checkpoints are not included in this branch.
 
-## Validation under gate v1 (2026-09-24, code at 5891a2a; stays reported as is)
+## Validation under gate v1 (2026-09-24)
 
 | policy | real-robot evidence | verdict | what failed |
 |---|---|---|---|
@@ -223,19 +221,6 @@ asymmetry.
 Use rl_sar `go2/robot_lab` or `go2/himloco` with rl_sar's own deployer
 (`rl_real_go2`), per the numbers above: robot_lab tracks 0.3 and 0.5 m/s forward and
 0.6 rad/s yaw but will not stand still; himloco stands still but turns only while
-walking. ONNX conversions and parity reports are in
-`~/Projects/go2-positive-control/rl_sar_go2/policy/go2/*/policy.onnx{,.parity.json}`.
-
-unitree_rl_mjlab ships no GO2 checkpoint (only G1). To train one when the GPU is free
-(not run):
-
-```bash
-cd ~/Projects/go2-positive-control/unitree_rl_mjlab   # tarball of main @1425b15
-uv venv --python 3.11 .venv-mjlab && VIRTUAL_ENV=.venv-mjlab uv pip install -e .   # mjlab==1.2.0
-nvidia-smi   # confirm the Phoenix retrain is not running
-.venv-mjlab/bin/python scripts/train.py Unitree-Go2-Flat --env.scene.num-envs=4096
-.venv-mjlab/bin/python scripts/play.py Unitree-Go2-Flat --checkpoint_file=logs/rsl_rl/go2_velocity/<run>/model_<it>.pt
-```
-
-Its policy input is 47-D (it includes a 2-D `gait_phase` term, period 0.6 s), so gating
-it needs a `gait_phase` term added to the explicit spec first.
+walking. Their real-robot status comes from the upstream maintainers; Phoenix
+has not repeated those runs on this robot. unitree_rl_mjlab ships no GO2
+checkpoint in the version examined for this comparison.
