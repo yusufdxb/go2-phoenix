@@ -28,7 +28,8 @@ Options:
 | flag | effect |
 |---|---|
 | `--no-video` | skip the MP4s |
-| `--gate-config <yaml>` | a different gate file (default `configs/sim2sim/gate_v1.yaml`) |
+| `--gate v1\|v2` | preregistered gate version, default `v2` |
+| `--gate-config <yaml>` | explicit gate file, overrides `--gate` |
 | `--scenarios a b` | subset; makes the run DIAGNOSTIC |
 | `--latency-ms X` | target delay; makes the run DIAGNOSTIC |
 | `--action-clip X\|none` | override the deploy clamp; makes the run DIAGNOSTIC |
@@ -48,11 +49,13 @@ normalization must be inside the graph (as `phoenix.sim2real.export` writes it).
    command envelope; any problem fails the gate. Optional deploy block:
 
    ```json
-   "deploy": {"kp": 25.0, "kd": 0.5, "action_clip": 1.0}
+   "deploy": {"kp": 25.0, "kd": 0.5, "action_clip": 100.0}
    ```
 
-   `kp`/`kd` may be a scalar or 12 values in `joint_order`. Without the block the gate
-   uses Kp 25 / Kd 0.5 / clip 1.0 and records that as an assumption in the report.
+   `kp`/`kd` may be a scalar, 12 values in `joint_order`, or a mapping by group
+   (`{"hip": .., "thigh": .., "calf": ..}`) or by joint name; both must be given.
+   `action_clip` must be > 0 or `null` (no clamp; fails gate v2 SAFETY). Without the
+   block the gate uses Kp 25 / Kd 0.5 / clip 1.0 and records each as an assumption.
 2. `phoenix-legacy-checkpoint-manifest/v0` (H25 only): 48-D, `base_lin_vel` fed
    zeros, then the same 45-D builder.
 3. `phoenix-sim2sim-deploy-spec/v1`: explicit spec for a policy from another stack
@@ -84,7 +87,25 @@ sha256, the commit that last touched it), `policy` (ONNX and manifest sha256), `
   velocity (the state after a FixStand ramp to the trained pose).
 - Fall: base height < 0.20 m or |roll| or |pitch| > 0.8 rad.
 
-## Gate v1 (preregistered)
+## Gate v2 (default, preregistered, approved by Yusuf)
+
+`configs/sim2sim/gate_v2.yaml`, committed alone at `4355f7c` before any Phoenix walking
+checkpoint existed. Same plant, scenarios and numbers as v1; checks split into tiers.
+
+- SAFETY (blocking, the verdict): no fall and finite actions in every scenario;
+  pre-clip saturation <= 0.05 measured as `|raw| >= deploy.action_clip` (no clip =
+  FAIL); torque saturation <= 0.05 per group; zero hard-limit violations; near-limit
+  fraction <= 0.02 per group; stand height >= 0.24 m; manifest valid; command envelope
+  covers |vx| 0.5, |vy| 0.3, |wz| 0.8 in both signs (the first lab session's commands);
+  joint sign audit.
+- PERFORMANCE (reported, non-blocking): v1 tracking thresholds unchanged (0.15 m/s,
+  0.20 rad/s; stress 0.25, 0.30), with named rows `stand_yaw_drift` (stand_20s) and
+  `turn_in_place` (yaw_0p6). Report key `tiers.performance`.
+
+Report: `verdict` is the SAFETY verdict; `failures` are SAFETY failures;
+`performance_failures` and `tiers.performance.{rows, named, verdict}` hold the rest.
+
+## Gate v1 (preregistered, kept intact)
 
 Thresholds and scenarios are in `configs/sim2sim/gate_v1.yaml`, committed at `e3bd88b`
 before any policy was run through the gate. Do not edit them after seeing a result; a
@@ -124,7 +145,18 @@ action|, |raw| > 1 rate, planar displacement, tracked mean vx/vy/wz, time to fal
   maps, not a manifest that names the policy's joints in the wrong order; that is
   established by the manifest being written from the training config.
 
-## Validation (2026-09-24, code at 5891a2a, gate_v1)
+## Validation under gate v2 (2026-09-24, code at 31611a2)
+
+| policy | SAFETY verdict | performance |
+|---|---|---|
+| rl_sar go2/robot_lab | PASS | FAIL: stand_yaw_drift 0.204 > 0.20 (turn_in_place 0.100 PASS) |
+| rl_sar go2/himloco | PASS | FAIL: turn_in_place 0.597 > 0.20 (stand_yaw_drift 0.012 PASS) |
+| Phoenix H25 stand | FAIL: manifest, envelope x3, stand height 0.229 m, pre-clip saturation 0.82 to 0.98 in all 9 scenarios | FAIL |
+
+Results: `~/Projects/go2-positive-control/results/final_31611a2/{v1,v2}/`. The v1 rerun
+at 31611a2 reproduces the v1 numbers below exactly.
+
+## Validation under gate v1 (2026-09-24, code at 5891a2a; stays reported as is)
 
 | policy | real-robot evidence | verdict | what failed |
 |---|---|---|---|
