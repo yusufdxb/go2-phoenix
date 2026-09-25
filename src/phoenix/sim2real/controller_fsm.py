@@ -564,7 +564,7 @@ class ControllerFSM:
         record["action_saturated"] = [bool(v) for v in saturated]
         record["action_saturation_fraction"] = sat_fraction
         self.recorder.add(record, illegal=result.illegal)
-        # last_action is the policy's own raw output, as in training, even when clipped.
+        # last_action is the CLIPPED action, as in training (rsl_rl clips before env.step).
         self._last_action = action
         if result.illegal:
             self._fault("illegal_target", t)
