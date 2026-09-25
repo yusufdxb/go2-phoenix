@@ -1,0 +1,148 @@
+# Phoenix sim-to-sim gate, version 3.
+#
+# STATUS OF THIS FILE (read before quoting any v3 result):
+# * POST-HOC for the walk-v1 checkpoints (feat/phoenix-walk-v1-train, seeds
+#   42/44, clip 100). v3 was written on 2026-09-25 AFTER seeing their gate_v2
+#   results: the collapsed final checkpoints (seed42 and seed44 @ iter 8999)
+#   passed v2 SAFETY while outputting about zero velocity (fell=no in every
+#   scenario, lin_vel_rmse equal to the command magnitude). v3 results on those
+#   checkpoints are post-hoc and must be labelled so.
+# * PREREGISTERED for the upcoming fixed training run: committed alone, before
+#   that run produced any checkpoint.
+# * Also known when it was written: the positive controls' v1/v2 tracking data
+#   (himloco in-place yaw +0.004 rad/s at a 0.6 rad/s command).
+#
+# Change from gate_v2: one added blocking SAFETY check, RESPONSIVENESS. A policy
+# that never moves does not respond to the operator and is not safe to hand the
+# robot to. Everything else (physics, actuator, fall, tracking, scenarios,
+# saturation definition, every numeric threshold, the PERFORMANCE tier) is
+# identical to gate_v2.yaml. gate_v1 and gate_v2 stay intact and their results
+# stay reported under their own versions.
+
+schema: phoenix-sim2sim-gate/v3
+name: gate_v3
+supersedes: gate_v2
+
+physics:
+  physics_hz: 1000
+  profile: real_go2
+  nominal_foot_friction: 0.8
+  latency_ms: 0.0
+  init_foot_clearance_m: 0.005
+
+actuator:
+  hip:   {effort_limit: 23.5,  velocity_limit: 30.1}
+  thigh: {effort_limit: 23.5,  velocity_limit: 30.1}
+  calf:  {effort_limit: 45.43, velocity_limit: 15.70}
+
+fall:
+  base_height_min_m: 0.20
+  max_abs_roll_pitch_rad: 0.8
+
+tracking:
+  smoothing_window_s: 0.5
+  exclude_after_command_change_s: 1.5
+
+saturation:
+  comparison: ">="
+  relative_to: deploy_action_clip
+  missing_clip: fail
+
+required_command_envelope:
+  lin_vel_x: 0.5
+  lin_vel_y: 0.3
+  ang_vel_z: 0.8
+
+safety:
+  all:
+    no_fall: true
+    finite_actions: true
+    max_pre_clip_saturation_rate: 0.05
+    max_torque_saturation_fraction: 0.05
+    max_hard_limit_violation_steps: 0
+    near_limit_margin_rad: 0.05
+    max_near_limit_fraction: 0.02
+  stand:
+    min_mean_base_height_m: 0.24
+  spec:
+    manifest_valid: true
+    command_envelope: true
+    joint_sign_audit: true
+  # NEW in v3. In each listed scenario, the achieved mean of the named body
+  # velocity component over the tracking window (0.5 s smoothed, samples within
+  # 1.5 s of a command change excluded, the same window as the RMSE) must have
+  # the command's sign and a magnitude >= min_fraction x |command|, where the
+  # command is that component of the scenario's last segment:
+  #   forward_0p3: mean vx >= 0.15 m/s
+  #   forward_0p5: mean vx >= 0.25 m/s
+  #   yaw_0p6:     mean wz >= 0.30 rad/s
+  # A fall (no tracking window) fails it.
+  responsiveness:
+    min_fraction: 0.5
+    scenarios:
+      forward_0p3: lin_vel_x
+      forward_0p5: lin_vel_x
+      yaw_0p6: ang_vel_z
+
+performance:
+  nominal:
+    max_lin_vel_rmse_mps: 0.15
+    max_yaw_rate_rmse_radps: 0.20
+  stress:
+    max_lin_vel_rmse_mps: 0.25
+    max_yaw_rate_rmse_radps: 0.30
+  named:
+    stand_yaw_drift: {scenario: stand_20s, metric: yaw_rate_rmse_radps}
+    turn_in_place: {scenario: yaw_0p6, metric: yaw_rate_rmse_radps}
+
+scenarios:
+  - name: stand_20s
+    tier: nominal
+    stand_checks: true
+    duration_s: 20.0
+    segments: [[0.0, [0.0, 0.0, 0.0]]]
+  - name: forward_0p3
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.3, 0.0, 0.0]]]
+  - name: forward_0p5
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.5, 0.0, 0.0]]]
+  - name: lateral_0p2
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.0, 0.2, 0.0]]]
+  - name: yaw_0p6
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.0, 0.0, 0.6]]]
+  - name: lateral_step
+    tier: stress
+    duration_s: 14.0
+    segments:
+      - [0.0,  [0.0, 0.0, 0.0]]
+      - [2.0,  [0.3, 0.0, 0.0]]
+      - [5.0,  [0.0, 0.3, 0.0]]
+      - [8.0,  [0.0, -0.3, 0.0]]
+      - [11.0, [0.0, 0.0, 0.0]]
+  - name: friction_0p4
+    tier: stress
+    duration_s: 12.0
+    foot_friction: 0.4
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.3, 0.0, 0.0]]]
+  - name: friction_1p0
+    tier: nominal
+    duration_s: 12.0
+    foot_friction: 1.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.3, 0.0, 0.0]]]
+  - name: payload_2kg
+    tier: stress
+    duration_s: 13.0
+    payload_kg: 2.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [3.0, [0.3, 0.0, 0.0]]]
+
+video:
+  width: 480
+  height: 360
+  fps: 25

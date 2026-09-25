@@ -1,0 +1,49 @@
+{
+  "schema": "phoenix-sim2sim-deploy-spec/v1",
+  "name": "rl_sar_go2_robot_lab",
+  "provenance": {
+    "policy": "fan-ziqi/rl_sar policy/go2/robot_lab/policy.pt (TorchScript), converted to ONNX by scripts/sim2sim_torchscript_to_onnx.py",
+    "rl_sar_commit": "376d42c9b128f963ab08579762d5a216a976ce39",
+    "policy_pt_sha256": "9f14cb95e74ac9e5e30954da0fc0c33eaa41e337852ebed19fcee869279ade0b",
+    "deploy_config": "policy/go2/robot_lab/config.yaml and policy/go2/base.yaml at that commit, transcribed below",
+    "obs_and_action_code": "src/rl_sar/library/core/rl_sdk/rl_sdk.cpp ComputeObservation / ComputeOutput; src/rl_sar/src/rl_real_go2.cpp RunModel / Forward",
+    "real_robot_claim": "rl_sar README robot table marks Unitree-Go2 robot_lab (IsaacSim) as run on the real robot; maintainer-attested, not independently verified here"
+  },
+  "joint_order": [
+    "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+    "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+    "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
+    "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint"
+  ],
+  "sdk_joint_ids_map": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+  "default_joint_pos": [0.0, 0.8, -1.5, 0.0, 0.8, -1.5, 0.0, 0.8, -1.5, 0.0, 0.8, -1.5],
+  "control_hz": 50,
+  "kp": 20.0,
+  "kd": 0.5,
+  "action": {
+    "scale": [0.125, 0.25, 0.25, 0.125, 0.25, 0.25, 0.125, 0.25, 0.25, 0.125, 0.25, 0.25],
+    "clip": 100.0
+  },
+  "observation": {
+    "terms": [
+      {"name": "ang_vel", "scale": 0.25},
+      {"name": "gravity_vec", "scale": 1.0},
+      {"name": "commands", "scale": [1.0, 1.0, 1.0]},
+      {"name": "dof_pos", "scale": 1.0},
+      {"name": "dof_vel", "scale": 0.05},
+      {"name": "actions", "scale": 1.0}
+    ],
+    "clip": 100.0,
+    "history": null
+  },
+  "trained_commands": {
+    "lin_vel_x": [-1.0, 1.0],
+    "lin_vel_y": [-1.0, 1.0],
+    "ang_vel_z": [-1.0, 1.0]
+  },
+  "assumptions": [
+    "trained_commands are robot_lab main velocity_env_cfg.py defaults (UNITREE_GO2 rough cfg leaves ranges commented out); the shipped policy.pt may predate them",
+    "robot_lab joint order for GO2 is the SDK order with preserve_order (robot_lab unitree_go2/rough_env_cfg.py joint_names), consistent with rl_sar joint_mapping identity",
+    "rl_sar deploys rl_kp 20 / rl_kd 0.5 as shipped; robot_lab trains with its own UNITREE_GO2_CFG gains (not re-checked)"
+  ]
+}

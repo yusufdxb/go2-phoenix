@@ -1,0 +1,141 @@
+# Phoenix sim-to-sim gate, version 1. PREREGISTERED.
+#
+# Written 2026-09-24 BEFORE any Phoenix walking checkpoint existed and BEFORE the
+# positive-control or H25 policy was run through the gate. The commit that adds
+# this file precedes every gate result; `git log -- configs/sim2sim/gate_v1.yaml`
+# proves the order. Do not edit a threshold after seeing a result. A changed gate
+# is a new file (gate_v2.yaml) with its own rationale, and results under v1 stay
+# reported under v1.
+#
+# Where a number comes from is written next to it. "prior" means an engineering
+# judgment made without results in hand, stated so it can be argued with.
+
+schema: phoenix-sim2sim-gate/v1
+name: gate_v1
+
+physics:
+  # PD loop rate. The real GO2 motor driver closes PD far faster than 50 Hz;
+  # Unitree's low-level examples stream lowcmd at 500 Hz. 1 kHz here.
+  physics_hz: 1000
+  # MuJoCo model profile, see phoenix.sim2sim.model.PROFILE_REAL.
+  profile: real_go2
+  # Foot/ground friction when a scenario does not override it (model.py
+  # NOMINAL_FOOT_FRICTION, the Menagerie foot value, inside Phoenix's trained
+  # friction DR range [0.3, 1.5]).
+  nominal_foot_friction: 0.8
+  # Target delay applied to every scenario, ms. 0 = none. The CLI can override it
+  # for a diagnostic run; a gate verdict is only issued at the value below.
+  latency_ms: 0.0
+  # Initial base height: FK places the lowest foot this far above the floor, at
+  # the spec's default joint pose, zero velocity (the handover state after a
+  # FixStand ramp to the trained default pose).
+  init_foot_clearance_m: 0.005
+
+# Real GO2 actuator envelope (joint side). DCMotor-style torque-speed clip with
+# saturation effort == effort limit, as Isaac Lab develop models it after
+# isaac-sim/IsaacLab#7479 (closed 2026-09-04). Calf numbers are the Unitree URDF
+# joint limits (go2_description.urdf effort 45.43, velocity 15.70). Hip/thigh
+# effort is 23.5 (the URDF says 23.7; 23.5 is the conservative value the brief
+# fixed); hip/thigh velocity 30.1 is the URDF value.
+actuator:
+  hip:   {effort_limit: 23.5,  velocity_limit: 30.1}
+  thigh: {effort_limit: 23.5,  velocity_limit: 30.1}
+  calf:  {effort_limit: 45.43, velocity_limit: 15.70}
+
+# Fall = episode ends, scenario fails. Task definition.
+fall:
+  base_height_min_m: 0.20
+  max_abs_roll_pitch_rad: 0.8
+
+tracking:
+  # Base velocity is averaged over this trailing window before the error is
+  # taken, so one gait cycle of oscillation is not scored as tracking error
+  # (prior: GO2 trot period ~0.4 to 0.6 s).
+  smoothing_window_s: 0.5
+  # Samples within this long after any command change are excluded (prior: the
+  # transient is judged by the no-fall and saturation checks, not by RMSE).
+  exclude_after_command_change_s: 1.5
+
+# Commands the first hardware walk will use. A checkpoint whose declared trained
+# envelope does not cover these fails the gate (it cannot be asked for them).
+required_command_envelope:
+  lin_vel_x: 0.5
+  lin_vel_y: 0.3
+  ang_vel_z: 0.6
+
+thresholds:
+  # Applied to every scenario.
+  all:
+    max_pre_clip_saturation_rate: 0.05   # fraction of (control step x joint) with |raw action| > deploy clip. prior
+    max_torque_saturation_fraction: 0.05 # per joint group, fraction of physics samples where PD torque was clipped. prior
+    max_hard_limit_violation_steps: 0    # control steps with any joint beyond its URDF hard limit
+    near_limit_margin_rad: 0.05
+    max_near_limit_fraction: 0.02        # per joint group, fraction of control steps within the margin. prior
+  nominal:
+    max_lin_vel_rmse_mps: 0.15           # prior: ~30% of 0.5 m/s, 50% of 0.3 m/s
+    max_yaw_rate_rmse_radps: 0.20        # prior: ~33% of 0.6 rad/s
+  stress:
+    max_lin_vel_rmse_mps: 0.25
+    max_yaw_rate_rmse_radps: 0.30
+  stand:
+    # MuJoCo FK with the lowest foot on the floor (not a policy result): Isaac
+    # default pose 0.3235 m, robot_lab default pose 0.3346 m. H25 crouched at
+    # 0.168 m in Isaac. 0.24 m is ~74% of the Isaac-pose value.
+    min_mean_base_height_m: 0.24
+
+# Command segments: [t_start_s, [vx, vy, wz]]. Every scenario starts from the
+# handover state above. tier selects the tracking thresholds.
+scenarios:
+  - name: stand_20s
+    tier: nominal
+    stand_checks: true
+    duration_s: 20.0
+    segments: [[0.0, [0.0, 0.0, 0.0]]]
+  - name: forward_0p3
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.3, 0.0, 0.0]]]
+  - name: forward_0p5
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.5, 0.0, 0.0]]]
+  - name: lateral_0p2
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.0, 0.2, 0.0]]]
+  - name: yaw_0p6
+    tier: nominal
+    duration_s: 12.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.0, 0.0, 0.6]]]
+  - name: lateral_step
+    # Sudden lateral command steps, including a sign flip. arXiv 2606.13169
+    # reports a real GO2 policy falling on sudden lateral commands.
+    tier: stress
+    duration_s: 14.0
+    segments:
+      - [0.0,  [0.0, 0.0, 0.0]]
+      - [2.0,  [0.3, 0.0, 0.0]]
+      - [5.0,  [0.0, 0.3, 0.0]]
+      - [8.0,  [0.0, -0.3, 0.0]]
+      - [11.0, [0.0, 0.0, 0.0]]
+  - name: friction_0p4
+    tier: stress
+    duration_s: 12.0
+    foot_friction: 0.4
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.3, 0.0, 0.0]]]
+  - name: friction_1p0
+    tier: nominal
+    duration_s: 12.0
+    foot_friction: 1.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [1.0, [0.3, 0.0, 0.0]]]
+  - name: payload_2kg
+    tier: stress
+    duration_s: 13.0
+    payload_kg: 2.0
+    segments: [[0.0, [0.0, 0.0, 0.0]], [3.0, [0.3, 0.0, 0.0]]]
+
+video:
+  width: 480
+  height: 360
+  fps: 25
+  # Rendering is CPU (Mesa llvmpipe EGL) so it never competes with GPU training.

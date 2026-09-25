@@ -1,0 +1,48 @@
+{
+  "schema": "phoenix-sim2sim-deploy-spec/v1",
+  "name": "rl_sar_go2_himloco",
+  "provenance": {
+    "policy": "fan-ziqi/rl_sar policy/go2/himloco/himloco.pt (TorchScript), converted to ONNX by scripts/sim2sim_torchscript_to_onnx.py",
+    "rl_sar_commit": "376d42c9b128f963ab08579762d5a216a976ce39",
+    "policy_pt_sha256": "d9945f85a39944aaf241a67f7d2b25a15326a0222d0e503aeb05a7f188430509",
+    "deploy_config": "policy/go2/himloco/config.yaml at that commit, transcribed below",
+    "obs_and_action_code": "rl_sdk.cpp ComputeObservation / ComputeOutput; observation_buffer.cpp get_obs_vec 'time' priority (newest frame first, zero-initialised)",
+    "real_robot_claim": "rl_sar README robot table marks Unitree-Go2 himloco (IsaacGym) as run on the real robot; maintainer-attested, not independently verified here"
+  },
+  "joint_order": [
+    "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+    "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+    "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+    "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"
+  ],
+  "sdk_joint_ids_map": [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8],
+  "default_joint_pos": [0.1, 0.8, -1.5, -0.1, 0.8, -1.5, 0.1, 1.0, -1.5, -0.1, 1.0, -1.5],
+  "control_hz": 50,
+  "kp": 40.0,
+  "kd": 1.0,
+  "action": {
+    "scale": [0.125, 0.25, 0.25, 0.125, 0.25, 0.25, 0.125, 0.25, 0.25, 0.125, 0.25, 0.25],
+    "clip": 100.0
+  },
+  "observation": {
+    "terms": [
+      {"name": "commands", "scale": [2.0, 2.0, 0.25]},
+      {"name": "ang_vel", "scale": 0.25},
+      {"name": "gravity_vec", "scale": 1.0},
+      {"name": "dof_pos", "scale": 1.0},
+      {"name": "dof_vel", "scale": 0.05},
+      {"name": "actions", "scale": 1.0}
+    ],
+    "clip": 100.0,
+    "history": {"length": 6, "order": "newest_first", "init": "zeros"}
+  },
+  "trained_commands": {
+    "lin_vel_x": [-1.0, 1.0],
+    "lin_vel_y": [-1.0, 1.0],
+    "ang_vel_z": [-3.14, 3.14]
+  },
+  "assumptions": [
+    "trained_commands are HIMLoco go1_config.py ranges (the HIMLoco repo has no GO2 config; the rl_sar GO2 checkpoint's training config is not published)",
+    "rl_sar config.yaml hip action scale 0.125 used as shipped (HIMLoco go1 config uses 0.25 for all joints)"
+  ]
+}
