@@ -36,6 +36,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--run-name", type=str, required=True)
     p.add_argument("--output-dir", type=Path, default=Path("checkpoints/velocity"))
     p.add_argument("--resume", type=Path, default=None)
+    p.add_argument(
+        "--resume-continue-iterations",
+        action="store_true",
+        help=(
+            "With --resume: restore the checkpoint's iteration counter (rsl_rl "
+            "load_cfg['iteration']=True) and run only the REMAINING iterations so "
+            "the run stops at the same --max-iterations TOTAL target instead of "
+            "running --max-iterations MORE on top of the checkpoint's count. "
+            "Without this flag (the old behavior), --resume restarts the "
+            "iteration counter at 0, matching phoenix.training.ppo_runner's "
+            "fine-tune semantics."
+        ),
+    )
     p.add_argument("--smoke", action="store_true", help="Use spec.smoke_spec() instead of default_spec()")
     p.add_argument("--headless", action="store_true", default=True)
     p.add_argument("--device", type=str, default=None)
@@ -121,23 +134,48 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=str(log_dir), device=runner_cfg.device)
     print("[phoenix.velocity] runner ready", flush=True)
 
+    num_learning_iterations = runner_cfg.max_iterations
     if args.resume is not None:
         logger.info("Resuming from checkpoint: %s", args.resume)
         from phoenix.training.checkpoint import load_runner_checkpoint
 
         ckpt_info = load_runner_checkpoint(
-            runner, args.resume, load_actor=True, load_critic=True, load_optimizer=False, load_iteration=False
+            runner,
+            args.resume,
+            load_actor=True,
+            load_critic=True,
+            load_optimizer=False,
+            load_iteration=bool(args.resume_continue_iterations),
         )
         if not ckpt_info.get("actor_match", False):
             raise RuntimeError(f"Actor weights did not round-trip from {args.resume}: {ckpt_info}")
+        if args.resume_continue_iterations:
+            # rsl_rl's learn(num_learning_iterations=X) runs X MORE iterations from
+            # runner.current_learning_iteration (on_policy_runner.py:77-78:
+            # start_it = self.current_learning_iteration; total_it = start_it + X).
+            # runner.current_learning_iteration was just restored from the
+            # checkpoint's "iter" field (load_iteration=True above), so pass the
+            # REMAINING count, not the total target, or the run overshoots by
+            # `runner.current_learning_iteration` extra iterations.
+            already_done = int(runner.current_learning_iteration)
+            num_learning_iterations = max(0, runner_cfg.max_iterations - already_done)
+            logger.info(
+                "resume-continue-iterations: checkpoint at iteration %d, target %d, running %d more",
+                already_done,
+                runner_cfg.max_iterations,
+                num_learning_iterations,
+            )
+            if num_learning_iterations == 0:
+                logger.info("checkpoint already at or past the target iteration count, nothing to do")
 
     start = time.time()
     try:
-        runner.learn(num_learning_iterations=runner_cfg.max_iterations, init_at_random_ep_len=True)
+        if num_learning_iterations > 0:
+            runner.learn(num_learning_iterations=num_learning_iterations, init_at_random_ep_len=True)
     except KeyboardInterrupt:
         logger.warning("Interrupted, writing final checkpoint.")
     elapsed = time.time() - start
-    logger.info("Training wall-time: %.1fs (%.3f it/s)", elapsed, runner_cfg.max_iterations / max(elapsed, 1e-6))
+    logger.info("Training wall-time: %.1fs (%.3f it/s)", elapsed, num_learning_iterations / max(elapsed, 1e-6))
 
     latest = log_root / "latest.pt"
     ckpts = sorted(log_dir.glob("model_*.pt"), key=lambda p: int(p.stem.split("_")[-1]))
