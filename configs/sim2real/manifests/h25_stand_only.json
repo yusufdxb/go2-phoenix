@@ -1,0 +1,118 @@
+{
+  "schema": "phoenix-legacy-checkpoint-manifest/v0",
+  "name": "h25-stand",
+  "classification": "stand_only_experimental",
+  "locomotion_capable": false,
+  "locomotion_incapable_reasons": [
+    "trained |vx| max 0.000 m/s < 0.2",
+    "trained |wz| max 0.000 rad/s < 0.2",
+    "only 0.00 of envs received nonzero commands (< 0.5)"
+  ],
+  "summary": "Legacy record of the H25 stand checkpoint, written after the fact from evidence (docs/forensics/h25_forensics_2026-09-22.md). It is NOT a PhoenixVelocity manifest: 48-D legacy observation with base_lin_vel, every velocity command exactly zero. It must never be accepted for velocity mode, and it does not satisfy the 45-D contract for stand mode either.",
+  "checkpoint": {
+    "source": "checkpoints/phoenix-stand-h25-lat-noise/2026-06-22_21-08-20/model_799.pt",
+    "iteration": 799
+  },
+  "checkpoint_sha256": "c904aebbb1c62eeca77317dcde9260067f3979be3931dee4db263eac4d9fa8f8",
+  "deploy_lock": "configs/sim2real/locks/deploy_stand_h25.lock.yaml",
+  "exported_artifacts_sha256": {
+    "policy.onnx": "5331dbb7c4b8194e7f2238c14b985ea16af2f47aa7130e04bade3a0f9e9289eb",
+    "policy.onnx.data": "cda0e9b4847c4208ec1aadd447c1851856b9d6f2e38dbadfaae1c23e214dee92",
+    "policy.pt": "24d42d606f916b70ee5f48c665b3405202d14683daa00dd4c8018dcee7273622"
+  },
+  "observation": {
+    "schema_version": "phoenix-legacy-obs-48/v0",
+    "schema_sha256": null,
+    "actor_dim": 48,
+    "actor_terms": [
+      "base_lin_vel",
+      "base_ang_vel",
+      "projected_gravity",
+      "velocity_command",
+      "joint_pos_rel",
+      "joint_vel",
+      "last_action"
+    ],
+    "training_noise": {
+      "base_lin_vel": 0.1,
+      "base_ang_vel": 0.2,
+      "projected_gravity": 0.05,
+      "joint_pos": 0.01,
+      "joint_vel": 1.5
+    },
+    "deploy_base_lin_vel_source": "zeros",
+    "deploy_note": "Dims 0..2 (base_lin_vel) were a real, noised body velocity in training (normalizer std 0.071/0.066/0.092 m/s over 157286400 samples) and a constant zero on hardware."
+  },
+  "action": {
+    "dim": 12,
+    "scale": 0.25,
+    "type": "joint_position_offset",
+    "training_clip": 1.0,
+    "deploy_clip": null
+  },
+  "control_hz": 50,
+  "physics_hz": 200,
+  "joint_order": [
+    "FL_hip_joint",
+    "FR_hip_joint",
+    "RL_hip_joint",
+    "RR_hip_joint",
+    "FL_thigh_joint",
+    "FR_thigh_joint",
+    "RL_thigh_joint",
+    "RR_thigh_joint",
+    "FL_calf_joint",
+    "FR_calf_joint",
+    "RL_calf_joint",
+    "RR_calf_joint"
+  ],
+  "default_joint_pos": {
+    "FL_hip_joint": 0.1,
+    "FR_hip_joint": -0.1,
+    "RL_hip_joint": 0.1,
+    "RR_hip_joint": -0.1,
+    "FL_thigh_joint": 0.8,
+    "FR_thigh_joint": 0.8,
+    "RL_thigh_joint": 1.0,
+    "RR_thigh_joint": 1.0,
+    "FL_calf_joint": -1.5,
+    "FR_calf_joint": -1.5,
+    "RL_calf_joint": -1.5,
+    "RR_calf_joint": -1.5
+  },
+  "commands": {
+    "lin_vel_x": [0.0, 0.0],
+    "lin_vel_y": [0.0, 0.0],
+    "ang_vel_z": [0.0, 0.0],
+    "rel_standing_envs": 1.0
+  },
+  "commands_evidence": {
+    "yaml": "configs/env/stand_v3_h25.yaml -> stand_v3.yaml -> stand.yaml (all ranges [0, 0], rel_standing_envs 1.0) -> base.yaml",
+    "builder": "src/phoenix/sim_env/go2_env_cfg.py _apply_commands sets ranges and rel_standing_envs; heading_stiffness is never applied, upstream heading_command=True stays on but its output is clipped to ranges.ang_vel_z = (0, 0)",
+    "isaaclab": "isaaclab/envs/mdp/commands/velocity_command.py: is_standing_env = uniform(0,1) <= rel_standing_envs (always true at 1.0) and standing envs get a zero command",
+    "checkpoint": "actor obs_normalizer std of dims 9..11 (velocity_command) is exactly 0.0 over 157286400 samples in model_799.pt"
+  },
+  "training_lineage": [
+    "phoenix-stand/2026-04-16_22-04-28 (1000 it, stand.yaml, zero commands; model_0 within 0.006 of the flat run's model_0, consistent with a from-scratch start, NOT proven)",
+    "phoenix-stand-v2/2026-04-19_11-20-36 model_499 (stand_v2.yaml, zero commands)",
+    "phoenix-stand-h25-ratelimit/2026-06-21_13-35-20 model_799 (resumed from stand-v2 weights; fresh normalizer)",
+    "phoenix-stand-h25-lat-noise/2026-06-22_21-08-20 model_799 (resumed from h25-ratelimit model_799; 4096 envs x 24 steps x 800 it)"
+  ],
+  "curriculum": {},
+  "reward_scales": {
+    "action_rate": -3.0,
+    "slew_sat_hinge": -25.0,
+    "joint_acc": -5e-06
+  },
+  "domain_randomization": {
+    "source": "configs/env/base.yaml domain_randomization block as applied at training time (not re-derived here)"
+  },
+  "provenance": {
+    "git_sha": null,
+    "git_dirty": null,
+    "seed": 42,
+    "task": "Isaac-Velocity-Flat-Unitree-Go2-v0",
+    "simulator": "Isaac Lab 3.0.0-beta (pip isaaclab 4.5.22), PhysX",
+    "note": "the run directory's git/ folder is empty; training started 2026-06-22T22:08:47-04:00, about two minutes before commit 7b09bc8 (actuator latency + observation noise wiring) landed, so the exact source tree is unknown"
+  }
+}
