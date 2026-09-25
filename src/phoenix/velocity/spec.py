@@ -163,7 +163,18 @@ CRITIC_OBS_DIM = ACTOR_OBS_DIM + sum(t[1] for t in CRITIC_EXTRA_TERMS)
 
 #: GO2 body names (read from go2.usd): base, Head_upper, Head_lower, {FL,FR,RL,RR}_{hip,thigh,calf,foot}.
 FOOT_BODIES = ".*_foot"
-TRUNK_BODIES: tuple[str, ...] = ("base", "Head_.*")
+#: "base" only, matching the upstream Go2 termination body. 2026-09-25 bug (fixed
+#: here): TRUNK_BODIES used to also include "Head_.*". Head_upper/Head_lower are
+#: near-massless (0.001 kg, isaac_reference.py) bodies rigidly fixed to the base;
+#: under any joint acceleration the internal constraint reaction force needed to
+#: keep a near-massless body attached to an accelerating trunk spikes through
+#: PhysX's net-contact-force channel (measured: mean 3.7 N, MAX 235 N with only
+#: action_std=0.5 noise and zero real ground contact), far above the 1 N
+#: threshold. This produced a near-100% false-positive "trunk_contact"
+#: termination on any nonzero action (mean episode length ~7 steps at 4096 envs,
+#: vs stock Go2's ~973-993 steps with the same reward/PPO setup, "base" only).
+#: scripts/diag_zero_action_rollout.py reproduces this in isolation.
+TRUNK_BODIES: tuple[str, ...] = ("base",)
 UNDESIRED_CONTACT_BODIES: tuple[str, ...] = (".*_hip", ".*_thigh")
 #: Contact is "on" above this force (N). Same threshold everywhere for consistency.
 CONTACT_FORCE_THRESHOLD_N = 1.0

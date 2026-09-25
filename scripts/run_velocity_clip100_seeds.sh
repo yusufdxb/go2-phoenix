@@ -20,7 +20,7 @@ export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 SEEDS=(42 43 44)
 MAX_ITER=12000
 NUM_ENVS=4096
-SAVE_INTERVAL=500
+SAVE_INTERVAL=250
 ACTION_CLIP=100.0
 RUN_ROOTS=("checkpoints/velocity/walk_v1_seed42")  # clip=1.0 control, already trained
 

@@ -38,3 +38,16 @@ def test_default_spec_still_validates_clean() -> None:
 
 def test_smoke_spec_still_validates_clean() -> None:
     assert s.smoke_spec().validate() == []
+
+
+def test_trunk_bodies_is_base_only_not_head() -> None:
+    # 2026-09-25 bug (fixed): TRUNK_BODIES used to include "Head_.*". Head_upper/
+    # Head_lower are near-massless (0.001 kg) bodies rigidly fixed to the base;
+    # PhysX's internal constraint reaction force for keeping them attached during
+    # any joint acceleration spikes through the net-contact-force channel (measured
+    # up to 533 N with only action_std=0.5 noise and zero real ground contact),
+    # which produced a near-100% false-positive trunk_contact termination on any
+    # nonzero action (mean episode length ~7 steps vs stock Go2's ~973-993 with
+    # the same reward/PPO setup). See scripts/diag_zero_action_rollout.py.
+    assert s.TRUNK_BODIES == ("base",)
+    assert not any("Head" in b for b in s.TRUNK_BODIES)
