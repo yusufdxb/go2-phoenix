@@ -128,8 +128,9 @@ from .observation import (
     projected_gravity_from_quat,
     resolve_base_lin_vel,
 )
+from .deploy_manifest import ManifestError, load_deploy_manifest
 from .go2_model import torque_limits_in_order
-from .safety import ACTION_CLIP, clip_actions, torque_limited_target_array
+from .safety import clip_actions, torque_limited_target_array
 from .telemetry import (
     CONTACT_FORCE_UNITS_RAW_COUNTS,
     OdomSample,
@@ -269,6 +270,30 @@ def resolve_startup(cfg: dict, args: argparse.Namespace) -> tuple[Path | None, l
     elif onnx_path is not None:
         problems.append(f"policy ONNX {onnx_path} does not exist")
 
+    # Deploy clip must equal the training clip; there is no safe default.
+    # Checked here (before rclpy.init) AND again in _PhoenixPolicyNode.__init__
+    # (which performs the actual load), matching the existing pattern for
+    # every other startup precondition in this function.
+    manifest_path = (as_written.get("policy") or {}).get("manifest_path")
+    if not manifest_path:
+        problems.append(
+            "policy.manifest_path is required: deploy.action_clip must be read from the "
+            "checkpoint manifest, not hardcoded"
+        )
+    else:
+        try:
+            manifest = load_deploy_manifest(Path(manifest_path))
+        except ManifestError as exc:
+            problems.append(f"deploy manifest: {exc}")
+        else:
+            logger.info(
+                "deploy manifest %s: action_clip=%.3g kp=%s kd=%s",
+                manifest_path,
+                manifest.action_clip,
+                manifest.kp,
+                manifest.kd,
+            )
+
     override = getattr(args, "max_runtime_s", None)
     if override is not None:
         configured = float((as_written.get("safety") or {}).get("max_runtime_s", 0.0))
@@ -372,6 +397,34 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._torque_limit = torque_limits_in_order(self.joint_order.names)
         self._action_ticks = 0
         self._action_saturation_ticks = 0
+
+        # Deploy clip MUST equal the training clip_actions value (2026-09-24:
+        # moved from 1.0 to 100.0, the legged_gym/rl_sar/robot_lab convention).
+        # There is no safe default: it is read from the checkpoint manifest's
+        # deploy.action_clip and the node refuses to start without it. See
+        # phoenix.sim2real.deploy_manifest and resolve_startup(), which
+        # performs the same check before rclpy is even touched; this second
+        # check keeps the class safe when constructed directly (matches the
+        # existing pattern for stand_only / mode_switch above).
+        manifest_path = (cfg.get("policy") or {}).get("manifest_path")
+        if not manifest_path:
+            raise ValueError(
+                "deploy config must set policy.manifest_path (a checkpoint manifest with "
+                "a 'deploy' block). There is no default action_clip."
+            )
+        deploy_manifest = load_deploy_manifest(Path(manifest_path))
+        self._action_clip = deploy_manifest.action_clip
+        if deploy_manifest.kp is not None:
+            self._policy_kp = deploy_manifest.kp
+        if deploy_manifest.kd is not None:
+            self._policy_kd = deploy_manifest.kd
+        logger.info(
+            "deploy manifest %s: action_clip=%.3g kp=%s kd=%s",
+            manifest_path,
+            self._action_clip,
+            deploy_manifest.kp,
+            deploy_manifest.kd,
+        )
         # Per-axis (vx, vy, wz) command cap, config-driven so a first live
         # session can run conservative. Defaults match the run-card first-
         # session envelope (vx<=0.5, vy<=0.3, yaw<=0.8 rad/s). A stand-only
@@ -1282,18 +1335,25 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self.shield_pub.publish(msg)
 
     def _clip_action_and_report(self, raw_action: np.ndarray) -> np.ndarray:
-        """Clamp a raw policy action to [-1, 1] BEFORE it scales into a target.
+        """Clamp a raw policy action to [-action_clip, action_clip] BEFORE it
+        scales into a target.
 
-        Matches training's ``clip_actions=1.0``. The 2026-09-21 stage F1
-        failure traced to a raw action of -7.2 on RR_thigh reaching the
+        ``self._action_clip`` MUST equal the checkpoint's training
+        ``clip_actions`` value (2026-09-24: moved from 1.0 to 100.0, the
+        legged_gym/rl_sar/robot_lab convention); it is read from the
+        deploy manifest in ``__init__`` (``phoenix.sim2real.deploy_manifest``,
+        ``deploy.action_clip``), never hardcoded here. The 2026-09-21 stage
+        F1 failure traced to a raw action of -7.2 on RR_thigh reaching the
         target-scaling arithmetic with no bound at all (``ros2_policy_node.py``
         computed ``target = default_q + action_scale*action`` unclamped). This
         is the earliest point after inference the clamp can apply. Logs a
         throttled saturation rate: a policy saturating this clamp every tick
         is a signal worth surfacing even though the clamp itself keeps the
-        robot safe.
+        robot safe -- and even more so now that action_clip is large, since a
+        saturating tick means the network is producing genuinely extreme raw
+        output, not merely operating near its normal range.
         """
-        clipped, saturated = clip_actions(raw_action, ACTION_CLIP)
+        clipped, saturated = clip_actions(raw_action, self._action_clip)
         self._action_ticks += 1
         if bool(saturated.any()):
             self._action_saturation_ticks += 1
@@ -1305,7 +1365,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 self._action_ticks,
                 100.0 * rate,
                 self._action_saturation_ticks,
-                ACTION_CLIP,
+                self._action_clip,
             )
         return clipped.astype(np.float32, copy=False)
 

@@ -81,6 +81,14 @@ class FsmParams:
     action_scale: float = 0.25
     policy_kp: float = 25.0
     policy_kd: float = 0.5
+    #: Raw policy actions are clamped to [-action_clip, action_clip] before
+    #: scaling. MUST equal the checkpoint's training clip_actions value; see
+    #: phoenix.sim2real.deploy_manifest (deploy.action_clip). The default of
+    #: 1.0 here is a back-compat / test convenience only, matching the H25
+    #: stand checkpoint's training_clip=1.0; a real bring-up must construct
+    #: this from fsm_params_from_manifest, which refuses to run without an
+    #: explicit deploy.action_clip in the checkpoint manifest.
+    action_clip: float = 1.0
     hold_kp: float = 20.0
     hold_kd: float = 1.0
     damp_kd: float = 1.0
@@ -99,7 +107,13 @@ class FsmParams:
     max_command: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     def __post_init__(self) -> None:
-        for name in ("rate_hz", "action_scale", "sensor_timeout_s", "precheck_timeout_s"):
+        for name in (
+            "rate_hz",
+            "action_scale",
+            "sensor_timeout_s",
+            "precheck_timeout_s",
+            "action_clip",
+        ):
             value = float(getattr(self, name))
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"FsmParams.{name} must be positive and finite")
@@ -537,15 +551,23 @@ class ControllerFSM:
         if raw_action.shape != (self.n,) or not np.all(np.isfinite(raw_action)):
             self._fault("policy_output_invalid", t)
             return self._tick_fault(inp)
-        # Clamp to [-1, 1] BEFORE scaling, matching training's clip_actions=1.0
-        # (evaluate.py:223, fine_tune.py:265, reconstruct.py:224, ppo_runner.py:124).
+        # Clamp to [-action_clip, action_clip] BEFORE scaling. action_clip
+        # MUST equal the checkpoint's training clip_actions value (2026-09-24:
+        # moved from 1.0 to 100.0, the legged_gym/rl_sar/robot_lab convention;
+        # at action_scale=0.25 a clip of 1.0 pinned the policy at the clamp on
+        # nearly every step). It is read from the checkpoint manifest
+        # (phoenix.sim2real.deploy_manifest, deploy.action_clip) by whoever
+        # builds this FsmParams for a real deploy, via fsm_params_from_manifest;
+        # a manifest missing that field refuses to build FsmParams at all.
         # The 2026-09-21 stage F1 failure traced to an unclamped raw action of
         # -7.2 on RR_thigh reaching the target-scaling arithmetic with no bound
         # at all. This is a second, independent bound from the torque clip
         # below: the torque clip protects the motors from ANY target (including
-        # a bug downstream of this clamp); this clamp keeps the target itself
-        # inside the policy's trained action distribution.
-        action, saturated = clip_actions(raw_action)
+        # a bug downstream of this clamp, or a legitimate large action under
+        # the new clip=100 convention); this clamp only catches a genuine
+        # outlier (NaN-adjacent, runaway network output), not everyday policy
+        # authority.
+        action, saturated = clip_actions(raw_action, self.params.action_clip)
         sat_fraction = float(np.mean(saturated))
         if sat_fraction > 0.0:
             self._action_saturation_ticks += 1
@@ -645,11 +667,52 @@ def fsm_params_from_mapping(data: Mapping[str, Any] | None) -> FsmParams:
     return FsmParams(**data)
 
 
+def fsm_params_from_manifest(
+    manifest_path: str | Path, data: Mapping[str, Any] | None = None
+) -> FsmParams:
+    """Build ``FsmParams`` for a REAL deploy: everything ``fsm_params_from_mapping``
+    accepts, plus ``action_clip`` (and ``policy_kp``/``policy_kd`` when the
+    manifest states them) read from the checkpoint manifest's ``deploy`` block.
+
+    This is the production entry point for the "deploy clip must equal the
+    training clip" rule: it calls
+    :func:`phoenix.sim2real.deploy_manifest.load_deploy_manifest`, which
+    raises :class:`~phoenix.sim2real.deploy_manifest.ManifestError` (uncaught,
+    on purpose) if ``deploy.action_clip`` is missing, so a bring-up with no
+    manifest, or a manifest that never got the new field, refuses to
+    construct an FsmParams at all rather than silently falling back to
+    ``FsmParams.action_clip``'s dataclass default.
+
+    ``data`` may not itself set ``action_clip``, ``policy_kp`` or
+    ``policy_kd``: those come from the manifest exclusively, so there is
+    exactly one place a real deploy's clip and gains can be set.
+    """
+    from pathlib import Path as _Path
+
+    from .deploy_manifest import load_deploy_manifest
+
+    manifest = load_deploy_manifest(_Path(manifest_path))
+    data = dict(data or {})
+    for locked in ("action_clip", "policy_kp", "policy_kd"):
+        if locked in data:
+            raise ValueError(
+                f"fsm_params_from_manifest: {locked} must come from the checkpoint "
+                f"manifest ({manifest_path}), not from the caller's data mapping"
+            )
+    data["action_clip"] = manifest.action_clip
+    if manifest.kp is not None:
+        data["policy_kp"] = manifest.kp
+    if manifest.kd is not None:
+        data["policy_kd"] = manifest.kd
+    return fsm_params_from_mapping(data)
+
+
 __all__ = [
     "ControllerFSM",
     "FsmInputs",
     "FsmOutput",
     "FsmParams",
     "State",
+    "fsm_params_from_manifest",
     "fsm_params_from_mapping",
 ]

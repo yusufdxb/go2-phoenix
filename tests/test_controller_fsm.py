@@ -16,8 +16,10 @@ from phoenix.sim2real.controller_fsm import (
     FsmInputs,
     FsmParams,
     State,
+    fsm_params_from_manifest,
     fsm_params_from_mapping,
 )
+from phoenix.sim2real.deploy_manifest import ManifestError
 from phoenix.sim2real.fix_stand import FixStandParams
 from phoenix.sim2real.go2_model import POLICY_JOINT_ORDER, TRAINING_DEFAULT_JOINT_POS
 from phoenix.sim2real.handoff import HandoffCriteria
@@ -155,11 +157,14 @@ def test_request_policy_refused_with_no_policy_configured() -> None:
 
 # ------------------------------------------------------------ action clamp
 def test_velocity_active_clamps_action_before_scaling() -> None:
-    # The 2026-09-21 stage F1 mechanism: an unclamped raw action of -7.2 on
-    # one joint reaching target-scaling arithmetic unbounded. Here the policy
-    # returns exactly that on RR_thigh; the FSM must clamp to [-1, 1] BEFORE
-    # scaling, so the requested target before the torque clip is bounded by
-    # action_scale, not by the raw action.
+    # The 2026-09-21 stage F1 mechanism, replayed under the LEGACY (H25)
+    # contract action_clip=1.0 (FsmParams' dataclass default; a real deploy
+    # gets this from fsm_params_from_manifest, see below): an unclamped raw
+    # action of -7.2 on one joint reaching target-scaling arithmetic
+    # unbounded. Here the policy returns exactly that on RR_thigh; the FSM
+    # must clamp to [-action_clip, action_clip] BEFORE scaling, so the
+    # requested target before the torque clip is bounded by action_scale,
+    # not by the raw action.
     j = ORDER.index("RR_thigh_joint")
 
     def bad_policy(obs: np.ndarray) -> np.ndarray:
@@ -179,6 +184,54 @@ def test_velocity_active_clamps_action_before_scaling() -> None:
     max_deviation = fsm.params.action_scale * 1.0
     assert out.target is not None
     assert abs(out.target[j] - TARGET[j]) <= max_deviation + 1e-6
+
+
+def test_velocity_active_action_clip_100_passes_raw_through_to_torque_clip() -> None:
+    """2026-09-24 contract: training moved from clip_actions=1.0 to 100.0 (the
+    legged_gym / rl_sar / robot_lab convention). With action_clip=100, the
+    historical F1 raw magnitude (-7.2) is NOT modified by the action clamp
+    (far under the clip), so the TORQUE limit, not the action clamp, is what
+    has to bound the motor command. action_scale here is chosen so the
+    scaled request lands just past the torque bound while staying inside
+    the position abort band, isolating that mechanism specifically (a
+    literal action_scale=0.25 at this raw magnitude would instead trip the
+    position abort band first, which is a different, already-covered path;
+    see test_target_beyond_abort_band-equivalent coverage in
+    test_actuator_gate.py).
+    """
+    j = ORDER.index("RR_thigh_joint")
+    limit_nm = 23.5  # RR_thigh_joint torque limit (go2_model.JOINT_TORQUE_LIMITS_NM)
+    kp = 25.0
+    torque_delta = limit_nm / kp
+    action_scale = (torque_delta + 0.05) / 7.2
+
+    def bad_policy(obs: np.ndarray) -> np.ndarray:
+        a = np.zeros(N, dtype=np.float64)
+        a[j] = -7.2
+        return a
+
+    params = FsmParams(rate_hz=RATE_HZ, action_scale=action_scale, action_clip=100.0)
+    fsm = make_fsm(policy=bad_policy, params=params)
+    t = run_to_velocity_ready(fsm)
+    fsm.request_policy()
+    out = fsm.tick(nominal_input(t))
+    assert fsm.state is State.VELOCITY_ACTIVE, out.fault
+
+    # The action clamp did NOT touch -7.2 (well under clip=100): last_action
+    # (fed to the next observation) holds the raw value unmodified.
+    assert fsm._last_action[j] == pytest.approx(-7.2)
+
+    # The requested (pre torque-clip) target would have overshot the torque
+    # bound...
+    q = TARGET[j]
+    requested = q + action_scale * -7.2
+    assert abs(kp * (requested - q)) > limit_nm + 1e-9
+
+    # ...but the PUBLISHED target (post torque-clip) is bounded by it. dq=0
+    # in this fixture, so tau = Kp*(target - q) exactly.
+    published_tau = kp * (out.target[j] - q)
+    assert abs(published_tau) <= limit_nm + 1e-6
+    assert out.target[j] != pytest.approx(requested)
 
 
 def test_velocity_active_small_action_passes_through_unclipped() -> None:
@@ -361,3 +414,59 @@ def test_intervention_record_keeps_raw_action_for_diagnostics() -> None:
     out = fsm.tick(nominal_input(t))
     assert out.intervention is not None
     assert out.intervention["raw_action"][j] == pytest.approx(-7.2)
+
+
+# --------------------------------------------------- fsm_params_from_manifest
+def test_fsm_params_from_manifest_reads_action_clip(tmp_path) -> None:
+    import json
+
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({"deploy": {"action_clip": 100.0}}))
+    params = fsm_params_from_manifest(path)
+    assert params.action_clip == 100.0
+    assert params.policy_kp == FsmParams().policy_kp
+    assert params.policy_kd == FsmParams().policy_kd
+
+
+def test_fsm_params_from_manifest_reads_kp_kd(tmp_path) -> None:
+    import json
+
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({"deploy": {"action_clip": 100.0, "kp": 20.0, "kd": 1.0}}))
+    params = fsm_params_from_manifest(path)
+    assert params.policy_kp == 20.0
+    assert params.policy_kd == 1.0
+
+
+def test_fsm_params_from_manifest_refuses_without_action_clip(tmp_path) -> None:
+    import json
+
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({"deploy": {"kp": 25.0}}))
+    with pytest.raises(ManifestError, match="action_clip is missing"):
+        fsm_params_from_manifest(path)
+
+
+def test_fsm_params_from_manifest_refuses_missing_file(tmp_path) -> None:
+    with pytest.raises(ManifestError):
+        fsm_params_from_manifest(tmp_path / "does_not_exist.json")
+
+
+def test_fsm_params_from_manifest_rejects_action_clip_in_data(tmp_path) -> None:
+    import json
+
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({"deploy": {"action_clip": 100.0}}))
+    with pytest.raises(ValueError, match="must come from the checkpoint manifest"):
+        fsm_params_from_manifest(path, {"action_clip": 1.0})
+
+
+def test_fsm_params_from_manifest_combines_with_other_mapping_keys(tmp_path) -> None:
+    import json
+
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({"deploy": {"action_clip": 100.0}}))
+    params = fsm_params_from_manifest(path, {"rate_hz": 50.0, "action_scale": 0.5})
+    assert params.action_clip == 100.0
+    assert params.rate_hz == 50.0
+    assert params.action_scale == 0.5
