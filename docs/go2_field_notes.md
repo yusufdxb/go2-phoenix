@@ -174,8 +174,8 @@ Because the lab network has no internet egress (section 7), everything has to be
    `deploy_staging/`; the push to the payload and the on-payload verify happen at the lab.
 4. Sync the repo code the payload executes with `scripts/stage_payload_repo.sh` (the
    payload cannot `git fetch`). **Not done**: needs the cable.
-5. Run `docs/36-phoenix-jetson-activation-lab-card.md` on the payload (no motion) and
-   record the resolved ONNX path. **Not done**: needs the payload.
+5. Verify that the payload opens the staged ONNX artifact and record its hash.
+   **Not done**: needs the payload.
 
 Until 4 and 5 have been executed on the payload and their output recorded, a lab session
 must assume it is running the older `phoenix-stand-v3` policy on the older node code.
