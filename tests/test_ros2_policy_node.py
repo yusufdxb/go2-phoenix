@@ -983,12 +983,24 @@ def test_clip_action_and_report_clip_100_still_clamps_genuine_outliers() -> None
 
 
 class _TorqueClipStub:
-    def __init__(self) -> None:
+    def __init__(self, position_clip_margin: float = 0.01, sustained_clip_ticks: int = 10) -> None:
+        from phoenix.sim2real.go2_model import limits_in_order, torque_limits_in_order
+        from phoenix.sim2real.safety import SustainedClipTracker
+
         self._policy_kp = 25.0
         self._policy_kd = 0.5
-        from phoenix.sim2real.go2_model import torque_limits_in_order
-
         self._torque_limit = torque_limits_in_order(POLICY_JOINT_ORDER)
+        self._lo, self._hi = limits_in_order(POLICY_JOINT_ORDER)
+        self._position_clip_margin = position_clip_margin
+        self._sustained_clip_ticks = sustained_clip_ticks
+        self._clip_tracker = SustainedClipTracker(len(POLICY_JOINT_ORDER), sustained_clip_ticks)
+        self._estopped = False
+        self._abort_reason: str | None = None
+        self.joint_order = JointOrder(POLICY_JOINT_ORDER)
+
+    def _latch_abort(self, reason: str) -> None:
+        self._estopped = True
+        self._abort_reason = reason
 
 
 def test_clip_to_limits_bounds_by_torque_not_position_delta() -> None:
@@ -999,7 +1011,43 @@ def test_clip_to_limits_bounds_by_torque_not_position_delta() -> None:
     target[0] += 5.0  # absurd, must be clipped well below +5
     out = _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
     assert out[0] < q[0] + 1.0
-    assert np.allclose(out[1:], q[1:])
+    assert stub._estopped is False
+
+
+def test_clip_to_limits_clips_past_stop_target_without_aborting() -> None:
+    """2026-09-25 sim2sim gate finding: a good walking policy requests calf
+    targets past the calf's hard upper limit. A single such tick must be
+    clipped, not treated as an abort condition."""
+    from phoenix.sim2real.go2_model import JOINT_POSITION_LIMITS_RAD
+
+    stub = _TorqueClipStub()
+    j = POLICY_JOINT_ORDER.index("RR_calf_joint")
+    lo, hi = JOINT_POSITION_LIMITS_RAD["RR_calf_joint"]
+    q = np.asarray([TRAINING_DEFAULT_JOINT_POS[n] for n in POLICY_JOINT_ORDER], dtype=np.float32)
+    qd = np.zeros(12, dtype=np.float32)
+    target = q.copy()
+    target[j] = hi + 0.28  # within the literal 0.25-0.31 rad sim2sim finding
+    out = _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+    assert lo <= out[j] <= hi
+    assert stub._estopped is False
+
+
+def test_clip_to_limits_sustained_clipping_latches_abort() -> None:
+    from phoenix.sim2real.go2_model import JOINT_POSITION_LIMITS_RAD
+
+    stub = _TorqueClipStub(sustained_clip_ticks=3)
+    j = POLICY_JOINT_ORDER.index("RR_calf_joint")
+    lo, hi = JOINT_POSITION_LIMITS_RAD["RR_calf_joint"]
+    q = np.asarray([TRAINING_DEFAULT_JOINT_POS[n] for n in POLICY_JOINT_ORDER], dtype=np.float32)
+    qd = np.zeros(12, dtype=np.float32)
+    target = q.copy()
+    target[j] = hi + 0.28
+    for _ in range(2):
+        _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+        assert stub._estopped is False
+    _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+    assert stub._estopped is True
+    assert stub._abort_reason.startswith("sustained_clip_exceeded:RR_calf_joint")
 
 
 class _VelocityCapStub(_StubResolveNode):

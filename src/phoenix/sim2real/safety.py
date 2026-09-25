@@ -198,6 +198,99 @@ def torque_limited_target_array(
     return np.where(has_kp, clipped, target_arr)
 
 
+#: A PD position controller routinely commands a target PAST the mechanical
+#: stop to press against it; proven stacks (rl_sar, Unitree's own deployers)
+#: do not abort on that, they just clip the command. 2026-09-25 sim2sim gate
+#: finding: a good seed42@3000 walking policy requests calf targets 0.25-0.31
+#: rad past the calf's hard upper limit during counter-clockwise yaw, on 5 of
+#: 600 steps at +0.6 rad/s. This is normal PD-controller behaviour, not a
+#: broken policy; the old target-beyond-limit-by-0.175-rad abort (exactly how
+#: stage F1 ended) would have latched on it. Deploy now clips the commanded
+#: target into the hard range with a small inward margin instead of aborting;
+#: the margin keeps the command off the mechanical stop itself, not at it.
+DEFAULT_POSITION_CLIP_MARGIN_RAD: float = 0.01
+
+#: How many CONSECUTIVE ticks a joint may be clipped before that is treated
+#: as a genuinely broken policy (a runaway or stuck output) rather than a
+#: normal brief press into a stop. The 2026-09-25 sim2sim finding clips on
+#: isolated ticks (5 of 600, not consecutive); 10 ticks is 0.2s at 50 Hz,
+#: comfortably above a single-tick press and well below what a policy that
+#: has actually lost control would run for. Configurable per deploy.
+DEFAULT_SUSTAINED_CLIP_TICKS: int = 10
+
+
+def clip_to_hard_limits_array(target, lo, hi, margin: float = DEFAULT_POSITION_CLIP_MARGIN_RAD):
+    """Clip ``target`` into ``[lo + margin, hi - margin]`` element-wise.
+
+    Returns ``(clipped, was_clipped)``: the clipped array and a bool array,
+    True for every joint whose target actually moved. This is the deploy-time
+    position clip, NOT an abort: pressing a commanded target against (or
+    slightly past) a mechanical stop is normal PD-controller behaviour. See
+    :data:`DEFAULT_POSITION_CLIP_MARGIN_RAD`.
+    """
+    import numpy as np
+
+    target_arr = np.asarray(target, dtype=np.float64)
+    lo_arr = np.asarray(lo, dtype=np.float64) + margin
+    hi_arr = np.asarray(hi, dtype=np.float64) - margin
+    clipped = np.clip(target_arr, lo_arr, hi_arr)
+    was_clipped = clipped != target_arr
+    return clipped, was_clipped
+
+
+def measured_position_illegal(q_measured, lo, hi, margin: float = MAX_DELTA_PER_STEP_RAD):
+    """Bool array: True where the MEASURED position is beyond a hard limit by
+    more than ``margin``, or non-finite.
+
+    Unlike a commanded target (which may legitimately be clipped every tick),
+    a MEASURED position this far outside the mechanical range means either a
+    sensor fault or a robot that has actually exceeded its physical stop:
+    both are real faults, reserved for the latching abort. ``margin``
+    defaults to :data:`MAX_DELTA_PER_STEP_RAD` (0.175 rad), matching the
+    historical abort band this function's callers replace.
+    """
+    import numpy as np
+
+    q = np.asarray(q_measured, dtype=np.float64)
+    lo_arr = np.asarray(lo, dtype=np.float64)
+    hi_arr = np.asarray(hi, dtype=np.float64)
+    return (~np.isfinite(q)) | (q < lo_arr - margin) | (q > hi_arr + margin)
+
+
+class SustainedClipTracker:
+    """Per-joint consecutive-clipped-tick counter.
+
+    A joint that clips on tick t but not t+1 resets to 0. Reaching
+    ``threshold`` consecutive clipped ticks on any joint signals a genuinely
+    broken policy (a runaway or stuck output pressing continuously against a
+    stop), not the normal brief presses proven stacks accept without
+    aborting. See :data:`DEFAULT_SUSTAINED_CLIP_TICKS`.
+    """
+
+    def __init__(self, n_joints: int, threshold: int = DEFAULT_SUSTAINED_CLIP_TICKS) -> None:
+        import numpy as np
+
+        if threshold < 1:
+            raise ValueError(f"SustainedClipTracker threshold must be >= 1, got {threshold}")
+        self.n_joints = int(n_joints)
+        self.threshold = int(threshold)
+        self.counts = np.zeros(self.n_joints, dtype=np.int64)
+
+    def update(self, was_clipped):
+        """Advance one tick. Returns a bool array: True for every joint whose
+        consecutive-clip count reached ``threshold`` on THIS tick (edge, not
+        level: it does not keep re-firing every tick after the first)."""
+        import numpy as np
+
+        was_clipped = np.asarray(was_clipped, dtype=bool)
+        prev = self.counts.copy()
+        self.counts = np.where(was_clipped, self.counts + 1, 0)
+        return (self.counts >= self.threshold) & (prev < self.threshold)
+
+    def reset(self) -> None:
+        self.counts[:] = 0
+
+
 def expected_torque(target, q_measured, dq_measured, kp, kd):
     """``tau = Kp*(target - q) - Kd*dq`` element-wise. Pure numpy; for telemetry."""
     import numpy as np
@@ -320,9 +413,14 @@ __all__ = [
     "per_step_clip",
     "per_step_clip_array",
     "clip_actions",
+    "clip_to_hard_limits_array",
+    "measured_position_illegal",
     "expected_torque",
     "torque_limited_target_array",
+    "SustainedClipTracker",
     "ACTION_CLIP",
+    "DEFAULT_POSITION_CLIP_MARGIN_RAD",
+    "DEFAULT_SUSTAINED_CLIP_TICKS",
     "MAX_DELTA_PER_STEP_RAD",
     "startup_state",
 ]

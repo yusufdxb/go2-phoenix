@@ -129,8 +129,15 @@ from .observation import (
     resolve_base_lin_vel,
 )
 from .deploy_manifest import ManifestError, load_deploy_manifest
-from .go2_model import torque_limits_in_order
-from .safety import clip_actions, torque_limited_target_array
+from .go2_model import limits_in_order, torque_limits_in_order
+from .safety import (
+    DEFAULT_POSITION_CLIP_MARGIN_RAD,
+    DEFAULT_SUSTAINED_CLIP_TICKS,
+    SustainedClipTracker,
+    clip_actions,
+    clip_to_hard_limits_array,
+    torque_limited_target_array,
+)
 from .telemetry import (
     CONTACT_FORCE_UNITS_RAW_COUNTS,
     OdomSample,
@@ -395,6 +402,22 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._policy_kp = float(control_cfg.get("kp", 25.0))
         self._policy_kd = float(control_cfg.get("kd", 0.5))
         self._torque_limit = torque_limits_in_order(self.joint_order.names)
+        self._lo, self._hi = limits_in_order(self.joint_order.names)
+        # 2026-09-25: a target beyond a hard joint stop is clipped into the
+        # hard range with a small inward margin, not aborted (a PD controller
+        # pressing past a stop to press against it is normal; proven stacks
+        # do not abort on it -- see safety.DEFAULT_POSITION_CLIP_MARGIN_RAD).
+        # Sustained clipping on any one joint IS still an abort trigger.
+        safety_cfg_for_clip = cfg.get("safety", {})
+        self._position_clip_margin = float(
+            safety_cfg_for_clip.get("position_clip_margin", DEFAULT_POSITION_CLIP_MARGIN_RAD)
+        )
+        self._sustained_clip_ticks = int(
+            safety_cfg_for_clip.get("sustained_clip_ticks", DEFAULT_SUSTAINED_CLIP_TICKS)
+        )
+        self._clip_tracker = SustainedClipTracker(
+            len(self.joint_order.names), self._sustained_clip_ticks
+        )
         self._action_ticks = 0
         self._action_saturation_ticks = 0
 
@@ -944,6 +967,12 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
         requested_target = np.asarray(target, dtype=np.float32)
         target = self._clip_to_limits(requested_target, q, qd)
+        if self._estopped:
+            # _clip_to_limits latched a sustained-clip abort this tick, which
+            # already published the one abort notice; the "exactly one abort
+            # notice, then silence" contract means the POLICY-kind message
+            # below must not also go out.
+            return
 
         self._publish_wire(
             KIND_POLICY,
@@ -1370,19 +1399,40 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         return clipped.astype(np.float32, copy=False)
 
     def _clip_to_limits(self, target: np.ndarray, q: np.ndarray, qd: np.ndarray) -> np.ndarray:
-        """Torque-limit the requested target against the MEASURED q/qd.
+        """Torque-limit, then hard-position-clip, the requested target against
+        the MEASURED q/qd.
 
         This node's own safety net, upstream of the LowCmd bridge's
-        authoritative ``ActuatorGate`` (which applies the same torque limits
+        authoritative ``ActuatorGate`` (which applies the same two clips
         against a fresher measured state at 500 Hz). Replaces the pre-
         2026-09-24 measured-q +-0.175 rad/step slew clip -- see
         ``phoenix.sim2real.safety.torque_limited_target_array`` for why a
         position delta was the wrong proxy for the actuator's real limit.
+
+        2026-09-25: a target beyond a hard joint stop is CLIPPED into the
+        hard range with a small inward margin here, not treated as an abort
+        condition -- a PD controller commanding past a mechanical stop to
+        press against it is normal (2026-09-25 sim2sim gate finding: a good
+        walking policy requests calf targets 0.25-0.31 rad past the calf's
+        hard upper limit during counter-clockwise yaw; proven stacks do not
+        abort on that either). SUSTAINED clipping on any one joint for
+        ``self._sustained_clip_ticks`` consecutive ticks latches this node's
+        own abort (``safety.SustainedClipTracker``): that signals a policy
+        that cannot be steered off the stop, not a brief press.
         """
-        clipped = torque_limited_target_array(
+        torque_clipped = torque_limited_target_array(
             target, q, qd, self._policy_kp, self._policy_kd, self._torque_limit
         )
-        return np.asarray(clipped, dtype=np.float32)
+        final, position_clipped = clip_to_hard_limits_array(
+            torque_clipped, self._lo, self._hi, self._position_clip_margin
+        )
+        sustained_now = self._clip_tracker.update(position_clipped)
+        if sustained_now.any():
+            joints = ",".join(
+                n for n, hit in zip(self.joint_order.names, sustained_now, strict=True) if hit
+            )
+            self._latch_abort(f"sustained_clip_exceeded:{joints}")
+        return np.asarray(final, dtype=np.float32)
 
     def _next_seq(self) -> int:
         self._seq = getattr(self, "_seq", 0) + 1

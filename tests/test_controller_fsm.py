@@ -21,7 +21,11 @@ from phoenix.sim2real.controller_fsm import (
 )
 from phoenix.sim2real.deploy_manifest import ManifestError
 from phoenix.sim2real.fix_stand import FixStandParams
-from phoenix.sim2real.go2_model import POLICY_JOINT_ORDER, TRAINING_DEFAULT_JOINT_POS
+from phoenix.sim2real.go2_model import (
+    JOINT_POSITION_LIMITS_RAD,
+    POLICY_JOINT_ORDER,
+    TRAINING_DEFAULT_JOINT_POS,
+)
 from phoenix.sim2real.handoff import HandoffCriteria
 
 ORDER = POLICY_JOINT_ORDER
@@ -470,3 +474,94 @@ def test_fsm_params_from_manifest_combines_with_other_mapping_keys(tmp_path) -> 
     assert params.action_clip == 100.0
     assert params.rate_hz == 50.0
     assert params.action_scale == 0.5
+
+
+# ------------------------------------------------- past-the-stop: clip vs latch
+# 2026-09-25 sim2sim gate finding: a good walking policy (seed42@3000)
+# routinely requests calf targets 0.25-0.31 rad past the calf's hard upper
+# limit during counter-clockwise yaw (5 of 600 steps at +0.6 rad/s). A PD
+# controller commanding past a mechanical stop to press against it is normal;
+# proven stacks do not abort on it. The old "illegal_target" abort on a
+# commanded target beyond the hard range (exactly how stage F1 ended) is
+# replaced: commanded overshoot is clipped, and the latching abort is
+# reserved for MEASURED overshoot, a non-finite command, or sustained
+# clipping.
+def test_target_past_calf_stop_is_clipped_not_latched() -> None:
+    j = ORDER.index("RR_calf_joint")
+    lo, hi = JOINT_POSITION_LIMITS_RAD["RR_calf_joint"]
+    overshoot = 0.28  # within the literal 0.25-0.31 rad sim2sim finding
+    action_scale = 0.25
+    target_needed = hi + overshoot
+    action_needed = (target_needed - TARGET[j]) / action_scale
+
+    def policy(obs: np.ndarray) -> np.ndarray:
+        a = np.zeros(N, dtype=np.float64)
+        a[j] = action_needed
+        return a
+
+    params = FsmParams(rate_hz=RATE_HZ, action_scale=action_scale, action_clip=100.0)
+    fsm = make_fsm(policy=policy, params=params)
+    t = run_to_velocity_ready(fsm)
+    fsm.request_policy()
+    out = fsm.tick(nominal_input(t))
+    assert fsm.state is State.VELOCITY_ACTIVE, out.fault
+    assert out.target is not None
+    assert out.target[j] <= hi
+    assert out.target[j] == pytest.approx(hi - fsm.params.position_clip_margin, abs=1e-6)
+
+    # A perfectly valid command right after fully restores normal tracking:
+    # a single clipped tick never latches.
+    fsm2 = make_fsm(policy=zero_policy, params=params)
+    t2 = run_to_velocity_ready(fsm2)
+    fsm2.request_policy()
+    fsm2.tick(nominal_input(t2))
+    assert fsm2.state is State.VELOCITY_ACTIVE
+
+
+def test_measured_position_beyond_hard_limit_still_latches() -> None:
+    """Unlike a commanded overshoot, a MEASURED position beyond a hard limit
+    (by more than the abort band) is a real fault (sensor fault, or the
+    robot has actually exceeded its mechanical stop) and still latches."""
+    j = ORDER.index("RR_calf_joint")
+    lo, hi = JOINT_POSITION_LIMITS_RAD["RR_calf_joint"]
+    fsm = make_fsm(policy=zero_policy)
+    t = run_to_velocity_ready(fsm)
+    fsm.request_policy()
+    # First tick grants VELOCITY_ACTIVE with a nominal (in-limits) measured
+    # state; FixStand's own parallel band check (fix_stand_measured_q_beyond_limit)
+    # only runs up to and including the READY->ACTIVE handoff tick, not once
+    # VELOCITY_ACTIVE is entered, so this isolates SafetyFilter's own check.
+    out = fsm.tick(nominal_input(t))
+    t += DT_NS
+    assert fsm.state is State.VELOCITY_ACTIVE, out.fault
+    q = TARGET.copy()
+    q[j] = hi + 0.3  # well beyond the 0.175 rad abort band
+    out = fsm.tick(nominal_input(t, q=q))
+    assert fsm.state is State.FAULT
+    assert out.fault == "measured_position_illegal"
+
+
+def test_sustained_clipping_latches_but_isolated_ticks_do_not() -> None:
+    j = ORDER.index("RR_calf_joint")
+    lo, hi = JOINT_POSITION_LIMITS_RAD["RR_calf_joint"]
+    overshoot = 0.28
+    action_scale = 0.25
+    action_needed = (hi + overshoot - TARGET[j]) / action_scale
+
+    def clipping_policy(obs: np.ndarray) -> np.ndarray:
+        a = np.zeros(N, dtype=np.float64)
+        a[j] = action_needed
+        return a
+
+    params = FsmParams(rate_hz=RATE_HZ, action_scale=action_scale, action_clip=100.0)
+    fsm = make_fsm(policy=clipping_policy, params=params)
+    t = run_to_velocity_ready(fsm)
+    fsm.request_policy()
+    threshold = fsm.params.sustained_clip_ticks
+    for i in range(threshold - 1):
+        out = fsm.tick(nominal_input(t))
+        t += DT_NS
+        assert fsm.state is State.VELOCITY_ACTIVE, out.fault
+    out = fsm.tick(nominal_input(t))
+    assert fsm.state is State.FAULT
+    assert out.fault == "sustained_clip_exceeded"

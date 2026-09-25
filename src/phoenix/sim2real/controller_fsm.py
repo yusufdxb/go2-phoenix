@@ -55,7 +55,7 @@ import numpy as np
 from .fix_stand import FixStand, FixStandError, FixStandParams
 from .handoff import HandoffCriteria, HandoffMonitor, HandoffSample, HandoffStatus
 from .intervention import InterventionRecorder, SafetyFilter, tick_record
-from .safety import clip_actions
+from .safety import DEFAULT_POSITION_CLIP_MARGIN_RAD, DEFAULT_SUSTAINED_CLIP_TICKS, clip_actions
 
 
 class State(str, Enum):
@@ -105,6 +105,13 @@ class FsmParams:
     live_intervention_max_fraction: float = 0.5
     #: Largest |command| per axis the deploy allows (vx, vy, wz). Velocity mode only.
     max_command: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: 2026-09-25: a target beyond a hard joint stop is clipped into the hard
+    #: range with this small inward margin, not aborted (a PD controller
+    #: pressing past a stop is normal). See safety.DEFAULT_POSITION_CLIP_MARGIN_RAD.
+    position_clip_margin: float = DEFAULT_POSITION_CLIP_MARGIN_RAD
+    #: Consecutive ticks a joint may be clipped before that latches as a
+    #: genuinely broken policy. See safety.DEFAULT_SUSTAINED_CLIP_TICKS.
+    sustained_clip_ticks: int = DEFAULT_SUSTAINED_CLIP_TICKS
 
     def __post_init__(self) -> None:
         for name in (
@@ -117,6 +124,10 @@ class FsmParams:
             value = float(getattr(self, name))
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"FsmParams.{name} must be positive and finite")
+        if not math.isfinite(self.position_clip_margin) or self.position_clip_margin < 0:
+            raise ValueError("FsmParams.position_clip_margin must be non-negative and finite")
+        if self.sustained_clip_ticks < 1:
+            raise ValueError("FsmParams.sustained_clip_ticks must be >= 1")
         if len(self.max_command) != 3 or any(
             (not math.isfinite(float(v))) or float(v) < 0 for v in self.max_command
         ):
@@ -202,7 +213,11 @@ class ControllerFSM:
         self.fix_stand = FixStand(self.order, self._fs_params)
         self.handoff = HandoffMonitor(self.order, self.fix_stand.target, handoff_criteria)
         self.safety = SafetyFilter(
-            self.order, kp=self.params.policy_kp, kd=self.params.policy_kd
+            self.order,
+            kp=self.params.policy_kp,
+            kd=self.params.policy_kd,
+            position_clip_margin=self.params.position_clip_margin,
+            sustained_clip_ticks=self.params.sustained_clip_ticks,
         )
         self.recorder = InterventionRecorder(
             self.params.live_intervention_window, self.params.live_intervention_max_fraction
@@ -589,7 +604,7 @@ class ControllerFSM:
         # last_action is the CLIPPED action, as in training (rsl_rl clips before env.step).
         self._last_action = action
         if result.illegal:
-            self._fault("illegal_target", t)
+            self._fault(result.fault_reason or "illegal_target", t)
             out = self._tick_fault(inp)
             out.intervention = record
             return out
