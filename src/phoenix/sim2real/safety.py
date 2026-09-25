@@ -98,15 +98,116 @@ MAX_DELTA_PER_STEP_RAD: float = 0.175
 def per_step_clip_array(target, current, max_delta: float = MAX_DELTA_PER_STEP_RAD):
     """Clip ``target`` to ``current ± max_delta`` element-wise.
 
-    Pure numpy. Used by both ``ros2_policy_node._clip_to_limits`` and
-    ``lowcmd_bridge_node._tick`` so the slew-rate cap is provably the
-    same on both sides of the deploy stack.
+    Pure numpy. Retained for the callers that still want a plain position
+    slew cap (e.g. FIX_STAND's own per-tick step bound). The final actuator
+    safety boundary (``ActuatorGate`` POLICY mode, ``SafetyFilter``) uses
+    :func:`torque_limited_target_array` instead -- see that function's
+    docstring for why the position-only clip was replaced there.
     """
     import numpy as np
 
     target_arr = np.asarray(target)
     current_arr = np.asarray(current)
     return np.clip(target_arr, current_arr - max_delta, current_arr + max_delta)
+
+
+#: Actions leaving the policy network are clamped to this range before being
+#: scaled and added to the default pose, matching training's
+#: ``clip_actions=1.0`` (evaluate.py:223, fine_tune.py:265, reconstruct.py:224,
+#: ppo_runner.py:124). The 2026-09-21 stage F1 failure traced to a raw action
+#: of -7.2 on RR_thigh reaching the bridge with no clamp at all; clamp here,
+#: at the earliest point after inference, not only downstream in the actuator
+#: gate, so an unclamped action never enters the target-scaling arithmetic.
+ACTION_CLIP: float = 1.0
+
+
+def clip_actions(action, limit: float = ACTION_CLIP):
+    """Clamp a raw policy action to ``[-limit, limit]`` element-wise.
+
+    Returns ``(clipped, saturated)`` where ``saturated`` is a bool array,
+    True for every element that hit either bound, so the caller can log a
+    per-tick and rolling saturation rate (a saturating policy heading toward
+    the clamp on every tick is a signal worth surfacing even though the
+    clamp itself keeps the robot safe).
+    """
+    import numpy as np
+
+    arr = np.asarray(action, dtype=np.float64)
+    clipped = np.clip(arr, -limit, limit)
+    saturated = np.abs(arr) > limit
+    return clipped, saturated
+
+
+def torque_limited_target_array(
+    target,
+    q_measured,
+    dq_measured,
+    kp,
+    kd,
+    torque_limit,
+):
+    """Clip ``target`` so the PD torque it implies cannot exceed ``torque_limit``.
+
+    Replaces the measured-q +-0.175 rad/step slew clip as the deploy-time
+    safety net. That clip was a POSITION bound with no relationship to what
+    the motor could actually do: at kp=25 it acted as an approximately 4.4 N m
+    torque cap on every joint, well under the real actuator limits (23.5 N m
+    hip/thigh, 45.43 N m calf -- see ``go2_model.JOINT_TORQUE_LIMITS_NM``),
+    and it clipped identically whether the joint was loaded or swinging free.
+    2026-09-21 stage F1: the loaded diagonal's calves pinned at the clip and
+    never rose while the unloaded diagonal flailed, because the safety net
+    could not tell "under load, needs more torque" from "runaway target".
+
+    The PD law the firmware executes is ``tau = Kp*(target - q) - Kd*dq``.
+    Solving for the target range that keeps ``|tau| <= torque_limit`` at the
+    MEASURED ``q``/``dq``::
+
+        target_lo = q + (-torque_limit + Kd*dq) / Kp
+        target_hi = q + ( torque_limit + Kd*dq) / Kp
+
+    ``target`` is clipped into ``[target_lo, target_hi]``. Where ``Kp`` is
+    zero (damping: no position term, so no position clip is meaningful here)
+    the element passes through unclipped by this function; callers in a
+    damping mode do not reach this path in practice because damping holds
+    the measured position directly.
+
+    This is a per-step bound, same as the clip it replaces, computed fresh
+    every tick from the current measured state -- it is NOT a substitute for
+    the hard position-limit / illegal-target abort band, which stays in
+    place and fires only on a target that could not come from a legal
+    measured state (see ``go2_model.LIMIT_ABORT_BAND_RAD``). A policy action
+    clamped to [-1,1] and scaled by 0.25 can deviate at most 0.25 rad from
+    the default pose, well inside the abort band in nominal operation, so
+    this torque clip -- not the abort band -- is what shapes a nominal
+    policy's authority near a limit.
+    """
+    import numpy as np
+
+    target_arr = np.asarray(target, dtype=np.float64)
+    q = np.asarray(q_measured, dtype=np.float64)
+    dq = np.asarray(dq_measured, dtype=np.float64)
+    kp_arr = np.broadcast_to(np.asarray(kp, dtype=np.float64), target_arr.shape).copy()
+    kd_arr = np.broadcast_to(np.asarray(kd, dtype=np.float64), target_arr.shape)
+    limit_arr = np.broadcast_to(np.asarray(torque_limit, dtype=np.float64), target_arr.shape)
+
+    has_kp = kp_arr > 0.0
+    safe_kp = np.where(has_kp, kp_arr, 1.0)
+    lo = q + (-limit_arr + kd_arr * dq) / safe_kp
+    hi = q + (limit_arr + kd_arr * dq) / safe_kp
+    clipped = np.clip(target_arr, lo, hi)
+    return np.where(has_kp, clipped, target_arr)
+
+
+def expected_torque(target, q_measured, dq_measured, kp, kd):
+    """``tau = Kp*(target - q) - Kd*dq`` element-wise. Pure numpy; for telemetry."""
+    import numpy as np
+
+    target_arr = np.asarray(target, dtype=np.float64)
+    q = np.asarray(q_measured, dtype=np.float64)
+    dq = np.asarray(dq_measured, dtype=np.float64)
+    return np.asarray(kp, dtype=np.float64) * (target_arr - q) - np.asarray(
+        kd, dtype=np.float64
+    ) * dq
 
 
 def is_ready_to_command_motion(
@@ -218,6 +319,10 @@ __all__ = [
     "is_ready_to_command_motion",
     "per_step_clip",
     "per_step_clip_array",
+    "clip_actions",
+    "expected_torque",
+    "torque_limited_target_array",
+    "ACTION_CLIP",
     "MAX_DELTA_PER_STEP_RAD",
     "startup_state",
 ]

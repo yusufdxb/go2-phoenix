@@ -55,6 +55,7 @@ import numpy as np
 from .fix_stand import FixStand, FixStandError, FixStandParams
 from .handoff import HandoffCriteria, HandoffMonitor, HandoffSample, HandoffStatus
 from .intervention import InterventionRecorder, SafetyFilter, tick_record
+from .safety import clip_actions
 
 
 class State(str, Enum):
@@ -186,7 +187,9 @@ class ControllerFSM:
         self._fs_params = fix_stand_params or FixStandParams(rate_hz=self.params.rate_hz)
         self.fix_stand = FixStand(self.order, self._fs_params)
         self.handoff = HandoffMonitor(self.order, self.fix_stand.target, handoff_criteria)
-        self.safety = SafetyFilter(self.order)
+        self.safety = SafetyFilter(
+            self.order, kp=self.params.policy_kp, kd=self.params.policy_kd
+        )
         self.recorder = InterventionRecorder(
             self.params.live_intervention_window, self.params.live_intervention_max_fraction
         )
@@ -212,6 +215,7 @@ class ControllerFSM:
         self._stop_damp = False
         self._authority_start_ns: int | None = None
         self.policy_calls = 0
+        self._action_saturation_ticks = 0
         self.transitions: list[tuple[int, str, str, str]] = []
 
     # ------------------------------------------------------------- operator
@@ -529,22 +533,36 @@ class ControllerFSM:
             self._fault(f"observation_invalid:{exc}", t)
             return self._tick_fault(inp)
         self.policy_calls += 1
-        action = np.asarray(self._policy(obs), dtype=np.float64).reshape(-1)
-        if action.shape != (self.n,) or not np.all(np.isfinite(action)):
+        raw_action = np.asarray(self._policy(obs), dtype=np.float64).reshape(-1)
+        if raw_action.shape != (self.n,) or not np.all(np.isfinite(raw_action)):
             self._fault("policy_output_invalid", t)
             return self._tick_fault(inp)
+        # Clamp to [-1, 1] BEFORE scaling, matching training's clip_actions=1.0
+        # (evaluate.py:223, fine_tune.py:265, reconstruct.py:224, ppo_runner.py:124).
+        # The 2026-09-21 stage F1 failure traced to an unclamped raw action of
+        # -7.2 on RR_thigh reaching the target-scaling arithmetic with no bound
+        # at all. This is a second, independent bound from the torque clip
+        # below: the torque clip protects the motors from ANY target (including
+        # a bug downstream of this clamp); this clamp keeps the target itself
+        # inside the policy's trained action distribution.
+        action, saturated = clip_actions(raw_action)
+        sat_fraction = float(np.mean(saturated))
+        if sat_fraction > 0.0:
+            self._action_saturation_ticks += 1
         scaled = self.fix_stand.target + p.action_scale * action
-        result = self.safety.apply(scaled, q)
+        result = self.safety.apply(scaled, q, inp.dq)
         record = tick_record(
             t_ns=t,
             order=self.order,
-            raw_action=action,
+            raw_action=raw_action,
             scaled_target=scaled,
             safety_target=result.final_target,
             final_target=result.final_target,
             reasons=result.reasons,
             source="fsm",
         )
+        record["action_saturated"] = [bool(v) for v in saturated]
+        record["action_saturation_fraction"] = sat_fraction
         self.recorder.add(record, illegal=result.illegal)
         # last_action is the policy's own raw output, as in training, even when clipped.
         self._last_action = action
@@ -604,6 +622,10 @@ class ControllerFSM:
             "stand_only": self.stand_only,
             "policy_configured": self._policy is not None,
             "policy_calls": self.policy_calls,
+            "action_saturation_ticks": self._action_saturation_ticks,
+            "action_saturation_rate": (
+                self._action_saturation_ticks / self.policy_calls if self.policy_calls else None
+            ),
             "transitions": [
                 {"t_ns": t, "from": a, "to": b, "why": why} for t, a, b, why in self.transitions
             ],

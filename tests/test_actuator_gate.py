@@ -25,6 +25,8 @@ from phoenix.sim2real.command_wire import (
 )
 from phoenix.sim2real.go2_model import (
     JOINT_POSITION_LIMITS_RAD,
+    JOINT_TORQUE_LIMITS_NM,
+    LIMIT_ABORT_BAND_RAD,
     POLICY_JOINT_ORDER,
     TRAINING_DEFAULT_JOINT_POS,
     UNITREE_EXAMPLE_FOLDED_POSE,
@@ -32,7 +34,6 @@ from phoenix.sim2real.go2_model import (
     limits_in_order,
 )
 from phoenix.sim2real.motor_crc import phoenix_to_unitree
-from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
 
 ORDER = POLICY_JOINT_ORDER
 T0 = 5_000_000_000
@@ -148,25 +149,77 @@ def test_permutation_is_applied_by_name() -> None:
         assert rec["final_target_unitree"][k] == pytest.approx(target[ORDER.index(name)])
 
 
-# ------------------------------------------------------------- slew clip
+# ----------------------------------------------------------- torque clip
+# Replaces the pre-2026-09-24 measured-q +-0.175 rad/step slew clip: the
+# actuator gate now bounds the commanded target so the PD torque
+# tau = Kp*(target-q) - Kd*dq cannot exceed the real motor limits
+# (go2_model.JOINT_TORQUE_LIMITS_NM), not an arbitrary position delta.
+KP_DEFAULT, KD_DEFAULT = 25.0, 0.5
+
+
 @pytest.mark.parametrize("sign", [+1.0, -1.0])
 @pytest.mark.parametrize("j", range(12))
-def test_slew_clip_is_per_joint_and_only_that_joint(j: int, sign: float) -> None:
+def test_torque_clip_is_per_joint_and_only_that_joint(j: int, sign: float) -> None:
+    name = ORDER[j]
+    limit = JOINT_TORQUE_LIMITS_NM[name]
+    lo, hi = JOINT_POSITION_LIMITS_RAD[name]
+    default = float(TRAINING_DEFAULT_JOINT_POS[name])
+    band = LIMIT_ABORT_BAND_RAD
+    torque_delta = limit / KP_DEFAULT + 0.05
+    # The largest requested delta that still stays inside the illegal-target
+    # abort band (a request beyond that is a different, already-tested path).
+    band_delta = (hi + band - default) if sign > 0 else (default - (lo - band))
+    if torque_delta > band_delta - 0.01:
+        pytest.skip(
+            f"{name}: torque bound ({limit / KP_DEFAULT:.3f} rad) sits outside the "
+            "position abort band; the hard-limit path is what engages here, "
+            "covered by test_target_beyond_abort_band_latches_hold"
+        )
     gate = armed()
-    target = DEFAULT_P.copy()
-    target[j] += sign * 0.1  # small, inside limits
     target_big = DEFAULT_P.copy()
-    target_big[j] += sign * 0.4
+    target_big[j] += sign * torque_delta
     send(gate, 0.0, target_big)
     rec = gate.tick(ns(0.01))
     k = u_index(j)
-    assert rec["mode"] == "policy"
-    lo, hi = JOINT_POSITION_LIMITS_RAD[ORDER[j]]
-    expected = np.clip(DEFAULT_U[k] + sign * MAX_DELTA_PER_STEP_RAD, lo, hi)
-    assert rec["final_target_unitree"][k] == pytest.approx(expected)
+    assert rec["mode"] == "policy", rec["fault"]
+    torque_bound = DEFAULT_U[k] + sign * (limit / KP_DEFAULT)
+    expected = np.clip(torque_bound, lo, hi)
+    assert rec["final_target_unitree"][k] == pytest.approx(expected, abs=1e-9)
     assert rec["slew_clip"] == [i == k for i in range(12)]
-    assert rec["slew_margin"][k] == pytest.approx(MAX_DELTA_PER_STEP_RAD - 0.4)
+    assert rec["torque_margin_nm"][k] >= -1e-6
     assert rec["fault"] is None
+
+
+def test_torque_clip_respects_damping_velocity_term() -> None:
+    """A nonzero measured dq shifts the torque-limited target range (Kd term)."""
+    gate = armed()
+    j = ORDER.index("FL_hip_joint")
+    k = u_index(j)
+    dq = np.zeros(12)
+    dq[k] = 4.0  # rad/s, joint moving toward +q
+    gate.on_lowstate(ns(0.0), DEFAULT_U, dq)
+    limit = JOINT_TORQUE_LIMITS_NM["FL_hip_joint"]
+    # tau = Kp*(t-q) - Kd*dq <= limit  =>  t <= q + (limit + Kd*dq)/Kp
+    torque_delta = (limit + KD_DEFAULT * dq[k]) / KP_DEFAULT
+    target = DEFAULT_P.copy()
+    target[j] += torque_delta + 0.05  # past the (shifted) bound, still inside the abort band
+    send(gate, 0.0, target)
+    rec = gate.tick(ns(0.01))
+    assert rec["mode"] == "policy", rec["fault"]
+    expected_hi = DEFAULT_U[k] + torque_delta
+    lo, hi = JOINT_POSITION_LIMITS_RAD["FL_hip_joint"]
+    expected = np.clip(expected_hi, lo, hi)
+    assert rec["final_target_unitree"][k] == pytest.approx(expected, abs=1e-9)
+    assert rec["fault"] is None
+
+
+def test_small_target_inside_torque_limit_is_not_clipped() -> None:
+    gate = armed()
+    target = DEFAULT_P + 0.05  # well inside every joint's torque envelope
+    send(gate, 0.0, target)
+    rec = gate.tick(ns(0.01))
+    assert rec["slew_clip"] == [False] * 12 and rec["limit_clip"] == [False] * 12
+    assert np.allclose(rec["final_target_unitree"], phoenix_to_unitree(target))
 
 
 # ------------------------------------------------------------ joint limits
@@ -208,19 +261,27 @@ def test_target_beyond_abort_band_latches_hold(j: int, side: str) -> None:
     assert gate.tick(ns(0.03))["mode"] == "hold"
 
 
-def test_final_target_always_within_limits_and_one_slew_step() -> None:
+def test_final_target_always_within_limits_and_torque_bound() -> None:
+    torque_u = np.asarray([JOINT_TORQUE_LIMITS_NM[n] for n in UNITREE_MOTOR_ORDER])
     rng = np.random.default_rng(0)
     for trial in range(400):
         q = rng.uniform(LO_U, HI_U)
-        gate = armed(q_u=q)
+        gate = armed(q_u=q)  # dq measured is zero
+        # Requests within one hard-limit abort band of the joint range, plus
+        # some deliberately far outside it (never a legal measured state, so
+        # those must land in "hold", checked below rather than "policy").
         req_u = rng.uniform(LO_U - 0.17, HI_U + 0.17)
         req_p = np.asarray([req_u[UNITREE_MOTOR_ORDER.index(n)] for n in ORDER])
         send(gate, 0.0, req_p, seq=trial)
         rec = gate.tick(ns(0.01))
-        assert rec["mode"] == "policy"
+        if rec["mode"] != "policy":
+            assert rec["mode"] == "hold" and rec["fault"] is not None
+            continue
         final = np.asarray(rec["final_target_unitree"])
         assert np.all(final >= LO_U) and np.all(final <= HI_U)
-        assert np.all(np.abs(final - q) <= MAX_DELTA_PER_STEP_RAD + 1e-12)
+        # tau = Kp*(final - q) with dq=0; must never exceed the joint's torque limit.
+        tau = KP_DEFAULT * (final - q)
+        assert np.all(np.abs(tau) <= torque_u + 1e-9)
 
 
 # ----------------------------------------------------- malformed commands

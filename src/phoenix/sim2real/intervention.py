@@ -69,8 +69,13 @@ from typing import Any
 
 import numpy as np
 
-from .go2_model import LIMIT_ABORT_BAND_RAD, TRAINING_DEFAULT_JOINT_POS, limits_in_order
-from .safety import MAX_DELTA_PER_STEP_RAD
+from .go2_model import (
+    LIMIT_ABORT_BAND_RAD,
+    TRAINING_DEFAULT_JOINT_POS,
+    limits_in_order,
+    torque_limits_in_order,
+)
+from .safety import MAX_DELTA_PER_STEP_RAD, torque_limited_target_array
 
 INTERVENTION_SCHEMA = "phoenix-intervention/v1"
 
@@ -108,10 +113,13 @@ class FilterResult:
 
 
 class SafetyFilter:
-    """Slew cap, hard-limit clip and illegal-target detection, with reasons.
+    """Torque cap, hard-limit clip and illegal-target detection, with reasons.
 
     Order of operations matches :class:`phoenix.sim2real.actuator_gate.ActuatorGate`:
-    illegal check on the requested target, then slew against measured q, then the
+    illegal check on the requested target (position-only, against the hard limits
+    plus ``limit_abort_band``), then a torque cap against the MEASURED ``q``/``dq``
+    at the commanded gains (replaces the pre-2026-09-24 measured-q slew clip; see
+    :func:`phoenix.sim2real.safety.torque_limited_target_array`), then the
     hard-limit clip. An illegal target returns ``illegal=True`` and the measured
     posture (clipped into the limits) as the final target; the caller must fault.
     """
@@ -121,28 +129,51 @@ class SafetyFilter:
         order: Sequence[str],
         max_delta: float = MAX_DELTA_PER_STEP_RAD,
         limit_abort_band: float = LIMIT_ABORT_BAND_RAD,
+        kp: float = 25.0,
+        kd: float = 0.5,
+        torque_limit: Sequence[float] | None = None,
     ) -> None:
         self.order = tuple(order)
         self.lo, self.hi = limits_in_order(self.order)
         self.max_delta = float(max_delta)
         self.band = float(limit_abort_band)
+        self.kp = float(kp)
+        self.kd = float(kd)
+        self.torque_limit = (
+            torque_limits_in_order(self.order)
+            if torque_limit is None
+            else np.asarray(torque_limit, dtype=np.float64)
+        )
 
-    def apply(self, requested: Sequence[float], q_measured: Sequence[float]) -> FilterResult:
+    def apply(
+        self,
+        requested: Sequence[float],
+        q_measured: Sequence[float],
+        dq_measured: Sequence[float] | None = None,
+    ) -> FilterResult:
         req = np.asarray(requested, dtype=np.float64)
         q = np.asarray(q_measured, dtype=np.float64)
         n = len(self.order)
+        dq = (
+            np.zeros(n, dtype=np.float64)
+            if dq_measured is None
+            else np.asarray(dq_measured, dtype=np.float64)
+        )
         reasons: list[list[str]] = [[] for _ in range(n)]
         beyond = (req < self.lo - self.band) | (req > self.hi + self.band) | ~np.isfinite(req)
         if beyond.any():
             for j in np.flatnonzero(beyond):
                 reasons[int(j)].append(ILLEGAL_TARGET)
             return FilterResult(np.clip(q, self.lo, self.hi), reasons, True)
-        slewed = np.clip(req, q - self.max_delta, q + self.max_delta)
-        final = np.clip(slewed, self.lo, self.hi)
+        torque_clipped = np.asarray(
+            torque_limited_target_array(req, q, dq, self.kp, self.kd, self.torque_limit),
+            dtype=np.float64,
+        )
+        final = np.clip(torque_clipped, self.lo, self.hi)
         for j in range(n):
-            if abs(slewed[j] - req[j]) > 0.0:
+            if abs(torque_clipped[j] - req[j]) > 0.0:
                 reasons[j].append(SLEW_CLIP)
-            if abs(final[j] - slewed[j]) > 0.0:
+            if abs(final[j] - torque_clipped[j]) > 0.0:
                 reasons[j].append(LIMIT_CLIP)
         return FilterResult(final, reasons, False)
 

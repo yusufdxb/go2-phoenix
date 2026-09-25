@@ -93,7 +93,13 @@ from .go2_model import (
     verify_joint_model,
 )
 from .motor_crc import PHOENIX_FOR_MOTOR
-from .safety import MAX_DELTA_PER_STEP_RAD, estop_is_active, per_step_clip_array
+from .go2_model import torque_limits_in_order
+from .safety import (
+    MAX_DELTA_PER_STEP_RAD,
+    estop_is_active,
+    expected_torque,
+    torque_limited_target_array,
+)
 
 #: Node names of the two real deadman adapters in this package
 #: (``wireless_estop_node`` and ``deadman_joy_node``). Nothing else may arm a
@@ -124,6 +130,10 @@ class GateParams:
     stale_hold_s: float
     first_message_timeout_s: float
     joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
+    #: Kept for config back-compat and validated for finiteness/positivity, but
+    #: POLICY-mode clipping no longer uses it: :meth:`ActuatorGate.tick` clips
+    #: on torque via ``go2_model.JOINT_TORQUE_LIMITS_NM``
+    #: (see ``safety.torque_limited_target_array``), not on this position delta.
     max_delta: float = MAX_DELTA_PER_STEP_RAD
     limit_abort_band: float = LIMIT_ABORT_BAND_RAD
     #: ``None`` means "required exactly when live". A live gate cannot opt out.
@@ -184,6 +194,7 @@ class ActuatorGate:
         self.params = params
         self._perm = np.asarray(PHOENIX_FOR_MOTOR, dtype=np.int64)
         self._lo, self._hi = limits_in_order(UNITREE_MOTOR_ORDER)
+        self._torque_limit = torque_limits_in_order(UNITREE_MOTOR_ORDER)
         self._label = wire_label(params.joint_order)
         self._started_ns = int(started_ns)
 
@@ -398,7 +409,7 @@ class ActuatorGate:
             "kp": None,
             "kd": None,
             "slew_clip": None,
-            "slew_margin": None,
+            "torque_margin_nm": None,
             "limit_clip": None,
             "limit_margin": None,
             "policy": None if self._last_decoded is None else self._last_decoded.telemetry(),
@@ -497,13 +508,23 @@ class ActuatorGate:
                 mode = Mode.HOLD
                 cause = self.fault
             else:
-                slewed = np.asarray(
-                    per_step_clip_array(requested, q, p.max_delta), dtype=np.float64
+                dq = self._dq if self._dq is not None else np.zeros(12, dtype=np.float64)
+                torque_clipped = np.asarray(
+                    torque_limited_target_array(
+                        requested, q, dq, p.kp, p.kd, self._torque_limit
+                    ),
+                    dtype=np.float64,
                 )
-                final = np.clip(slewed, self._lo, self._hi)
-                rec["slew_clip"] = [bool(v) for v in slewed != requested]
-                rec["slew_margin"] = _floats(p.max_delta - np.abs(requested - q))
-                rec["limit_clip"] = [bool(v) for v in final != slewed]
+                final = np.clip(torque_clipped, self._lo, self._hi)
+                # Key kept as "slew_clip" for backward compatibility with
+                # bridge_telemetry.py's hardware slew metric and existing
+                # stage evidence, but the semantics changed 2026-09-24: this
+                # now flags a TORQUE-based clip (go2_model.JOINT_TORQUE_LIMITS_NM),
+                # not the old measured-q +-0.175 rad/step position slew.
+                rec["slew_clip"] = [bool(v) for v in torque_clipped != requested]
+                expected_tau = expected_torque(torque_clipped, q, dq, p.kp, p.kd)
+                rec["torque_margin_nm"] = _floats(self._torque_limit - np.abs(expected_tau))
+                rec["limit_clip"] = [bool(v) for v in final != torque_clipped]
                 rec["cmd_is_new"] = cmd.seq != self._last_processed_seq
                 self._last_processed_seq = cmd.seq
                 rec["cmd_seq"] = cmd.seq

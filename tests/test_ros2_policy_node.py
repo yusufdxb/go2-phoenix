@@ -901,3 +901,76 @@ def test_nonpositive_authority_window_is_refused(tmp_path) -> None:
     cfg, cfg_path, _ = _fake_deploy(tmp_path)
     _, problems = resolve_startup(cfg, _args(cfg_path, authority_s=0.0))
     assert any("--authority-s" in p for p in problems)
+
+
+# ---------------------------------------------------------------------------
+# Action clamp (defect: unclamped raw action reached target-scaling math on
+# 2026-09-21 stage F1) and velocity-command caps.
+# ---------------------------------------------------------------------------
+
+
+class _ActionClampStub:
+    def __init__(self) -> None:
+        self._action_ticks = 0
+        self._action_saturation_ticks = 0
+
+
+def test_clip_action_and_report_clamps_and_counts_saturation() -> None:
+    stub = _ActionClampStub()
+    clipped = _PhoenixPolicyNode._clip_action_and_report(stub, np.asarray([-7.2, 0.1, 0.0]))
+    assert np.allclose(clipped, [-1.0, 0.1, 0.0])
+    assert stub._action_ticks == 1
+    assert stub._action_saturation_ticks == 1
+
+
+def test_clip_action_and_report_no_saturation_when_inside_range() -> None:
+    stub = _ActionClampStub()
+    clipped = _PhoenixPolicyNode._clip_action_and_report(stub, np.asarray([0.2, -0.5, 0.9]))
+    assert np.allclose(clipped, [0.2, -0.5, 0.9])
+    assert stub._action_saturation_ticks == 0
+
+
+class _TorqueClipStub:
+    def __init__(self) -> None:
+        self._policy_kp = 25.0
+        self._policy_kd = 0.5
+        from phoenix.sim2real.go2_model import torque_limits_in_order
+
+        self._torque_limit = torque_limits_in_order(POLICY_JOINT_ORDER)
+
+
+def test_clip_to_limits_bounds_by_torque_not_position_delta() -> None:
+    stub = _TorqueClipStub()
+    q = np.asarray([TRAINING_DEFAULT_JOINT_POS[n] for n in POLICY_JOINT_ORDER], dtype=np.float32)
+    qd = np.zeros(12, dtype=np.float32)
+    target = q.copy()
+    target[0] += 5.0  # absurd, must be clipped well below +5
+    out = _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+    assert out[0] < q[0] + 1.0
+    assert np.allclose(out[1:], q[1:])
+
+
+class _VelocityCapStub(_StubResolveNode):
+    def __init__(self, max_command=(0.5, 0.3, 0.8)) -> None:
+        super().__init__("odom", stand_only=False)
+        self.max_command = np.asarray(max_command, dtype=np.float64)
+
+
+def test_on_cmd_vel_clamps_to_configured_max_command() -> None:
+    stub = _VelocityCapStub()
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(5.0, -5.0, 5.0))
+    assert stub._estopped is False
+    assert np.allclose(stub._velocity_command, [0.5, -0.3, 0.8])
+
+
+def test_on_cmd_vel_passes_through_inside_cap() -> None:
+    stub = _VelocityCapStub()
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(0.2, -0.1, 0.3))
+    assert np.allclose(stub._velocity_command, [0.2, -0.1, 0.3])
+
+
+def test_on_cmd_vel_nonfinite_becomes_zero_stand_not_propagated() -> None:
+    stub = _VelocityCapStub()
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(float("nan"), 0.0, 0.0))
+    assert stub._estopped is False
+    assert np.allclose(stub._velocity_command, 0.0)

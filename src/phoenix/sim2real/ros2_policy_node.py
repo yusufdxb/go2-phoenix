@@ -128,7 +128,8 @@ from .observation import (
     projected_gravity_from_quat,
     resolve_base_lin_vel,
 )
-from .safety import MAX_DELTA_PER_STEP_RAD, per_step_clip_array
+from .go2_model import torque_limits_in_order
+from .safety import ACTION_CLIP, clip_actions, torque_limited_target_array
 from .telemetry import (
     CONTACT_FORCE_UNITS_RAW_COUNTS,
     OdomSample,
@@ -360,6 +361,26 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._authority_s = authority_s
         self.action_scale = float(cfg["control"]["action_scale"])
         self.rate_hz = float(cfg["control"]["rate_hz"])
+        # Deploy PD gains, matched to the LowCmd bridge's --kp/--kd (both
+        # default 25.0 / 0.5, the training gains). Used ONLY to compute this
+        # node's own torque-limit safety net (see _clip_to_limits); the
+        # motors are actually driven by the bridge's own gains, and the
+        # deploy contract / lock already gate that the two cannot drift.
+        control_cfg = cfg.get("control", {})
+        self._policy_kp = float(control_cfg.get("kp", 25.0))
+        self._policy_kd = float(control_cfg.get("kd", 0.5))
+        self._torque_limit = torque_limits_in_order(self.joint_order.names)
+        self._action_ticks = 0
+        self._action_saturation_ticks = 0
+        # Per-axis (vx, vy, wz) command cap, config-driven so a first live
+        # session can run conservative. Defaults match the run-card first-
+        # session envelope (vx<=0.5, vy<=0.3, yaw<=0.8 rad/s). A stand-only
+        # deploy never reaches this (any nonzero /cmd_vel aborts instead).
+        self.max_command = np.asarray(
+            cfg.get("safety", {}).get("max_command", [0.5, 0.3, 0.8]), dtype=np.float64
+        )
+        if self.max_command.shape != (3,) or np.any(self.max_command < 0):
+            raise ValueError(f"safety.max_command must be 3 non-negative numbers, got {self.max_command}")
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
         # Fail-closed timeouts. estop must be heartbeated well inside
         # estop_timeout_s (code default 0.5s; deploy.yaml sets 0.8s; the
@@ -682,7 +703,17 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             if bool(np.any(received != 0.0)) and not self._estopped:
                 self._latch_abort("walking_command_blocked_stand_only")
             return
-        self._velocity_command = received.astype(np.float32)
+        # Config-driven per-axis cap (safety.max_command, default
+        # vx<=0.5, vy<=0.3, wz<=0.8), applied at the stick/teleop boundary so
+        # a conservative first-session envelope holds regardless of what the
+        # upstream teleop node sends. A non-finite command is treated as a
+        # zero-command stand rather than propagated.
+        if not np.all(np.isfinite(received)):
+            self._velocity_command = np.zeros(3, dtype=np.float32)
+            return
+        self._velocity_command = np.clip(received, -self.max_command, self.max_command).astype(
+            np.float32
+        )
 
     def _on_estop(self, msg):
         self._latest_estop_ns = time.monotonic_ns()
@@ -829,6 +860,9 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 base_ang_vel=base_ang_vel,
                 base_lin_vel=base_lin_vel,
             )
+            # mode_switch reports only the (already clamped) active-policy
+            # action; there is no separate pre-clamp value to log here.
+            raw_action = action
         else:
             # Assembly goes through the one gated function; an inline
             # concatenate here is invisible to phoenix.sim2real.obs_parity,
@@ -846,7 +880,8 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             ).reshape(1, -1)
 
             outputs = self.session.run(self._shield_outputs, {"obs": obs})
-            action = outputs[0][0]
+            raw_action = outputs[0][0]
+            action = self._clip_action_and_report(raw_action)
             self._last_action = action.astype(np.float32, copy=False)
 
             target = self.default_q + self.action_scale * action
@@ -855,14 +890,20 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 target = self._apply_shield(outputs[1][0], target)
 
         requested_target = np.asarray(target, dtype=np.float32)
-        target = self._clip_to_limits(requested_target, q)
+        target = self._clip_to_limits(requested_target, q, qd)
 
         self._publish_wire(
             KIND_POLICY,
             target,
             now_ns=now_ns,
             requested_target=requested_target,
-            raw_action=action,
+            # The wire's raw_action is the diagnostic, PRE-CLAMP ONNX output
+            # (defect: "log pre-clip saturation rate"). last_action fed back
+            # into the next observation is the CLAMPED action (self._last_action,
+            # set above), matching training: the rsl_rl wrapper clips actions to
+            # [-1, 1] before env.step, so last_action in training is the
+            # clipped action, not the raw network output.
+            raw_action=raw_action,
             q_policy=q,
             base_lin_vel_fed=base_lin_vel,
             velocity_command_fed=velocity_command_fed,
@@ -1139,10 +1180,12 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 pad_zeros=self.obs_pad_zeros,
             ).reshape(1, -1)
 
-        stand_action = self.stand_session.run(["action"], {"obs": _obs(self._last_action_stand)})[
-            0
-        ][0]
-        walk_action = self.walk_session.run(["action"], {"obs": _obs(self._last_action_walk)})[0][0]
+        stand_action = self._clip_action_and_report(
+            self.stand_session.run(["action"], {"obs": _obs(self._last_action_stand)})[0][0]
+        )
+        walk_action = self._clip_action_and_report(
+            self.walk_session.run(["action"], {"obs": _obs(self._last_action_walk)})[0][0]
+        )
         stand_target = self.default_q + self.action_scale * stand_action
         walk_target = self.default_q + self.action_scale * walk_action
 
@@ -1238,10 +1281,48 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         ]
         self.shield_pub.publish(msg)
 
-    def _clip_to_limits(self, target: np.ndarray, q: np.ndarray) -> np.ndarray:
-        # Single source of truth lives in phoenix.sim2real.safety so the
-        # bridge and the policy node provably share the slew-rate cap.
-        return per_step_clip_array(target, q, MAX_DELTA_PER_STEP_RAD).astype(np.float32, copy=False)
+    def _clip_action_and_report(self, raw_action: np.ndarray) -> np.ndarray:
+        """Clamp a raw policy action to [-1, 1] BEFORE it scales into a target.
+
+        Matches training's ``clip_actions=1.0``. The 2026-09-21 stage F1
+        failure traced to a raw action of -7.2 on RR_thigh reaching the
+        target-scaling arithmetic with no bound at all (``ros2_policy_node.py``
+        computed ``target = default_q + action_scale*action`` unclamped). This
+        is the earliest point after inference the clamp can apply. Logs a
+        throttled saturation rate: a policy saturating this clamp every tick
+        is a signal worth surfacing even though the clamp itself keeps the
+        robot safe.
+        """
+        clipped, saturated = clip_actions(raw_action, ACTION_CLIP)
+        self._action_ticks += 1
+        if bool(saturated.any()):
+            self._action_saturation_ticks += 1
+        if self._action_ticks % 50 == 0:  # ~once per second at 50 Hz
+            rate = self._action_saturation_ticks / self._action_ticks
+            logger.info(
+                "action clamp saturation rate over last %d ticks: %.1f%% (%d ticks hit "
+                "+/-%.1f on >=1 joint)",
+                self._action_ticks,
+                100.0 * rate,
+                self._action_saturation_ticks,
+                ACTION_CLIP,
+            )
+        return clipped.astype(np.float32, copy=False)
+
+    def _clip_to_limits(self, target: np.ndarray, q: np.ndarray, qd: np.ndarray) -> np.ndarray:
+        """Torque-limit the requested target against the MEASURED q/qd.
+
+        This node's own safety net, upstream of the LowCmd bridge's
+        authoritative ``ActuatorGate`` (which applies the same torque limits
+        against a fresher measured state at 500 Hz). Replaces the pre-
+        2026-09-24 measured-q +-0.175 rad/step slew clip -- see
+        ``phoenix.sim2real.safety.torque_limited_target_array`` for why a
+        position delta was the wrong proxy for the actuator's real limit.
+        """
+        clipped = torque_limited_target_array(
+            target, q, qd, self._policy_kp, self._policy_kd, self._torque_limit
+        )
+        return np.asarray(clipped, dtype=np.float32)
 
     def _next_seq(self) -> int:
         self._seq = getattr(self, "_seq", 0) + 1
