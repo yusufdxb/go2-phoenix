@@ -177,6 +177,7 @@ class ControllerFSM:
         handoff_criteria: HandoffCriteria | None = None,
         policy: Policy | None = None,
         obs_builder: ObsBuilder | None = None,
+        obs_schema_version: str | None = None,
         stand_only: bool = True,
         manifest_problems: Sequence[str] = (),
     ) -> None:
@@ -192,9 +193,21 @@ class ControllerFSM:
         )
         self._policy = policy
         if policy is not None and obs_builder is None:
+            # The default builder needs the policy's observation schema (the
+            # checkpoint manifest's, contract.manifest_obs_schema): refuse to
+            # build rather than feed a scaled-obs policy raw observations.
+            if obs_schema_version is None:
+                raise ValueError(
+                    "a policy with the default observation builder needs obs_schema_version "
+                    "from the checkpoint manifest"
+                )
+            import functools
+
             from phoenix.velocity.observation import build_actor_observation
 
-            obs_builder = build_actor_observation
+            obs_builder = functools.partial(
+                build_actor_observation, obs_schema_version=obs_schema_version
+            )
         self._obs_builder = obs_builder
         self.stand_only = bool(stand_only)
         if not self.stand_only and not any(self.params.max_command):

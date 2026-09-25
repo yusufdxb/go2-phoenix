@@ -17,7 +17,12 @@ from isaaclab.managers import ManagerTermBase
 
 from .contract import ACTION_SCALE, ACTOR_OBS_DIM
 from .curriculum import CommandCurriculum
-from .mdp import as_torch, episode_mean_kernel_math, slew_clip_fraction_math
+from .mdp import (
+    as_torch,
+    episode_mean_kernel_math,
+    episode_survival_kernel_math,
+    slew_clip_fraction_math,
+)
 from .spec import CRITIC_OBS_DIM, joint_order_problems, spec_from_dict
 
 #: Attribute on the env instance where the live curriculum object is exposed to
@@ -94,7 +99,12 @@ class VelocityCommandCurriculum(ManagerTermBase):
         )
         self._apply_ranges(env)
         setattr(env, ENV_CURRICULUM_ATTR, self.curriculum)
-        self._last = {"lin_score": 0.0, "yaw_score": 0.0, "termination_rate": 0.0}
+        self._last = {
+            "lin_score": 0.0,
+            "yaw_score": 0.0,
+            "lin_kernel": 0.0,
+            "termination_rate": 0.0,
+        }
 
     def _apply_ranges(self, env: Any) -> None:
         ranges = self.curriculum.ranges
@@ -124,14 +134,22 @@ class VelocityCommandCurriculum(ManagerTermBase):
             yaw = episode_mean_kernel_math(
                 rm._episode_sums[yaw_term][ids], rm.get_term_cfg(yaw_term).weight, env.step_dt, steps
             )
+            lin_surv = episode_survival_kernel_math(
+                rm._episode_sums[lin_term][ids], rm.get_term_cfg(lin_term).weight, env.max_episode_length_s
+            )
             terminated = env.termination_manager.terminated[ids]
             decision = self.curriculum.observe(
-                int(ids.numel()), int(terminated.sum().item()), float(lin.sum()), float(yaw.sum())
+                int(ids.numel()),
+                int(terminated.sum().item()),
+                float(lin.sum()),
+                float(yaw.sum()),
+                float(lin_surv.sum()),
             )
             if decision.evaluated:
                 self._last = {
                     "lin_score": decision.lin_score,
                     "yaw_score": decision.yaw_score,
+                    "lin_kernel": decision.lin_survival_kernel,
                     "termination_rate": decision.termination_rate,
                 }
             if decision.expanded:
@@ -146,7 +164,9 @@ class VelocityCommandCurriculum(ManagerTermBase):
             "level": float(self.curriculum.level),
             "lin_vel_x_min": r.lin_vel_x[0],
             "lin_vel_x_max": r.lin_vel_x[1],
+            "lin_vel_y_min": r.lin_vel_y[0],
             "lin_vel_y_max": r.lin_vel_y[1],
+            "ang_vel_z_min": r.ang_vel_z[0],
             "ang_vel_z_max": r.ang_vel_z[1],
             **{k: float(v) for k, v in self._last.items()},
         }

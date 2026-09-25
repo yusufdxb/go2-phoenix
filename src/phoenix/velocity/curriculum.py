@@ -9,8 +9,13 @@ Rule (all numbers in :class:`phoenix.velocity.spec.CurriculumSpec`):
 * ranges(level) = initial + (final - initial) * level / num_levels, per bound;
 * finished episodes are accumulated into a window; once the window holds
   ``window_episodes`` episodes it is evaluated and cleared;
-* level += 1 iff lin score >= threshold AND yaw score >= threshold AND
-  termination rate <= max; otherwise the level is held (never lowered);
+* gate ``normalized_lin_yaw`` (v1): level += 1 iff lin score >= threshold AND
+  yaw score >= threshold AND termination rate <= max;
+* gate ``unitree_lin_kernel`` (vNext): level += 1 iff the window's mean
+  survival-weighted lin kernel (tracking kernel summed over the episode divided
+  by the FULL episode duration, Unitree's ``lin_vel_cmd_levels`` statistic)
+  >= ``lin_kernel_threshold`` AND termination rate <= max; yaw is not a gate;
+* otherwise the level is held (never lowered);
 * a score normalizes the mean tracking kernel against a robot that never moves
   on the CURRENT ranges: ``(k - k_still) / (1 - k_still)``.
 
@@ -28,6 +33,13 @@ from .contract import CommandRanges
 from .spec import CommandSpec, CurriculumSpec
 
 RULE_NAME = "phoenix-velocity-curriculum/v1: linear levels, windowed score gate, monotone"
+RULE_NAMES = {
+    "normalized_lin_yaw": RULE_NAME,
+    "unitree_lin_kernel": (
+        "phoenix-velocity-curriculum/v2: linear levels on lin x/y only, windowed "
+        "survival-weighted lin kernel gate (Unitree lin_vel_cmd_levels), yaw telemetry only, monotone"
+    ),
+}
 
 
 def interpolate_ranges(
@@ -92,17 +104,26 @@ class WindowStats:
     terminated: int = 0
     lin_kernel_sum: float = 0.0
     yaw_kernel_sum: float = 0.0
+    lin_survival_kernel_sum: float = 0.0
 
-    def add(self, episodes: int, terminated: int, lin_sum: float, yaw_sum: float) -> None:
+    def add(
+        self,
+        episodes: int,
+        terminated: int,
+        lin_sum: float,
+        yaw_sum: float,
+        lin_survival_sum: float = 0.0,
+    ) -> None:
         if episodes < 0 or terminated < 0 or terminated > episodes:
             raise ValueError(f"bad episode counts: episodes={episodes} terminated={terminated}")
-        for v in (lin_sum, yaw_sum):
+        for v in (lin_sum, yaw_sum, lin_survival_sum):
             if not math.isfinite(v):
                 raise ValueError(f"non-finite tracking sum {v}")
         self.episodes += int(episodes)
         self.terminated += int(terminated)
         self.lin_kernel_sum += float(lin_sum)
         self.yaw_kernel_sum += float(yaw_sum)
+        self.lin_survival_kernel_sum += float(lin_survival_sum)
 
     @property
     def lin_kernel(self) -> float:
@@ -111,6 +132,10 @@ class WindowStats:
     @property
     def yaw_kernel(self) -> float:
         return self.yaw_kernel_sum / self.episodes if self.episodes else 0.0
+
+    @property
+    def lin_survival_kernel(self) -> float:
+        return self.lin_survival_kernel_sum / self.episodes if self.episodes else 0.0
 
     @property
     def termination_rate(self) -> float:
@@ -126,6 +151,7 @@ class Decision:
     yaw_score: float = float("nan")
     termination_rate: float = float("nan")
     reason: str = ""
+    lin_survival_kernel: float = float("nan")
 
 
 @dataclass
@@ -172,7 +198,12 @@ class CommandCurriculum:
         return self.ranges
 
     def observe(
-        self, episodes: int, terminated: int, lin_kernel_sum: float, yaw_kernel_sum: float
+        self,
+        episodes: int,
+        terminated: int,
+        lin_kernel_sum: float,
+        yaw_kernel_sum: float,
+        lin_survival_kernel_sum: float = 0.0,
     ) -> Decision:
         """Add finished episodes to the window; evaluate the gate when the window is full.
 
@@ -181,12 +212,17 @@ class CommandCurriculum:
             terminated: how many of them ended by a failure termination (not time-out).
             lin_kernel_sum / yaw_kernel_sum: sum over those episodes of each episode's
                 time-averaged tracking kernel (each in [0, 1]).
+            lin_survival_kernel_sum: sum over those episodes of the lin kernel summed
+                over the episode divided by the FULL max episode duration (the
+                ``unitree_lin_kernel`` gate statistic; ignored by the v1 gate).
         """
         self.total_episodes += int(episodes)
         if self.level >= self.max_level or not self.spec.enabled:
             self.last_decision = Decision(False, False, self.level, reason="at final ranges")
             return self.last_decision
-        self.window.add(episodes, terminated, lin_kernel_sum, yaw_kernel_sum)
+        self.window.add(
+            episodes, terminated, lin_kernel_sum, yaw_kernel_sum, lin_survival_kernel_sum
+        )
         if self.window.episodes < self.window_episodes:
             self.last_decision = Decision(False, False, self.level, reason="window filling")
             return self.last_decision
@@ -195,11 +231,18 @@ class CommandCurriculum:
         lin_score = normalized_score(self.window.lin_kernel, base_lin)
         yaw_score = normalized_score(self.window.yaw_kernel, base_yaw)
         term_rate = self.window.termination_rate
+        lin_surv = self.window.lin_survival_kernel
         failures = []
-        if lin_score < self.spec.lin_score_threshold:
-            failures.append(f"lin score {lin_score:.3f} < {self.spec.lin_score_threshold}")
-        if yaw_score < self.spec.yaw_score_threshold:
-            failures.append(f"yaw score {yaw_score:.3f} < {self.spec.yaw_score_threshold}")
+        if self.spec.gate == "unitree_lin_kernel":
+            if lin_surv < self.spec.lin_kernel_threshold:
+                failures.append(f"lin kernel {lin_surv:.3f} < {self.spec.lin_kernel_threshold}")
+        elif self.spec.gate == "normalized_lin_yaw":
+            if lin_score < self.spec.lin_score_threshold:
+                failures.append(f"lin score {lin_score:.3f} < {self.spec.lin_score_threshold}")
+            if yaw_score < self.spec.yaw_score_threshold:
+                failures.append(f"yaw score {yaw_score:.3f} < {self.spec.yaw_score_threshold}")
+        else:
+            raise ValueError(f"unknown curriculum gate {self.spec.gate!r}")
         if term_rate > self.spec.max_termination_rate:
             failures.append(f"termination rate {term_rate:.3f} > {self.spec.max_termination_rate}")
         expanded = not failures
@@ -212,6 +255,7 @@ class CommandCurriculum:
                     "at_episode": self.total_episodes,
                     "lin_score": lin_score,
                     "yaw_score": yaw_score,
+                    "lin_survival_kernel": lin_surv,
                     "termination_rate": term_rate,
                     "ranges": self.ranges.to_dict(),
                 }
@@ -225,12 +269,13 @@ class CommandCurriculum:
             yaw_score,
             term_rate,
             "expanded" if expanded else "; ".join(failures),
+            lin_surv,
         )
         return self.last_decision
 
     def rule_dict(self) -> dict[str, Any]:
         return {
-            "rule": RULE_NAME,
+            "rule": RULE_NAMES[self.spec.gate],
             "tracking_std": self.tracking_std,
             "window_episodes": self.window_episodes,
             **asdict(self.spec),
@@ -271,6 +316,7 @@ class CommandCurriculum:
 
 __all__ = [
     "RULE_NAME",
+    "RULE_NAMES",
     "CommandCurriculum",
     "Decision",
     "WindowStats",

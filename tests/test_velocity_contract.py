@@ -25,6 +25,7 @@ def _manifest(**over) -> dict:
         reward_scales={"track_lin_vel_xy": 1.0},
         domain_randomization={},
         curriculum={},
+        obs_schema_version=c.OBS_SCHEMA_V1,
     )
     m.update(over)
     return m
@@ -185,6 +186,7 @@ def test_manifest_deploy_block_is_written_verbatim() -> None:
         reward_scales={"track_lin_vel_xy": 1.0},
         domain_randomization={},
         curriculum={},
+        obs_schema_version=c.OBS_SCHEMA_V1,
         deploy={"kp": 25.0, "kd": 0.5, "action_clip": 100.0},
     )
     assert m["deploy"] == {"kp": 25.0, "kd": 0.5, "action_clip": 100.0}
@@ -202,6 +204,7 @@ def test_manifest_deploy_block_survives_a_copy_round_trip() -> None:
         reward_scales={"track_lin_vel_xy": 1.0},
         domain_randomization={},
         curriculum={},
+        obs_schema_version=c.OBS_SCHEMA_V1,
         deploy={"kp": [25.0] * 12, "kd": [0.5] * 12, "action_clip": 1.0},
     )
     dumped = copy.deepcopy(m)

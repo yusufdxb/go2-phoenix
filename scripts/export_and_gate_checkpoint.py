@@ -84,6 +84,7 @@ def main() -> int:
         reward_scales=spec.reward_scales(),
         domain_randomization=json.loads(json.dumps(spec.domain_randomization.__dict__, default=str)),
         curriculum=cur_dict,
+        obs_schema_version=spec.obs_schema,
         deploy={"kp": ACTUATOR_STIFFNESS, "kd": ACTUATOR_DAMPING, "action_clip": spec.action.clip_actions},
     )
     manifest_path = args.out_dir / MANIFEST_NAME

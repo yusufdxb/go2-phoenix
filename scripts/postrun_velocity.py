@@ -155,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             reward_scales=spec.reward_scales(),
             domain_randomization=json.loads(json.dumps(spec.domain_randomization.__dict__, default=str)),
             curriculum={"num_levels": spec.curriculum.num_levels, "enabled": spec.curriculum.enabled},
+            obs_schema_version=spec.obs_schema,
             deploy=deploy_block,
         )
         manifest_path = run_root / MANIFEST_NAME

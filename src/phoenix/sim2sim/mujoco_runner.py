@@ -42,6 +42,8 @@ from phoenix.velocity.contract import (
     JOINT_ORDER,
     MANIFEST_NAME,
     MODE_VELOCITY,
+    UnknownObsSchemaError,
+    manifest_obs_schema,
     validate_manifest_for_mode,
 )
 from phoenix.velocity.observation import (
@@ -225,6 +227,10 @@ class GateResult:
     trained_commands: dict[str, Any] | None
     skipped: dict[str, list[str]] = field(default_factory=dict)
     runnable: list[Scenario] = field(default_factory=list)
+    #: The manifest's observation schema; None if the manifest does not state a
+    #: known, hash-consistent one (then the run is DIAGNOSTIC and the caller
+    #: must choose the schema explicitly).
+    obs_schema_version: str | None = None
 
 
 def gate_checkpoint(
@@ -280,7 +286,12 @@ def gate_checkpoint(
         # Diagnostic runs still exercise every scenario, envelope or not.
         runnable = list(scenarios)
         skipped = {}
+    try:
+        obs_schema_version: str | None = manifest_obs_schema(manifest or {})
+    except UnknownObsSchemaError:
+        obs_schema_version = None
     return GateResult(
+        obs_schema_version=obs_schema_version,
         diagnostic=bool(problems),
         problems=list(problems),
         manifest_path=manifest_path,
@@ -368,7 +379,9 @@ class MujocoGo2:
                 return True
         return False
 
-    def observation(self, command: Sequence[float], last_action: np.ndarray) -> np.ndarray:
+    def observation(
+        self, command: Sequence[float], last_action: np.ndarray, obs_schema_version: str
+    ) -> np.ndarray:
         return build_actor_observation(
             gyro_body=self.gyro_body(),
             quat_wxyz=self.base_quat_wxyz(),
@@ -376,6 +389,7 @@ class MujocoGo2:
             joint_pos=self.joint_pos(),
             joint_vel=self.joint_vel(),
             last_action=last_action,
+            obs_schema_version=obs_schema_version,
         )
 
     # ---- actuation
@@ -400,12 +414,17 @@ class RunConfig:
     #: None disables clipping (mirrors a deploy path that does not clip).
     action_clip: float | None = 1.0
     scene_xml: str | None = None
+    #: Observation schema of the policy (``GateResult.obs_schema_version``, i.e.
+    #: the checkpoint manifest's). No default: a scaled-obs (v2) policy fed raw
+    #: (v1) observations would still run and produce plausible-looking garbage.
+    obs_schema_version: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "profile": self.profile,
             "action_scale": self.action_scale,
             "action_clip": self.action_clip,
+            "obs_schema_version": self.obs_schema_version,
             "physics_dt": 1.0 / (CONTROL_HZ * DECIMATION),
             "control_hz": CONTROL_HZ,
             "decimation": DECIMATION,
@@ -426,6 +445,11 @@ def run_scenario(
 ) -> dict[str, Any]:
     """Run one scenario from the nominal init state. Returns ``{"metrics": ..., ...}``."""
     cfg = cfg or RunConfig()
+    if cfg.obs_schema_version is None:
+        raise ValueError(
+            "RunConfig.obs_schema_version is unset: take it from the checkpoint manifest "
+            "(GateResult.obs_schema_version / contract.manifest_obs_schema)"
+        )
     sim = MujocoGo2(profile=cfg.profile, foot_friction=scenario.foot_friction, scene_xml=cfg.scene_xml)
     policy.reset()
     delay = TargetDelay(scenario.latency_physics_steps)
@@ -458,7 +482,7 @@ def run_scenario(
     for k in range(n_ctrl):
         t = k * CONTROL_DT
         cmd = scenario.command_at(t)
-        obs = sim.observation(cmd, last_action)
+        obs = sim.observation(cmd, last_action, cfg.obs_schema_version)
         raw = np.asarray(policy(obs), dtype=np.float64).reshape(-1)
         if raw.shape != (ACTION_DIM,):
             raise ValueError(f"policy returned shape {raw.shape}, expected ({ACTION_DIM},)")

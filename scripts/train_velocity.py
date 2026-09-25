@@ -61,7 +61,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "fine-tune semantics."
         ),
     )
-    p.add_argument("--smoke", action="store_true", help="Use spec.smoke_spec() instead of default_spec()")
+    p.add_argument("--smoke", action="store_true", help="Shrink the chosen --spec with spec.smoke_spec()")
+    p.add_argument(
+        "--spec",
+        choices=["default", "vnext"],
+        default="default",
+        help=(
+            "default: default_spec() (walk_v1/v2 arms, obs v1, no health guard). "
+            "vnext: spec.vnext_spec() (obs v2 Unitree scales, yaw +-1 from iteration 0, "
+            "lin-only Unitree curriculum gate, joint_pos_limits -10, health guard ON)."
+        ),
+    )
+    p.add_argument(
+        "--health",
+        action="append",
+        default=[],
+        metavar="FIELD=VALUE",
+        help="Override one HealthGuardSpec field (repeatable), e.g. --health action_p99_abort=4.0",
+    )
+    p.add_argument(
+        "--override-health-abort",
+        action="store_true",
+        help="Allow --resume of a run that the health guard stopped (health_abort.json present).",
+    )
     p.add_argument(
         "--curriculum",
         choices=["on", "off"],
@@ -112,11 +134,34 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     import importlib.metadata as metadata
 
     from phoenix.velocity import env_cfg as pv_env_cfg
-    from phoenix.velocity.spec import PLAY_TASK_ID, TASK_ID, VelocityTaskSpec, default_spec, smoke_spec
+    from phoenix.velocity.spec import (
+        PLAY_TASK_ID,
+        TASK_ID,
+        VelocityTaskSpec,
+        default_spec,
+        smoke_spec,
+        vnext_spec,
+    )
 
     pv_env_cfg.register()
 
-    spec: VelocityTaskSpec = smoke_spec() if args.smoke else default_spec()
+    spec: VelocityTaskSpec = vnext_spec() if args.spec == "vnext" else default_spec()
+    if args.smoke:
+        spec = smoke_spec(spec)
+    if args.health:
+        from phoenix.velocity.spec import HealthGuardSpec
+
+        types = {f.name: f.type for f in dataclasses.fields(HealthGuardSpec)}
+        changes = {}
+        for item in args.health:
+            key, _, raw = item.partition("=")
+            if key not in types:
+                raise SystemExit(f"--health: unknown field {key!r}; known: {sorted(types)}")
+            kind = str(types[key])
+            changes[key] = (raw.lower() in ("1", "true", "yes")) if kind == "bool" else (
+                int(raw) if kind == "int" else float(raw)
+            )
+        spec = spec.replace(health=dataclasses.replace(spec.health, **changes))
     if args.num_envs is not None:
         spec = spec.replace(sim=dataclasses.replace(spec.sim, num_envs=args.num_envs))
     if args.max_iterations is not None:
@@ -140,6 +185,12 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     # CLI/code defaults happen to be (a watchdog relaunch must not silently
     # change curriculum on/off or clip_actions mid-run). If a prior spec.json
     # exists for this run, the arm-defining fields must match exactly.
+    abort_marker = log_root / "health_abort.json"
+    if args.resume is not None and abort_marker.exists() and not args.override_health_abort:
+        raise SystemExit(
+            f"refusing to resume {run_name}: the health guard stopped it ({abort_marker}). "
+            "Pass --override-health-abort to resume anyway."
+        )
     if args.resume is not None:
         # log_root/spec.json is only written on a CLEAN finish (see the
         # latest.pt block below); a crash-resume (the case this check exists
@@ -164,6 +215,12 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             this_jpl = spec.reward("joint_pos_limits").weight
             if prior_jpl is not None and abs(float(prior_jpl) - float(this_jpl)) > 1e-9:
                 mismatches.append(f"joint_pos_limits weight: prior={prior_jpl} this run={this_jpl}")
+            prior_obs = prior.get("obs_schema", "phoenix-velocity-obs/v1")
+            if prior_obs != spec.obs_schema:
+                mismatches.append(f"obs_schema: prior={prior_obs} this run={spec.obs_schema}")
+            prior_gate = prior["curriculum"].get("gate", "normalized_lin_yaw")
+            if prior_gate != spec.curriculum.gate:
+                mismatches.append(f"curriculum.gate: prior={prior_gate} this run={spec.curriculum.gate}")
             if mismatches:
                 raise ValueError(
                     f"resume config mismatch for {run_name}: "
@@ -218,6 +275,11 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=str(log_dir), device=runner_cfg.device)
     print("[phoenix.velocity] runner ready", flush=True)
 
+    guard = None
+    if spec.health.enabled:
+        guard = _install_health_guard(runner, spec)
+        logger.info("health guard ON: %s", dataclasses.asdict(spec.health))
+
     num_learning_iterations = runner_cfg.max_iterations
     if args.resume is not None:
         logger.info("Resuming from checkpoint: %s", args.resume)
@@ -252,12 +314,28 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             if num_learning_iterations == 0:
                 logger.info("checkpoint already at or past the target iteration count, nothing to do")
 
+    from phoenix.velocity.health import TrainingHealthAbortError
+
     start = time.time()
+    health_abort = None
     try:
         if num_learning_iterations > 0:
             runner.learn(num_learning_iterations=num_learning_iterations, init_at_random_ep_len=True)
     except KeyboardInterrupt:
         logger.warning("Interrupted, writing final checkpoint.")
+    except TrainingHealthAbortError as exc:
+        health_abort = exc
+        it = exc.verdict.iteration
+        logger.error("HEALTH GUARD ABORT at iteration %d: %s", it, exc)
+        ckpt_path = log_dir / f"model_{it}.pt"
+        runner.current_learning_iteration = it
+        runner.save(str(ckpt_path))
+        report = guard.report(exc.verdict) if guard is not None else {"reasons": str(exc)}
+        report["checkpoint"] = str(ckpt_path)
+        for path in (abort_marker, log_dir / "health_abort.json"):
+            path.write_text(json.dumps(report, indent=2))
+        if runner.logger.writer is not None:
+            runner.logger.stop_logging_writer()
     elapsed = time.time() - start
     logger.info("Training wall-time: %.1fs (%.3f it/s)", elapsed, num_learning_iterations / max(elapsed, 1e-6))
 
@@ -285,7 +363,87 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         (log_root / "spec.json").write_text(spec.to_json())
 
     env.close()
-    return 0
+    # 3 = stopped by the health guard: not a crash, must not be auto-resumed.
+    return 3 if health_abort is not None else 0
+
+
+def _install_health_guard(runner, spec):  # noqa: ANN001, ANN202
+    """Hook the fail-fast guard into rsl_rl 5.0.1's per-iteration logger call.
+
+    Reads what the runner already computes (no change to the PPO math):
+    ``logger.log(learning_rate=..., action_std=...)`` kwargs, the episode extras
+    the env logged this iteration (curriculum level, action p99), the logger's
+    episode-length buffer, and the KL of every minibatch, captured by wrapping
+    the actor's ``get_kl_divergence`` (which PPO calls for the adaptive LR).
+    Health/* scalars go to tensorboard; ABORT raises TrainingHealthAbortError after
+    the iteration is logged.
+    """
+    import statistics
+
+    import torch
+
+    from phoenix.velocity.health import (
+        ABORT,
+        HealthSample,
+        TrainingHealthAbortError,
+        TrainingHealthGuard,
+    )
+
+    guard = TrainingHealthGuard(spec.health, spec.ppo.desired_kl if spec.ppo.schedule == "adaptive" else None)
+    kl_values: list[float] = []
+
+    actor = runner.alg.actor
+    original_kl = actor.get_kl_divergence
+
+    def kl_capture(*a, **kw):  # noqa: ANN002, ANN003, ANN202
+        kl = original_kl(*a, **kw)
+        kl_values.append(float(torch.mean(kl)))
+        return kl
+
+    actor.get_kl_divergence = kl_capture
+
+    def extra_mean(key: str) -> float | None:
+        vals = []
+        for ep in runner.logger.ep_extras:
+            if key in ep:
+                v = ep[key]
+                vals.append(float(v.float().mean()) if isinstance(v, torch.Tensor) else float(v))
+        return statistics.fmean(vals) if vals else None
+
+    original_log = runner.logger.log
+    last_status = {"s": None}
+
+    def guarded_log(*a, **kw):  # noqa: ANN002, ANN003, ANN202
+        it = int(kw["it"])
+        std = kw["action_std"].detach().float()
+        lens = runner.logger.lenbuffer
+        sample = HealthSample(
+            iteration=it,
+            std_max=float(std.max()),
+            std_mean=float(std.mean()),
+            action_p99=extra_mean("Curriculum/telemetry/action_abs_p99"),
+            episode_length=statistics.fmean(lens) if len(lens) else None,
+            kl=statistics.fmean(kl_values) if kl_values else None,
+            learning_rate=float(kw["learning_rate"]),
+            curriculum_level=extra_mean("Curriculum/command_curriculum/level"),
+        )
+        kl_values.clear()
+        verdict = guard.update(sample)
+        writer = runner.logger.writer
+        if writer is not None:
+            for k, v in verdict.scalars.items():
+                writer.add_scalar(f"Health/{k}", v, it)
+        out = original_log(*a, **kw)
+        if verdict.status != last_status["s"] or it % 100 == 0 or verdict.status == ABORT:
+            msg = "; ".join(verdict.abort_reasons or verdict.warnings) or "ok"
+            print(f"[phoenix.velocity.health] it {it} {verdict.status}: {msg} | {sample}", flush=True)
+            last_status["s"] = verdict.status
+        if verdict.status == ABORT:
+            raise TrainingHealthAbortError(verdict)
+        return out
+
+    runner.logger.log = guarded_log
+    return guard
 
 
 def _realized_dump(env) -> dict:

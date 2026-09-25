@@ -35,6 +35,9 @@ from .contract import (
     DECIMATION,
     DEFAULT_JOINT_POS,
     JOINT_ORDER,
+    OBS_SCHEMA_V1,
+    OBS_SCHEMA_V2,
+    OBS_SCHEMA_VERSIONS,
     PHYSICS_HZ,
     CommandRanges,
     derive_locomotion_capable,
@@ -204,6 +207,12 @@ class CommandSpec:
     #: segments per episode: start, transition and stop-from-walking are all trained.
     resampling_time_range_s: Range = (5.0, 10.0)
     heading_command: bool = False
+    #: ``(vx_forward, |vy|, |wz|)`` the trained envelope MUST cover whatever the
+    #: curriculum does, or None. Checked against the INITIAL ranges by
+    #: ``validate``: curriculum levels are monotone, so what level 0 covers is
+    #: covered by every checkpoint of the run. A performance-gated curriculum
+    #: cannot guarantee reaching a level; construction can.
+    required_envelope: tuple[float, float, float] | None = None
     #: Below both of these a command counts as "stand" for command-gated rewards.
     small_lin_cmd: float = 0.1  # m/s, norm of (vx, vy)
     small_yaw_cmd: float = 0.1  # rad/s, |wz|
@@ -229,6 +238,25 @@ class CommandSpec:
 class CurriculumSpec:
     """Performance-gated command-range curriculum (rule in :mod:`.curriculum`).
 
+    Two gates (``gate``):
+
+    ``normalized_lin_yaw`` (v1, walk_v1/v2 runs; default so they resume unchanged)
+        described below. 2026-09-25: it never left level 0 on seeds 42-46; the
+        yaw score blocked and, on seed 46, the lin score also peaked at 0.572
+        (iteration 750) below its 0.6 threshold.
+    ``unitree_lin_kernel`` (vNext)
+        Unitree's GO2 rule (unitree_rl_lab ``mdp.lin_vel_cmd_levels``): expand
+        when ``mean(episode_sum_track_lin) / max_episode_length_s`` exceeds
+        ``lin_kernel_threshold * weight``, i.e. the tracking kernel averaged over
+        the FULL episode duration (an early fall counts as zero tracking for the
+        rest of it) is > 0.8. Only lin x/y move; yaw must be at its final range
+        from level 0 (``validate`` enforces initial == final ang_vel_z). The yaw
+        score is still computed and logged, but never blocks. Phoenix keeps its
+        termination-rate gate on top (Unitree has none; it never bound on seed
+        46, whose rate was 0.02-0.04 over iterations 250-2500). Seed 46 logged
+        ``Episode_Reward/track_lin_vel_xy_exp`` (the same statistic times the
+        weight 1.5) at 1.30-1.34 over iterations 500-2000, above the 1.2 bar.
+
     Ranges move from ``CommandSpec.initial_*`` to ``final_*`` in ``num_levels``
     equal linear steps. After every window of finished episodes the level goes up
     by one iff ALL of:
@@ -243,6 +271,8 @@ class CurriculumSpec:
     """
 
     enabled: bool = True
+    gate: str = "normalized_lin_yaw"
+    lin_kernel_threshold: float = 0.8
     num_levels: int = 8
     #: Window length, in finished episodes, as a multiple of num_envs (>= min).
     window_episodes_per_env: float = 1.0
@@ -253,6 +283,68 @@ class CurriculumSpec:
 
     def window_episodes(self, num_envs: int) -> int:
         return max(int(self.min_window_episodes), int(round(self.window_episodes_per_env * num_envs)))
+
+
+CURRICULUM_GATES = ("normalized_lin_yaw", "unitree_lin_kernel")
+
+
+# ------------------------------------------------------------------ health guard
+
+
+@dataclass(frozen=True)
+class HealthGuardSpec:
+    """Fail-fast training-health guard (:mod:`phoenix.velocity.health`).
+
+    Every iteration logs Health/* scalars; a signal past its ABORT threshold for
+    ``sustain_iterations`` consecutive iterations (after ``warmup_iterations``)
+    stops the run with a checkpoint and ``health_abort.json``. Non-finite values
+    abort at once. WARN thresholds only log.
+
+    Thresholds come from walk_v2 seed 46 (8192 envs, 9000 iterations,
+    2026-09-25; phoenix-seed46-autopsy/training_all_iterations.csv and
+    checkpoint_std_by_joint.csv). Healthy = iterations 250-1500 (model_1000 and
+    model_1500 passed Isaac eval and every MuJoCo gate_v3 physical check);
+    degradation onset ~2000 (calf upper-limit hugging 0.157 of envs at +0.6
+    yaw, 0.574 at 2500); collapse 6000+ (episode length 843 -> 7).
+
+    * std: per-joint policy std max. Pre-degradation max 0.2923 (model_250;
+      0.2750 over 500-1750). Abort > 0.30, "slightly above", which is also the
+      upper bound rsl_rl ``std_range`` would get; rsl_rl-lib 5.0.1 (installed)
+      has no ``std_range``, so this guard is the only std bound. Seed 46 would
+      trip it ~3750 (checkpoint max 0.309). Std is a LATE signal there: it was
+      still 0.27 when calf hugging began.
+    * action |a| p99: healthy max 2.94, pre-degradation max 3.19; 3.5 sustained
+      50 iterations first held at 2166 on seed 46 (the degradation onset).
+      Seed-46-derived under the v1 observation; vNext changes the observation
+      scaling and the command ranges, so a false abort here is possible and is
+      the first thing to check if it trips early.
+    * episode length (steps, rsl_rl lenbuffer mean): healthy min 904; abort < 800
+      (seed 46: 6234). Backstop only.
+    * learning rate: healthy min 2.96e-4 (adaptive, desired_kl 0.01); abort when
+      <= 1e-4 for 10 iterations (seed 46: 3190). Repeated KL > 2 x desired is
+      what drives it there.
+    * KL (mean over the update's minibatches): not logged on seed 46, so no
+      calibration. ASSUMPTION: abort at > 5 x desired_kl for 10 iterations is a
+      blow-up, not ordinary adaptive-LR hunting (which targets 0.5-2 x).
+    * curriculum: warn only, if the level is still 0 at
+      ``curriculum_stall_warn_iteration``; ``required_envelope`` already holds at
+      level 0, so a stall costs range, not usability.
+    """
+
+    enabled: bool = False
+    warmup_iterations: int = 250
+    sustain_iterations: int = 50
+    std_warn: float = 0.28
+    std_abort: float = 0.30
+    action_p99_warn: float = 3.2
+    action_p99_abort: float = 3.5
+    episode_length_warn: float = 900.0
+    episode_length_abort: float = 800.0
+    lr_abort: float = 1.0e-4
+    lr_sustain_iterations: int = 10
+    kl_abort_factor: float = 5.0
+    kl_sustain_iterations: int = 10
+    curriculum_stall_warn_iteration: int = 1500
 
 
 # ----------------------------------------------------------------------- rewards
@@ -537,6 +629,9 @@ class VelocityTaskSpec:
     terminations: TerminationSpec = field(default_factory=TerminationSpec)
     domain_randomization: DomainRandSpec = field(default_factory=DomainRandSpec)
     ppo: PPOSpec = field(default_factory=PPOSpec)
+    health: HealthGuardSpec = field(default_factory=HealthGuardSpec)
+    #: Actor observation schema (contract.ACTOR_OBS_SCALES). v1 = raw SI.
+    obs_schema: str = OBS_SCHEMA_V1
     seed: int = 42
     task_id: str = TASK_ID
 
@@ -621,7 +716,34 @@ class VelocityTaskSpec:
         capable, reasons = derive_locomotion_capable(c.final_ranges())
         if not capable:
             p.append("final command ranges are not locomotion-capable: " + "; ".join(reasons))
+        if c.required_envelope is not None:
+            fwd, lat, yaw = (float(v) for v in c.required_envelope)
+            lo_x, hi_x = c.initial_lin_vel_x
+            lo_y, hi_y = c.initial_lin_vel_y
+            lo_z, hi_z = c.initial_ang_vel_z
+            if hi_x < fwd:
+                p.append(f"initial lin_vel_x {c.initial_lin_vel_x} does not reach required {fwd}")
+            if lo_y > -lat or hi_y < lat:
+                p.append(f"initial lin_vel_y {c.initial_lin_vel_y} does not cover +-{lat}")
+            if lo_z > -yaw or hi_z < yaw:
+                p.append(f"initial ang_vel_z {c.initial_ang_vel_z} does not cover +-{yaw}")
+        if self.obs_schema not in OBS_SCHEMA_VERSIONS:
+            p.append(f"obs_schema {self.obs_schema!r} not in {list(OBS_SCHEMA_VERSIONS)}")
+        if self.ppo.actor_obs_normalization:
+            p.append("actor_obs_normalization must stay OFF (deploy has no normalizer stats)")
         cur = self.curriculum
+        if cur.gate not in CURRICULUM_GATES:
+            p.append(f"curriculum gate {cur.gate!r} not in {CURRICULUM_GATES}")
+        if cur.gate == "unitree_lin_kernel":
+            if tuple(c.initial_ang_vel_z) != tuple(c.final_ang_vel_z):
+                p.append("unitree_lin_kernel gate: yaw must be at its final range from level 0")
+            if not 0.0 < cur.lin_kernel_threshold <= 1.0:
+                p.append("curriculum lin_kernel_threshold must be in (0, 1]")
+        h = self.health
+        if h.std_warn > h.std_abort or h.action_p99_warn > h.action_p99_abort:
+            p.append("health guard warn threshold above its abort threshold")
+        if h.episode_length_warn < h.episode_length_abort:
+            p.append("health guard episode-length warn below its abort threshold")
         if cur.num_levels < 1:
             p.append("curriculum needs >= 1 level")
         if not (0.0 < cur.lin_score_threshold <= 1.0 and 0.0 < cur.yaw_score_threshold <= 1.0):
@@ -660,13 +782,49 @@ def default_spec() -> VelocityTaskSpec:
     return VelocityTaskSpec()
 
 
-def smoke_spec() -> VelocityTaskSpec:
+def smoke_spec(base: VelocityTaskSpec | None = None) -> VelocityTaskSpec:
     """Tiny, fast variant for pipeline smoke tests (same MDP, fewer envs/iters)."""
-    base = default_spec()
+    base = base or default_spec()
     return base.replace(
         sim=dataclasses.replace(base.sim, num_envs=64),
         ppo=dataclasses.replace(base.ppo, max_iterations=6, save_interval=2),
         curriculum=dataclasses.replace(base.curriculum, min_window_episodes=16),
+    )
+
+
+#: Lab-card command caps (forward m/s, |lateral| m/s, |yaw| rad/s) that every
+#: vNext checkpoint must have been trained on.
+LAB_CARD_ENVELOPE: tuple[float, float, float] = (0.5, 0.3, 0.8)
+
+
+def vnext_spec() -> VelocityTaskSpec:
+    """PhoenixVelocity vNext: default_spec() plus exactly these changes.
+
+    1. obs_schema v2: base_ang_vel x0.2, joint_vel x0.05 (Unitree GO2 scales);
+       actor normalization stays OFF.
+    2. Commands: yaw at its full (-1, 1) from iteration 0; initial lin_vel_y
+       widened (-0.2, 0.2) -> (-0.3, 0.3); initial lin_vel_x unchanged
+       (-0.3, 0.6); finals unchanged (vx -0.8..1.0, vy +-0.5). So level 0 already
+       covers the lab-card envelope (0.5 / 0.3 / 0.8), by construction.
+    3. Curriculum gate ``unitree_lin_kernel``: only lin x/y expand; yaw score is
+       telemetry, never a blocker.
+    4. joint_pos_limits -1.0 -> -10.0 (the seed 46 arm's validated value).
+    5. Health guard enabled.
+    Unchanged on purpose: clip_actions 100, action_l2 -0.01, base-only trunk
+    termination, entropy 0.01, adaptive schedule, desired_kl 0.01, init std 1.0,
+    every other reward weight.
+    """
+    base = default_spec().with_reward_weight("joint_pos_limits", -10.0)
+    return base.replace(
+        obs_schema=OBS_SCHEMA_V2,
+        commands=dataclasses.replace(
+            base.commands,
+            initial_lin_vel_y=(-0.3, 0.3),
+            initial_ang_vel_z=base.commands.final_ang_vel_z,
+            required_envelope=LAB_CARD_ENVELOPE,
+        ),
+        curriculum=dataclasses.replace(base.curriculum, gate="unitree_lin_kernel"),
+        health=dataclasses.replace(base.health, enabled=True),
     )
 
 
@@ -692,6 +850,9 @@ def spec_from_dict(data: Mapping[str, Any]) -> VelocityTaskSpec:
         terminations=build(TerminationSpec, data["terminations"]),
         domain_randomization=build(DomainRandSpec, data["domain_randomization"]),
         ppo=build(PPOSpec, data["ppo"]),
+        # Absent in pre-vNext spec.json files: those runs had no guard and raw obs.
+        health=build(HealthGuardSpec, data.get("health", {})),
+        obs_schema=str(data.get("obs_schema", OBS_SCHEMA_V1)),
         seed=int(data["seed"]),
         task_id=str(data["task_id"]),
     )
@@ -751,8 +912,11 @@ __all__ = [
     "TRUNK_BODIES",
     "UNDESIRED_CONTACT_BODIES",
     "ActionSpec",
+    "CURRICULUM_GATES",
     "CommandSpec",
     "CurriculumSpec",
+    "HealthGuardSpec",
+    "LAB_CARD_ENVELOPE",
     "DomainRandSpec",
     "ObsNoiseSpec",
     "PPOSpec",
@@ -765,4 +929,5 @@ __all__ = [
     "joint_order_problems",
     "smoke_spec",
     "spec_from_dict",
+    "vnext_spec",
 ]

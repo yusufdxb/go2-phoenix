@@ -142,6 +142,21 @@ def episode_mean_kernel_math(
     return torch.clamp(episode_sum / denom, 0.0, 1.0)
 
 
+def episode_survival_kernel_math(
+    episode_sum: torch.Tensor, weight: float, max_episode_length_s: float
+) -> torch.Tensor:
+    """Tracking kernel summed over an episode, divided by the FULL episode duration.
+
+    Unitree's ``lin_vel_cmd_levels`` statistic (``episode_sum / max_episode_length_s``
+    compared against ``0.8 * weight``), normalized by the weight: an episode that
+    falls at half time with perfect tracking scores 0.5. Clamped to [0, 1].
+    """
+    import torch
+
+    denom = float(weight) * float(max_episode_length_s)
+    return torch.clamp(episode_sum / denom, 0.0, 1.0)
+
+
 def slew_clip_fraction_math(
     action: torch.Tensor, prev_action: torch.Tensor, action_scale: float, clip_rad: float
 ) -> torch.Tensor:

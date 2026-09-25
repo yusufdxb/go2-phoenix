@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contract import ACTOR_OBS_DIM, JOINT_ORDER
+from .contract import ACTOR_OBS_DIM, JOINT_ORDER, actor_obs_scales
 from .spec import (
     CRITIC_OBS_DIM,
     FOOT_BODIES,
@@ -164,18 +164,43 @@ def _build_observations_cfg(spec: VelocityTaskSpec):
 
     from . import mdp as pmdp
 
+    # Actor scales from the contract's schema (the SAME table the numpy deploy
+    # builder uses). Isaac applies noise (SI units), then clip, then scale, so the
+    # noise half-widths in ObsNoiseSpec stay in SI. 1.0 is passed as None so a v1
+    # env is byte-for-byte the pre-versioning one.
+    scales = actor_obs_scales(spec.obs_schema)
+
+    def _scale(name: str) -> float | None:
+        return None if scales[name] == 1.0 else float(scales[name])
+
     @configclass
     class PolicyCfg(ObsGroup):
-        base_ang_vel = ObsTerm(func=itmdp.base_ang_vel, noise=_obs_noise_term("base_ang_vel", spec))
+        base_ang_vel = ObsTerm(
+            func=itmdp.base_ang_vel,
+            noise=_obs_noise_term("base_ang_vel", spec),
+            scale=_scale("base_ang_vel"),
+        )
         projected_gravity = ObsTerm(
-            func=itmdp.projected_gravity, noise=_obs_noise_term("projected_gravity", spec)
+            func=itmdp.projected_gravity,
+            noise=_obs_noise_term("projected_gravity", spec),
+            scale=_scale("projected_gravity"),
         )
         velocity_command = ObsTerm(
-            func=itmdp.generated_commands, params={"command_name": "base_velocity"}
+            func=itmdp.generated_commands,
+            params={"command_name": "base_velocity"},
+            scale=_scale("velocity_command"),
         )
-        joint_pos_rel = ObsTerm(func=itmdp.joint_pos_rel, noise=_obs_noise_term("joint_pos_rel", spec))
-        joint_vel = ObsTerm(func=itmdp.joint_vel_rel, noise=_obs_noise_term("joint_vel", spec))
-        last_action = ObsTerm(func=itmdp.last_action)
+        joint_pos_rel = ObsTerm(
+            func=itmdp.joint_pos_rel,
+            noise=_obs_noise_term("joint_pos_rel", spec),
+            scale=_scale("joint_pos_rel"),
+        )
+        joint_vel = ObsTerm(
+            func=itmdp.joint_vel_rel,
+            noise=_obs_noise_term("joint_vel", spec),
+            scale=_scale("joint_vel"),
+        )
+        last_action = ObsTerm(func=itmdp.last_action, scale=_scale("last_action"))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True

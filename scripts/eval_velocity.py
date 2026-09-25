@@ -47,6 +47,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--num-envs", type=int, default=256)
     p.add_argument("--num-steps", type=int, default=1000, help="policy steps (50 Hz -> 20s)")
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument(
+        "--spec",
+        type=Path,
+        default=None,
+        help=(
+            "spec.json the checkpoint was trained with (default: <checkpoint dir>/spec.json). "
+            "The eval env MUST match the training observation schema; a vNext (obs v2) "
+            "policy evaluated on a default_spec() (obs v1) env sees unscaled inputs."
+        ),
+    )
     p.add_argument("--headless", action="store_true", default=True)
     return p.parse_args(argv)
 
@@ -73,11 +83,21 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     from phoenix.velocity import env_cfg as pv_env_cfg
     from phoenix.velocity.mdp import as_torch
-    from phoenix.velocity.spec import TASK_ID, default_spec
+    from phoenix.velocity.spec import TASK_ID, default_spec, spec_from_dict
 
     pv_env_cfg.register()
 
-    spec = default_spec().replace(sim=dataclasses.replace(default_spec().sim, num_envs=args.num_envs))
+    spec_path = args.spec or (args.checkpoint.parent / "spec.json")
+    if spec_path.exists():
+        train_spec = spec_from_dict(json.loads(spec_path.read_text()))
+        logger.info("eval env from %s (obs schema %s)", spec_path, train_spec.obs_schema)
+    elif args.spec is not None:
+        raise FileNotFoundError(spec_path)
+    else:
+        # Every checkpoint trained before vNext is obs v1, which default_spec() is.
+        train_spec = default_spec()
+        logger.warning("no spec.json beside %s: using default_spec() (obs v1)", args.checkpoint)
+    spec = train_spec.replace(sim=dataclasses.replace(train_spec.sim, num_envs=args.num_envs))
     env_cfg = pv_env_cfg.build_velocity_env_cfg(spec)
     env = gym.make(TASK_ID, cfg=env_cfg, render_mode=None)
     unwrapped = env.unwrapped
@@ -202,6 +222,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     result = {
         "checkpoint": str(args.checkpoint),
+        "spec_path": str(spec_path) if spec_path.exists() else None,
+        "obs_schema": spec.obs_schema,
         "num_envs": n,
         "num_steps": steps_done,
         "total_episodes": total_episodes,
