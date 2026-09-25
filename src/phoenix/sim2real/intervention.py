@@ -69,8 +69,21 @@ from typing import Any
 
 import numpy as np
 
-from .go2_model import LIMIT_ABORT_BAND_RAD, TRAINING_DEFAULT_JOINT_POS, limits_in_order
-from .safety import MAX_DELTA_PER_STEP_RAD
+from .go2_model import (
+    LIMIT_ABORT_BAND_RAD,
+    TRAINING_DEFAULT_JOINT_POS,
+    limits_in_order,
+    torque_limits_in_order,
+)
+from .safety import (
+    DEFAULT_POSITION_CLIP_MARGIN_RAD,
+    DEFAULT_SUSTAINED_CLIP_TICKS,
+    MAX_DELTA_PER_STEP_RAD,
+    SustainedClipTracker,
+    clip_to_hard_limits_array,
+    measured_position_illegal,
+    torque_limited_target_array,
+)
 
 INTERVENTION_SCHEMA = "phoenix-intervention/v1"
 
@@ -105,15 +118,37 @@ class FilterResult:
     final_target: np.ndarray
     reasons: list[list[str]]
     illegal: bool
+    #: Specific cause when ``illegal`` is True: "command_non_finite",
+    #: "measured_position_illegal", or "sustained_clip_exceeded". ``None``
+    #: when not illegal. Callers may fall back to a generic label when this
+    #: is unset for backward compatibility.
+    fault_reason: str | None = None
 
 
 class SafetyFilter:
-    """Slew cap, hard-limit clip and illegal-target detection, with reasons.
+    """Torque cap, hard-limit clip (with a small inward margin) and
+    illegal-condition detection, with reasons.
 
     Order of operations matches :class:`phoenix.sim2real.actuator_gate.ActuatorGate`:
-    illegal check on the requested target, then slew against measured q, then the
-    hard-limit clip. An illegal target returns ``illegal=True`` and the measured
-    posture (clipped into the limits) as the final target; the caller must fault.
+
+    1. A non-finite (NaN/Inf) requested target is illegal outright: it cannot
+       come from any legal policy output, clamped or not.
+    2. A MEASURED position beyond a hard limit by more than ``limit_abort_band``,
+       or non-finite, is illegal: a sensor fault or a robot that has actually
+       exceeded its mechanical stop, neither of which a command-side clip can
+       fix.
+    3. Otherwise: a torque cap against the measured ``q``/``dq`` at the
+       commanded gains (:func:`phoenix.sim2real.safety.torque_limited_target_array`),
+       then a position clip into the hard range with a small inward margin
+       (:func:`phoenix.sim2real.safety.clip_to_hard_limits_array`). A target
+       beyond a hard limit is CLIPPED here, not illegal: a PD controller
+       commanding past a mechanical stop to press against it is normal
+       (2026-09-25 sim2sim gate finding: a good walking policy requests calf
+       targets 0.25-0.31 rad past the calf's hard upper limit during
+       counter-clockwise yaw; proven stacks do not abort on that). Sustained
+       clipping on any one joint for ``sustained_clip_ticks`` CONSECUTIVE
+       ticks IS illegal: that signals a policy that cannot be steered off the
+       stop, not a brief press.
     """
 
     def __init__(
@@ -121,29 +156,85 @@ class SafetyFilter:
         order: Sequence[str],
         max_delta: float = MAX_DELTA_PER_STEP_RAD,
         limit_abort_band: float = LIMIT_ABORT_BAND_RAD,
+        kp: float = 25.0,
+        kd: float = 0.5,
+        torque_limit: Sequence[float] | None = None,
+        position_clip_margin: float = DEFAULT_POSITION_CLIP_MARGIN_RAD,
+        sustained_clip_ticks: int = DEFAULT_SUSTAINED_CLIP_TICKS,
     ) -> None:
         self.order = tuple(order)
         self.lo, self.hi = limits_in_order(self.order)
         self.max_delta = float(max_delta)
         self.band = float(limit_abort_band)
+        self.kp = float(kp)
+        self.kd = float(kd)
+        self.torque_limit = (
+            torque_limits_in_order(self.order)
+            if torque_limit is None
+            else np.asarray(torque_limit, dtype=np.float64)
+        )
+        self.position_clip_margin = float(position_clip_margin)
+        self._clip_tracker = SustainedClipTracker(len(self.order), sustained_clip_ticks)
 
-    def apply(self, requested: Sequence[float], q_measured: Sequence[float]) -> FilterResult:
+    def apply(
+        self,
+        requested: Sequence[float],
+        q_measured: Sequence[float],
+        dq_measured: Sequence[float] | None = None,
+    ) -> FilterResult:
         req = np.asarray(requested, dtype=np.float64)
         q = np.asarray(q_measured, dtype=np.float64)
         n = len(self.order)
+        dq = (
+            np.zeros(n, dtype=np.float64)
+            if dq_measured is None
+            else np.asarray(dq_measured, dtype=np.float64)
+        )
         reasons: list[list[str]] = [[] for _ in range(n)]
-        beyond = (req < self.lo - self.band) | (req > self.hi + self.band) | ~np.isfinite(req)
-        if beyond.any():
-            for j in np.flatnonzero(beyond):
+
+        non_finite = ~np.isfinite(req)
+        if non_finite.any():
+            for j in np.flatnonzero(non_finite):
                 reasons[int(j)].append(ILLEGAL_TARGET)
-            return FilterResult(np.clip(q, self.lo, self.hi), reasons, True)
-        slewed = np.clip(req, q - self.max_delta, q + self.max_delta)
-        final = np.clip(slewed, self.lo, self.hi)
+            return FilterResult(
+                np.clip(np.nan_to_num(q), self.lo, self.hi),
+                reasons,
+                True,
+                "command_non_finite",
+            )
+
+        measured_illegal = measured_position_illegal(q, self.lo, self.hi, self.band)
+        if measured_illegal.any():
+            for j in np.flatnonzero(measured_illegal):
+                reasons[int(j)].append(ILLEGAL_TARGET)
+            return FilterResult(
+                np.clip(np.nan_to_num(q), self.lo, self.hi),
+                reasons,
+                True,
+                "measured_position_illegal",
+            )
+
+        torque_clipped = np.asarray(
+            torque_limited_target_array(req, q, dq, self.kp, self.kd, self.torque_limit),
+            dtype=np.float64,
+        )
+        final, position_clipped = clip_to_hard_limits_array(
+            torque_clipped, self.lo, self.hi, self.position_clip_margin
+        )
         for j in range(n):
-            if abs(slewed[j] - req[j]) > 0.0:
+            if abs(torque_clipped[j] - req[j]) > 0.0:
                 reasons[j].append(SLEW_CLIP)
-            if abs(final[j] - slewed[j]) > 0.0:
+            if position_clipped[j]:
                 reasons[j].append(LIMIT_CLIP)
+
+        sustained_now = self._clip_tracker.update(position_clipped)
+        if sustained_now.any():
+            for j in np.flatnonzero(sustained_now):
+                reasons[int(j)].append(ILLEGAL_TARGET)
+            return FilterResult(
+                np.clip(q, self.lo, self.hi), reasons, True, "sustained_clip_exceeded"
+            )
+
         return FilterResult(final, reasons, False)
 
 
@@ -331,7 +422,13 @@ def bridge_tick_intervention(
     slew = rec.get("slew_clip") or [False] * len(motor_order)
     limit = rec.get("limit_clip") or [False] * len(motor_order)
     faults = [str(f) for f in rec.get("faults") or []]
-    illegal_now = any(f.startswith("target_beyond_limit") for f in faults) and not executed
+    illegal_now = (
+        any(
+            f.startswith(("target_beyond_limit", "command_non_finite", "sustained_clip_exceeded"))
+            for f in faults
+        )
+        and not executed
+    )
     for j in range(len(motor_order)):
         if abs(safety[j] - scaled[j]) > MOD_EPS_RAD:
             reasons[j].append(POLICY_NODE_SLEW)
@@ -389,7 +486,10 @@ def records_from_bridge_ticks(
             continue
         # Authority ended on this tick. An illegal target is the policy's command not
         # being executed; the window's own completion notice is not an intervention.
-        if any(f.startswith("target_beyond_limit") for f in new_faults):
+        if any(
+            f.startswith(("target_beyond_limit", "command_non_finite", "sustained_clip_exceeded"))
+            for f in new_faults
+        ):
             illegal += 1
             rec = bridge_tick_intervention(t, PHOENIX_FOR_MOTOR, UNITREE_MOTOR_ORDER)
             if rec is not None:

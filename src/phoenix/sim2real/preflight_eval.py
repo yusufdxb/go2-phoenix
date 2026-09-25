@@ -872,8 +872,22 @@ def stand_checks(
     )
     checks.append(
         _check(
-            "no requested target beyond the hard-limit abort band",
-            not any(f.startswith("target_beyond_limit") for f in faults),
+            # 2026-09-25: a requested target beyond the hard stop is now
+            # CLIPPED, not a fault (sim2sim gate finding: a good walking
+            # policy routinely requests calf targets past the calf's hard
+            # upper limit; proven stacks do not abort on that either). The
+            # historical "target_beyond_limit" string only appears in
+            # telemetry recorded by pre-2026-09-25 code (e.g. the F1 run);
+            # kept in this check for old evidence replay. Reserved faults
+            # going forward: a non-finite command, or clipping sustained for
+            # more than the configured consecutive-tick threshold.
+            "no non-finite command or sustained clipping",
+            not any(
+                f.startswith(
+                    ("target_beyond_limit", "command_non_finite", "sustained_clip_exceeded")
+                )
+                for f in faults
+            ),
             f"limit clips {summary.get('limit_clip_counts')}",
         )
     )

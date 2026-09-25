@@ -4,9 +4,9 @@ The ROS-side pieces of ``lowcmd_bridge_node`` need rclpy + the
 ``unitree_go`` messages, neither of which is in CI. The pieces that
 *can* be tested without ROS are:
 
-* ``_build_config`` — does it pick up topic + rate overrides from the
+* ``_build_config`` , does it pick up topic + rate overrides from the
   deploy YAML, and does it carry the estop timeout through?
-* The ``BridgeConfig`` dataclass defaults — the audit cares specifically
+* The ``BridgeConfig`` dataclass defaults , the audit cares specifically
   about the new ``estop_timeout_s`` field actually being present.
 
 Importing the bridge node module would normally pull in rclpy as a
@@ -160,6 +160,44 @@ def test_bridge_config_has_default_estop_timeout(bridge_module) -> None:
         estop_topic="/phoenix/estop",
     )
     assert cfg.estop_timeout_s == 0.5  # documented default
+    assert cfg.publish_rate_hz == 500.0  # documented default: Unitree's own examples
+
+
+def test_build_config_defaults_publish_rate_to_500hz_independent_of_policy_rate(
+    bridge_module,
+) -> None:
+    # control.rate_hz in the deploy config is the POLICY's own cadence
+    # (50 Hz); /lowcmd publishing must default to 500 Hz regardless, per the
+    # "Unitree examples publish at 500 Hz, hold last target" requirement.
+    args = argparse.Namespace(
+        config=Path("configs/sim2real/deploy_stand_h25.yaml"),
+        live=False,
+        kp=25.0,
+        kd=0.5,
+        hold_kp=20.0,
+        hold_kd=1.0,
+        watchdog_s=0.2,
+        estop_timeout_s=None,
+    )
+    cfg = bridge_module._build_config(args)
+    assert cfg.rate_hz == 50.0
+    assert cfg.publish_rate_hz == 500.0
+
+
+def test_build_config_carries_cli_publish_rate_override(bridge_module) -> None:
+    args = argparse.Namespace(
+        config=Path("configs/sim2real/deploy_stand_h25.yaml"),
+        live=False,
+        kp=25.0,
+        kd=0.5,
+        hold_kp=20.0,
+        hold_kd=1.0,
+        watchdog_s=0.2,
+        estop_timeout_s=None,
+        publish_rate_hz=250.0,
+    )
+    cfg = bridge_module._build_config(args)
+    assert cfg.publish_rate_hz == 250.0
 
 
 def test_build_config_carries_cli_estop_timeout(bridge_module) -> None:
@@ -217,7 +255,7 @@ def test_build_config_falls_back_to_defaults_on_missing_yaml(bridge_module, tmp_
     assert cfg.estop_topic == "/phoenix/estop"
     assert cfg.lowstate_topic == "/lowstate"
     assert cfg.rate_hz == 50.0
-    # No CLI override, no YAML — must fall back to the documented 0.5 s.
+    # No CLI override, no YAML , must fall back to the documented 0.5 s.
     assert cfg.estop_timeout_s == 0.5
 
 
@@ -262,7 +300,7 @@ def test_cli_estop_timeout_overrides_yaml(bridge_module, tmp_path) -> None:
 def test_shipped_deploy_yaml_estop_timeout_is_loaded() -> None:
     # End-to-end check against the actually-shipped configs/sim2real/deploy.yaml.
     # If someone removes safety.estop_timeout_s from the file, this test
-    # surfaces it immediately — keeps the docs honest.
+    # surfaces it immediately , keeps the docs honest.
     from pathlib import Path as _Path
 
     import yaml as _yaml
@@ -402,7 +440,7 @@ def _damp_self(publish):
     reported: list[dict] = []
     fake = types.SimpleNamespace(
         _gate=_DampGate(),
-        _cfg=types.SimpleNamespace(watchdog_s=0.02, rate_hz=500.0),
+        _cfg=types.SimpleNamespace(watchdog_s=0.02, rate_hz=50.0, publish_rate_hz=500.0),
         _publish=publish,
         _report=reported.append,
     )

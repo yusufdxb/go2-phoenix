@@ -90,6 +90,17 @@ class BridgeConfig:
     cmd_topic: str
     lowstate_topic: str
     estop_topic: str
+    #: /lowcmd PUBLISH rate. Unitree's own examples publish LowCmd at 500 Hz,
+    #: holding the latest target between policy updates; the policy itself
+    #: stays at the deploy config's rate_hz (typically 50 Hz). Decoupled from
+    #: ``rate_hz`` (which remains a display/manifest value describing the
+    #: policy's own cadence) so this bridge can hold the last-known-good
+    #: target 10x more often than the policy refreshes it. ActuatorGate.tick
+    #: is a pure function of (now_ns, last received command/lowstate), so
+    #: calling it faster than the policy publishes is exactly "hold the
+    #: latest target": nothing about its staleness/watchdog logic is rate-
+    #: dependent on this timer.
+    publish_rate_hz: float = 500.0
     # If no /phoenix/estop message has been received within this window we
     # treat the publisher as dead and force hold-pose. Default matches the
     # 0.5s window the wireless/joystick adapters use.
@@ -173,12 +184,13 @@ class LowCmdBridge(Node):
         self._pub = self.create_publisher(
             LowCmd, cfg.live_topic if cfg.live else cfg.dry_topic, qos_be
         )
-        self._timer = self.create_timer(1.0 / cfg.rate_hz, self._tick)
+        self._timer = self.create_timer(1.0 / cfg.publish_rate_hz, self._tick)
         self._graph_timer = self.create_timer(1.0, self._poll_estop_publishers)
 
         mode_label = "LIVE (/lowcmd)" if cfg.live else "DRY (/lowcmd_dry)"
         self.get_logger().info(
-            f"lowcmd bridge up in {mode_label} mode; stage={cfg.stage} rate={cfg.rate_hz} Hz, "
+            f"lowcmd bridge up in {mode_label} mode; stage={cfg.stage} policy_rate={cfg.rate_hz} Hz, "
+            f"publish_rate={cfg.publish_rate_hz} Hz, "
             f"kp={cfg.kp}, kd={cfg.kd}, hold_kp={cfg.hold_kp}, hold_kd={cfg.hold_kd}, "
             f"watchdog={cfg.watchdog_s}s, lowstate_timeout={cfg.lowstate_timeout_s}s, "
             f"stale_hold={cfg.stale_hold_s}s, clip={MAX_DELTA_PER_STEP_RAD} rad/step, "
@@ -225,7 +237,7 @@ class LowCmdBridge(Node):
     def shutdown_damp(self) -> None:
         """Latch damping and send it for one watchdog period. Best effort."""
         self._gate.request_shutdown()
-        ticks = max(1, int(round(self._cfg.watchdog_s * self._cfg.rate_hz)))
+        ticks = max(1, int(round(self._cfg.watchdog_s * self._cfg.publish_rate_hz)))
         for _ in range(ticks):
             rec = self._gate.tick(time.monotonic_ns())
             if rec["publish"]:
@@ -238,7 +250,7 @@ class LowCmdBridge(Node):
                     except Exception as exc:  # keep trying the remaining damp ticks
                         rec = {**rec, "publish": False, "publish_skipped": repr(exc)}
             self._report(rec)
-            time.sleep(1.0 / self._cfg.rate_hz)
+            time.sleep(1.0 / self._cfg.publish_rate_hz)
 
     # --- publish ------------------------------------------------------------
     def _publish(self, target_unitree, kp: float, kd: float) -> None:
@@ -270,6 +282,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--live",
         action="store_true",
         help="publish on /lowcmd (default: /lowcmd_dry). Required for motor motion.",
+    )
+    p.add_argument(
+        "--publish-rate-hz",
+        type=float,
+        default=500.0,
+        help="/lowcmd publish rate: hold the latest target between policy updates, "
+        "matching Unitree's own 500 Hz examples (default 500). Independent of the "
+        "policy's own control.rate_hz in --config (typically 50 Hz).",
     )
     p.add_argument("--kp", type=float, default=25.0, help="active-control kp (default 25)")
     p.add_argument("--kd", type=float, default=0.5, help="active-control kd (default 0.5)")
@@ -351,6 +371,7 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
     stale_hold_s = getattr(args, "stale_hold_s", None)
     return BridgeConfig(
         rate_hz=rate_hz,
+        publish_rate_hz=float(getattr(args, "publish_rate_hz", 500.0)),
         watchdog_s=args.watchdog_s,
         kp=args.kp,
         kd=args.kd,

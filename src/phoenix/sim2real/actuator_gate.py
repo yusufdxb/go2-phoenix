@@ -90,10 +90,20 @@ from .go2_model import (
     TRAINING_DEFAULT_JOINT_POS,
     UNITREE_MOTOR_ORDER,
     limits_in_order,
+    torque_limits_in_order,
     verify_joint_model,
 )
 from .motor_crc import PHOENIX_FOR_MOTOR
-from .safety import MAX_DELTA_PER_STEP_RAD, estop_is_active, per_step_clip_array
+from .safety import (
+    DEFAULT_POSITION_CLIP_MARGIN_RAD,
+    DEFAULT_SUSTAINED_CLIP_TICKS,
+    MAX_DELTA_PER_STEP_RAD,
+    SustainedClipTracker,
+    clip_to_hard_limits_array,
+    estop_is_active,
+    expected_torque,
+    torque_limited_target_array,
+)
 
 #: Node names of the two real deadman adapters in this package
 #: (``wireless_estop_node`` and ``deadman_joy_node``). Nothing else may arm a
@@ -124,6 +134,10 @@ class GateParams:
     stale_hold_s: float
     first_message_timeout_s: float
     joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
+    #: Kept for config back-compat and validated for finiteness/positivity, but
+    #: POLICY-mode clipping no longer uses it: :meth:`ActuatorGate.tick` clips
+    #: on torque via ``go2_model.JOINT_TORQUE_LIMITS_NM``
+    #: (see ``safety.torque_limited_target_array``), not on this position delta.
     max_delta: float = MAX_DELTA_PER_STEP_RAD
     limit_abort_band: float = LIMIT_ABORT_BAND_RAD
     #: ``None`` means "required exactly when live". A live gate cannot opt out.
@@ -132,6 +146,15 @@ class GateParams:
     standup_s: float = 0.0
     standup_kp: float = 60.0
     standup_kd: float = 5.0
+    #: 2026-09-25: a PD controller commanding a target PAST a hard stop is
+    #: normal (pressing against it); proven stacks do not abort on it. The
+    #: commanded target is clipped into the hard range with this small inward
+    #: margin instead of latching a fault. See safety.DEFAULT_POSITION_CLIP_MARGIN_RAD.
+    position_clip_margin: float = DEFAULT_POSITION_CLIP_MARGIN_RAD
+    #: Consecutive ticks a joint may be clipped before that is treated as a
+    #: genuinely broken policy rather than a normal brief press. See
+    #: safety.DEFAULT_SUSTAINED_CLIP_TICKS.
+    sustained_clip_ticks: int = DEFAULT_SUSTAINED_CLIP_TICKS
 
     def __post_init__(self) -> None:
         for name in (
@@ -154,10 +177,13 @@ class GateParams:
             "standup_s",
             "standup_kp",
             "standup_kd",
+            "position_clip_margin",
         ):
             value = getattr(self, name)
             if not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be non-negative and finite, got {value}")
+        if self.sustained_clip_ticks < 1:
+            raise ValueError(f"sustained_clip_ticks must be >= 1, got {self.sustained_clip_ticks}")
         if self.live and self.require_real_deadman is False:
             raise ValueError("a live gate cannot disable the real-deadman requirement")
 
@@ -184,6 +210,8 @@ class ActuatorGate:
         self.params = params
         self._perm = np.asarray(PHOENIX_FOR_MOTOR, dtype=np.int64)
         self._lo, self._hi = limits_in_order(UNITREE_MOTOR_ORDER)
+        self._torque_limit = torque_limits_in_order(UNITREE_MOTOR_ORDER)
+        self._clip_tracker = SustainedClipTracker(12, params.sustained_clip_ticks)
         self._label = wire_label(params.joint_order)
         self._started_ns = int(started_ns)
 
@@ -398,7 +426,7 @@ class ActuatorGate:
             "kp": None,
             "kd": None,
             "slew_clip": None,
-            "slew_margin": None,
+            "torque_margin_nm": None,
             "limit_clip": None,
             "limit_margin": None,
             "policy": None if self._last_decoded is None else self._last_decoded.telemetry(),
@@ -489,27 +517,54 @@ class ActuatorGate:
             assert cmd is not None  # POLICY is only reachable with a command
             requested = cmd.target[self._perm]
             rec["requested_target_unitree"] = _floats(requested)
-            beyond = (requested < self._lo - p.limit_abort_band) | (
-                requested > self._hi + p.limit_abort_band
-            )
-            if beyond.any():
-                self._latch(f"target_beyond_limit:{_names(beyond)}")
+            non_finite = ~np.isfinite(requested)
+            if non_finite.any():
+                # A NaN/Inf commanded target is the one requested-target
+                # condition that still latches: it cannot come from any
+                # legal policy output, clamped or not.
+                self._latch(f"command_non_finite:{_names(non_finite)}")
                 mode = Mode.HOLD
                 cause = self.fault
             else:
-                slewed = np.asarray(
-                    per_step_clip_array(requested, q, p.max_delta), dtype=np.float64
+                dq = self._dq if self._dq is not None else np.zeros(12, dtype=np.float64)
+                torque_clipped = np.asarray(
+                    torque_limited_target_array(requested, q, dq, p.kp, p.kd, self._torque_limit),
+                    dtype=np.float64,
                 )
-                final = np.clip(slewed, self._lo, self._hi)
-                rec["slew_clip"] = [bool(v) for v in slewed != requested]
-                rec["slew_margin"] = _floats(p.max_delta - np.abs(requested - q))
-                rec["limit_clip"] = [bool(v) for v in final != slewed]
-                rec["cmd_is_new"] = cmd.seq != self._last_processed_seq
-                self._last_processed_seq = cmd.seq
-                rec["cmd_seq"] = cmd.seq
-                rec["cmd_kind"] = cmd.kind
-                rec["policy"] = cmd.telemetry()
-                kp, kd = p.kp, p.kd
+                # Key kept as "slew_clip" for backward compatibility with
+                # bridge_telemetry.py's hardware slew metric and existing
+                # stage evidence, but the semantics changed 2026-09-24: this
+                # now flags a TORQUE-based clip (go2_model.JOINT_TORQUE_LIMITS_NM),
+                # not the old measured-q +-0.175 rad/step position slew.
+                rec["slew_clip"] = [bool(v) for v in torque_clipped != requested]
+                expected_tau = expected_torque(torque_clipped, q, dq, p.kp, p.kd)
+                rec["torque_margin_nm"] = _floats(self._torque_limit - np.abs(expected_tau))
+                # 2026-09-25: a target beyond the hard stop is now CLIPPED,
+                # not an abort trigger (a PD controller pressing into a stop
+                # is normal; proven stacks do not abort on it either -- see
+                # safety.DEFAULT_POSITION_CLIP_MARGIN_RAD). Sustained clipping
+                # on any one joint IS still an abort trigger: that signals a
+                # policy that cannot be steered off the stop, not a brief press.
+                final, position_clipped = clip_to_hard_limits_array(
+                    torque_clipped, self._lo, self._hi, p.position_clip_margin
+                )
+                rec["limit_clip"] = [bool(v) for v in position_clipped]
+                sustained_now = self._clip_tracker.update(position_clipped)
+                rec["sustained_clip_counts"] = [int(v) for v in self._clip_tracker.counts]
+                if sustained_now.any():
+                    self._latch(f"sustained_clip_exceeded:{_names(sustained_now)}")
+                    mode = Mode.HOLD
+                    cause = self.fault
+                    # final/kp/kd for this tick are set by the common
+                    # "mode not in (POLICY, STANDUP)" branch below, same as
+                    # every other latched-this-tick path.
+                else:
+                    rec["cmd_is_new"] = cmd.seq != self._last_processed_seq
+                    self._last_processed_seq = cmd.seq
+                    rec["cmd_seq"] = cmd.seq
+                    rec["cmd_kind"] = cmd.kind
+                    rec["policy"] = cmd.telemetry()
+                    kp, kd = p.kp, p.kd
 
         if mode not in (Mode.POLICY, Mode.STANDUP):
             final = np.clip(q, self._lo, self._hi)

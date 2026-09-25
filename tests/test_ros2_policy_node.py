@@ -11,6 +11,7 @@ trick covers the telemetry and observation-provenance paths below.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import time
 import types
@@ -830,9 +831,12 @@ def _fake_deploy(tmp_path, **safety_over):
     ckpt.mkdir()
     for name in ("policy.onnx", "policy.onnx.data", "policy.pt", "latest.pt"):
         (ckpt / name).write_bytes(name.encode())
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps({"deploy": {"action_clip": 100.0, "kp": 25.0, "kd": 0.5}}))
     cfg = yaml.safe_load(H25.read_text())
     cfg["policy"]["onnx_path"] = str(ckpt / "policy.onnx")
     cfg["policy"]["torchscript_path"] = str(ckpt / "policy.pt")
+    cfg["policy"]["manifest_path"] = str(manifest_path)
     cfg["safety"].update(safety_over)
     cfg_path = tmp_path / "deploy.yaml"
     cfg_path.write_text(yaml.safe_dump(cfg))
@@ -901,3 +905,170 @@ def test_nonpositive_authority_window_is_refused(tmp_path) -> None:
     cfg, cfg_path, _ = _fake_deploy(tmp_path)
     _, problems = resolve_startup(cfg, _args(cfg_path, authority_s=0.0))
     assert any("--authority-s" in p for p in problems)
+
+
+def test_resolve_startup_refuses_missing_manifest_path(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path)
+    del cfg["policy"]["manifest_path"]
+    cfg_path.write_text(yaml.safe_dump(cfg))
+    _, problems = resolve_startup(cfg, _args(cfg_path))
+    assert any("policy.manifest_path is required" in p for p in problems)
+
+
+def test_resolve_startup_refuses_manifest_missing_action_clip(tmp_path) -> None:
+    cfg, cfg_path, _ = _fake_deploy(tmp_path)
+    bad_manifest = tmp_path / "bad_manifest.json"
+    bad_manifest.write_text(json.dumps({"deploy": {"kp": 25.0}}))
+    cfg["policy"]["manifest_path"] = str(bad_manifest)
+    cfg_path.write_text(yaml.safe_dump(cfg))
+    _, problems = resolve_startup(cfg, _args(cfg_path))
+    assert any("action_clip is missing" in p for p in problems)
+
+
+# Note: _PhoenixPolicyNode.__init__ enforces the same manifest.action_clip
+# requirement a second time (it needs rclpy + onnxruntime to construct, so
+# it cannot run in this no-ROS suite; see the class docstring). The guard is
+# the same load_deploy_manifest() call resolve_startup uses above, covered
+# there; a full-construction regression test belongs in a rehearsal session.
+
+
+# ---------------------------------------------------------------------------
+# Action clamp (defect: unclamped raw action reached target-scaling math on
+# 2026-09-21 stage F1) and velocity-command caps.
+# ---------------------------------------------------------------------------
+
+
+class _ActionClampStub:
+    def __init__(self, action_clip: float = 1.0) -> None:
+        self._action_clip = action_clip
+        self._action_ticks = 0
+        self._action_saturation_ticks = 0
+
+
+def test_clip_action_and_report_clamps_and_counts_saturation() -> None:
+    # action_clip=1.0: the legacy H25 contract, still a valid manifest value.
+    stub = _ActionClampStub(action_clip=1.0)
+    clipped = _PhoenixPolicyNode._clip_action_and_report(stub, np.asarray([-7.2, 0.1, 0.0]))
+    assert np.allclose(clipped, [-1.0, 0.1, 0.0])
+    assert stub._action_ticks == 1
+    assert stub._action_saturation_ticks == 1
+
+
+def test_clip_action_and_report_no_saturation_when_inside_range() -> None:
+    stub = _ActionClampStub(action_clip=1.0)
+    clipped = _PhoenixPolicyNode._clip_action_and_report(stub, np.asarray([0.2, -0.5, 0.9]))
+    assert np.allclose(clipped, [0.2, -0.5, 0.9])
+    assert stub._action_saturation_ticks == 0
+
+
+def test_clip_action_and_report_clip_100_passes_historical_f1_magnitude_through() -> None:
+    # 2026-09-24 contract: training moved from clip_actions=1.0 to 100.0. At
+    # that clip, the historical F1 raw magnitude (-7.2) is NOT an outlier and
+    # must pass through unmodified; the torque limit (a separate mechanism,
+    # see test_clip_to_limits_bounds_by_torque_not_position_delta) is what
+    # bounds the resulting target, not this clamp.
+    stub = _ActionClampStub(action_clip=100.0)
+    clipped = _PhoenixPolicyNode._clip_action_and_report(stub, np.asarray([-7.2, 0.1, 0.0]))
+    assert np.allclose(clipped, [-7.2, 0.1, 0.0])
+    assert stub._action_saturation_ticks == 0
+
+
+def test_clip_action_and_report_clip_100_still_clamps_genuine_outliers() -> None:
+    stub = _ActionClampStub(action_clip=100.0)
+    clipped = _PhoenixPolicyNode._clip_action_and_report(stub, np.asarray([500.0, -0.1]))
+    assert np.allclose(clipped, [100.0, -0.1])
+    assert stub._action_saturation_ticks == 1
+
+
+class _TorqueClipStub:
+    def __init__(self, position_clip_margin: float = 0.01, sustained_clip_ticks: int = 10) -> None:
+        from phoenix.sim2real.go2_model import limits_in_order, torque_limits_in_order
+        from phoenix.sim2real.safety import SustainedClipTracker
+
+        self._policy_kp = 25.0
+        self._policy_kd = 0.5
+        self._torque_limit = torque_limits_in_order(POLICY_JOINT_ORDER)
+        self._lo, self._hi = limits_in_order(POLICY_JOINT_ORDER)
+        self._position_clip_margin = position_clip_margin
+        self._sustained_clip_ticks = sustained_clip_ticks
+        self._clip_tracker = SustainedClipTracker(len(POLICY_JOINT_ORDER), sustained_clip_ticks)
+        self._estopped = False
+        self._abort_reason: str | None = None
+        self.joint_order = JointOrder(POLICY_JOINT_ORDER)
+
+    def _latch_abort(self, reason: str) -> None:
+        self._estopped = True
+        self._abort_reason = reason
+
+
+def test_clip_to_limits_bounds_by_torque_not_position_delta() -> None:
+    stub = _TorqueClipStub()
+    q = np.asarray([TRAINING_DEFAULT_JOINT_POS[n] for n in POLICY_JOINT_ORDER], dtype=np.float32)
+    qd = np.zeros(12, dtype=np.float32)
+    target = q.copy()
+    target[0] += 5.0  # absurd, must be clipped well below +5
+    out = _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+    assert out[0] < q[0] + 1.0
+    assert stub._estopped is False
+
+
+def test_clip_to_limits_clips_past_stop_target_without_aborting() -> None:
+    """2026-09-25 sim2sim gate finding: a good walking policy requests calf
+    targets past the calf's hard upper limit. A single such tick must be
+    clipped, not treated as an abort condition."""
+    from phoenix.sim2real.go2_model import JOINT_POSITION_LIMITS_RAD
+
+    stub = _TorqueClipStub()
+    j = POLICY_JOINT_ORDER.index("RR_calf_joint")
+    lo, hi = JOINT_POSITION_LIMITS_RAD["RR_calf_joint"]
+    q = np.asarray([TRAINING_DEFAULT_JOINT_POS[n] for n in POLICY_JOINT_ORDER], dtype=np.float32)
+    qd = np.zeros(12, dtype=np.float32)
+    target = q.copy()
+    target[j] = hi + 0.28  # within the literal 0.25-0.31 rad sim2sim finding
+    out = _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+    assert lo <= out[j] <= hi
+    assert stub._estopped is False
+
+
+def test_clip_to_limits_sustained_clipping_latches_abort() -> None:
+    from phoenix.sim2real.go2_model import JOINT_POSITION_LIMITS_RAD
+
+    stub = _TorqueClipStub(sustained_clip_ticks=3)
+    j = POLICY_JOINT_ORDER.index("RR_calf_joint")
+    lo, hi = JOINT_POSITION_LIMITS_RAD["RR_calf_joint"]
+    q = np.asarray([TRAINING_DEFAULT_JOINT_POS[n] for n in POLICY_JOINT_ORDER], dtype=np.float32)
+    qd = np.zeros(12, dtype=np.float32)
+    target = q.copy()
+    target[j] = hi + 0.28
+    for _ in range(2):
+        _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+        assert stub._estopped is False
+    _PhoenixPolicyNode._clip_to_limits(stub, target, q, qd)
+    assert stub._estopped is True
+    assert stub._abort_reason.startswith("sustained_clip_exceeded:RR_calf_joint")
+
+
+class _VelocityCapStub(_StubResolveNode):
+    def __init__(self, max_command=(0.5, 0.3, 0.8)) -> None:
+        super().__init__("odom", stand_only=False)
+        self.max_command = np.asarray(max_command, dtype=np.float64)
+
+
+def test_on_cmd_vel_clamps_to_configured_max_command() -> None:
+    stub = _VelocityCapStub()
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(5.0, -5.0, 5.0))
+    assert stub._estopped is False
+    assert np.allclose(stub._velocity_command, [0.5, -0.3, 0.8])
+
+
+def test_on_cmd_vel_passes_through_inside_cap() -> None:
+    stub = _VelocityCapStub()
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(0.2, -0.1, 0.3))
+    assert np.allclose(stub._velocity_command, [0.2, -0.1, 0.3])
+
+
+def test_on_cmd_vel_nonfinite_becomes_zero_stand_not_propagated() -> None:
+    stub = _VelocityCapStub()
+    _PhoenixPolicyNode._on_cmd_vel(stub, _twist(float("nan"), 0.0, 0.0))
+    assert stub._estopped is False
+    assert np.allclose(stub._velocity_command, 0.0)
