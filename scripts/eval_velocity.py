@@ -279,26 +279,47 @@ def _fixed_command_sweep(unwrapped, actor, spec, num_steps: int = 250) -> dict:
     device = unwrapped.device
     n = unwrapped.num_envs
 
+    # The first four are the original calf-limit probes; the rest cover the
+    # lab-card envelope (forward 0.5, |lateral| 0.3, |yaw| 0.8) plus backward.
     scenarios = {
         "yaw_p0.6": (0.0, 0.0, 0.6),
         "yaw_p0.8": (0.0, 0.0, 0.8),
         "yaw_m0.6": (0.0, 0.0, -0.6),
         "vx_0.5": (0.5, 0.0, 0.0),
+        "vx_0.3": (0.3, 0.0, 0.0),
+        "vx_m0.3": (-0.3, 0.0, 0.0),
+        "vy_p0.3": (0.0, 0.3, 0.0),
+        "vy_m0.3": (0.0, -0.3, 0.0),
+        "yaw_m0.8": (0.0, 0.0, -0.8),
+        "stand": (0.0, 0.0, 0.0),
     }
+    #: Tracking is averaged over the steps after this one (skip the start-up transient).
+    settle_steps = num_steps // 2
     out: dict = {}
     for name, (vx, vy, wz) in scenarios.items():
         obs_dict, _ = unwrapped.reset()
         fixed = torch.tensor([vx, vy, wz], device=device).expand(n, 3).clone()
         cmd_term.vel_command_b[:] = fixed
         near_hard_any_step = torch.zeros(n, dtype=torch.bool, device=device)
+        fell = torch.zeros(n, dtype=torch.bool, device=device)
         max_overshoot_rad = 0.0
+        vel_sum = torch.zeros(3, device=device)
+        vel_count = 0
         with torch.no_grad():
-            for _ in range(num_steps):
+            for step in range(num_steps):
                 obs = obs_dict["policy"]
                 action = actor(obs)
                 action_clipped = action.clamp(-spec.action.clip_actions, spec.action.clip_actions)
                 obs_dict, _rew, terminated, truncated, extras = unwrapped.step(action_clipped)
                 cmd_term.vel_command_b[:] = fixed  # re-force every step
+                fell |= terminated.bool() & ~truncated.bool()
+                if step >= settle_steps:
+                    ok = ~fell
+                    if bool(ok.any()):
+                        v = as_torch(robot.data.root_lin_vel_b)[ok]
+                        w = as_torch(robot.data.root_ang_vel_b)[ok]
+                        vel_sum += torch.stack([v[:, 0].mean(), v[:, 1].mean(), w[:, 2].mean()])
+                        vel_count += 1
                 q = as_torch(robot.data.joint_pos)[:, calf_idx]
                 lo = hard_limits[:, calf_idx, 0]
                 hi = hard_limits[:, calf_idx, 1]
@@ -306,9 +327,19 @@ def _fixed_command_sweep(unwrapped, actor, spec, num_steps: int = 250) -> dict:
                 near_hard_any_step |= near.any(dim=1)
                 overshoot = torch.clamp(lo - q, min=0.0) + torch.clamp(q - hi, min=0.0)
                 max_overshoot_rad = max(max_overshoot_rad, float(overshoot.max()))
+        achieved = (vel_sum / max(vel_count, 1)).tolist()
+        cmd = [vx, vy, wz]
+        axis = max(range(3), key=lambda i: abs(cmd[i]))
         out[name] = {
+            "command": cmd,
             "fraction_envs_calf_near_hard_limit": float(near_hard_any_step.float().mean()),
             "max_calf_hard_limit_overshoot_rad": max_overshoot_rad,
+            "fall_fraction": float(fell.float().mean()),
+            # Mean body-frame (vx, vy, wz) over the settled half, envs that never fell.
+            "achieved_mean": achieved,
+            # achieved / commanded on the commanded axis (None for stand).
+            "tracking_ratio": (achieved[axis] / cmd[axis]) if cmd[axis] != 0 else None,
+            "abs_error_mean": [abs(a - c) for a, c in zip(achieved, cmd, strict=True)],
         }
     return out
 
