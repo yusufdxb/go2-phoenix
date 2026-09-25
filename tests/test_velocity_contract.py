@@ -168,6 +168,47 @@ def test_deploy_envelope_must_fit_trained_ranges() -> None:
     )
 
 
+def test_manifest_without_deploy_block_omits_the_key() -> None:
+    m = _manifest()
+    assert "deploy" not in m
+
+
+def test_manifest_deploy_block_is_written_verbatim() -> None:
+    m = c.build_manifest(
+        checkpoint_sha256="a" * 64,
+        commands=c.CommandRanges((-1.0, 1.0), (-0.5, 0.5), (-1.0, 1.0), 0.1),
+        git_sha="b" * 40,
+        git_dirty=False,
+        seed=1,
+        task="Phoenix-Velocity-Flat-Go2-v0",
+        simulator="isaaclab",
+        reward_scales={"track_lin_vel_xy": 1.0},
+        domain_randomization={},
+        curriculum={},
+        deploy={"kp": 25.0, "kd": 0.5, "action_clip": 100.0},
+    )
+    assert m["deploy"] == {"kp": 25.0, "kd": 0.5, "action_clip": 100.0}
+
+
+def test_manifest_deploy_block_survives_a_copy_round_trip() -> None:
+    m = c.build_manifest(
+        checkpoint_sha256="a" * 64,
+        commands=c.CommandRanges((-1.0, 1.0), (-0.5, 0.5), (-1.0, 1.0), 0.1),
+        git_sha="b" * 40,
+        git_dirty=False,
+        seed=1,
+        task="Phoenix-Velocity-Flat-Go2-v0",
+        simulator="isaaclab",
+        reward_scales={"track_lin_vel_xy": 1.0},
+        domain_randomization={},
+        curriculum={},
+        deploy={"kp": [25.0] * 12, "kd": [0.5] * 12, "action_clip": 1.0},
+    )
+    dumped = copy.deepcopy(m)
+    assert dumped["deploy"]["action_clip"] == 1.0
+    assert len(dumped["deploy"]["kp"]) == 12
+
+
 def test_command_ranges_reject_garbage() -> None:
     with pytest.raises(ValueError):
         c.CommandRanges.from_mapping(

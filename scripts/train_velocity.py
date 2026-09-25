@@ -31,6 +31,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--num-envs", type=int, default=None)
     p.add_argument("--max-iterations", type=int, default=None)
     p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--action-clip", type=float, default=None, help="override ActionSpec.clip_actions")
+    p.add_argument("--save-interval", type=int, default=None, help="override PPOSpec.save_interval (checkpoint cadence)")
     p.add_argument("--run-name", type=str, required=True)
     p.add_argument("--output-dir", type=Path, default=Path("checkpoints/velocity"))
     p.add_argument("--resume", type=Path, default=None)
@@ -75,6 +77,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         spec = spec.replace(ppo=dataclasses.replace(spec.ppo, max_iterations=args.max_iterations))
     if args.seed is not None:
         spec = spec.replace(seed=args.seed)
+    if args.action_clip is not None:
+        spec = spec.replace(action=dataclasses.replace(spec.action, clip_actions=args.action_clip))
+    if args.save_interval is not None:
+        spec = spec.replace(ppo=dataclasses.replace(spec.ppo, save_interval=args.save_interval))
     spec = spec.replace(ppo=dataclasses.replace(spec.ppo, experiment_name=args.run_name))
 
     problems = spec.validate()
@@ -104,7 +110,10 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     dump_path.write_text(json.dumps(dump, indent=2, default=str))
     logger.info("realized DR/actuator dump written: %s", dump_path)
 
-    env = RslRlVecEnvWrapper(env, clip_actions=1.0)
+    # clip_actions from the spec (see ActionSpec.clip_actions for the 2026-09-25
+    # bug this default replaces: 1.0 with scale=0.25 pinned every joint offset at
+    # 0.25 rad, too small for a trot, and stalled the command curriculum at level 0).
+    env = RslRlVecEnvWrapper(env, clip_actions=spec.action.clip_actions)
 
     runner_cfg = pv_env_cfg.build_ppo_runner_cfg(spec)
     runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))

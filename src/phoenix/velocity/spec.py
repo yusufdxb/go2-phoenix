@@ -102,6 +102,23 @@ class ActionSpec:
     #: side must relax that clip for velocity mode or this must be turned on (see
     #: docs/velocity/mdp.md, "Deploy slew clip").
     rate_limit_enabled: bool = False
+    #: rsl_rl ``RslRlOnPolicyRunnerCfg.clip_actions``: the raw policy output is
+    #: clamped to [-clip_actions, clip_actions] BEFORE ``scale`` is applied and
+    #: before it is stored as the "last_action" observation. This is a dimensionless
+    #: sanity clip on the network output, not a radians limit; safety against illegal
+    #: joint targets comes from the actuator torque/velocity limits and the deploy
+    #: slew clip, not from this value (legged_gym convention: rl_sar/robot_lab/
+    #: himloco configs use +-100, effectively unclipped for any action magnitude a
+    #: converged policy would output).
+    #:
+    #: 2026-09-25 bug (fixed here): this was hardcoded to 1.0 in env_cfg.py. With
+    #: scale=0.25 that caps every joint offset at 0.25 rad, too small for a trot.
+    #: Seed 42 of the walk_v1 run pinned at the clip almost every step
+    #: (Curriculum/telemetry/action_abs_mean 0.9985, p99 1.0 at iteration 2965),
+    #: the command curriculum never left level 0, and lin_score went negative
+    #: (worse than standing still). Kept running as the clip=1.0 control arm;
+    #: 100.0 is the new default for every arm launched after this fix.
+    clip_actions: float = 100.0
 
 
 # ------------------------------------------------------------------ observations
@@ -519,6 +536,8 @@ class VelocityTaskSpec:
             p.append(f"physics rate {1.0 / self.sim.physics_dt} Hz != contract {PHYSICS_HZ}")
         if self.action.clip is not None:
             p.append("action clip set: contract last_action is the RAW policy action")
+        if self.action.clip_actions <= 0:
+            p.append("action.clip_actions must be positive")
         if set(self.obs_noise.as_dict()) != {t[0] for t in ACTOR_OBS_TERMS}:
             p.append("obs noise terms do not match the actor terms")
         if self.commands.heading_command:

@@ -546,12 +546,15 @@ def build_ppo_runner_cfg(spec: VelocityTaskSpec | None = None):
         # deprecated runner-level flag; explicit per-network flags below are what
         # actually apply (see phoenix.training.agent_cfg for why this must not be MISSING).
         empirical_normalization=False,
-        # rsl_rl clip_actions=1.0: matches train clip_actions=1.0 already used by
-        # evaluate.py/fine_tune.py/reconstruct.py, and matches the proven-stack
-        # deploy fix (clamp actions to [-1,1] before scaling). The action stored
-        # for the "last_action" observation term is the CLIPPED action (the
-        # wrapper clips before env.step), so train and deploy must clip identically.
-        clip_actions=1.0,
+        # rsl_rl clip_actions: a wide dimensionless sanity clip (legged_gym
+        # convention: rl_sar/robot_lab/himloco use +-100), not a radians limit.
+        # Safety against illegal joint targets comes from actuator torque/velocity
+        # limits and the deploy slew clip, not this value. See ActionSpec.clip_actions
+        # for the 2026-09-25 bug this replaces (1.0 here with scale=0.25 pinned every
+        # joint at 0.25 rad and stalled the curriculum). The action stored for the
+        # "last_action" observation term is the CLIPPED action (the wrapper clips
+        # before env.step), so train and deploy must clip identically at this value.
+        clip_actions=spec.action.clip_actions,
         policy=RslRlPpoActorCriticCfg(
             init_noise_std=p.init_noise_std,
             actor_obs_normalization=p.actor_obs_normalization,
