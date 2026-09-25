@@ -212,9 +212,19 @@ def build_manifest(
     reward_scales: Mapping[str, float],
     domain_randomization: Mapping[str, Any],
     curriculum: Mapping[str, Any],
+    deploy: Mapping[str, Any] | None = None,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Assemble a manifest for a PhoenixVelocity checkpoint (45-D contract)."""
+    """Assemble a manifest for a PhoenixVelocity checkpoint (45-D contract).
+
+    ``deploy``, when given, is written verbatim as ``manifest["deploy"]`` and is
+    what ``phoenix.sim2sim.deploy_spec.load_deploy_spec`` (sim2sim gate) reads:
+    ``{"kp": float|[12], "kd": float|[12], "action_clip": float|None}``. Without
+    it, the gate falls back to the Phoenix train==deploy defaults (Kp 25 / Kd 0.5,
+    action_clip 1.0), which is WRONG for any checkpoint trained with a different
+    ``ActionSpec.clip_actions`` (see that field for the 2026-09-25 clip=1.0 bug) --
+    always pass ``deploy`` for a checkpoint trained by this module.
+    """
     capable, reasons = derive_locomotion_capable(commands)
     manifest: dict[str, Any] = {
         "schema": MANIFEST_SCHEMA,
@@ -245,6 +255,8 @@ def build_manifest(
         },
         "checkpoint_sha256": checkpoint_sha256,
     }
+    if deploy:
+        manifest["deploy"] = dict(deploy)
     if extra:
         manifest["extra"] = dict(extra)
     return manifest

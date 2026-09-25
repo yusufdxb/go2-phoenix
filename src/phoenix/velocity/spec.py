@@ -102,6 +102,23 @@ class ActionSpec:
     #: side must relax that clip for velocity mode or this must be turned on (see
     #: docs/velocity/mdp.md, "Deploy slew clip").
     rate_limit_enabled: bool = False
+    #: rsl_rl ``RslRlOnPolicyRunnerCfg.clip_actions``: the raw policy output is
+    #: clamped to [-clip_actions, clip_actions] BEFORE ``scale`` is applied and
+    #: before it is stored as the "last_action" observation. This is a dimensionless
+    #: sanity clip on the network output, not a radians limit; safety against illegal
+    #: joint targets comes from the actuator torque/velocity limits and the deploy
+    #: slew clip, not from this value (legged_gym convention: rl_sar/robot_lab/
+    #: himloco configs use +-100, effectively unclipped for any action magnitude a
+    #: converged policy would output).
+    #:
+    #: 2026-09-25 bug (fixed here): this was hardcoded to 1.0 in env_cfg.py. With
+    #: scale=0.25 that caps every joint offset at 0.25 rad, too small for a trot.
+    #: Seed 42 of the walk_v1 run pinned at the clip almost every step
+    #: (Curriculum/telemetry/action_abs_mean 0.9985, p99 1.0 at iteration 2965),
+    #: the command curriculum never left level 0, and lin_score went negative
+    #: (worse than standing still). Kept running as the clip=1.0 control arm;
+    #: 100.0 is the new default for every arm launched after this fix.
+    clip_actions: float = 100.0
 
 
 # ------------------------------------------------------------------ observations
@@ -146,7 +163,18 @@ CRITIC_OBS_DIM = ACTOR_OBS_DIM + sum(t[1] for t in CRITIC_EXTRA_TERMS)
 
 #: GO2 body names (read from go2.usd): base, Head_upper, Head_lower, {FL,FR,RL,RR}_{hip,thigh,calf,foot}.
 FOOT_BODIES = ".*_foot"
-TRUNK_BODIES: tuple[str, ...] = ("base", "Head_.*")
+#: "base" only, matching the upstream Go2 termination body. 2026-09-25 bug (fixed
+#: here): TRUNK_BODIES used to also include "Head_.*". Head_upper/Head_lower are
+#: near-massless (0.001 kg, isaac_reference.py) bodies rigidly fixed to the base;
+#: under any joint acceleration the internal constraint reaction force needed to
+#: keep a near-massless body attached to an accelerating trunk spikes through
+#: PhysX's net-contact-force channel (measured: mean 3.7 N, MAX 235 N with only
+#: action_std=0.5 noise and zero real ground contact), far above the 1 N
+#: threshold. This produced a near-100% false-positive "trunk_contact"
+#: termination on any nonzero action (mean episode length ~7 steps at 4096 envs,
+#: vs stock Go2's ~973-993 steps with the same reward/PPO setup, "base" only).
+#: scripts/diag_zero_action_rollout.py reproduces this in isolation.
+TRUNK_BODIES: tuple[str, ...] = ("base",)
 UNDESIRED_CONTACT_BODIES: tuple[str, ...] = (".*_hip", ".*_thigh")
 #: Contact is "on" above this force (N). Same threshold everywhere for consistency.
 CONTACT_FORCE_THRESHOLD_N = 1.0
@@ -307,6 +335,24 @@ def default_reward_terms() -> tuple[RewardTermSpec, ...]:
             "high-frequency action chatter across ALL motors (L2 smoothness)",
         ),
         RewardTermSpec(
+            "action_l2",
+            "isaac:action_l2",
+            -0.01,
+            "(dimensionless RAW action, post rsl_rl clip)^2 summed",
+            "unbounded drift of the actor's mean output. 2026-09-25 bug: the "
+            "Gaussian actor has no output activation on its mean (rsl_rl "
+            "GaussianDistribution.update: mean = mlp_output, no tanh/clip) and "
+            "action_rate_l2/slew_sat_hinge_l2 only penalize CHANGE between "
+            "steps, not magnitude, so a policy can drift its mean action to "
+            "arbitrarily large values as long as it does so slowly (small "
+            "per-step delta). Measured: seed 43's action_abs_p99 grew smoothly "
+            "4.09 (iter 2000) -> 9.70 (iter 5000) -> 15.49 (iter 8500) while "
+            "action std stayed roughly flat (0.19 -> 0.20 -> 0.25), and episode "
+            "length collapsed from 946 to 60 over the same span. Same weight "
+            "as action_rate_l2 (-0.01): both are action-processing penalties "
+            "at the same order of magnitude, not tuned against each other.",
+        ),
+        RewardTermSpec(
             "slew_sat_hinge_l2",
             "phoenix:slew_sat_hinge_l2",
             -10.0,
@@ -344,6 +390,20 @@ def default_reward_terms() -> tuple[RewardTermSpec, ...]:
             "rad beyond the soft joint limits (0.9 x hard range), summed",
             "gaits that ride the mechanical joint stops",
         ),
+        # 2026-09-25: default kept at -1.0 here (do not change default_spec(),
+        # a resumed run must keep its own original weight). The sim2sim agent
+        # found seed42@3000 drives FR/RL calves to their upper hard limit
+        # during counter-clockwise yaw (+0.6, worse at +0.8), targets 0.25-0.31
+        # rad past the stop, 20-30 steps past Isaac's own soft limit. The soft
+        # limit factor is already correct (UNITREE_GO2_CFG,
+        # ~/Sim/IsaacLab/source/isaaclab_assets/isaaclab_assets/robots/
+        # unitree.py:168, soft_joint_pos_limit_factor=0.9, inherited since
+        # env_cfg.py only overrides scene.robot.actuators, not the whole robot
+        # asset), matching the legged_gym / unitree_rl_gym convention; the gap
+        # is the reward WEIGHT, -1.0 here versus that convention's -10.0. Used
+        # via VelocityTaskSpec.with_reward_weight for the isolated seed 46 arm
+        # (clip100-curriculum-limitpen); see train_velocity.py
+        # --joint-pos-limits-weight.
         RewardTermSpec(
             "stand_still",
             "phoenix:stand_still_joint_deviation_l1",
@@ -447,7 +507,12 @@ class PPOSpec:
     learning_rate: float = 1.0e-3
     schedule: str = "adaptive"
     desired_kl: float = 0.01
-    entropy_coef: float = 0.005
+    #: Matches stock UnitreeGo2{Rough,Flat}PPORunnerCfg (0.01). Was 0.005 (half
+    #: stock's value) with no recorded justification; aligned 2026-09-25 while
+    #: diagnosing the 3-seed overnight collapse (see the action_l2 reward term
+    #: for the primary fix; this is a secondary alignment, not shown alone to
+    #: be the collapse's cause).
+    entropy_coef: float = 0.01
     gamma: float = 0.99
     lam: float = 0.95
     clip_param: float = 0.2
@@ -487,6 +552,21 @@ class VelocityTaskSpec:
     def replace(self, **changes: Any) -> VelocityTaskSpec:
         return dataclasses.replace(self, **changes)
 
+    def with_reward_weight(self, name: str, weight: float) -> VelocityTaskSpec:
+        """A copy with ONE reward term's weight changed, others untouched.
+
+        Used to isolate a single per-arm change (e.g. joint_pos_limits weight
+        for the 2026-09-25 calf-limit finding) without touching
+        default_spec(), so an unrelated run resumed later keeps its own
+        original weight instead of silently picking up a new global default.
+        """
+        if name not in {t.name for t in self.rewards}:
+            raise KeyError(name)
+        new_rewards = tuple(
+            dataclasses.replace(t, weight=float(weight)) if t.name == name else t for t in self.rewards
+        )
+        return self.replace(rewards=new_rewards)
+
     def to_dict(self) -> dict[str, Any]:
         out = _jsonable(dataclasses.asdict(self))
         out["schema"] = SPEC_SCHEMA
@@ -519,6 +599,8 @@ class VelocityTaskSpec:
             p.append(f"physics rate {1.0 / self.sim.physics_dt} Hz != contract {PHYSICS_HZ}")
         if self.action.clip is not None:
             p.append("action clip set: contract last_action is the RAW policy action")
+        if self.action.clip_actions <= 0:
+            p.append("action.clip_actions must be positive")
         if set(self.obs_noise.as_dict()) != {t[0] for t in ACTOR_OBS_TERMS}:
             p.append("obs noise terms do not match the actor terms")
         if self.commands.heading_command:
