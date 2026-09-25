@@ -2,53 +2,20 @@
 
 A map for first-time visitors.
 
-```
-go2-phoenix/
-├── README.md                 hero: what Phoenix is + quick start
-├── pyproject.toml            package metadata + optional [sim] / [real] / [dev]
-├── CITATION.cff              cite the project
-├── LICENSE                   MIT
-│
-├── src/phoenix/              the library
-│   ├── sim_env/              GO2 env factory on Isaac Lab's rough-terrain task
-│   ├── training/             PPO (rsl_rl) trainer + evaluation rollouts
-│   ├── sim2real/             ONNX export with parity gate, ROS 2 policy node, safety predicates
-│   ├── real_world/           rule-based failure detector, Parquet trajectory logger
-│   ├── replay/               Halton variation sampler + Isaac Sim reconstruction
-│   ├── adaptation/           failure-curriculum fine-tuning + reset bridge
-│   └── demo/                 side-by-side video pipeline (ffmpeg)
-│
-├── configs/
-│   ├── env/                  layered env YAMLs (defaults: chain)
-│   ├── train/                PPO + adaptation + sweep specs
-│   ├── sim2real/             deploy.yaml (ROS 2 + bridges + safety)
-│   ├── replay/               Halton variation specs
-│   └── _generated/           materialized per-cell sweep configs (gitignored)
-│
-├── scripts/
-│   ├── train.sh              entry point: train a policy
-│   ├── deploy.sh             entry point: hand off to Jetson
-│   ├── replay.sh             entry point: reconstruct a parquet in sim
-│   ├── adapt.sh              entry point: failure-curriculum fine-tune
-│   ├── demo.sh               entry point: render the side-by-side video
-│   ├── sweep_run.py          spec-driven benchmark sweep runner
-│   └── harness_*.{sh,py}     lab-day preflight, recorder, diversity, EOD
-│
-├── tests/                    unit tests (torch-free, ROS-free; CI-safe)
-│   └── test_sim_integration.py   marked @pytest.mark.sim, runs locally only
-│
-├── docs/
-│   ├── architecture.{dot,svg}    rendered system diagram
-│   ├── deploy_mode_switch_runbook.md   how to flip the two-policy mode switch on
-│   ├── sweep_design_2026-05-17.md      sweep grid + axes + rationale
-│   ├── structure.md              this file
-│   └── changelog.md              release-style summary of past gates
-│
-├── checkpoints/              .pt + .onnx artifacts (gitignored)
-├── data/                     parquets, videos, npz (gitignored)
-├── media/                    demo + render clips (gitignored)
-└── docker/                   CPU-only testbox image for CI
-```
+| Path | Purpose |
+|---|---|
+| `src/phoenix/sim_env/` | Isaac Lab GO2 environment |
+| `src/phoenix/velocity/` | Walking observation, task and checkpoint contract |
+| `src/phoenix/training/` | PPO training and evaluation records |
+| `src/phoenix/sim2sim/` | MuJoCo model, scenarios and gate |
+| `src/phoenix/sim2real/` | ONNX export, controller and safety boundaries |
+| `src/phoenix/real_world/` | Failure detector and trajectory logger |
+| `src/phoenix/replay/` and `src/phoenix/adaptation/` | Failure replay and fine-tuning |
+| `configs/` | Environment, training, gate and deploy configuration |
+| `scripts/` | Supported command-line entry points |
+| `tests/` | Offline and integration tests |
+| `docs/` | Architecture, evidence and result reports |
+| `checkpoints/` and `data/` | Generated artifacts, generally ignored by Git |
 
 ## The two Python contexts
 
@@ -64,8 +31,8 @@ No module imports `torch` *and* `rclpy`.
 
 ## CI scope
 
-`tests/` is torch-free + ROS-free by construction. Run the full
-CI-safe suite with:
+Most offline tests run without Isaac Lab or ROS 2. Run the filtered
+suite with:
 
 ```bash
 pytest tests -m "not sim and not ros"

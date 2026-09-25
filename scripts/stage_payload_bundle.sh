@@ -18,10 +18,8 @@
 #
 # <dest> is either a local directory or a remote [user@]host:/path, in which
 # case the bundle is assembled locally, rsynced over, and the SHA256SUMS is
-# re-verified ON THE PAYLOAD, which is the only check that proves the transfer
-# rather than the copy. Host aliases jetson (wifi 192.168.0.70) and
-# jetson-cable (192.168.123.18) are already in ~/.ssh/config; the password
-# comes from JETSON_PW, default 123.
+# re-verified on the destination, which proves the transfer rather than the
+# local copy. Remote staging requires JETSON_PW in the environment.
 #
 # Examples:
 #   scripts/stage_payload_bundle.sh \
@@ -32,7 +30,7 @@
 #   scripts/stage_payload_bundle.sh \
 #       checkpoints/phoenix-stand-h25-lat-noise \
 #       configs/sim2real/deploy_stand_h25.yaml \
-#       jetson:/home/unitree/phoenix/stand-h25-lat-noise
+#       user@host:/remote/phoenix/stand-h25-lat-noise
 
 set -euo pipefail
 
@@ -174,13 +172,14 @@ fi
 # ------------------------------------------------------------------ remote push
 HOST="${REMOTE%%:*}"
 RPATH="${REMOTE#*:}"
-PW="${JETSON_PW:-123}"
-SSH=(sshpass -p "$PW" ssh "$HOST")
+: "${JETSON_PW:?Set JETSON_PW for remote staging}"
+export SSHPASS="$JETSON_PW"
+SSH=(sshpass -e ssh "$HOST")
 
 echo
 echo "[stage] pushing to $HOST:$RPATH"
 "${SSH[@]}" "mkdir -p '$RPATH'"
-sshpass -p "$PW" rsync -a --delete -e "sshpass -p $PW ssh" "$DEST"/ "$HOST:$RPATH"/
+sshpass -e rsync -a --delete -e "sshpass -e ssh" "$DEST"/ "$HOST:$RPATH"/
 
 # The local sha256sum -c above only proves the local copy. This one proves the
 # bytes that actually reached the payload.

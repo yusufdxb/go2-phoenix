@@ -122,7 +122,7 @@ MAX_ATTITUDE_INTERVENTION_RAD = math.radians(25.0)
 #: episode in a rollout, and neither number should move because the other did.
 #:
 #: The asymmetry (pitch above roll) is the historical value and is preserved
-#: on purpose; see ``docs/native_runtime_audit.md`` R24.
+#: on purpose to keep historical rollout counts comparable.
 SIM_ANALYSIS_PITCH_RAD = 0.8
 SIM_ANALYSIS_ROLL_RAD = 0.6
 

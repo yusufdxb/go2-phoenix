@@ -11,7 +11,6 @@ rsync).
 
 - `scripts/sweep_run.py`, `configs/train/sweep_stand_v3_stress.yaml`
 - `scripts/harness_{preflight,record,diversity,eod}.{sh,py}`
-- `docs/sweep_design_2026-05-17.md`
 - +28 tests, full no-sim suite at 228 passed.
 
 No `src/phoenix/*` changes; no policy retrain.
@@ -41,8 +40,7 @@ attempts (`flat-scratch`, `flat-v3b-ft`, `flat-slewhinge`,
 `flat-slewhinge-w5`). Root cause: reward-landscape dominance, not init
 conditioning. Pivoted to a runtime mode switch: `stand-v2` and `v3b` loaded
 together, hysteresis plus a 25-tick blend, routed on `cmd_vel` magnitude.
-Opt-in flag, zero retraining, 179 unit tests green. See
-`docs/deploy_mode_switch_runbook.md` for how to flip it on.
+Opt-in flag, zero retraining, 179 unit tests green in that historical run.
 
 ## 2026-04-18: first live hardware dryrun
 

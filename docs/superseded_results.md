@@ -62,8 +62,8 @@ alongside the corrected `slew_saturation_pct`, and stamps
 JSON. A metrics JSON with no `slew_metric_definition` field is a legacy-metric
 file.
 
-`docs/sweep_design_2026-05-17.md` named `slew_saturation_rate` as the source of
-the gate metric (it now names the corrected one), so every sim slew figure
+The historical sweep used `slew_saturation_rate` as the source of the gate
+metric. The implementation now uses the corrected one, so every sim slew figure
 recorded in this repository before this pass, including the
 0.33%, 3.30%, 2.91%, 3.65% and 4.23% numbers, is a LEGACY-definition figure. The
 recorded values are not edited. They must not be compared against a hardware

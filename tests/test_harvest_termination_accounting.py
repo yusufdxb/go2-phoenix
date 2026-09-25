@@ -257,10 +257,8 @@ def test_recompute_of_the_historical_report(harvest):
     assert counts["written"] == 3
     assert counts["rejected"] == {"no_usable_pre_onset_window": 71}
     assert counts["written_with_spliced_window"] == 1
-    assert report["written_with_spliced_window"] == [
-        "/home/yusuf/workspace/go2-phoenix/data/failures/sim_harvest/"
-        "sim_fall_0001_env058_step001102.parquet"
-    ] or report["written_with_spliced_window"][0].endswith(
+    assert len(report["written_with_spliced_window"]) == 1
+    assert report["written_with_spliced_window"][0].endswith(
         "sim_fall_0001_env058_step001102.parquet"
     )
     detector = report["detector"]

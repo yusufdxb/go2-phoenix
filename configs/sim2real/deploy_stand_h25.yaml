@@ -37,8 +37,7 @@
 # every tick to the bridge telemetry file and summarised as
 # final_target_vs_policy_request_clip_activation_v1 (phoenix.sim2real.bridge_telemetry). No
 # corrected-metric simulator baseline exists for this checkpoint, so the stand
-# stages REPORT that percentage and do not pass or fail on it
-# (docs/h25_stand_hardware_run_card.md).
+# stages REPORT that percentage and do not pass or fail on it.
 #
 # WATCH AT LAB: the limiter slows posture leveling (slightly slower settle than a
 # Sport-mode stand); never falls in sim. The live gate is FEET ON THE GROUND, on a

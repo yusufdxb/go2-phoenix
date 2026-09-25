@@ -1,232 +1,45 @@
-# GO2 Field Notes (measured 2026-09-01 / 2026-09-02)
+# GO2 field observations
 
-Everything in this file was **measured on a live Unitree Go2 EDU with a Jetson Orin
-NX 16 GB payload**, not inferred from documentation. Anything not measured is marked
-NOT VERIFIED. Numbers come from two lab sessions; treat them as one robot, one room,
-one floor until a second session reproduces them.
+This page records observations that affect Phoenix's interpretation of robot
+telemetry. It does not serve as a connection or activation procedure. The
+September 2026 H25 stage F1 attempt reached policy control for 0.56 seconds and
+then latched a joint-limit fault. It did not establish a stable loaded stand.
 
-Platform: Jetson Orin NX 16 GB, Ubuntu 22.04.5, kernel 5.15.148-tegra, aarch64,
-ROS 2 Humble, `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`.
+## 1. DDS configuration is part of a run
 
-## 1. The failure mode that costs you a session
+The ROS 2 process must receive a valid `CYCLONEDDS_URI` that names an existing
+configuration file. `scripts/harness_preflight.sh` checks that the file exists.
+A topic list alone does not prove that the intended sensor publisher is fresh.
 
-CycloneDDS is bound to a named network interface. If that name does not exist on the
-host, **every Go2 topic is advertised and carries no data**. Discovery still works, so
-`ros2 topic list` looks completely healthy and `ros2 topic info` reports publishers.
-Only `ros2 topic hz` / `echo` reveals it.
+## 2. Topic discovery needs freshness checks
 
-On the Orin NX payload the robot-facing NIC is `enP8p1s0`. A `CYCLONEDDS_URI` inherited
-from a desktop control PC (`enp0s31f6` and similar) silently produces this state.
+After a ROS environment change, discovery may still show old endpoints. Phoenix
+checks timestamps and required first messages before it publishes policy
+commands. Logs should record the topic source and age used for each verdict.
 
-```bash
-grep -o 'NetworkInterface name="[^"]*"' "${CYCLONEDDS_URI#file://}"
-ip -brief link show enP8p1s0     # must exist, must be UP
-```
+## 3. Odometry uses a boot-relative frame
 
-A detector reading a dead topic is indistinguishable from a detector reading a safe
-world. Assert data flow, not topic presence.
+The observed odometry position is a displacement from the robot's boot pose.
+Its vertical coordinate is not an absolute simulator base height. Captures
+using this source declare `odom_boot_relative`; replay refuses to treat them
+as simulator world coordinates without an explicit transform. This affects
+failure seeding and any reported base-height comparison.
 
-## 2. `ros2 topic list` lies after any environment change
+## 4. Low-level control has an ownership boundary
 
-A stale `ros2` daemon holds the discovery context from the previous environment. Symptom
-is a list containing only `/rosout` and `/parameter_events`. Always:
+A motors-off dry run validates message flow but does not prove control of the
+robot. Live policy authority requires the stock controller to release the
+motors and a separate deadman signal. The bridge records whether it was live
+and what target was finally sent after safety processing.
 
-```bash
-ros2 daemon stop     # then re-run
-```
+## 5. Sensor geometry depends on the robot pose
 
-`ros2 topic echo` accepts `--no-daemon`; `ros2 topic hz` does **not**.
+A sensor transform measured from one posture should not be reused as a fixed
+world transform during a different posture. Report the frame and posture used
+for calibration when comparing real captures with simulation.
 
-## 3. Measured topic surface
+## 6. Wall-clock time can change independently of control time
 
-Full API surface after a clean daemon restart: **109 topics**.
-
-| Topic | Type | Measured rate |
-|---|---|---|
-| `/lowstate` | `unitree_go/msg/LowState` | 500.0 Hz |
-| `/sportmodestate` | `unitree_go/msg/SportModeState` | 294.9 Hz |
-| `/utlidar/imu` | `sensor_msgs/Imu` | 248.1 Hz |
-| `/utlidar/robot_odom` | `nav_msgs/Odometry` | 151.0 Hz |
-| `/utlidar/cloud` | `sensor_msgs/PointCloud2` | 15.4 Hz |
-| `/frontvideostream` | compressed video | 28.6 Hz |
-| `/wirelesscontroller` | `unitree_go/msg/WirelessController` | **silent unless the remote is powered on** |
-
-Also verified absent on a stock robot: **no `/tf`, no `map` frame, no `/cmd_vel`
-publisher**. `/utlidar/robot_odom` is `header.frame_id = "odom"`,
-`child_frame_id = "base_link"`, origin at boot pose. Any node that needs a global frame
-has to supply it; do not assume TF exists.
-
-## 4. Commanding the robot without the SDK
-
-`unitree_sdk2py` is **not installed on the payload and is not required**. A hand-rolled
-`unitree_api/msg/Request` published to `/api/sport/request` is accepted by the robot:
-
-- `header.identity.id` = any unique int, `header.identity.api_id` = the command id
-- `header.lease.id = 0`, `header.policy.priority = 0`, `header.policy.noreply = false`
-- `parameter` = a JSON string
-
-Verified api ids ON THIS TOPIC: **1003 StopMove**, **1008 Move**
-(`{"x": <m/s>, "y": <m/s>, "z": <rad/s>}`). The robot replies on `/api/sport/response`
-with `status.code = 0` and the matching request id.
-
-**DANGER, corrected 2026-09-10: `1001` on `/api/sport/request` is `Damp`, NOT `CheckMode`.**
-An earlier version of this line listed "1001 CheckMode" here, which conflated two different
-services. `Damp` releases the legs and the robot DROPS where it stands. Confirmed against the
-vendor SDK: `unitree_sdk2py/go2/sport/sport_api.py` defines `SPORT_API_ID_DAMP = 1001`, while
-`unitree_sdk2py/comm/motion_switcher/motion_switcher_api.py` defines
-`MOTION_SWITCHER_API_ID_CHECK_MODE = 1001`. CheckMode is api 1001 on
-**`/api/motion_switcher/request`**, a different topic. Hand-typing 1001 at the sport topic
-expecting a harmless mode query would drop a standing robot.
-
-`CheckMode` returns `{"form":"0","name":"mcf"}`. **Only ever `SelectMode('mcf')` or
-`'ai'`.** `SelectMode('normal')` wedges the robot and needs a power cycle.
-
-**`/api/sport/request` has 9 publishers on a stock robot.** Any preflight asserting that
-the topic has exactly one publisher is wrong and will hard-fail on real hardware. Count
-*your own* node's publishers instead, and assert the platform total is `>= 1`.
-
-Order of operations that isolates faults: send `StopMove` (1003) first. It is a real,
-accepted request that carries zero motion risk, so a failure there means the header
-format is wrong, not that the robot refused to move.
-
-Measured envelope from the first commanded-motion runs: commanded `x = 0.15 m/s` for 2 s
-produced a peak `|vx|` of 0.159 - 0.161 m/s over two reproducible runs. Fail-closed
-latency with a 250 ms lease timeout was 4 `Move` messages before `StopMove` took over,
-on hardware and in dry-run alike. Stop *distance* is still **NOT MEASURED**.
-
-Gait envelope (prior sessions): a clean trot needs `vx >= 0.5`; CCW yaw needs
-`>= 1.0 rad/s`; combined translation and yaw degrades (this is the stock `mcf` RL policy
-ceiling, not a bug in your controller).
-
-## 5. LiDAR extrinsics are pose dependent
-
-Measured from `/utlidar/imu` orientation, 4000 samples per pose, same room, same floor,
-minutes apart:
-
-| Pose | `body_height` | roll | pitch |
-|---|---|---|---|
-| Standing | 0.323 m | **-131.56 deg** | -2.24 deg (sd 0.043) |
-| Sitting | 0.072 m | **-108.30 deg** | +0.17 deg (sd 0.030) |
-
-A 23.3 deg roll difference between poses, stable, not noise. Consequence, measured by
-replaying both bags through a live ground/drop-off detector at true 15.4 Hz:
-
-| Bag | Sweeps | False alarms |
-|---|---|---|
-| Standing | 1220 | **445 (36%)** |
-| Sitting | 1143 | **0** |
-
-**Any ground-plane, drop-off, or obstacle-height logic calibrated on a sitting or
-low-pose capture will false-alarm at normal standing height.** Calibrate against a
-standing capture, and make the extrinsics pose-aware rather than raising the threshold
-until it goes quiet. The mechanism is consistent with uncompensated pose-dependent
-extrinsics but has **NOT** been proven: a pitch-only model does not account for the
-observed 0.118 m drop across a 0.367 m range gap, so roll and the ground-plane fit are
-likely involved too.
-
-## 6. Clocks are wrong by default
-
-- The **robot's own** message stamps read 2025-10-17 during a 2026-09 session. Robot-side
-  clock skew is present and was not corrected.
-- The **payload Jetson has no working RTC** (RTC reads 1970-01-01) and NTP is inactive.
-  It boots with a stale clock and has rebooted mid-session.
-
-Set the clock before recording anything you intend to use as evidence, and record which
-clock a bag's stamps came from. A bag captured before a manual `date -s` is misdated.
-
-## 7. The lab network has no internet egress
-
-No apt, no pip, no git from the robot network. Anything that must be installed on the
-payload has to be **staged in advance as aarch64 wheels** and copied over. Plan installs
-before the session, not during it.
-
-## 8. Sensors are not guaranteed to be attached
-
-A recent session found **no RealSense D435i and no ReSpeaker on the payload's USB bus**
-(`lsusb` showed only the WiFi dongle). Every node that opens a camera or a mic needs a
-camera-less / mic-less configuration path that degrades instead of crashing, and the
-preflight has to report the absence loudly rather than blocking the whole session.
-
----
-
-## 9. What this changes for Phoenix
-
-Phoenix runs **low-level joint control**, not the Sport API, so section 4 is background
-rather than an interface Phoenix uses. Two rules from it still bind:
-
-- Never `SelectMode('normal')`. `mcf` or `ai` only.
-- The Sport service must be released before low-level control is taken, per the standard
-  EDU procedure in `docs/deploy_mode_switch_runbook.md`.
-
-### Deployment gap, workstation side closed, payload side open
-
-The payload's Phoenix checkpoints stop at **`phoenix-stand-v3`** and its repo checkout is
-from the same era. The current deliverable is **`phoenix-stand-h25-lat-noise/model_799`**.
-Because the lab network has no internet egress (section 7), everything has to be staged
-*before* the session and pushed over the cable on arrival:
-
-1. Export the policy to ONNX on the workstation. **Done** (2026-06-23, `export_report.txt`).
-2. Parity-gate it against real observations (`scripts/parity_gate.py`, max-abs and
-   per-output cosine, 3,991 logged obs). **Done** 2026-09-04, `parity_gate.json`
-   `passed: true`, max abs 1.7e-6 against a 1e-5 gate.
-3. Stage the bundle (`policy.onnx` + `policy.onnx.data` + pinned config + `activation.py` +
-   `SHA256SUMS`) with `scripts/stage_payload_bundle.sh`. **Done locally** 2026-09-08 into
-   `deploy_staging/`; the push to the payload and the on-payload verify happen at the lab.
-4. Sync the repo code the payload executes with `scripts/stage_payload_repo.sh` (the
-   payload cannot `git fetch`). **Not done**: needs the cable.
-5. Verify that the payload opens the staged ONNX artifact and record its hash.
-   **Not done**: needs the payload.
-
-Until 4 and 5 have been executed on the payload and their output recorded, a lab session
-must assume it is running the older `phoenix-stand-v3` policy on the older node code.
-
-### Sensor timing on hardware
-
-`/lowstate` is 500 Hz, so the joint-state bridge is not rate-limited by the robot. The
-robot's own message stamps are skewed (section 6). Any latency measurement taken by
-differencing a robot stamp against a payload stamp is meaningless until both clocks are
-set; measure latency from payload receive time to payload send time instead.
-
-## 10. Another service owns the robot on boot (measured 2026-09-17)
-
-`come-here.service` autostarts on the Jetson. While it is running it:
-
-* starves the payload: **132 topics against 109**, and `/lowstate` at **349 Hz against the
-  500 Hz** section 3 measured, and
-* **can command the robot**, so any session sharing with it has a second, uncommanded
-  authority over the motors.
-
-Stop it before anything else, and confirm:
-
-```bash
-sudo systemctl stop come-here.service
-systemctl is-active come-here.service     # "inactive"
-```
-
-Phoenix now refuses to start any on-robot stage while it is up
-(`phoenix.sim2real.preflight_eval.contention_checks`, fed by `hw_probe contention`);
-the check also fails closed when the probe recorded nothing, so "no evidence" never
-reads as "nothing competing".
-
-## 11. Payload environment traps (measured 2026-09-17)
-
-* **Repo path is `/home/unitree/yusuf/go2-phoenix`.** Not `~/go2-phoenix`.
-* **`pip install -e .` FAILS.** The payload's setuptools is 59.6.0, which predates
-  PEP 660. Do not try to fix this in the field: put the synced `src/` on the path with
-  a `.pth` entry instead.
-* **`CYCLONEDDS_URI` must be a `file://` URI.** `unitree_ros2/setup.sh` exports inline
-  XML, and the Phoenix harness HALTs on that rather than guess. Point it at a file whose
-  `NetworkInterface` is `enP8p1s0`.
-* **No RTC.** Section 6 covers the skew; the operational consequence is that the clock
-  must be set at the start of EVERY session, before any freshness gate runs, or a dead
-  publisher can look fresh.
-
-## 12. A folded start makes the clip metrics look broken (measured 2026-09-17)
-
-From Unitree's folded pose the calf reads -2.77 to -2.82 rad, below the audited URDF
-limit of -2.7227. HOLD therefore clips to exactly the limit and the limit margin reads
-zero, which surfaces as a 66.7% clip rate and 100% slew-clip figures **with the motors
-off and `q` never moving**. This is a start-pose artifact, not a policy defect.
-
-Measure the clip rate over the **final settled second of a live stand**, never from a
-folded start and never over a whole window that includes one.
+The payload may start without a trustworthy wall clock. Freshness gates and
+controller deadlines use monotonic time, while evidence records identify their
+time base. A wall-clock correction must not make a stale sensor appear fresh.
