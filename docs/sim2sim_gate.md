@@ -28,7 +28,7 @@ Options:
 | flag | effect |
 |---|---|
 | `--no-video` | skip the MP4s |
-| `--gate v1\|v2` | preregistered gate version, default `v2` |
+| `--gate v1\|v2\|v3` | gate version, default `v3` |
 | `--gate-config <yaml>` | explicit gate file, overrides `--gate` |
 | `--scenarios a b` | subset; makes the run DIAGNOSTIC |
 | `--latency-ms X` | target delay; makes the run DIAGNOSTIC |
@@ -87,7 +87,54 @@ sha256, the commit that last touched it), `policy` (ONNX and manifest sha256), `
   velocity (the state after a FixStand ramp to the trained pose).
 - Fall: base height < 0.20 m or |roll| or |pitch| > 0.8 rad.
 
-## Gate v2 (default, preregistered, approved by Yusuf)
+## Gate v3 (default)
+
+`configs/sim2sim/gate_v3.yaml`, committed alone at `65485bd`. It is POST-HOC for the
+walk-v1 checkpoints (written after seeing v2 pass the collapsed seed42/seed44 @8999
+checkpoints, which never move) and PREREGISTERED for the next training run. It is v2
+plus one blocking SAFETY check, `responsiveness`: in `forward_0p3`, `forward_0p5` and
+`yaw_0p6` the achieved mean of vx (or wz) over the tracking window must have the
+command's sign and be >= 0.5 x |command| (0.15 m/s, 0.25 m/s, 0.30 rad/s). A fall fails
+it. The check value is the achieved fraction `sign(cmd) * mean / |cmd|`.
+
+v3 results (code at da2ae72; values are the responsiveness fractions for fwd 0.3, fwd 0.5, yaw 0.6):
+
+| policy | v3 SAFETY | responsiveness | other SAFETY failures |
+|---|---|---|---|
+| rl_sar robot_lab | PASS | 1.00, 1.02, 1.14 | none |
+| rl_sar himloco | FAIL | 0.92, 0.94, **0.00** | none (does not turn in place) |
+| H25 stand | FAIL | -0.01, -0.01, 0.00 | as v2 |
+| walk-v1 seed42 @8999 (post-hoc) | FAIL | 0.00, 0.00, 0.00 | none |
+| walk-v1 seed44 @8999 (post-hoc) | FAIL | 0.00, 0.00, 0.00 | none |
+| walk-v1 seed42 @3000 (post-hoc) | FAIL | 0.93, 1.00, 0.84 | yaw_0p6 near_limit_fraction.calf 0.033 |
+
+## Finding: seed42 @3000 calf near-limit in yaw_0p6 is real policy behavior
+
+- Model ranges match: MuJoCo calf range = URDF = Isaac USD = (-2.7227, -0.83776) on all
+  four legs. No model mismatch, nothing changed in the model.
+- Which limit: the UPPER calf limit (knee near straight), FR_calf and RL_calf (one
+  diagonal). RL_calf reaches 0.0001 rad from the hard stop, FR_calf 0.0124. The lower
+  limit is never approached (margin >= 1.01 rad).
+- The policy requests it: calf targets up to 0.246 rad PAST the hard upper stop (RL,
+  30 control steps; FR, 17). Measured calf is past Isaac's soft upper limit (-0.932,
+  factor 0.9) on 32 (FR) and 22 (RL) steps. Events cluster at t = 2 to 3 s, 7 to 8 s.
+- Robust to the plant: worse on the `isaac_matched` profile (near fraction 0.335,
+  0.035 rad into the MuJoCo soft stop), present with 20 ms latency, larger at +0.8
+  rad/s (targets 0.313 rad past the stop). Absent for clockwise yaw (-0.6, -0.8: margin
+  >= 0.16 rad) and at +0.3 rad/s.
+- Why Isaac reports 0.0011: `scripts/eval_velocity.py` (trainer branch) counts joints
+  within 5 % of the SOFT range of the SOFT limits, averaged over all 12 joints, all envs
+  and randomly sampled commands. The gate counts control steps where ANY calf is within
+  0.05 rad of the HARD limit, in one scenario (pure +0.6 rad/s turn in place). The
+  gate's band lies entirely outside Isaac's soft range. Not comparable numbers.
+- Hardware consequence: at +0.6 rad/s the requested calf target exceeds the hard limit
+  by more than this branch's deploy abort band (`LIMIT_ABORT_BAND_RAD` 0.175) on 5 of
+  600 steps (19 at +0.8). On the robot that trips `target_beyond_limit` and latches, the
+  F1 mechanism. Verdict: real policy behavior, likely to appear on hardware in CCW
+  turns; not a model or threshold artifact.
+- Not verified: the same trace in Isaac at a fixed +0.6 rad/s command (GPU reserved).
+
+## Gate v2 (preregistered, approved by Yusuf)
 
 `configs/sim2sim/gate_v2.yaml`, committed alone at `4355f7c` before any Phoenix walking
 checkpoint existed. Same plant, scenarios and numbers as v1; checks split into tiers.

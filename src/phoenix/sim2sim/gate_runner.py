@@ -219,6 +219,9 @@ class RunOptions:
     latency_ms: float
     video_dir: Path | None = None
     scene_xml: str | None = None
+    #: Debug: if a list, one dict per control step is appended (t, cmd, q and
+    #: targets in JOINT_ORDER, raw action in spec order, base height, gyro z).
+    trace: list | None = None
 
 
 def run_gate_scenario(
@@ -354,6 +357,9 @@ def run_gate_scenario(
         cmds.append(cmd)
         vxy.append(v[:2])
         wz.append(float(sim.gyro_body()[2]))
+        if opts.trace is not None:
+            opts.trace.append({"t": t_end, "cmd": list(cmd), "q": q.tolist(), "target": target_sim.tolist(),
+                               "raw": raw.tolist(), "base_height": h, "wz": wz[-1]})
         if video is not None and k % frame_every == 0:
             video.capture(sim.data)
         reason = None

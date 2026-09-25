@@ -73,3 +73,25 @@ def test_responsiveness_on_zero_command_is_a_config_error():
     bad = type(cfg)(raw=raw, path=cfg.path, scenarios=cfg.scenarios)
     with pytest.raises(GateConfigError):
         evaluate_scenario(metrics(), bad.scenario("stand_20s"), bad)
+
+
+def test_trace_hook_records_every_control_step_without_changing_metrics():
+    pytest.importorskip("mujoco")
+    import numpy as np
+
+    from phoenix.sim2sim.deploy_spec import spec_from_phoenix_manifest
+    from phoenix.sim2sim.gate import GateScenario
+    from phoenix.sim2sim.gate_runner import RunOptions, run_gate_scenario
+    from phoenix.velocity.contract import CommandRanges, build_manifest
+
+    cfg = load_gate_config("v3")
+    m = build_manifest(checkpoint_sha256="0" * 64, commands=CommandRanges((-1, 1), (-0.5, 0.5), (-1, 1), 0.1),
+                       git_sha="a" * 40, git_dirty=False, seed=1, task="t", simulator="isaaclab",
+                       reward_scales={}, domain_randomization={}, curriculum={})
+    spec = spec_from_phoenix_manifest(m, name="z", required_envelope=cfg.required_envelope)
+    s = GateScenario("short", "nominal", 1.0, ((0.0, (0.0, 0.0, 0.0)),))
+    tr = []
+    a = run_gate_scenario(spec, lambda o: np.zeros(12), s, cfg, RunOptions(latency_ms=0.0, trace=tr))["metrics"]
+    b = run_gate_scenario(spec, lambda o: np.zeros(12), s, cfg, RunOptions(latency_ms=0.0))["metrics"]
+    assert len(tr) == 50 and set(tr[0]) == {"t", "cmd", "q", "target", "raw", "base_height", "wz"}
+    assert a == b
