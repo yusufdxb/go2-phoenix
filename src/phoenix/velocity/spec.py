@@ -326,6 +326,13 @@ class HealthGuardSpec:
     * KL (mean over the update's minibatches): not logged on seed 46, so no
       calibration. ASSUMPTION: abort at > 5 x desired_kl for 10 iterations is a
       blow-up, not ordinary adaptive-LR hunting (which targets 0.5-2 x).
+    * hard vs warn-only: ``*_hard = False`` turns that signal's sustained
+      breach into a WARNING (logged, run continues). Episode length, std and
+      non-finite values are always hard. vNext (first run, seed 47,
+      2026-09-25, Yusuf's call) runs action p99, learning rate and KL
+      warn-only: they are the seed-46/v1-obs-derived or uncalibrated signals,
+      so a first vNext run must not be killed by them; their thresholds are
+      unchanged.
     * curriculum: warn only, if the level is still 0 at
       ``curriculum_stall_warn_iteration``; ``required_envelope`` already holds at
       level 0, so a stall costs range, not usability.
@@ -344,6 +351,9 @@ class HealthGuardSpec:
     lr_sustain_iterations: int = 10
     kl_abort_factor: float = 5.0
     kl_sustain_iterations: int = 10
+    action_p99_hard: bool = True
+    lr_hard: bool = True
+    kl_hard: bool = True
     curriculum_stall_warn_iteration: int = 1500
 
 
@@ -809,7 +819,9 @@ def vnext_spec() -> VelocityTaskSpec:
     3. Curriculum gate ``unitree_lin_kernel``: only lin x/y expand; yaw score is
        telemetry, never a blocker.
     4. joint_pos_limits -1.0 -> -10.0 (the seed 46 arm's validated value).
-    5. Health guard enabled.
+    5. Health guard enabled. Hard abort: non-finite, episode length < 800,
+       per-joint std > 0.30 (both 50 iterations). Warn-only: action p99 > 3.5,
+       learning rate <= 1e-4, KL > 0.05, curriculum stuck at level 0.
     Unchanged on purpose: clip_actions 100, action_l2 -0.01, base-only trunk
     termination, entropy 0.01, adaptive schedule, desired_kl 0.01, init std 1.0,
     every other reward weight.
@@ -824,7 +836,9 @@ def vnext_spec() -> VelocityTaskSpec:
             required_envelope=LAB_CARD_ENVELOPE,
         ),
         curriculum=dataclasses.replace(base.curriculum, gate="unitree_lin_kernel"),
-        health=dataclasses.replace(base.health, enabled=True),
+        health=dataclasses.replace(
+            base.health, enabled=True, action_p99_hard=False, lr_hard=False, kl_hard=False
+        ),
     )
 
 

@@ -95,6 +95,8 @@ class TrainingHealthGuard:
         n = self._streaks[key].step(breached, iteration)
         if n >= sustain:
             first = self._streaks[key].first_iteration
+            # ``reasons`` is the abort list for hard signals, the warning list for
+            # signals the spec marks warn-only (``*_hard = False``).
             reasons.append(f"{message} for {n} consecutive iterations (since {first})")
         return float(n)
 
@@ -140,7 +142,7 @@ class TrainingHealthGuard:
                 it,
                 s.sustain_iterations,
                 f"action |a| p99 > {s.action_p99_abort} (now {p99:.3f})",
-                reasons,
+                reasons if s.action_p99_hard else warnings,
             )
 
         ep = sample.episode_length
@@ -164,7 +166,7 @@ class TrainingHealthGuard:
                 it,
                 s.lr_sustain_iterations,
                 f"learning rate <= {s.lr_abort:g} (now {lr:.3g}; KL repeatedly > 2 x desired)",
-                reasons,
+                reasons if s.lr_hard else warnings,
             )
 
         kl = sample.kl
@@ -177,7 +179,7 @@ class TrainingHealthGuard:
                 it,
                 s.kl_sustain_iterations,
                 f"KL > {limit:g} (now {kl:.4g})",
-                reasons,
+                reasons if s.kl_hard else warnings,
             )
 
         level = sample.curriculum_level

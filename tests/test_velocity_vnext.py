@@ -339,14 +339,52 @@ def test_guard_ignores_warmup_and_needs_a_sustained_breach() -> None:
         ("kl", 0.06, 10),
     ],
 )
-def test_guard_aborts_on_each_signal(field: str, value: float, n: int) -> None:
-    g = _guard()
+def test_guard_aborts_on_each_signal_when_hard(field: str, value: float, n: int) -> None:
+    g = _guard(action_p99_hard=True, lr_hard=True, kl_hard=True)
     for i in range(n - 1):
         assert g.update(_healthy(1000 + i, **{field: value})).status != ABORT
     v = g.update(_healthy(1000 + n - 1, **{field: value}))
     assert v.status == ABORT, v
     rep = g.report(v)
     assert rep["abort_reasons"] and rep["thresholds"]["std_abort"] == 0.30
+
+
+def test_vnext_hard_and_warn_only_signals() -> None:
+    h = vnext_spec().health
+    assert (h.action_p99_hard, h.lr_hard, h.kl_hard) == (False, False, False)
+    assert (h.std_abort, h.action_p99_abort, h.episode_length_abort, h.lr_abort) == (
+        0.30,
+        3.5,
+        800.0,
+        1.0e-4,
+    )
+    assert h.sustain_iterations == 50
+    assert default_spec().health.action_p99_hard  # dataclass default stays hard
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "n", "hard"),
+    [
+        ("action_p99", 3.6, 50, False),
+        ("learning_rate", 1e-5, 10, False),
+        ("kl", 0.06, 10, False),
+        ("episode_length", 700.0, 50, True),
+        ("std_max", 0.31, 50, True),
+    ],
+)
+def test_vnext_guard_policy(field: str, value: float, n: int, hard: bool) -> None:
+    g = _guard()  # vnext_spec().health
+    v = None
+    for i in range(n + 20):
+        v = g.update(_healthy(1000 + i, **{field: value}))
+        if v.status == ABORT:
+            break
+    assert v is not None
+    if hard:
+        assert v.status == ABORT and v.iteration == 1000 + n - 1
+    else:
+        assert v.status == WARN
+        assert any("consecutive iterations" in w for w in v.warnings)
 
 
 def test_guard_nonfinite_aborts_immediately_even_in_warmup() -> None:
