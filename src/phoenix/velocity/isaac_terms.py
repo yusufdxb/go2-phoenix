@@ -119,10 +119,16 @@ class VelocityCommandCurriculum(ManagerTermBase):
             ids, steps = ids[done], steps[done]
             rm = env.reward_manager
             lin = episode_mean_kernel_math(
-                rm._episode_sums[lin_term][ids], rm.get_term_cfg(lin_term).weight, env.step_dt, steps
+                rm._episode_sums[lin_term][ids],
+                rm.get_term_cfg(lin_term).weight,
+                env.step_dt,
+                steps,
             )
             yaw = episode_mean_kernel_math(
-                rm._episode_sums[yaw_term][ids], rm.get_term_cfg(yaw_term).weight, env.step_dt, steps
+                rm._episode_sums[yaw_term][ids],
+                rm.get_term_cfg(yaw_term).weight,
+                env.step_dt,
+                steps,
             )
             terminated = env.termination_manager.terminated[ids]
             decision = self.curriculum.observe(

@@ -195,7 +195,11 @@ def evaluate_episode(
             )
         if abs(metrics.commanded_yaw_rad) >= th.MIN_COMMANDED_YAW_RAD:
             ratio = metrics.yaw_ratio
-            band(th.PROGRESS_RATIO_ERROR, None if ratio is None else abs(ratio - 1.0), "yaw_ratio_error")
+            band(
+                th.PROGRESS_RATIO_ERROR,
+                None if ratio is None else abs(ratio - 1.0),
+                "yaw_ratio_error",
+            )
 
     verdict = th.worst(*levels)
 

@@ -62,14 +62,29 @@ _SIM_GROUPS = np.asarray([joint_group(n) for n in JOINT_ORDER])
 
 def real_motor_params(cfg: GateConfig) -> DCMotorParams:
     """Per-joint (JOINT_ORDER) DCMotor envelope from the gate config. Gains unused here."""
-    eff = np.asarray([cfg.actuator[joint_group(n)]["effort_limit"] for n in JOINT_ORDER], dtype=np.float64)
-    vel = np.asarray([cfg.actuator[joint_group(n)]["velocity_limit"] for n in JOINT_ORDER], dtype=np.float64)
-    return DCMotorParams(stiffness=0.0, damping=0.0, effort_limit=eff, saturation_effort=eff,  # type: ignore[arg-type]
-                         velocity_limit=vel)  # type: ignore[arg-type]
+    eff = np.asarray(
+        [cfg.actuator[joint_group(n)]["effort_limit"] for n in JOINT_ORDER], dtype=np.float64
+    )
+    vel = np.asarray(
+        [cfg.actuator[joint_group(n)]["velocity_limit"] for n in JOINT_ORDER], dtype=np.float64
+    )
+    return DCMotorParams(
+        stiffness=0.0,
+        damping=0.0,
+        effort_limit=eff,
+        saturation_effort=eff,  # type: ignore[arg-type]
+        velocity_limit=vel,
+    )  # type: ignore[arg-type]
 
 
-def pd_torque(q_des: np.ndarray, q: np.ndarray, qd: np.ndarray, kp: np.ndarray, kd: np.ndarray,
-              motor: DCMotorParams) -> tuple[np.ndarray, np.ndarray]:
+def pd_torque(
+    q_des: np.ndarray,
+    q: np.ndarray,
+    qd: np.ndarray,
+    kp: np.ndarray,
+    kd: np.ndarray,
+    motor: DCMotorParams,
+) -> tuple[np.ndarray, np.ndarray]:
     """``(computed, applied)``: position PD with zero velocity target, then the DCMotor clip."""
     computed = kp * (q_des - q) - kd * qd
     return computed, clip_dc_motor_effort(computed, qd, motor)
@@ -98,7 +113,9 @@ class OnnxPolicy:
             raise ValueError(f"{self.path}: expected one input, found {len(inputs)}")
         shape = inputs[0].shape
         if len(shape) != 2 or (isinstance(shape[1], int) and shape[1] != obs_dim):
-            raise ValueError(f"{self.path}: input shape {shape} does not match spec obs_dim {obs_dim}")
+            raise ValueError(
+                f"{self.path}: input shape {shape} does not match spec obs_dim {obs_dim}"
+            )
         self._in = inputs[0].name
         outs = [o.name for o in self._sess.get_outputs()]
         self._out = "action" if "action" in outs else ("actions" if "actions" in outs else outs[0])
@@ -125,7 +142,9 @@ def sha256_file(path: str | Path) -> str:
 
 
 class GateSim:
-    def __init__(self, cfg: GateConfig, scenario: GateScenario, *, scene_xml: str | None = None) -> None:
+    def __init__(
+        self, cfg: GateConfig, scenario: GateScenario, *, scene_xml: str | None = None
+    ) -> None:
         import mujoco
 
         self._mj = mujoco
@@ -133,8 +152,11 @@ class GateSim:
         self.model, self.idx, self.model_info = load_go2_model(
             phys["profile"],
             scene_xml=scene_xml,
-            foot_friction=scenario.foot_friction if scenario.foot_friction is not None
-            else float(phys["nominal_foot_friction"]),
+            foot_friction=(
+                scenario.foot_friction
+                if scenario.foot_friction is not None
+                else float(phys["nominal_foot_friction"])
+            ),
             timestep=1.0 / float(phys["physics_hz"]),
             payload_kg=scenario.payload_kg,
         )
@@ -170,11 +192,13 @@ class GateSim:
 
     def lin_vel_body(self) -> np.ndarray:
         w, x, y, z = self.quat() / np.linalg.norm(self.quat())
-        r = np.asarray([
-            [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-            [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
-            [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
-        ])
+        r = np.asarray(
+            [
+                [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+                [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+            ]
+        )
         return r.T @ self.data.qvel[0:3]
 
     def step(self, tau_sim: np.ndarray) -> None:
@@ -204,8 +228,9 @@ class _Video:
     def write(self, path: Path) -> None:
         import imageio.v2 as imageio
 
-        imageio.mimwrite(str(path), self.frames, fps=self.fps, codec="libx264", quality=6,
-                         macro_block_size=8)
+        imageio.mimwrite(
+            str(path), self.frames, fps=self.fps, codec="libx264", quality=6, macro_block_size=8
+        )
 
     def close(self) -> None:
         self.renderer.close()
@@ -234,7 +259,9 @@ def run_gate_scenario(
     phys = cfg.physics
     physics_hz = int(phys["physics_hz"])
     if physics_hz % spec.control_hz:
-        raise ValueError(f"physics_hz {physics_hz} is not a multiple of control_hz {spec.control_hz}")
+        raise ValueError(
+            f"physics_hz {physics_hz} is not a multiple of control_hz {spec.control_hz}"
+        )
     decim = physics_hz // spec.control_hz
     control_dt = 1.0 / spec.control_hz
     sim = GateSim(cfg, scenario, scene_xml=opts.scene_xml)
@@ -253,7 +280,8 @@ def run_gate_scenario(
         policy.reset()  # type: ignore[attr-defined]
     history = (
         ObsHistory(spec.history_length, spec.obs_dim // spec.history_length)
-        if spec.history_length > 1 else None
+        if spec.history_length > 1
+        else None
     )
 
     video = None
@@ -301,12 +329,16 @@ def run_gate_scenario(
         cmd = scenario.command_at(t)
         q_sim, qd_sim = sim.q(), sim.qd()
         obs = spec.build_obs(
-            gyro_body=sim.gyro_body(), quat_wxyz=sim.quat(), command=cmd,
-            joint_pos=q_sim[perm], joint_vel=qd_sim[perm], last_action=last_action,
+            gyro_body=sim.gyro_body(),
+            quat_wxyz=sim.quat(),
+            command=cmd,
+            joint_pos=q_sim[perm],
+            joint_vel=qd_sim[perm],
+            last_action=last_action,
         )
         if history is not None:
             obs = history.push(obs)
-        raw =np.asarray(policy(obs), dtype=np.float64).reshape(-1)
+        raw = np.asarray(policy(obs), dtype=np.float64).reshape(-1)
         if raw.shape != (12,) or not np.all(np.isfinite(raw)):
             nonfinite = True
             fell, fall_reason, t_fall = True, "nonfinite_action", t
@@ -358,8 +390,17 @@ def run_gate_scenario(
         vxy.append(v[:2])
         wz.append(float(sim.gyro_body()[2]))
         if opts.trace is not None:
-            opts.trace.append({"t": t_end, "cmd": list(cmd), "q": q.tolist(), "target": target_sim.tolist(),
-                               "raw": raw.tolist(), "base_height": h, "wz": wz[-1]})
+            opts.trace.append(
+                {
+                    "t": t_end,
+                    "cmd": list(cmd),
+                    "q": q.tolist(),
+                    "target": target_sim.tolist(),
+                    "raw": raw.tolist(),
+                    "base_height": h,
+                    "wz": wz[-1],
+                }
+            )
         if video is not None and k % frame_every == 0:
             video.capture(sim.data)
         reason = None
@@ -372,8 +413,11 @@ def run_gate_scenario(
             break
 
     trk = tracking_rmse(
-        np.asarray(times), np.asarray(cmds, dtype=np.float64).reshape(-1, 3),
-        np.asarray(vxy).reshape(-1, 2), np.asarray(wz), scenario.change_times(),
+        np.asarray(times),
+        np.asarray(cmds, dtype=np.float64).reshape(-1, 3),
+        np.asarray(vxy).reshape(-1, 2),
+        np.asarray(wz),
+        scenario.change_times(),
         control_hz=spec.control_hz,
         smoothing_window_s=float(cfg.tracking["smoothing_window_s"]),
         exclude_after_change_s=float(cfg.tracking["exclude_after_command_change_s"]),
@@ -400,21 +444,30 @@ def run_gate_scenario(
         # None = no deploy clip under a gate whose saturation.missing_clip is "fail".
         "pre_clip_saturation_rate": (sat_pre / n_act if n_act and not sat_undefined else None),
         "pre_clip_saturation_definition": (
-            f"|raw| {'>=' if cfg.saturation_ge else '>'} deploy clip {spec.action_clip}"),
+            f"|raw| {'>=' if cfg.saturation_ge else '>'} deploy clip {spec.action_clip}"
+        ),
         "abs_raw_action_gt1_rate": raw_gt1 / n_act if n_act else None,
         "max_abs_raw_action": raw_max,
         "torque_saturation_fraction": {
-            g: (tq_sat[g] / n_group_phys[g] if n_group_phys[g] else None) for g in JOINT_GROUPS},
+            g: (tq_sat[g] / n_group_phys[g] if n_group_phys[g] else None) for g in JOINT_GROUPS
+        },
         "peak_applied_torque_over_limit": {g: tq_peak_applied[g] / eff[g] for g in JOINT_GROUPS},
         "peak_demanded_torque_over_limit": {g: tq_peak_demand[g] / eff[g] for g in JOINT_GROUPS},
         "joint_vel_over_limit_fraction": {
-            g: (vel_over[g] / n_group_phys[g] if n_group_phys[g] else None) for g in JOINT_GROUPS},
+            g: (vel_over[g] / n_group_phys[g] if n_group_phys[g] else None) for g in JOINT_GROUPS
+        },
         "hard_limit_violation_steps": violation_steps,
-        "min_limit_margin_rad": {g: (None if math.isinf(min_margin[g]) else min_margin[g]) for g in JOINT_GROUPS},
+        "min_limit_margin_rad": {
+            g: (None if math.isinf(min_margin[g]) else min_margin[g]) for g in JOINT_GROUPS
+        },
         "near_limit_fraction": {g: (near[g] / k_done if k_done else None) for g in JOINT_GROUPS},
     }
-    out: dict[str, Any] = {"scenario": scenario.to_dict(), "metrics": metrics,
-                           "latency_physics_steps": lag, "model": sim.model_info}
+    out: dict[str, Any] = {
+        "scenario": scenario.to_dict(),
+        "metrics": metrics,
+        "latency_physics_steps": lag,
+        "model": sim.model_info,
+    }
     if video is not None:
         path = Path(opts.video_dir) / f"{scenario.name}.mp4"  # type: ignore[arg-type]
         try:
@@ -434,8 +487,14 @@ def run_gate_scenario(
 
 def _git_sha_of(path: str) -> str | None:
     try:
-        r = subprocess.run(["git", "log", "-1", "--format=%H", "--", path], capture_output=True, text=True,
-                           cwd=Path(path).resolve().parent, check=False, timeout=10)
+        r = subprocess.run(
+            ["git", "log", "-1", "--format=%H", "--", path],
+            capture_output=True,
+            text=True,
+            cwd=Path(path).resolve().parent,
+            check=False,
+            timeout=10,
+        )
         return r.stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         return None
@@ -457,29 +516,54 @@ def run_gate(
     diag = list(diagnostic_reasons or [])
     if abs(lat - float(cfg.physics["latency_ms"])) > 1e-12:
         diag.append(f"latency_ms {lat} != gate {cfg.physics['latency_ms']}")
-    scenarios = list(cfg.scenarios) if not scenario_names else [cfg.scenario(n) for n in scenario_names]
+    scenarios = (
+        list(cfg.scenarios) if not scenario_names else [cfg.scenario(n) for n in scenario_names]
+    )
     if scenario_names and set(scenario_names) != {s.name for s in cfg.scenarios}:
         diag.append("scenario subset")
-    spec_checks = [{"check": "manifest_valid", "value": list(spec.manifest_problems), "op": "==",
-                    "threshold": [], "pass": not spec.manifest_problems}]
+    spec_checks = [
+        {
+            "check": "manifest_valid",
+            "value": list(spec.manifest_problems),
+            "op": "==",
+            "threshold": [],
+            "pass": not spec.manifest_problems,
+        }
+    ]
     spec_checks += envelope_checks(spec, cfg.required_envelope)
     from .joint_audit import sign_audit
 
     audit = sign_audit(spec, physics_hz=int(cfg.physics["physics_hz"]))
     bad = [j["joint"] for j in audit["joints"] if not j["pass"]]
-    spec_checks.append({"check": "joint_sign_audit", "value": bad, "op": "==", "threshold": [],
-                        "pass": audit["pass"]})
+    spec_checks.append(
+        {
+            "check": "joint_sign_audit",
+            "value": bad,
+            "op": "==",
+            "threshold": [],
+            "pass": audit["pass"],
+        }
+    )
     tag_spec_checks(spec_checks, cfg)
     cfg_sha = hashlib.sha256(Path(cfg.path).read_bytes()).hexdigest()
     report: dict[str, Any] = {
         "schema": REPORT_SCHEMA,
-        "gate": {"config": cfg.path, "config_sha256": cfg_sha, "config_commit": _git_sha_of(cfg.path),
-                 "name": cfg.raw.get("name"), "version": cfg.version},
+        "gate": {
+            "config": cfg.path,
+            "config_sha256": cfg_sha,
+            "config_commit": _git_sha_of(cfg.path),
+            "name": cfg.raw.get("name"),
+            "version": cfg.version,
+        },
         "policy": dict(policy_info),
         "spec": spec.summary(),
-        "run": {"latency_ms": lat, "physics_hz": int(cfg.physics["physics_hz"]),
-                "profile": cfg.physics["profile"], "actuator": cfg.actuator,
-                "mujoco_gl": os.environ.get("MUJOCO_GL")},
+        "run": {
+            "latency_ms": lat,
+            "physics_hz": int(cfg.physics["physics_hz"]),
+            "profile": cfg.physics["profile"],
+            "actuator": cfg.actuator,
+            "mujoco_gl": os.environ.get("MUJOCO_GL"),
+        },
         "spec_checks": spec_checks,
         "joint_audit": audit,
         "scenarios": {},

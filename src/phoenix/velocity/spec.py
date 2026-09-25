@@ -252,7 +252,9 @@ class CurriculumSpec:
     max_termination_rate: float = 0.10
 
     def window_episodes(self, num_envs: int) -> int:
-        return max(int(self.min_window_episodes), int(round(self.window_episodes_per_env * num_envs)))
+        return max(
+            int(self.min_window_episodes), int(round(self.window_episodes_per_env * num_envs))
+        )
 
 
 # ----------------------------------------------------------------------- rewards
@@ -563,7 +565,8 @@ class VelocityTaskSpec:
         if name not in {t.name for t in self.rewards}:
             raise KeyError(name)
         new_rewards = tuple(
-            dataclasses.replace(t, weight=float(weight)) if t.name == name else t for t in self.rewards
+            dataclasses.replace(t, weight=float(weight)) if t.name == name else t
+            for t in self.rewards
         )
         return self.replace(rewards=new_rewards)
 

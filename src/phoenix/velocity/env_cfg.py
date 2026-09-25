@@ -114,7 +114,9 @@ def _reward_params(spec: VelocityTaskSpec, term) -> dict[str, Any]:
         p["sensor_cfg"] = SceneEntityCfg("contact_forces", body_names=[FOOT_BODIES])
         p["asset_cfg"] = SceneEntityCfg("robot", body_names=[FOOT_BODIES])
     elif name == "undesired_contacts":
-        p["sensor_cfg"] = SceneEntityCfg("contact_forces", body_names=list(UNDESIRED_CONTACT_BODIES))
+        p["sensor_cfg"] = SceneEntityCfg(
+            "contact_forces", body_names=list(UNDESIRED_CONTACT_BODIES)
+        )
         p["threshold"] = term.params.get("threshold", 1.0)
     elif name == "joint_pos_limits":
         p["asset_cfg"] = SceneEntityCfg("robot")
@@ -173,7 +175,9 @@ def _build_observations_cfg(spec: VelocityTaskSpec):
         velocity_command = ObsTerm(
             func=itmdp.generated_commands, params={"command_name": "base_velocity"}
         )
-        joint_pos_rel = ObsTerm(func=itmdp.joint_pos_rel, noise=_obs_noise_term("joint_pos_rel", spec))
+        joint_pos_rel = ObsTerm(
+            func=itmdp.joint_pos_rel, noise=_obs_noise_term("joint_pos_rel", spec)
+        )
         joint_vel = ObsTerm(func=itmdp.joint_vel_rel, noise=_obs_noise_term("joint_vel", spec))
         last_action = ObsTerm(func=itmdp.last_action)
 
@@ -185,7 +189,9 @@ def _build_observations_cfg(spec: VelocityTaskSpec):
     class CriticCfg(ObsGroup):
         base_ang_vel = ObsTerm(func=itmdp.base_ang_vel)
         projected_gravity = ObsTerm(func=itmdp.projected_gravity)
-        velocity_command = ObsTerm(func=itmdp.generated_commands, params={"command_name": "base_velocity"})
+        velocity_command = ObsTerm(
+            func=itmdp.generated_commands, params={"command_name": "base_velocity"}
+        )
         joint_pos_rel = ObsTerm(func=itmdp.joint_pos_rel)
         joint_vel = ObsTerm(func=itmdp.joint_vel_rel)
         last_action = ObsTerm(func=itmdp.last_action)
@@ -616,8 +622,13 @@ def build_env_cfg_realized_dump(spec: VelocityTaskSpec | None = None) -> dict[st
             continue
         events[name] = {
             "mode": getattr(term, "mode", None),
-            "func": getattr(getattr(term, "func", None), "__name__", str(getattr(term, "func", None))),
-            "params": {k: (v if not hasattr(v, "__dict__") else str(v)) for k, v in getattr(term, "params", {}).items()},
+            "func": getattr(
+                getattr(term, "func", None), "__name__", str(getattr(term, "func", None))
+            ),
+            "params": {
+                k: (v if not hasattr(v, "__dict__") else str(v))
+                for k, v in getattr(term, "params", {}).items()
+            },
         }
     actuators = {
         name: {

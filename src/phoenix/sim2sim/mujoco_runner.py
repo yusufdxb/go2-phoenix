@@ -426,7 +426,9 @@ def run_scenario(
 ) -> dict[str, Any]:
     """Run one scenario from the nominal init state. Returns ``{"metrics": ..., ...}``."""
     cfg = cfg or RunConfig()
-    sim = MujocoGo2(profile=cfg.profile, foot_friction=scenario.foot_friction, scene_xml=cfg.scene_xml)
+    sim = MujocoGo2(
+        profile=cfg.profile, foot_friction=scenario.foot_friction, scene_xml=cfg.scene_xml
+    )
     policy.reset()
     delay = TargetDelay(scenario.latency_physics_steps)
     n_ctrl = int(round(scenario.duration_s * CONTROL_HZ))
