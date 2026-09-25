@@ -20,11 +20,23 @@ import numpy as np
 from .deploy_spec import COMMAND_KEYS, JOINT_GROUPS, DeploySpec
 
 GATE_SCHEMA = "phoenix-sim2sim-gate/v1"
-REPORT_SCHEMA = "phoenix-sim2sim-gate-report/v1"
+GATE_SCHEMA_V2 = "phoenix-sim2sim-gate/v2"
+GATE_SCHEMAS = {GATE_SCHEMA: 1, GATE_SCHEMA_V2: 2}
+REPORT_SCHEMA = "phoenix-sim2sim-gate-report/v2"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_GATE_CONFIG = _REPO_ROOT / "configs" / "sim2sim" / "gate_v1.yaml"
+GATE_CONFIGS = {
+    "v1": _REPO_ROOT / "configs" / "sim2sim" / "gate_v1.yaml",
+    "v2": _REPO_ROOT / "configs" / "sim2sim" / "gate_v2.yaml",
+}
+DEFAULT_GATE_CONFIG = GATE_CONFIGS["v2"]
 
 TIERS = ("nominal", "stress")
+#: Check tiers. v1: every check is "gate" (blocking). v2: "safety" blocks,
+#: "performance" is reported only.
+CHECK_TIER_GATE = "gate"
+CHECK_TIER_SAFETY = "safety"
+CHECK_TIER_PERFORMANCE = "performance"
+_TRACKING_CHECKS = ("lin_vel_rmse_mps", "yaw_rate_rmse_radps")
 
 
 class GateConfigError(ValueError):
@@ -118,8 +130,30 @@ class GateConfig:
         return self.raw["tracking"]
 
     @property
+    def version(self) -> int:
+        return GATE_SCHEMAS[self.raw["schema"]]
+
+    @property
     def thresholds(self) -> dict[str, dict[str, float]]:
-        return self.raw["thresholds"]
+        """Numeric thresholds in the v1 layout (all / stand / nominal / stress) for both versions."""
+        if self.version == 1:
+            return self.raw["thresholds"]
+        s, p = self.raw["safety"], self.raw["performance"]
+        return {"all": s["all"], "stand": s["stand"], "nominal": p["nominal"], "stress": p["stress"]}
+
+    @property
+    def saturation_ge(self) -> bool:
+        """v2: saturated when |raw| >= clip. v1: when |raw| > clip."""
+        return self.version >= 2 and self.raw["saturation"]["comparison"] == ">="
+
+    @property
+    def missing_clip_fails(self) -> bool:
+        return self.version >= 2 and self.raw["saturation"].get("missing_clip") == "fail"
+
+    def check_tier(self, check: str) -> str:
+        if self.version == 1:
+            return CHECK_TIER_GATE
+        return CHECK_TIER_PERFORMANCE if check in _TRACKING_CHECKS else CHECK_TIER_SAFETY
 
     @property
     def required_envelope(self) -> dict[str, float]:
@@ -133,13 +167,18 @@ class GateConfig:
 
 
 def load_gate_config(path: str | Path | None = None) -> GateConfig:
+    """Load a gate file. ``path`` may also be ``"v1"`` / ``"v2"``. Default v2."""
     import yaml
 
+    if isinstance(path, str) and path in GATE_CONFIGS:
+        path = GATE_CONFIGS[path]
     p = Path(path or DEFAULT_GATE_CONFIG)
     raw = yaml.safe_load(p.read_text())
-    if raw.get("schema") != GATE_SCHEMA:
-        raise GateConfigError(f"{p}: schema {raw.get('schema')!r} != {GATE_SCHEMA}")
-    for key in ("physics", "actuator", "fall", "tracking", "thresholds", "required_command_envelope", "scenarios"):
+    if raw.get("schema") not in GATE_SCHEMAS:
+        raise GateConfigError(f"{p}: schema {raw.get('schema')!r} not in {sorted(GATE_SCHEMAS)}")
+    keys = ["physics", "actuator", "fall", "tracking", "required_command_envelope", "scenarios"]
+    keys += ["thresholds"] if GATE_SCHEMAS[raw["schema"]] == 1 else ["safety", "performance", "saturation"]
+    for key in keys:
         if key not in raw:
             raise GateConfigError(f"{p}: missing {key}")
     if set(raw["actuator"]) != set(JOINT_GROUPS):
@@ -213,6 +252,18 @@ def tracking_rmse(
     }
 
 
+def saturation_mask(raw: np.ndarray, clip: float | None, cfg: GateConfig) -> np.ndarray | None:
+    """Per-joint pre-clip saturation of one raw action, relative to the deploy clip.
+
+    v2: ``|raw| >= clip``; a missing clip returns None (unbounded path, the check
+    fails). v1: ``|raw| > clip``; a missing clip counts nothing (v1 behaviour kept).
+    """
+    a = np.abs(np.asarray(raw, dtype=np.float64))
+    if clip is None:
+        return None if cfg.missing_clip_fails else np.zeros(a.shape, dtype=bool)
+    return a >= clip if cfg.saturation_ge else a > clip
+
+
 # ------------------------------------------------------------------ verdict
 
 
@@ -267,25 +318,68 @@ def evaluate_scenario(metrics: Mapping[str, Any], scenario: GateScenario, cfg: G
     if scenario.stand_checks:
         checks.append(_check("mean_base_height_m", metrics["mean_base_height_m"], ">=",
                              cfg.thresholds["stand"]["min_mean_base_height_m"]))
+    for c in checks:
+        c["tier"] = cfg.check_tier(c["check"])
     return checks
 
 
+def tag_spec_checks(checks: list[dict[str, Any]], cfg: GateConfig) -> list[dict[str, Any]]:
+    """Spec-level checks are blocking in both versions (v2: SAFETY)."""
+    tier = CHECK_TIER_GATE if cfg.version == 1 else CHECK_TIER_SAFETY
+    for c in checks:
+        c["tier"] = tier
+    return checks
+
+
+def _blocking(c: Mapping[str, Any]) -> bool:
+    return c.get("tier", CHECK_TIER_GATE) != CHECK_TIER_PERFORMANCE
+
+
 def gate_verdict(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Overall PASS/FAIL from spec-level checks and every scenario's checks."""
+    """Verdict from the BLOCKING checks only; performance failures are listed separately.
+
+    v1: every check blocks. v2: SAFETY checks block, PERFORMANCE checks are reported.
+    """
     failures: list[str] = []
+    perf: list[str] = []
     for c in report["spec_checks"]:
         if not c["pass"]:
-            failures.append(f"spec:{c['check']}")
+            (failures if _blocking(c) else perf).append(f"spec:{c['check']}")
     for name, r in report["scenarios"].items():
         for c in r["checks"]:
             if not c["pass"]:
-                failures.append(f"{name}:{c['check']}")
-    return {"verdict": "PASS" if not failures else "FAIL", "failures": failures}
+                (failures if _blocking(c) else perf).append(f"{name}:{c['check']}")
+    return {"verdict": "PASS" if not failures else "FAIL", "failures": failures,
+            "performance_failures": perf}
+
+
+def performance_table(report: Mapping[str, Any], cfg: GateConfig) -> dict[str, Any]:
+    """Per-scenario tracking rows plus the named rows (v2 ``performance.named``)."""
+    rows = []
+    for name, r in report["scenarios"].items():
+        for c in r["checks"]:
+            if c["check"] in _TRACKING_CHECKS:
+                rows.append({"scenario": name, "metric": c["check"], "value": c["value"],
+                             "threshold": c["threshold"], "pass": c["pass"]})
+    named = {}
+    for label, ref in (cfg.raw.get("performance", {}).get("named") or {}).items():
+        match = [row for row in rows if row["scenario"] == ref["scenario"] and row["metric"] == ref["metric"]]
+        named[label] = match[0] if match else None
+    return {"rows": rows, "named": named,
+            "verdict": "PASS" if rows and all(row["pass"] for row in rows) else "FAIL"}
 
 
 __all__ = [
+    "CHECK_TIER_GATE",
+    "CHECK_TIER_PERFORMANCE",
+    "CHECK_TIER_SAFETY",
     "DEFAULT_GATE_CONFIG",
+    "GATE_CONFIGS",
     "GATE_SCHEMA",
+    "GATE_SCHEMA_V2",
+    "performance_table",
+    "saturation_mask",
+    "tag_spec_checks",
     "GateConfig",
     "GateConfigError",
     "GateScenario",

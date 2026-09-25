@@ -57,7 +57,7 @@ def state(rng):
 
 
 def test_gate_config_is_the_preregistered_file_and_parses():
-    cfg = load_gate_config()
+    cfg = load_gate_config("v1")
     assert Path(cfg.path).name == "gate_v1.yaml"
     names = [s.name for s in cfg.scenarios]
     assert names == ["stand_20s", "forward_0p3", "forward_0p5", "lateral_0p2", "yaw_0p6",
@@ -218,7 +218,7 @@ def _metrics(**over):
 
 
 def test_evaluate_scenario_reads_thresholds_from_config():
-    cfg = load_gate_config()
+    cfg = load_gate_config("v1")
     stand = cfg.scenario("stand_20s")
     assert all(c["pass"] for c in evaluate_scenario(_metrics(), stand, cfg))
     th = cfg.thresholds
@@ -240,10 +240,11 @@ def test_evaluate_scenario_reads_thresholds_from_config():
 def test_gate_verdict():
     ok = {"spec_checks": [{"check": "a", "pass": True}],
           "scenarios": {"s": {"checks": [{"check": "b", "pass": True}]}}}
-    assert gate_verdict(ok) == {"verdict": "PASS", "failures": []}
+    assert gate_verdict(ok) == {"verdict": "PASS", "failures": [], "performance_failures": []}
+    # Untagged checks default to the v1 "gate" tier: all blocking.
     bad = {"spec_checks": [{"check": "a", "pass": False}],
            "scenarios": {"s": {"checks": [{"check": "b", "pass": False}]}}}
-    assert gate_verdict(bad) == {"verdict": "FAIL", "failures": ["spec:a", "s:b"]}
+    assert gate_verdict(bad) == {"verdict": "FAIL", "failures": ["spec:a", "s:b"], "performance_failures": []}
 
 
 # ------------------------------------------------------------------ MuJoCo

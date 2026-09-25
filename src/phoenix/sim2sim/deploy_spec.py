@@ -100,7 +100,20 @@ def sdk_ids_for(order: Sequence[str]) -> tuple[int, ...]:
         raise DeploySpecError(f"joint order has a name not in the Unitree motor table: {exc}") from exc
 
 
-def _per_joint(value: Any, n: int, what: str) -> np.ndarray:
+def _per_joint(value: Any, n: int, what: str, order: Sequence[str] | None = None) -> np.ndarray:
+    """Scalar, ``n`` values in ``order``, or a mapping by joint group or joint name."""
+    if isinstance(value, Mapping):
+        if order is None:
+            raise DeploySpecError(f"{what}: a mapping needs a joint order")
+        out = []
+        for name in order:
+            if name in value:
+                out.append(float(value[name]))
+            elif joint_group(name) in value:
+                out.append(float(value[joint_group(name)]))
+            else:
+                raise DeploySpecError(f"{what}: no value for {name} (by name or group)")
+        value = out
     arr = np.asarray(value, dtype=np.float64)
     if arr.ndim == 0:
         arr = np.full(n, float(arr))
@@ -281,9 +294,12 @@ def _pose(order: Sequence[str], pose: Mapping[str, float] | Sequence[float]) -> 
 def _deploy_block(manifest: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, float | None, list[str]]:
     deploy = manifest.get("deploy") or {}
     assumptions = []
+    order = tuple(manifest.get("joint_order") or JOINT_ORDER)
     if "kp" in deploy and "kd" in deploy:
-        kp = _per_joint(deploy["kp"], 12, "deploy.kp")
-        kd = _per_joint(deploy["kd"], 12, "deploy.kd")
+        kp = _per_joint(deploy["kp"], 12, "deploy.kp", order)
+        kd = _per_joint(deploy["kd"], 12, "deploy.kd", order)
+    elif "kp" in deploy or "kd" in deploy:
+        raise DeploySpecError("deploy block must give both kp and kd")
     else:
         kp = np.full(12, PHOENIX_DEFAULT_KP)
         kd = np.full(12, PHOENIX_DEFAULT_KD)
@@ -291,8 +307,14 @@ def _deploy_block(manifest: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, 
             f"manifest has no deploy.kp/kd; used Phoenix train==deploy Kp {PHOENIX_DEFAULT_KP} "
             f"Kd {PHOENIX_DEFAULT_KD}"
         )
-    clip = deploy.get("action_clip", PHOENIX_DEFAULT_ACTION_CLIP)
+    if "action_clip" in deploy:
+        clip = deploy["action_clip"]
+    else:
+        clip = PHOENIX_DEFAULT_ACTION_CLIP
+        assumptions.append(f"manifest has no deploy.action_clip; used {PHOENIX_DEFAULT_ACTION_CLIP}")
     clip = None if clip is None else float(clip)
+    if clip is not None and not clip > 0:
+        raise DeploySpecError(f"deploy.action_clip must be > 0 or null, got {clip}")
     return kp, kd, clip, assumptions
 
 
@@ -410,8 +432,8 @@ def spec_from_explicit(data: Mapping[str, Any]) -> DeploySpec:
         default_joint_pos=_pose(order, data["default_joint_pos"]),
         action_scale=_per_joint(action["scale"], 12, "action.scale"),
         action_clip=None if clip is None else float(clip),
-        kp=_per_joint(data["kp"], 12, "kp"),
-        kd=_per_joint(data["kd"], 12, "kd"),
+        kp=_per_joint(data["kp"], 12, "kp", order),
+        kd=_per_joint(data["kd"], 12, "kd", order),
         control_hz=int(data["control_hz"]),
         trained_commands=_commands(data.get("trained_commands")),
         obs_terms=terms,

@@ -48,7 +48,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--manifest", required=True,
                     help="phoenix_manifest.json, the legacy H25 manifest, or a sim2sim deploy spec")
     ap.add_argument("--out", default=None, help="output directory (default runs/sim2sim_gate/<name>_<utc>)")
-    ap.add_argument("--gate-config", default=None, help="default configs/sim2sim/gate_v1.yaml")
+    ap.add_argument("--gate", choices=("v1", "v2"), default="v2",
+                    help="preregistered gate version (default v2: blocking SAFETY tier, reported PERFORMANCE tier)")
+    ap.add_argument("--gate-config", default=None, help="explicit gate yaml; overrides --gate")
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--scenarios", nargs="*", default=None, help="subset (makes the run DIAGNOSTIC)")
     ap.add_argument("--latency-ms", type=float, default=None, help="override (makes the run DIAGNOSTIC)")
@@ -61,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     from phoenix.sim2sim.gate import load_gate_config
     from phoenix.sim2sim.gate_runner import OnnxPolicy, run_gate, sha256_file, write_gate_report
 
-    cfg = load_gate_config(args.gate_config)
+    cfg = load_gate_config(args.gate_config or args.gate)
     try:
         spec = load_deploy_spec(args.manifest, required_envelope=cfg.required_envelope)
     except (DeploySpecError, KeyError, ValueError) as exc:
@@ -84,9 +86,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"gate {cfg.path}\nspec {spec.name} ({spec.kind}, obs {spec.obs_dim}-D, clip {spec.action_clip})\n"
           f"out  {out}")
 
+    blocking = "SAFETY" if cfg.version >= 2 else "GATE"
+
     def progress(name, r):
         m = r["metrics"]
-        print(f"  {name:14s} {'PASS' if r['pass'] else 'FAIL'}  fell={_fmt(m['fell'])} "
+        perf = "" if cfg.version < 2 else f" perf={'PASS' if r['performance_pass'] else 'FAIL'}"
+        print(f"  {name:14s} {blocking} {'PASS' if r['pass'] else 'FAIL'}{perf}  fell={_fmt(m['fell'])} "
               f"{m['fall_reason'] or ''} lin_rmse={_fmt(m['lin_vel_rmse_mps'])} "
               f"yaw_rmse={_fmt(m['yaw_rate_rmse_radps'])} h={_fmt(m['mean_base_height_m'])} "
               f"preclip={_fmt(m['pre_clip_saturation_rate'])} "
@@ -108,9 +113,19 @@ def main(argv: list[str] | None = None) -> int:
     vids = [r.get("video_error") for r in report["scenarios"].values() if r.get("video_error")]
     if vids:
         print(f"video skipped: {vids[0]}")
-    print(f"\nVERDICT {report['verdict']} (would-be {report['would_be_verdict']})")
+    print(f"\n{report['gate']['name']}: VERDICT {report['verdict']} "
+          f"({blocking} would-be {report['would_be_verdict']})")
     for f in report["failures"][:40]:
         print(f"  - {f}")
+    if cfg.version >= 2:
+        perf = report["tiers"]["performance"]
+        print(f"PERFORMANCE (non-blocking): {perf['verdict']}")
+        for label, row in perf["named"].items():
+            if row:
+                print(f"  {label:16s} {row['metric']} {_fmt(row['value'])} <= {row['threshold']} "
+                      f"{'PASS' if row['pass'] else 'FAIL'}")
+        for f in report["performance_failures"]:
+            print(f"  - {f}")
     print(f"report {path}")
     return {"PASS": 0, "FAIL": 1}.get(report["verdict"], 3)
 

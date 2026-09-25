@@ -45,7 +45,10 @@ from .gate import (
     envelope_checks,
     evaluate_scenario,
     gate_verdict,
+    performance_table,
     roll_pitch_from_quat_wxyz,
+    saturation_mask,
+    tag_spec_checks,
     tracking_rmse,
 )
 from .model import load_go2_model
@@ -268,6 +271,7 @@ def run_gate_scenario(
 
     times, cmds, vxy, wz, heights = [], [], [], [], []
     sat_pre = 0
+    sat_undefined = False
     raw_gt1 = 0
     raw_max = 0.0
     n_act = 0
@@ -304,8 +308,12 @@ def run_gate_scenario(
             nonfinite = True
             fell, fall_reason, t_fall = True, "nonfinite_action", t
             break
-        action, targets, sat = spec.postprocess(raw)
-        sat_pre += int(sat.sum())
+        action, targets, _sat = spec.postprocess(raw)
+        sat = saturation_mask(raw, spec.action_clip, cfg)
+        if sat is None:
+            sat_undefined = True
+        else:
+            sat_pre += int(sat.sum())
         raw_gt1 += int(np.sum(np.abs(raw) > 1.0))
         raw_max = max(raw_max, float(np.max(np.abs(raw))))
         n_act += 12
@@ -383,7 +391,10 @@ def run_gate_scenario(
         "min_base_height_m": float(np.min(heights)) if heights else None,
         "planar_displacement_m": float(np.linalg.norm(sim.data.qpos[0:2] - start_xy)),
         "max_abs_roll_pitch_rad": max_rp,
-        "pre_clip_saturation_rate": sat_pre / n_act if n_act else None,
+        # None = no deploy clip under a gate whose saturation.missing_clip is "fail".
+        "pre_clip_saturation_rate": (sat_pre / n_act if n_act and not sat_undefined else None),
+        "pre_clip_saturation_definition": (
+            f"|raw| {'>=' if cfg.saturation_ge else '>'} deploy clip {spec.action_clip}"),
         "abs_raw_action_gt1_rate": raw_gt1 / n_act if n_act else None,
         "max_abs_raw_action": raw_max,
         "torque_saturation_fraction": {
@@ -452,11 +463,12 @@ def run_gate(
     bad = [j["joint"] for j in audit["joints"] if not j["pass"]]
     spec_checks.append({"check": "joint_sign_audit", "value": bad, "op": "==", "threshold": [],
                         "pass": audit["pass"]})
+    tag_spec_checks(spec_checks, cfg)
     cfg_sha = hashlib.sha256(Path(cfg.path).read_bytes()).hexdigest()
     report: dict[str, Any] = {
         "schema": REPORT_SCHEMA,
         "gate": {"config": cfg.path, "config_sha256": cfg_sha, "config_commit": _git_sha_of(cfg.path),
-                 "name": cfg.raw.get("name")},
+                 "name": cfg.raw.get("name"), "version": cfg.version},
         "policy": dict(policy_info),
         "spec": spec.summary(),
         "run": {"latency_ms": lat, "physics_hz": int(cfg.physics["physics_hz"]),
@@ -470,13 +482,21 @@ def run_gate(
     for s in scenarios:
         r = run_gate_scenario(spec, policy, s, cfg, opts)
         r["checks"] = evaluate_scenario(r["metrics"], s, cfg)
-        r["pass"] = all(c["pass"] for c in r["checks"])
+        # Scenario pass = its BLOCKING checks pass; performance is reported separately.
+        r["pass"] = all(c["pass"] for c in r["checks"] if c["tier"] != "performance")
+        r["performance_pass"] = all(c["pass"] for c in r["checks"] if c["tier"] == "performance")
         report["scenarios"][s.name] = r
         if progress:
             progress(s.name, r)
     v = gate_verdict(report)
     report["would_be_verdict"] = v["verdict"]
     report["failures"] = v["failures"]
+    report["performance_failures"] = v["performance_failures"]
+    if cfg.version >= 2:
+        report["tiers"] = {
+            "safety": {"blocking": True, "verdict": v["verdict"], "failures": v["failures"]},
+            "performance": {"blocking": False, **performance_table(report, cfg)},
+        }
     report["diagnostic_reasons"] = diag
     report["verdict"] = "DIAGNOSTIC" if diag else v["verdict"]
     return report
