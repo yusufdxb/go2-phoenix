@@ -93,11 +93,19 @@ for SEED in "${STALE_SEEDS[@]}"; do
     fi
 done
 
-# 4. Belt and suspenders: kill the stale driver process itself if it is
-#    somehow still alive (e.g. it did not reach seed 43 fast enough for step 2
-#    to find anything, and is still sitting in its for-loop). No-op if gone.
-if pkill -f "run_velocity_clip100_seeds.sh" 2>/dev/null; then
-    glog "stale driver process was still alive, killed it"
-fi
+# 4. Deliberately NOT a pkill -f here anymore. An earlier version of this
+#    script used pkill -f "run_velocity_clip100_seeds.sh" as a "belt and
+#    suspenders" step, and during its own dry-run verification it killed the
+#    real production driver (a broad process-name pattern matches ANY process
+#    on the host with that string in its command line, not just the one this
+#    script means). Coordinator instruction 2026-09-25: no pkill -f with
+#    broad patterns anywhere. This script is scoped to the one-time seed
+#    42/43/44 clip100 driver transition (2026-09-24/25) and should not be
+#    reused as-is; a future version of this pattern needs a PID file written
+#    by the driver itself, checked with kill -0 and a cmdline match before
+#    ever sending a signal to a specific, verified PID. See
+#    scripts/watchdog_velocity.sh for the PID-file-based version used from
+#    2026-09-25 onward.
+glog "skipping the old pkill-based driver cleanup (removed, see comment); if the stale driver is still alive, verify and stop it manually"
 
 glog "done, exiting; watchdog should relaunch the fixed driver within its poll interval"
