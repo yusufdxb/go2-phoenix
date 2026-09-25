@@ -2,7 +2,7 @@
 
 Pure-torch tests; no Isaac Lab dependency. Uses a trivial stand-in
 `env` object whose only interface is `env.action_manager.action` and
-`env.action_manager.prev_action` ,  matches how upstream Isaac Lab
+`env.action_manager.prev_action`. This matches how upstream Isaac Lab
 action-rate rewards access actions (see
 IsaacLab/source/isaaclab/isaaclab/envs/mdp/rewards.py:action_rate_l2).
 """

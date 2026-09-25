@@ -47,6 +47,9 @@ CAPSULE_SCHEMA_VERSIONS = ("1.0", "1.1")
 #: the two are pinned equal by ``tests/test_trajectory_reader.py``.
 PARQUET_POSITION_FRAME_KEY = b"phoenix_position_frame"
 
+#: Mirrors ``phoenix.real_world.trajectory_logger.PARQUET_REPLAY_SEED_ROW_KEY``.
+PARQUET_REPLAY_SEED_ROW_KEY = b"phoenix_replay_seed_row"
+
 
 @dataclass
 class InitialState:
@@ -105,6 +108,8 @@ class TrajectoryReader:
             raise FileNotFoundError(f"Trajectory not found: {self.path}")
         self.metadata = {}
         self.declared_position_frame = None
+        #: Row a replay variant was seeded from (declared by the writer), else None.
+        self.replay_seed_row = None
         if self.path.suffix == ".json":
             import pyarrow as pa
 
@@ -131,6 +136,12 @@ class TrajectoryReader:
                         f"Unknown parquet position frame {frame!r}; expected {POSITION_FRAMES}"
                     )
                 self.declared_position_frame = frame
+            seed_kv = (self._table.schema.metadata or {}).get(PARQUET_REPLAY_SEED_ROW_KEY)
+            if seed_kv is not None:
+                seed_row = int(seed_kv.decode())
+                if not 0 <= seed_row < self._table.num_rows:
+                    raise ValueError(f"Declared replay seed row {seed_row} out of bounds")
+                self.replay_seed_row = seed_row
         self.inferred_position_frame = self._infer_position_frame()
         self.environment_parameters = _validated_environment_parameters(
             self.metadata.get("environment_parameters")

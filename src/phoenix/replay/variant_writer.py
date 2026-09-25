@@ -128,6 +128,12 @@ class VariantTrajectoryWriter:
                 path,
                 row_group_size=row_group_size,
                 position_frame=POSITION_FRAME_ENV_LOCAL,
+                # Row 0 is the snapshot taken before the first step, i.e. the
+                # state reconstruct seeded from, already resolved with the
+                # run's seed-row strategy. Declaring it stops the curriculum
+                # from backing off a second time from the variant's own onset,
+                # which asks for row < 0 whenever a variant falls quickly.
+                replay_seed_row=0,
             )
             for path in self.paths
         ]

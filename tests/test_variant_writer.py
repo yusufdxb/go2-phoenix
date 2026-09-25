@@ -44,9 +44,7 @@ def step_kwargs(*, quat=None, n=N, cmd=None, actual=None):
     return {
         "base_pos": np.zeros((n, 3), dtype=np.float32),
         "base_quat_xyzw": upright(n) if quat is None else quat,
-        "base_lin_vel_body": (
-            np.zeros((n, 3), dtype=np.float32) if actual is None else actual
-        ),
+        "base_lin_vel_body": (np.zeros((n, 3), dtype=np.float32) if actual is None else actual),
         "base_ang_vel_body": np.zeros((n, 3), dtype=np.float32),
         "joint_pos": np.zeros((n, 12), dtype=np.float32),
         "joint_vel": np.zeros((n, 12), dtype=np.float32),
@@ -306,3 +304,32 @@ def test_close_is_safe_to_call_again_after_an_error(tmp_path):
     w = VariantTrajectoryWriter(tmp_path, N, control_dt=DT)
     w.append_step(0, **step_kwargs())
     assert w.close() == w.close()
+
+
+# ------------------------------------------------- curriculum seeding contract
+def test_a_fast_failing_variant_seeds_from_its_replay_seed_row(tmp_path):
+    """Regression for the 2026-09-21 loop-closure crash.
+
+    A variant's row 0 is the replay seed, which reconstruct already resolved
+    with the run's strategy (0.5 s before the SOURCE onset). A variant that
+    falls within 0.5 s of that seed has no row 0.5 s before its OWN onset, so
+    re-applying the strategy asked for row -1 and killed the fine-tune. The
+    variant must seed from the row the replay seeded it from, not back off twice.
+    """
+    from phoenix.adaptation.reset_bridge import resolve_seed
+
+    w = VariantTrajectoryWriter(tmp_path, N, control_dt=DT)
+    for i in range(20):
+        quat = tipped(SIM_ANALYSIS_PITCH_RAD + 0.3) if i >= 10 else None
+        w.append_step(i, **step_kwargs(quat=quat))
+    results = w.close()
+    path = results[0].path
+    onset = int(TrajectoryReader(path).failure_indices()[0])
+    assert onset * DT < 0.5  # the pre-onset window the strategy wants is absent
+
+    record = resolve_seed(path, "failure_onset_minus_seconds", 0, 0.5)
+    assert record["resolved_row"] == 0
+    assert record["requested_seed_row"] == 0
+    assert record["failure_onset_row"] == onset
+    assert record["seed_row_source"] == "replay_seed"
+    assert record["time_before_onset_seconds"] == pytest.approx(onset * DT)
