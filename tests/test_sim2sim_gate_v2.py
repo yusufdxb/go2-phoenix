@@ -25,6 +25,7 @@ def manifest(deploy=None, ang=(-1.0, 1.0)):
         commands=CommandRanges((-1.0, 1.0), (-0.5, 0.5), ang, 0.1),
         git_sha="a" * 40, git_dirty=False, seed=1, task="t", simulator="isaaclab",
         reward_scales={}, domain_randomization={}, curriculum={},
+        obs_schema_version="phoenix-velocity-obs/v1",
     )
     if deploy is not None:
         m["deploy"] = deploy

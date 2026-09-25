@@ -96,6 +96,7 @@ def _inputs(**over):
         joint_pos=DEFAULT_Q + 0.01 * np.arange(12),
         joint_vel=np.arange(12) * -0.1,
         last_action=np.linspace(-1, 1, 12),
+        obs_schema_version=c.OBS_SCHEMA_V1,
     )
     base.update(over)
     return base

@@ -50,6 +50,9 @@ from phoenix.velocity.contract import (
     JOINT_ORDER,
     MANIFEST_SCHEMA,
     MODE_VELOCITY,
+    OBS_SCHEMA_V1,
+    UnknownObsSchemaError,
+    manifest_obs_schema,
     validate_manifest_for_mode,
 )
 from phoenix.velocity.observation import (
@@ -146,6 +149,10 @@ class DeploySpec:
     manifest_problems: tuple[str, ...] = ()
     assumptions: tuple[str, ...] = ()
     provenance: dict[str, Any] = field(default_factory=dict)
+    #: Phoenix observation schema (contract.ACTOR_OBS_SCALES) for the
+    #: phoenix_velocity_45 / legacy_48 builders, from the checkpoint manifest.
+    #: None when the manifest does not state a known one: build_obs then refuses.
+    obs_schema: str | None = None
 
     # ---------------------------------------------------------------- derived
     @property
@@ -171,6 +178,11 @@ class DeploySpec:
     ) -> np.ndarray:
         """Observation for the policy. Joint arrays are in THIS spec's joint order."""
         if self.obs_builder in (OBS_PHOENIX_45, OBS_LEGACY_48):
+            if self.obs_schema is None:
+                raise DeploySpecError(
+                    f"{self.name}: manifest states no known observation schema; refusing to "
+                    "guess the observation scaling"
+                )
             obs = build_actor_observation(
                 gyro_body=gyro_body,
                 quat_wxyz=quat_wxyz,
@@ -178,6 +190,7 @@ class DeploySpec:
                 joint_pos=joint_pos,
                 joint_vel=joint_vel,
                 last_action=last_action,
+                obs_schema_version=self.obs_schema,
             )
             if self.obs_builder == OBS_LEGACY_48:
                 obs = np.concatenate([np.zeros(3, dtype=np.float32), obs])
@@ -229,6 +242,7 @@ class DeploySpec:
             "name": self.name,
             "kind": self.kind,
             "obs_builder": self.obs_builder,
+            "obs_schema": self.obs_schema,
             "obs_dim": self.obs_dim,
             "history_length": self.history_length,
             "joint_order": list(self.joint_order),
@@ -337,6 +351,10 @@ def spec_from_phoenix_manifest(
     if order != JOINT_ORDER:
         raise DeploySpecError("Phoenix manifest joint_order is not the contract order; refusing")
     try:
+        obs_schema: str | None = manifest_obs_schema(manifest)
+    except UnknownObsSchemaError:
+        obs_schema = None  # validate_manifest_for_mode already reported it
+    try:
         trained = _commands(manifest.get("commands"))
     except (KeyError, TypeError, ValueError):
         trained = None
@@ -344,6 +362,7 @@ def spec_from_phoenix_manifest(
         name=name,
         kind=MANIFEST_SCHEMA,
         obs_builder=OBS_PHOENIX_45,
+        obs_schema=obs_schema,
         joint_order=order,
         default_joint_pos=_pose(order, manifest.get("default_joint_pos") or {}),
         action_scale=np.full(12, ACTION_SCALE),
@@ -382,6 +401,7 @@ def spec_from_legacy_manifest(manifest: Mapping[str, Any], *, name: str) -> Depl
         name=name,
         kind=LEGACY_SCHEMA,
         obs_builder=OBS_LEGACY_48,
+        obs_schema=OBS_SCHEMA_V1,  # H25 era: raw SI, the only schema that existed
         joint_order=order,
         default_joint_pos=_pose(order, manifest["default_joint_pos"]),
         action_scale=np.full(12, float(action.get("scale", ACTION_SCALE))),

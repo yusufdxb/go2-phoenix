@@ -87,7 +87,8 @@ def test_trace_hook_records_every_control_step_without_changing_metrics():
     cfg = load_gate_config("v3")
     m = build_manifest(checkpoint_sha256="0" * 64, commands=CommandRanges((-1, 1), (-0.5, 0.5), (-1, 1), 0.1),
                        git_sha="a" * 40, git_dirty=False, seed=1, task="t", simulator="isaaclab",
-                       reward_scales={}, domain_randomization={}, curriculum={})
+                       reward_scales={}, domain_randomization={}, curriculum={},
+                       obs_schema_version="phoenix-velocity-obs/v1")
     spec = spec_from_phoenix_manifest(m, name="z", required_envelope=cfg.required_envelope)
     s = GateScenario("short", "nominal", 1.0, ((0.0, (0.0, 0.0, 0.0)),))
     tr = []

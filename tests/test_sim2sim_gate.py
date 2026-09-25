@@ -40,6 +40,7 @@ def manifest(**over):
         commands=CommandRanges((-1.0, 1.0), (-0.5, 0.5), (-1.0, 1.0), 0.1),
         git_sha="a" * 40, git_dirty=False, seed=1, task="t", simulator="isaaclab",
         reward_scales={}, domain_randomization={}, curriculum={},
+        obs_schema_version="phoenix-velocity-obs/v1",
     )
     m.update(over)
     return m
@@ -83,7 +84,7 @@ def test_phoenix_manifest_uses_the_deploy_obs_builder_and_clamp():
     assert spec.action_clip == 1.0 and np.all(spec.kp == 25.0) and np.all(spec.kd == 0.5)
     assert any("Kp 25" in a for a in spec.assumptions)
     s = state(np.random.default_rng(0))
-    assert np.array_equal(spec.build_obs(**s), build_actor_observation(**s))
+    assert np.array_equal(spec.build_obs(**s), build_actor_observation(**s, obs_schema_version="phoenix-velocity-obs/v1"))
     raw = np.linspace(-3, 3, 12)
     action, targets, sat = spec.postprocess(raw)
     assert np.array_equal(action, np.clip(raw, -1, 1))
@@ -103,6 +104,7 @@ def test_stand_only_phoenix_manifest_is_refused_for_the_gate():
         checkpoint_sha256=None, commands=CommandRanges((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), 1.0),
         git_sha="a" * 40, git_dirty=False, seed=1, task="t", simulator="isaaclab",
         reward_scales={}, domain_randomization={}, curriculum={},
+        obs_schema_version="phoenix-velocity-obs/v1",
     )
     spec = spec_from_phoenix_manifest(m, name="m", required_envelope=ENV)
     assert spec.manifest_problems
@@ -117,7 +119,7 @@ def test_h25_legacy_obs_is_zeros_then_the_45d_builder():
     s = state(np.random.default_rng(1))
     o = spec.build_obs(**s)
     assert o.shape == (48,) and np.all(o[:3] == 0.0)
-    assert np.array_equal(o[3:], build_actor_observation(**s))
+    assert np.array_equal(o[3:], build_actor_observation(**s, obs_schema_version="phoenix-velocity-obs/v1"))
     assert spec.action_clip == 1.0  # the gate applies the patched deploy clamp
 
 

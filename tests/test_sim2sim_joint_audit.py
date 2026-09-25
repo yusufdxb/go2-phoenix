@@ -30,6 +30,7 @@ def phoenix_spec():
         commands=CommandRanges((-1.0, 1.0), (-0.5, 0.5), (-1.0, 1.0), 0.1),
         git_sha="a" * 40, git_dirty=False, seed=1, task="t", simulator="isaaclab",
         reward_scales={}, domain_randomization={}, curriculum={},
+        obs_schema_version="phoenix-velocity-obs/v1",
     )
     return spec_from_phoenix_manifest(m, name="synthetic", required_envelope={
         "lin_vel_x": 0.5, "lin_vel_y": 0.3, "ang_vel_z": 0.6})
