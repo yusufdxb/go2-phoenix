@@ -335,6 +335,24 @@ def default_reward_terms() -> tuple[RewardTermSpec, ...]:
             "high-frequency action chatter across ALL motors (L2 smoothness)",
         ),
         RewardTermSpec(
+            "action_l2",
+            "isaac:action_l2",
+            -0.01,
+            "(dimensionless RAW action, post rsl_rl clip)^2 summed",
+            "unbounded drift of the actor's mean output. 2026-09-25 bug: the "
+            "Gaussian actor has no output activation on its mean (rsl_rl "
+            "GaussianDistribution.update: mean = mlp_output, no tanh/clip) and "
+            "action_rate_l2/slew_sat_hinge_l2 only penalize CHANGE between "
+            "steps, not magnitude, so a policy can drift its mean action to "
+            "arbitrarily large values as long as it does so slowly (small "
+            "per-step delta). Measured: seed 43's action_abs_p99 grew smoothly "
+            "4.09 (iter 2000) -> 9.70 (iter 5000) -> 15.49 (iter 8500) while "
+            "action std stayed roughly flat (0.19 -> 0.20 -> 0.25), and episode "
+            "length collapsed from 946 to 60 over the same span. Same weight "
+            "as action_rate_l2 (-0.01): both are action-processing penalties "
+            "at the same order of magnitude, not tuned against each other.",
+        ),
+        RewardTermSpec(
             "slew_sat_hinge_l2",
             "phoenix:slew_sat_hinge_l2",
             -10.0,
@@ -475,7 +493,12 @@ class PPOSpec:
     learning_rate: float = 1.0e-3
     schedule: str = "adaptive"
     desired_kl: float = 0.01
-    entropy_coef: float = 0.005
+    #: Matches stock UnitreeGo2{Rough,Flat}PPORunnerCfg (0.01). Was 0.005 (half
+    #: stock's value) with no recorded justification; aligned 2026-09-25 while
+    #: diagnosing the 3-seed overnight collapse (see the action_l2 reward term
+    #: for the primary fix; this is a secondary alignment, not shown alone to
+    #: be the collapse's cause).
+    entropy_coef: float = 0.01
     gamma: float = 0.99
     lam: float = 0.95
     clip_param: float = 0.2

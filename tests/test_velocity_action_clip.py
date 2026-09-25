@@ -70,6 +70,30 @@ def test_curriculum_enabled_starts_at_initial_ranges() -> None:
     assert cur.ranges.lin_vel_x == spec.commands.initial_lin_vel_x
 
 
+def test_action_l2_reward_term_present_and_valid() -> None:
+    # 2026-09-25: seed 43/44/42-curriculum episode length collapsed over the
+    # second half of a 9000-iteration run (e.g. seed 43: 946@2000 -> 60@8500)
+    # while action_abs_p99 grew smoothly (4.09 -> 15.49) with action std
+    # roughly flat (0.19 -> 0.25). rsl_rl's GaussianDistribution has no output
+    # bound on the mean (mean = mlp_output, no tanh/clip), and
+    # action_rate_l2/slew_sat_hinge_l2 only penalize CHANGE between steps, so
+    # nothing directly bounded the mean's magnitude. action_l2 closes that gap.
+    default = s.default_spec()
+    assert default.validate() == []
+    names = [t.name for t in default.rewards]
+    assert "action_l2" in names
+    term = default.reward("action_l2")
+    assert term.weight < 0.0
+    assert term.func == "isaac:action_l2"
+
+
+def test_entropy_coef_matches_stock_go2_ppo_cfg() -> None:
+    # Stock UnitreeGo2{Rough,Flat}PPORunnerCfg uses entropy_coef=0.01; ours was
+    # 0.005 with no recorded reason. Secondary alignment while diagnosing the
+    # 2026-09-25 collapse, not shown alone to be the cause.
+    assert s.default_spec().ppo.entropy_coef == 0.01
+
+
 def test_trunk_bodies_is_base_only_not_head() -> None:
     # 2026-09-25 bug (fixed): TRUNK_BODIES used to include "Head_.*". Head_upper/
     # Head_lower are near-massless (0.001 kg) bodies rigidly fixed to the base;

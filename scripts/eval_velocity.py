@@ -59,6 +59,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     import torch
 
     from phoenix.velocity import env_cfg as pv_env_cfg
+    from phoenix.velocity.mdp import as_torch
     from phoenix.velocity.spec import TASK_ID, default_spec
 
     pv_env_cfg.register()
@@ -69,7 +70,19 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     unwrapped = env.unwrapped
 
     ckpt = torch.load(args.checkpoint, map_location="cuda:0", weights_only=False)
-    actor_sd = {k[len("actor.") :]: v for k, v in ckpt["model_state_dict"].items() if k.startswith("actor.")}
+    # rsl_rl >=3.0 stores actor_state_dict directly (mlp.N.weight/bias plus
+    # distribution.std_param, which is excluded below by the ".weight" filter).
+    # Older rsl_rl used model_state_dict with an "actor." prefix. Mirrors
+    # phoenix.sim2real.export._extract_actor_state_dict (deploy-owned, not
+    # imported here since sim2real is a different file-ownership boundary).
+    if "actor_state_dict" in ckpt:
+        actor_sd = ckpt["actor_state_dict"]
+    elif "model_state_dict" in ckpt:
+        actor_sd = {
+            k[len("actor.") :]: v for k, v in ckpt["model_state_dict"].items() if k.startswith("actor.")
+        }
+    else:
+        raise KeyError(f"checkpoint has no actor weights; keys={list(ckpt)}")
     layer_keys = sorted(
         (k for k in actor_sd if k.endswith(".weight") and "mlp" in k),
         key=lambda k: int(k.split(".")[1]),
@@ -122,14 +135,21 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         for _ in range(args.num_steps):
             obs = obs_dict["policy"]
             action = actor(obs)
+            # Diagnostic rate at a fixed |a|>1 threshold (task spec convention),
+            # separate from the clip actually applied below.
             clip_rate_sum += float((action.abs() > 1.0).float().mean())
-            action_clipped = action.clamp(-1.0, 1.0)
+            # Step with the SAME clip the policy was trained/deployed with
+            # (spec.action.clip_actions), not a hardcoded 1.0. A mismatched
+            # tight clip here silently changes the env dynamics away from what
+            # training actually saw, especially for late-training checkpoints
+            # where the action distribution can be far outside [-1, 1].
+            action_clipped = action.clamp(-spec.action.clip_actions, spec.action.clip_actions)
             obs_dict, _rew, terminated, truncated, extras = env.step(action_clipped)
             steps_done += 1
 
             cmd = unwrapped.command_manager.get_command("base_velocity")
-            v = unwrapped.scene["robot"].data.root_lin_vel_b
-            w = unwrapped.scene["robot"].data.root_ang_vel_b
+            v = as_torch(unwrapped.scene["robot"].data.root_lin_vel_b)
+            w = as_torch(unwrapped.scene["robot"].data.root_ang_vel_b)
             lin_err = torch.linalg.norm(cmd[:, :2] - v[:, :2], dim=1)
             yaw_err = (cmd[:, 2] - w[:, 2]).abs()
             lin_mag = torch.linalg.norm(cmd[:, :2], dim=1)
@@ -142,16 +162,16 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                     sum_yaw_err[name] += float(yaw_err[mask].sum())
                     cnt[name] += int(mask.sum())
             if int(stand.sum()) > 0:
-                h = unwrapped.scene["robot"].data.root_pos_w[:, 2]
+                h = as_torch(unwrapped.scene["robot"].data.root_pos_w)[:, 2]
                 heights_stand.extend(h[stand].tolist())
 
-            q = unwrapped.scene["robot"].data.joint_pos
-            soft = unwrapped.scene["robot"].data.soft_joint_pos_limits
+            q = as_torch(unwrapped.scene["robot"].data.joint_pos)
+            soft = as_torch(unwrapped.scene["robot"].data.soft_joint_pos_limits)
             rng = (soft[..., 1] - soft[..., 0]).clamp(min=1e-6)
             near = ((q - soft[..., 0]) / rng < 0.05) | ((soft[..., 1] - q) / rng < 0.05)
             near_limit_frac_sum += float(near.float().mean())
 
-            applied = unwrapped.scene["robot"].data.applied_torque
+            applied = as_torch(unwrapped.scene["robot"].data.applied_torque)
             for aname, act in unwrapped.scene["robot"].actuators.items():
                 ids = act.joint_indices
                 peak = float(applied[:, ids].abs().max())
