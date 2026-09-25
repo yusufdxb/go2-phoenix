@@ -27,6 +27,14 @@ Two model profiles
 ``menagerie_raw``
     The vendored MJCF as published, except the physics timestep, which must be
     0.005 s for the 4x decimation to give the 50 Hz policy rate.
+
+``real_go2`` (the sim2sim gate plant)
+    Menagerie geometry and inertials as published (Unitree-derived), joint
+    passive damping 0 and frictionloss 0 (PD gains come from the deploy spec, as
+    on the robot), armature :data:`REAL_ARMATURE`, every collision geom condim 3
+    with one foot friction coefficient. Deliberately NOT the Isaac calf
+    composite: the gate asks whether a policy survives a plant it was not tuned
+    on. The caller sets the timestep (the gate runs 1 kHz).
 """
 
 from __future__ import annotations
@@ -53,7 +61,15 @@ from .isaac_reference import (
 
 PROFILE_ISAAC = "isaac_matched"
 PROFILE_MENAGERIE = "menagerie_raw"
-PROFILES = (PROFILE_ISAAC, PROFILE_MENAGERIE)
+PROFILE_REAL = "real_go2"
+PROFILES = (PROFILE_ISAAC, PROFILE_MENAGERIE, PROFILE_REAL)
+
+#: Joint armature (reflected rotor inertia, kg m^2) for :data:`PROFILE_REAL` by
+#: joint type. Source: Unitree's MuJoCo training stack unitree_rl_mjlab
+#: ``src/assets/robots/unitree_go2/go2_constants.py`` (hip/thigh 0.01, calf
+#: 0.02), whose GO2 policy walked on hardware. The calf is larger because of the
+#: extra knee reduction (IsaacLab#7479).
+REAL_ARMATURE = {"hip": 0.01, "thigh": 0.01, "calf": 0.02}
 
 PHYSICS_DT = 1.0 / PHYSICS_HZ
 #: Nominal foot/ground friction for the ``isaac_matched`` profile. Isaac's
@@ -272,9 +288,14 @@ def load_go2_model(
     *,
     scene_xml: str | os.PathLike[str] | None = None,
     foot_friction: float | None = None,
+    timestep: float | None = None,
+    payload_kg: float = 0.0,
 ) -> tuple[Any, JointIndexMap, dict[str, Any]]:
     """Load the GO2 scene, apply ``profile``, return ``(model, index_map, applied)``.
 
+    ``timestep`` overrides the physics step (default :data:`PHYSICS_DT`).
+    ``payload_kg`` is added to the base body mass at the base centre of mass
+    (base inertia unchanged, so the payload's own rotational inertia is left out).
     ``applied`` records every override so the report can carry it.
     """
     import mujoco
@@ -286,8 +307,11 @@ def load_go2_model(
     index_map = build_joint_index_map(model)
     applied: dict[str, Any] = {"profile": profile, "scene_xml": str(path)}
 
-    model.opt.timestep = PHYSICS_DT
-    applied["timestep"] = PHYSICS_DT
+    dt = PHYSICS_DT if timestep is None else float(timestep)
+    if not dt > 0.0:
+        raise ValueError(f"timestep must be > 0, got {dt}")
+    model.opt.timestep = dt
+    applied["timestep"] = dt
 
     if profile == PROFILE_ISAAC:
         dofs = index_map.dof_adr
@@ -310,8 +334,26 @@ def load_go2_model(
                 model.geom_condim[g] = 3
         applied["collision_condim"] = 3
         friction = NOMINAL_FOOT_FRICTION if foot_friction is None else float(foot_friction)
+    elif profile == PROFILE_REAL:
+        dofs = index_map.dof_adr
+        model.dof_damping[dofs] = 0.0
+        model.dof_frictionloss[dofs] = 0.0
+        model.dof_armature[dofs] = [REAL_ARMATURE[n.split("_")[1]] for n in JOINT_ORDER]
+        applied["joint_damping"] = 0.0
+        applied["joint_frictionloss"] = 0.0
+        applied["joint_armature"] = dict(REAL_ARMATURE)
+        for g in range(model.ngeom):
+            if model.geom_contype[g] | model.geom_conaffinity[g]:
+                model.geom_condim[g] = 3
+        applied["collision_condim"] = 3
+        friction = NOMINAL_FOOT_FRICTION if foot_friction is None else float(foot_friction)
     else:
         friction = None if foot_friction is None else float(foot_friction)
+
+    if payload_kg < 0:
+        raise ValueError("payload_kg must be >= 0")
+    model.body_mass[index_map.base_body_id] += float(payload_kg)
+    applied["payload_kg"] = float(payload_kg)
 
     if friction is not None:
         for g in index_map.foot_geom_ids:
@@ -340,6 +382,8 @@ __all__ = [
     "PROFILES",
     "PROFILE_ISAAC",
     "PROFILE_MENAGERIE",
+    "PROFILE_REAL",
+    "REAL_ARMATURE",
     "assert_index_map",
     "body_inertia_tensor",
     "build_joint_index_map",
