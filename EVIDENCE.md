@@ -1,21 +1,34 @@
 # Evidence Index
 
-Last reviewed: 2026-06-20 (stand-v3-h25 slew fix finalized). This page exists so a reviewer can see, at a glance,
+Current status reviewed: 2026-09-25. The entries below retain historical
+stand-policy measurements and their original dates. They do not establish
+hardware clearance for the new walking policy. This page exists so a reviewer can see, at a glance,
 what is **verified by reproducible artifact**, what is **inferred from
 indirect evidence**, and what is **not yet validated** in this repo. If a
-claim in the README is not listed here as Verified, treat it as Inferred or
-Not validated until proven otherwise.
+claim in the README has no public artifact linked here, treat it as unverified
+from a clean clone until proven otherwise.
 
-## Verified
+## Current walking result
 
-Claims with a reproducible artifact in this repo or a captured log.
+Seed 46 at iterations 1,000 and 1,500 had 0/256 and 1/256 falls in a
+1,050-step Isaac Lab evaluation. Both failed the MuJoCo v3 gate because the
+recorded training command envelope does not cover the proposed deploy
+commands. Late training collapsed. No new walking policy has run on the real
+GO2. See [the walking result](docs/walk_v1_results.md) for the measured values
+and the gate's proof boundary.
 
-- **235 unit tests green in CI**: `pytest tests -m "not sim and not ros"`. Coverage
+## Historical evidence and records
+
+These entries include captured logs and older observations. Some source
+artifacts were kept outside the public tree and cannot be reproduced from a
+clean clone.
+
+- **June 2026 CI baseline, 235 unit tests green**: `pytest tests -m "not sim and not ros"`. Coverage
   listed in [README §Tests](README.md#tests). CI configured to lazy-import torch
   (commit `f235171`).
 - **ONNX↔torch parity gate**: `verify_deploy` reports max abs-diff
   **3.8e-06** on the stand-v2 candidate, against a 1e-4 tolerance. Serialized
-  at [`docs/pre_lab_gates_2026-04-17.md`](docs/pre_lab_gates_2026-04-17.md).
+  in a historical workstation run whose full record is not in the public tree.
   Caveat (audit 2026-05-21): this gate compares ONNX vs TorchScript exports
   of the *same* `_ExportablePolicy` wrapper, so it verifies runtime numeric
   parity but **cannot** catch a wrong wrapper. The audit found that
@@ -28,7 +41,7 @@ Claims with a reproducible artifact in this repo or a captured log.
   corrected export must be re-verified on hardware before any Gate-7 retry.
 - **Stand-v2 sim rollout**: 16 / 16 success @ 20.0 s mean length, 4096-env
   PPO. Raw metrics at
-  [`docs/pre_lab_stand_rollout_2026-04-17.json`](docs/pre_lab_stand_rollout_2026-04-17.json).
+  a historical rollout record that is not in the public tree.
 - **Stand-v3-h25 slew-saturation fix (2026-06-16/20)**: the month-long Gate-7
   saturation was root-caused to Isaac's `randomize_actuator_gains` zeroing
   explicit (DCMotor) actuator gains; replaced with a custom
@@ -57,7 +70,7 @@ Claims with a reproducible artifact in this repo or a captured log.
 - **Slew-saturation root-cause analysis**: four training runs (v3b
   fine-tune, slewhinge w=-50, slewhinge w=-5, scratch w=-50) all converge
   to the same 0.57-0.66 m/s lin_err band. Full table in README; full
-  analysis at [`docs/retrain_flat_scratch_2026-04-19.md`](docs/retrain_flat_scratch_2026-04-19.md).
+  analysis is retained in the project archive, outside this public tree.
 - **Hardware deploy chain ran live, 2026-04-18**: `ros2_policy_node`,
   `lowcmd_bridge_node`, estop, parity gates all ran on the GO2 end-to-end.
   Outcome: 30.23% per-step slew saturation specifically at `cmd_vel = 0`,
@@ -65,11 +78,13 @@ Claims with a reproducible artifact in this repo or a captured log.
 - **Mode-switch runtime**: `policy.mode_switch.enabled` flag, hysteresis +
   25-tick linear blend, unit-tested; runtime path is implemented
   and tested, but see "Not validated" below for hardware status.
-- **Fail-closed safety semantics**: every safety gate (`estop_publisher_missing`,
+- **Legacy H25 fail-closed safety semantics**: every safety gate (`estop_publisher_missing`,
   `estop_heartbeat_stale`, `external_estop`, `sensor_missing`, `sensor_stale`)
   is a free function in `src/phoenix/sim2real/safety.py` with unit tests in
-  `tests/test_safety.py`. Slew cap shared between policy node and bridge via
-  `per_step_clip_array(...)`.
+  `tests/test_safety.py`. The earlier H25 path shared a measured-position
+  slew cap. The walking path now applies manifest action clipping, torque
+  limits, hard-position clipping and a sustained-clip latch, with offline
+  tests but no new live walking validation.
 
 ## Inferred
 

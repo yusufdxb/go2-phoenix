@@ -253,6 +253,9 @@ def test_bundle_staging_binds_stage_a_evidence_to_head_and_the_lock() -> None:
 
 
 def test_bundle_staging_refuses_evidence_from_another_commit(tmp_path) -> None:
+    checkpoint = tmp_path / "checkpoint"
+    checkpoint.mkdir()
+    (checkpoint / "parity_gate.json").write_text('{"passed": true}')
     session = tmp_path / "session"
     session.mkdir()
     (session / "stage_A.json").write_text(
@@ -271,7 +274,7 @@ def test_bundle_staging_refuses_evidence_from_another_commit(tmp_path) -> None:
     res = subprocess.run(
         [
             str(BUNDLE),
-            "checkpoints/phoenix-stand-h25-lat-noise",
+            str(checkpoint),
             "configs/sim2real/deploy_stand_h25.yaml",
             str(tmp_path / "dest"),
         ],

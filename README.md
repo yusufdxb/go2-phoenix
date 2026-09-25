@@ -13,11 +13,11 @@
 
 ---
 
-The **Phoenix loop** trains a locomotion policy in simulation, deploys it to
+The **Phoenix loop** is designed to train a locomotion policy in simulation, deploy it to
 the real robot, captures the failures that happen on hardware, replays those
 failures in simulation under a randomized physics sweep, and fine-tunes the
-policy on that failure-seeded distribution. The improved policy goes back to
-the robot. Every stage is a concrete Python module with its own CLI,
+policy on that failure-seeded distribution, then return the improved policy to
+the robot. That full loop has not completed on hardware. Every stage is a Python module with its own CLI,
 configuration, and (where possible) unit tests.
 
 <p align="center">
@@ -38,31 +38,23 @@ overlay, and where the project stands.
 
 ## Project status
 
-The locomotion policy is trained and verified in simulation. The sim-to-real
-deploy stack (ONNX export, the ROS 2 policy node, the fail-closed safety
-layer) has run end-to-end on the real GO2; that live run surfaced a per-step
-slew-rate saturation (about 33% at `cmd_vel = 0`) that no on-robot stand has
-yet cleared. Note that every SIM slew percentage recorded before 2026-09-11 came
-from a metric that was not deploy-equivalent, so the sim-to-real slew gap cannot
-be quoted until it is re-measured; `docs/superseded_results.md` section 2
-has the detail. On-robot locomotion validation (Gate 7) is the current front
-line. [`EVIDENCE.md`](EVIDENCE.md) is the verified / inferred / not-validated
-ledger for every claim below.
+As of 2026-09-25, Phoenix has two policy tracks. The H25 stand policy reached
+live GO2 control for 0.56 s during the September stage F1 attempt and then
+latched on a joint-limit fault. No stable loaded stand or robot walking run has
+been established. The walking velocity policy has been trained and evaluated
+in Isaac Lab and MuJoCo, with no checkpoint cleared for hardware. See the
+[walking result](docs/walk_v1_results.md) and the [evidence ledger](EVIDENCE.md).
 
-| Stage | State | Detail |
-|---|:---:|---|
-| Simulation training (PPO, layered-YAML env) |  Done | rsl_rl, ~10 shell entry points |
-| Locomotion policy trained and sim-verified |  Done | stand-v3 sim eval: 32/32 success, 0.33% slew saturation (sim only, LEGACY slew definition, see `docs/superseded_results.md`) |
-| ONNX export and torch / onnxruntime parity gate |  Done | `verify_deploy`, max drift 9.5e-7 |
-| ROS 2 deploy stack and fail-closed safety layer |  Done | 3 bridges, policy node, shared slew cap |
-| Deploy stack ran end-to-end on the GO2 |  Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
-| Failure detector and Parquet trajectory logging |  Done | rule-based attitude / collapse / slip |
-| Replay and failure-curriculum fine-tune |  Done | wired and unit-tested; awaiting real parquets |
-| Live on-robot stand (Gate 7) |  In progress | H25 stand-only staged gates A to H with an audited final actuator gate; no stage has run on the robot yet ([run card](docs/h25_stand_hardware_run_card.md)) |
-| Live velocity tracking (Gate 8) | Blocked | refused in code until the H25 stand passes on hardware and `/utlidar/robot_odom` is validated |
-| Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
+| Stage | Current evidence |
+|---|---|
+| H25 stand on the robot | Stage F1 ended after 0.56 s of policy authority; no stable stand |
+| Walking training | Early seed 46 checkpoints completed Isaac Lab evaluation; late training collapsed |
+| MuJoCo walking gate | Gate v3 fails on the early candidates' manifest and command envelope |
+| Walking on the robot | Not attempted with the new policy |
+| Failure replay loop | Code and offline tests exist; hardware-seeded improvement has not been demonstrated |
 
-Full milestone trail: [`docs/changelog.md`](docs/changelog.md).
+The separate Phoenix V2 actuator-adaptation study stopped at its simulation
+gates. Its result is on the `research/phoenix-hardware-adaptation-v2` branch.
 
 ## Why this repo exists
 
@@ -111,7 +103,7 @@ pip install -e ".[dev]"
 pytest tests -m "not sim and not ros"
 ```
 
-235 unit tests, torch-free and ROS-free by construction. They cover the
+The offline tests cover the
 config loader, observation builder, failure detector, trajectory logger,
 Parquet round-trip, Halton variation sampler, curriculum scheduler, per-env
 variation translation, the fail-closed estop / sensor-freshness predicates,
@@ -144,9 +136,11 @@ asserted estop, not as "OK to keep going." Every gate is a pure function in
   `external_estop`, `sensor_missing`, `sensor_stale`); the node sends one
   abort notice and goes silent, and the bridge holds the MEASURED posture. It
   no longer drives toward the stand pose on abort.
-- **Slew-rate cap is shared.** Both sides call
-  `per_step_clip_array(target, current, MAX_DELTA_PER_STEP_RAD)` with the
-  constant living in `safety.py`.
+- **Actions and targets are bounded.** The walking path reads its action clip
+  from the checkpoint manifest. The policy node and bridge then apply torque
+  and hard-position limits; sustained clipping latches a fault. Earlier H25
+  evidence used a measured-position slew limit, so its clip percentages are
+  not directly comparable with the walking path.
 - **Wireless / joystick deadman**: stale input *or* released button publishes
   `estop=True` within one tick.
 - **The LowCmd bridge is the final authority.** `lowcmd_bridge_node` is a thin
@@ -155,17 +149,19 @@ asserted estop, not as "OK to keep going." Every gate is a pure function in
   NaN, wrong joint order or wire version, a real-deadman requirement when live,
   and one telemetry line per tick (`phoenix.sim2real.bridge_telemetry`), all
   covered by `tests/test_actuator_gate.py`.
-- **Stand-only until proven otherwise.** A config with
+- **The H25 contract is stand-only.** A config with
   `base_lin_vel_source: zeros` must declare `safety.stand_only: true`; a nonzero
-  velocity command latches an abort, and walking configs are refused
-  (`phoenix.sim2real.deploy_contract`).
+  velocity command latches an abort (`phoenix.sim2real.deploy_contract`). The
+  new walking policy uses a separate 45-D observation and manifest contract.
+  It has not been cleared for hardware.
 - **Staged hardware gates.** `scripts/harness_preflight.sh` records GO / NO-GO
   evidence for stages A (offline) through H (10 s stand, three attempts) against
   one commit and one artifact lock, and never moves between motor-off and live
-  stages on its own. Exact commands: `docs/h25_stand_hardware_run_card.md`.
+  stages on its own. The September stage F1 attempt failed; the
+  [H25 run card](docs/h25_stand_hardware_run_card.md) records that path.
 
-The relevant knobs live under `safety:` in `configs/sim2real/deploy.yaml`.
-Defaults are deliberate and tighter than the upstream Unitree examples.
+The legacy H25 knobs live under `safety:` in `configs/sim2real/deploy.yaml`.
+Walking uses the checkpoint manifest for its action clip and gains.
 
 ## Configuration model
 
