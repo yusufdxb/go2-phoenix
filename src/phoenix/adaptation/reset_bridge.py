@@ -98,8 +98,16 @@ def resolve_seed(
         not np.isfinite(timestamps).all() or np.any(np.diff(timestamps) <= 0)
     ):
         raise ValueError("Trajectory timestamps must be finite and strictly increasing")
+    seed_row_source = "strategy"
     if strategy == "first":
         requested = resolved = 0
+    elif reader.replay_seed_row is not None:
+        # A replay variant: the run's strategy was already applied to the source
+        # to pick this file's seed row. Re-applying it to the variant's own
+        # onset backs off twice and, for a variant that falls fast, asks for a
+        # row before 0.
+        requested = resolved = reader.replay_seed_row
+        seed_row_source = "replay_seed"
     elif strategy == "failure_onset":
         requested = resolved = onset
     elif strategy == "failure_onset_minus_seconds":
@@ -138,6 +146,7 @@ def resolve_seed(
         "capsule_id": reader.metadata.get("capsule_id"),
         "capsule_schema_version": reader.metadata.get("schema_version"),
         "seed_row_strategy": strategy,
+        "seed_row_source": seed_row_source,
         "source_format": "capsule" if reader.metadata else "legacy_parquet",
         "position_frame": frame,
         "position_frame_source": frame_source,
@@ -272,9 +281,7 @@ def install(
             "Failure resets require velocity restoration; write_velocity=False is unsupported"
         )
     if command_policy not in COMMAND_POLICIES:
-        raise ValueError(
-            f"Unknown command_policy={command_policy!r}; expected {COMMAND_POLICIES}"
-        )
+        raise ValueError(f"Unknown command_policy={command_policy!r}; expected {COMMAND_POLICIES}")
     if command_hold_seconds is not None and command_policy != "fixed_hold":
         raise ValueError("command_hold_seconds only applies to command_policy='fixed_hold'")
     if require_exact_replay and history_rows == 0:
@@ -290,9 +297,9 @@ def install(
     cache = _InitialStateCache(
         list(curriculum.pool.paths),
         seed_row_strategy=seed_row_strategy,
-        seed_row_offset_k=seed_row_offset_k
-        if seed_row_offset_steps is None
-        else seed_row_offset_steps,
+        seed_row_offset_k=(
+            seed_row_offset_k if seed_row_offset_steps is None else seed_row_offset_steps
+        ),
         seed_row_offset_seconds=seed_row_offset_seconds,
         position_frame=position_frame,
         history_rows=history_rows,
@@ -339,9 +346,7 @@ def install(
                 record.update(applied)
                 record["environment_context_restored"] = True
             if disturbance_applier is not None and record.get("declared_disturbances"):
-                record.update(
-                    disturbance_applier(env_id, record["declared_disturbances"]) or {}
-                )
+                record.update(disturbance_applier(env_id, record["declared_disturbances"]) or {})
                 record["environment_context_restored"] = True
             hold, command_telemetry = holds[pool_idx]
             record.update(

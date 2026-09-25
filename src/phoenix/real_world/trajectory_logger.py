@@ -154,6 +154,11 @@ CAPTURE_SOURCE_UNKNOWN = "unknown"
 #: module stays importable on the payload without the replay stack.
 PARQUET_POSITION_FRAME_KEY = b"phoenix_position_frame"
 
+#: Parquet file-level key a replay variant uses to name the row it was seeded
+#: from. Read by :class:`phoenix.replay.TrajectoryReader`; see
+#: :mod:`phoenix.replay.variant_writer` for why the curriculum needs it.
+PARQUET_REPLAY_SEED_ROW_KEY = b"phoenix_replay_seed_row"
+
 #: The frame a real GO2 capture is in. Mirrors
 #: ``phoenix.replay.state_adapter.POSITION_FRAME_ODOM_BOOT_RELATIVE``; the two
 #: are pinned equal by ``tests/test_trajectory_logger.py``.
@@ -246,6 +251,7 @@ class TrajectoryLogger:
         row_group_size: int = 512,
         queue_capacity: int = 4096,
         position_frame: str | None = None,
+        replay_seed_row: int | None = None,
     ) -> None:
         if row_group_size <= 0:
             raise ValueError("row_group_size must be positive")
@@ -254,8 +260,17 @@ class TrajectoryLogger:
         if position_frame is not None and not (
             isinstance(position_frame, str) and position_frame.strip()
         ):
-            raise ValueError("position_frame must be a non-empty string, or None to leave it undeclared")
+            raise ValueError(
+                "position_frame must be a non-empty string, or None to leave it undeclared"
+            )
+        if replay_seed_row is not None and (
+            isinstance(replay_seed_row, bool)
+            or not isinstance(replay_seed_row, int)
+            or replay_seed_row < 0
+        ):
+            raise ValueError("replay_seed_row must be a nonnegative int, or None")
         self.position_frame = position_frame
+        self.replay_seed_row = replay_seed_row
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.row_group_size = row_group_size
@@ -429,9 +444,12 @@ class TrajectoryLogger:
         silently assuming the simulator convention.
         """
 
-        if self.position_frame is None:
-            return _SCHEMA
-        return _SCHEMA.with_metadata({PARQUET_POSITION_FRAME_KEY: self.position_frame.encode()})
+        meta = {}
+        if self.position_frame is not None:
+            meta[PARQUET_POSITION_FRAME_KEY] = self.position_frame.encode()
+        if self.replay_seed_row is not None:
+            meta[PARQUET_REPLAY_SEED_ROW_KEY] = str(self.replay_seed_row).encode()
+        return _SCHEMA.with_metadata(meta) if meta else _SCHEMA
 
     def _raise_writer_error(self) -> None:
         with self._state_lock:
