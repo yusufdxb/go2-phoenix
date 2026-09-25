@@ -83,3 +83,41 @@ def test_not_json_refused(tmp_path) -> None:
     path.write_text("not json {")
     with pytest.raises(ManifestError, match="not valid JSON"):
         load_deploy_manifest(path)
+
+
+# ------------------------------------------------ observation schema (vNext)
+def _velocity_manifest(version: str) -> dict:
+    from phoenix.velocity import contract as c
+
+    return c.build_manifest(
+        checkpoint_sha256="a" * 64,
+        commands=c.CommandRanges((-0.3, 0.6), (-0.3, 0.3), (-1.0, 1.0), 0.1),
+        git_sha="b" * 40,
+        git_dirty=False,
+        seed=1,
+        task="t",
+        simulator="isaaclab",
+        reward_scales={},
+        domain_randomization={},
+        curriculum={},
+        obs_schema_version=version,
+        deploy={"action_clip": 100.0, "kp": 25.0, "kd": 0.5},
+    )
+
+
+@pytest.mark.parametrize("version", ["phoenix-velocity-obs/v1", "phoenix-velocity-obs/v2"])
+def test_velocity_manifest_exposes_its_obs_schema(tmp_path, version) -> None:
+    m = load_deploy_manifest(_write(tmp_path, _velocity_manifest(version)))
+    assert m.obs_schema_version == version
+
+
+def test_stand_manifest_without_velocity_observation_has_no_schema(tmp_path) -> None:
+    m = load_deploy_manifest(_write(tmp_path, {"deploy": {"action_clip": 1.0}}))
+    assert m.obs_schema_version is None
+
+
+def test_tampered_velocity_schema_is_refused(tmp_path) -> None:
+    data = _velocity_manifest("phoenix-velocity-obs/v2")
+    data["observation"]["schema_version"] = "phoenix-velocity-obs/v1"  # hash still v2
+    with pytest.raises(ManifestError):
+        load_deploy_manifest(_write(tmp_path, data))

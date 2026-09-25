@@ -565,3 +565,29 @@ def test_sustained_clipping_latches_but_isolated_ticks_do_not() -> None:
     out = fsm.tick(nominal_input(t))
     assert fsm.state is State.FAULT
     assert out.fault == "sustained_clip_exceeded"
+
+
+# ------------------------------------------------ observation schema (vNext)
+def test_default_obs_builder_requires_the_manifest_schema() -> None:
+    from phoenix.velocity import contract as c
+    from phoenix.velocity.observation import build_actor_observation
+
+    def policy(obs: np.ndarray) -> np.ndarray:
+        return np.zeros(N)
+
+    with pytest.raises(ValueError, match="obs_schema_version"):
+        ControllerFSM(ORDER, params=FsmParams(rate_hz=RATE_HZ), policy=policy)
+    fsm = ControllerFSM(
+        ORDER, params=FsmParams(rate_hz=RATE_HZ), policy=policy, obs_schema_version=c.OBS_SCHEMA_V2
+    )
+    kw = dict(
+        gyro_body=[1.0, -2.0, 3.0],
+        quat_wxyz=[1.0, 0.0, 0.0, 0.0],
+        command=[0.5, 0.0, 0.8],
+        joint_pos=np.asarray([c.DEFAULT_JOINT_POS[j] for j in c.JOINT_ORDER]),
+        joint_vel=np.arange(12) * -2.0,
+        last_action=np.zeros(12),
+    )
+    assert np.array_equal(
+        fsm._obs_builder(**kw), build_actor_observation(**kw, obs_schema_version=c.OBS_SCHEMA_V2)
+    )

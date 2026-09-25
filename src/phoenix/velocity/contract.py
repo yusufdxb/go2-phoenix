@@ -22,8 +22,16 @@ at a walking config and nothing but prose said no. The contract closes that:
   someone typed, and a stored flag that disagrees with the derivation is refused;
 * :func:`validate_manifest_for_mode` fails closed on any mismatch.
 
-Term conventions (all SI, no scaling, matching Isaac Lab ``mdp`` functions)
---------------------------------------------------------------------------
+Term conventions (SI before scaling, matching Isaac Lab ``mdp`` functions)
+------------------------------------------------------------------------
+The actor sees ``scale * term``. The per-term scales belong to the observation
+schema version (:data:`ACTOR_OBS_SCALES`), are hashed into the schema, recorded
+in every manifest and applied by BOTH the Isaac env (``ObsTerm.scale``) and
+:func:`phoenix.velocity.observation.build_actor_observation`. ``v1`` is raw SI
+(every walk_v1/v2 checkpoint up to seed 46); ``v2`` multiplies ``base_ang_vel``
+by 0.2 and ``joint_vel`` by 0.05, the scales of Unitree's own Isaac Lab GO2
+velocity task (see :data:`ACTOR_OBS_SCALES`).
+
 ``base_ang_vel``       body-frame angular velocity, rad/s (IMU gyro on the GO2)
 ``projected_gravity``  unit gravity vector in the body frame; upright = (0, 0, -1)
 ``velocity_command``   (vx m/s, vy m/s, wz rad/s), body-frame planar twist command
@@ -44,7 +52,14 @@ from typing import Any
 
 from phoenix.sim2real.go2_model import POLICY_JOINT_ORDER, TRAINING_DEFAULT_JOINT_POS
 
-OBS_SCHEMA_VERSION = "phoenix-velocity-obs/v1"
+#: Raw SI actor observation (walk_v1 / walk_v2 runs, seeds 42-46).
+OBS_SCHEMA_V1 = "phoenix-velocity-obs/v1"
+#: Unitree-GO2-scaled actor observation (vNext onward).
+OBS_SCHEMA_V2 = "phoenix-velocity-obs/v2"
+#: The schema new training runs use unless a spec says otherwise. Kept at v1 so
+#: ``default_spec()`` and any resumed walk_v2 run keep their original contract;
+#: ``phoenix.velocity.spec.vnext_spec`` selects v2 explicitly.
+OBS_SCHEMA_VERSION = OBS_SCHEMA_V1
 MANIFEST_SCHEMA = "phoenix-checkpoint-manifest/v1"
 #: File written beside every PhoenixVelocity checkpoint directory.
 MANIFEST_NAME = "phoenix_manifest.json"
@@ -64,6 +79,45 @@ ACTOR_OBS_TERMS: tuple[tuple[str, int, str, str], ...] = (
 )
 ACTOR_OBS_DIM = sum(t[1] for t in ACTOR_OBS_TERMS)
 assert ACTOR_OBS_DIM == 45, ACTOR_OBS_DIM
+
+#: Per-term multiplier applied to the SI value, per schema version. The actor
+#: input is ``scale * term``; noise (training only) is added in SI units BEFORE
+#: the scale, which is Isaac Lab's ObservationManager order (noise, clip, scale).
+#:
+#: v2 numbers are copied from unitreerobotics/unitree_rl_lab,
+#: tasks/locomotion/robots/go2/velocity_env_cfg.py (fetched 2026-09-25):
+#: ``base_ang_vel ... scale=0.2`` and ``joint_vel_rel ... scale=0.05``. Why:
+#: raw joint_vel on a trotting GO2 is O(10) rad/s against O(0.1-1) for every
+#: other term, so with actor normalization OFF the first layer is dominated by
+#: the noisiest input (training noise half-width 1.5 rad/s). The scales bring
+#: every term to O(1) without empirical normalization stats that could be lost
+#: or drift between train and deploy.
+ACTOR_OBS_SCALES: dict[str, dict[str, float]] = {
+    OBS_SCHEMA_V1: {name: 1.0 for name, *_ in ACTOR_OBS_TERMS},
+    OBS_SCHEMA_V2: {
+        "base_ang_vel": 0.2,
+        "projected_gravity": 1.0,
+        "velocity_command": 1.0,
+        "joint_pos_rel": 1.0,
+        "joint_vel": 0.05,
+        "last_action": 1.0,
+    },
+}
+OBS_SCHEMA_VERSIONS: tuple[str, ...] = tuple(ACTOR_OBS_SCALES)
+
+
+class UnknownObsSchemaError(ValueError):
+    """An observation schema version this code does not define."""
+
+
+def actor_obs_scales(version: str) -> dict[str, float]:
+    """Term -> scale for ``version``. Raises on an unknown version (fail closed)."""
+    if version not in ACTOR_OBS_SCALES:
+        raise UnknownObsSchemaError(
+            f"unknown observation schema {version!r}; known: {list(OBS_SCHEMA_VERSIONS)}"
+        )
+    return dict(ACTOR_OBS_SCALES[version])
+
 
 #: Signals the actor must never depend on: not reliably measurable on the GO2, or
 #: exteroceptive / external localization. The critic may see them.
@@ -113,15 +167,20 @@ def obs_slices() -> dict[str, slice]:
     return out
 
 
-def obs_schema_dict() -> dict[str, Any]:
-    """Everything the observation's MEANING depends on, as canonical data."""
+def obs_schema_dict(version: str = OBS_SCHEMA_VERSION) -> dict[str, Any]:
+    """Everything the observation's MEANING depends on, as canonical data.
+
+    The v1 dict is byte-identical to the pre-versioning one, so manifests of
+    already-trained raw-SI checkpoints keep validating.
+    """
+    scales = actor_obs_scales(version)
     return {
-        "version": OBS_SCHEMA_VERSION,
+        "version": version,
         "terms": [{"name": n, "dim": d, "unit": u, "frame": f} for n, d, u, f in ACTOR_OBS_TERMS],
         "dim": ACTOR_OBS_DIM,
         "joint_order": list(JOINT_ORDER),
         "default_joint_pos": [DEFAULT_JOINT_POS[j] for j in JOINT_ORDER],
-        "scales": "none (all terms raw SI)",
+        "scales": "none (all terms raw SI)" if version == OBS_SCHEMA_V1 else scales,
     }
 
 
@@ -131,8 +190,24 @@ def _canonical_sha256(obj: Any) -> str:
     ).hexdigest()
 
 
-def obs_schema_sha256() -> str:
-    return _canonical_sha256(obs_schema_dict())
+def obs_schema_sha256(version: str = OBS_SCHEMA_VERSION) -> str:
+    return _canonical_sha256(obs_schema_dict(version))
+
+
+def manifest_obs_schema(manifest: Mapping[str, Any]) -> str:
+    """The observation schema a manifest's policy was trained on. Fails closed.
+
+    Deploy and sim2sim MUST build observations with the version this returns;
+    raises :class:`UnknownObsSchemaError` for a missing/unknown version or a
+    schema hash that does not match this code's definition of that version.
+    """
+    obs = manifest.get("observation") if isinstance(manifest, Mapping) else None
+    version = (obs or {}).get("schema_version")
+    if version not in ACTOR_OBS_SCALES:
+        raise UnknownObsSchemaError(f"manifest observation schema {version!r} is not known")
+    if (obs or {}).get("schema_sha256") != obs_schema_sha256(version):
+        raise UnknownObsSchemaError(f"manifest schema hash does not match this code's {version}")
+    return str(version)
 
 
 @dataclass(frozen=True)
@@ -212,9 +287,25 @@ def build_manifest(
     reward_scales: Mapping[str, float],
     domain_randomization: Mapping[str, Any],
     curriculum: Mapping[str, Any],
+    obs_schema_version: str,
+    deploy: Mapping[str, Any] | None = None,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Assemble a manifest for a PhoenixVelocity checkpoint (45-D contract)."""
+    """Assemble a manifest for a PhoenixVelocity checkpoint (45-D contract).
+
+    ``deploy``, when given, is written verbatim as ``manifest["deploy"]`` and is
+    what ``phoenix.sim2sim.deploy_spec.load_deploy_spec`` (sim2sim gate) reads:
+    ``{"kp": float|[12], "kd": float|[12], "action_clip": float|None}``. Without
+    it, the gate falls back to the Phoenix train==deploy defaults (Kp 25 / Kd 0.5,
+    action_clip 1.0), which is WRONG for any checkpoint trained with a different
+    ``ActionSpec.clip_actions`` (see that field for the 2026-09-25 clip=1.0 bug) --
+    always pass ``deploy`` for a checkpoint trained by this module.
+
+    ``obs_schema_version`` is required (no default) so a scaled-observation
+    checkpoint can never be written with the raw-SI schema by omission: pass the
+    training spec's ``obs_schema``.
+    """
+    scales = actor_obs_scales(obs_schema_version)
     capable, reasons = derive_locomotion_capable(commands)
     manifest: dict[str, Any] = {
         "schema": MANIFEST_SCHEMA,
@@ -222,10 +313,11 @@ def build_manifest(
         "locomotion_capable": capable,
         "locomotion_incapable_reasons": reasons,
         "observation": {
-            "schema_version": OBS_SCHEMA_VERSION,
-            "schema_sha256": obs_schema_sha256(),
+            "schema_version": obs_schema_version,
+            "schema_sha256": obs_schema_sha256(obs_schema_version),
             "actor_dim": ACTOR_OBS_DIM,
             "actor_terms": [t[0] for t in ACTOR_OBS_TERMS],
+            "actor_scales": scales,
         },
         "action": {"dim": ACTION_DIM, "scale": ACTION_SCALE, "type": "joint_position_offset"},
         "control_hz": CONTROL_HZ,
@@ -245,6 +337,8 @@ def build_manifest(
         },
         "checkpoint_sha256": checkpoint_sha256,
     }
+    if deploy:
+        manifest["deploy"] = dict(deploy)
     if extra:
         manifest["extra"] = dict(extra)
     return manifest
@@ -290,12 +384,13 @@ def validate_manifest_for_mode(
         )
 
     obs = manifest.get("observation") or {}
-    if obs.get("schema_version") != OBS_SCHEMA_VERSION:
-        problems.append(
-            f"observation schema {obs.get('schema_version')!r} != {OBS_SCHEMA_VERSION!r}"
-        )
-    if obs.get("schema_sha256") != obs_schema_sha256():
+    version = obs.get("schema_version")
+    if version not in ACTOR_OBS_SCALES:
+        problems.append(f"observation schema {version!r} is not one of {list(OBS_SCHEMA_VERSIONS)}")
+    elif obs.get("schema_sha256") != obs_schema_sha256(version):
         problems.append("observation schema hash does not match this code's 45-D contract")
+    elif "actor_scales" in obs and obs["actor_scales"] != ACTOR_OBS_SCALES[version]:
+        problems.append(f"recorded actor_scales {obs['actor_scales']} != {version} scales")
     if obs.get("actor_dim") != ACTOR_OBS_DIM:
         problems.append(f"actor observation dim {obs.get('actor_dim')!r} != {ACTOR_OBS_DIM}")
     terms = list(obs.get("actor_terms") or [])
@@ -380,6 +475,7 @@ __all__ = [
     "ACTION_DIM",
     "ACTION_SCALE",
     "ACTOR_OBS_DIM",
+    "ACTOR_OBS_SCALES",
     "ACTOR_OBS_TERMS",
     "CONTROL_HZ",
     "CommandRanges",
@@ -392,9 +488,15 @@ __all__ = [
     "MODES",
     "MODE_STAND",
     "MODE_VELOCITY",
+    "OBS_SCHEMA_V1",
+    "OBS_SCHEMA_V2",
     "OBS_SCHEMA_VERSION",
+    "OBS_SCHEMA_VERSIONS",
     "PHYSICS_HZ",
+    "UnknownObsSchemaError",
+    "actor_obs_scales",
     "build_manifest",
+    "manifest_obs_schema",
     "derive_locomotion_capable",
     "obs_schema_dict",
     "obs_schema_sha256",

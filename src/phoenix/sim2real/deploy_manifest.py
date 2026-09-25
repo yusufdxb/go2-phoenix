@@ -52,9 +52,14 @@ class DeployManifest:
     #: control.action_scale when present.
     action_scale: float | tuple[float, ...] | None
     path: Path
+    #: PhoenixVelocity observation schema (contract.ACTOR_OBS_SCALES) when the
+    #: manifest has a velocity-contract ``observation`` block, else None (H25-era
+    #: stand manifests). The velocity FSM's default builder requires it.
+    obs_schema_version: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "obs_schema_version": self.obs_schema_version,
             "action_clip": self.action_clip,
             "kp": self.kp,
             "kd": self.kd,
@@ -120,7 +125,20 @@ def load_deploy_manifest(path: Path | str) -> DeployManifest:
     else:
         action_scale = float(action_scale_raw)
 
+    obs_schema_version: str | None = None
+    obs = data.get("observation")
+    if isinstance(obs, dict) and str(obs.get("schema_version", "")).startswith(
+        "phoenix-velocity-obs/"
+    ):
+        from phoenix.velocity.contract import UnknownObsSchemaError, manifest_obs_schema
+
+        try:
+            obs_schema_version = manifest_obs_schema(data)
+        except UnknownObsSchemaError as exc:
+            raise ManifestError(f"manifest {p}: {exc}") from exc
+
     return DeployManifest(
+        obs_schema_version=obs_schema_version,
         action_clip=clip,
         kp=None if kp is None else float(kp),
         kd=None if kd is None else float(kd),

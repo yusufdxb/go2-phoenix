@@ -21,7 +21,15 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from .contract import ACTOR_OBS_DIM, DEFAULT_JOINT_POS, JOINT_ORDER, NUM_JOINTS, obs_slices
+from .contract import (
+    ACTOR_OBS_DIM,
+    DEFAULT_JOINT_POS,
+    JOINT_ORDER,
+    NUM_JOINTS,
+    UnknownObsSchemaError,
+    actor_obs_scales,
+    obs_slices,
+)
 
 #: A measured quaternion whose norm is further than this from 1 is treated as a
 #: corrupt sample, not renormalized away.
@@ -96,8 +104,14 @@ def build_actor_observation(
     joint_pos: Sequence[float] | np.ndarray,
     joint_vel: Sequence[float] | np.ndarray,
     last_action: Sequence[float] | np.ndarray,
+    obs_schema_version: str,
 ) -> np.ndarray:
     """Assemble the 45-D actor observation. All joint arrays are in :data:`JOINT_ORDER`.
+
+    ``obs_schema_version`` is required: it selects the per-term scales
+    (:data:`phoenix.velocity.contract.ACTOR_OBS_SCALES`) and must be the version
+    recorded in the checkpoint manifest (``contract.manifest_obs_schema``). An
+    unknown version raises :class:`ObservationError`.
 
     Args:
         gyro_body: body-frame angular velocity, rad/s.
@@ -106,7 +120,12 @@ def build_actor_observation(
         joint_pos: ABSOLUTE joint positions, rad (the default pose is subtracted here).
         joint_vel: joint velocities, rad/s.
         last_action: previous raw policy action (dimensionless, pre-scale).
+        obs_schema_version: e.g. ``contract.OBS_SCHEMA_V2``.
     """
+    try:
+        scales = actor_obs_scales(obs_schema_version)
+    except UnknownObsSchemaError as exc:
+        raise ObservationError(str(exc)) from exc
     parts = {
         "base_ang_vel": _vec("gyro_body", gyro_body, 3),
         "projected_gravity": projected_gravity_wxyz(quat_wxyz),
@@ -117,7 +136,7 @@ def build_actor_observation(
     }
     obs = np.empty(ACTOR_OBS_DIM, dtype=np.float64)
     for name, sl in obs_slices().items():
-        obs[sl] = parts[name]
+        obs[sl] = parts[name] * scales[name]
     return obs.astype(np.float32)
 
 
