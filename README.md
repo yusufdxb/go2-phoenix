@@ -158,7 +158,7 @@ asserted estop, not as "OK to keep going." Every gate is a pure function in
   evidence for stages A (offline) through H (10 s stand, three attempts) against
   one commit and one artifact lock, and never moves between motor-off and live
   stages on its own. The September stage F1 attempt failed; the
-  [H25 run card](docs/h25_stand_hardware_run_card.md) records that path.
+  [Evidence index](EVIDENCE.md) records that path.
 
 The legacy H25 knobs live under `safety:` in `configs/sim2real/deploy.yaml`.
 Walking uses the checkpoint manifest for its action clip and gains.

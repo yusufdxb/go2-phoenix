@@ -72,8 +72,8 @@ OBS_TERM_DIMS: dict[str, int | None] = {
 }
 
 #: Per-term scale factor applied between the sensor value and the policy
-#: input. Training applies none (see ``docs/native_runtime_audit.md`` section
-#: 2), so every entry is 1.0 and the parity gate asserts it stays that way.
+#: input. Training applies no per-term scale, so every entry is 1.0 and
+#: the parity gate asserts it stays that way.
 OBS_TERM_SCALES: dict[str, float] = dict.fromkeys(OBS_TERM_ORDER, 1.0)
 
 #: ``base_lin_vel`` is taken from validated odometry, transformed into the

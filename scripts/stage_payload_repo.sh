@@ -20,11 +20,11 @@
 # <dest> is the payload's repo root: a local directory (self-test) or
 # [user@]host:/path. Refuses to run from a dirty working tree unless
 # ALLOW_DIRTY=1, because PAYLOAD_SYNC.txt records the commit and a dirty tree
-# makes that record a lie. JETSON_PW defaults to 123 (factory default).
+# makes that record a lie. Remote staging requires JETSON_PW in the environment.
 #
 # Examples:
 #   scripts/stage_payload_repo.sh /tmp/phoenix-repo-selftest
-#   scripts/stage_payload_repo.sh jetson-cable:/home/unitree/go2-phoenix
+#   scripts/stage_payload_repo.sh user@host:/remote/phoenix
 
 set -euo pipefail
 
@@ -109,9 +109,10 @@ fi
 # ------------------------------------------------------------------ remote push
 HOST="${REMOTE%%:*}"
 RPATH="${REMOTE#*:}"
-PW="${JETSON_PW:-123}"
-SSH=(sshpass -p "$PW" ssh "$HOST")
-export RSYNC_RSH="sshpass -p $PW ssh"
+: "${JETSON_PW:?Set JETSON_PW for remote staging}"
+export SSHPASS="$JETSON_PW"
+SSH=(sshpass -e ssh "$HOST")
+export RSYNC_RSH="sshpass -e ssh"
 
 echo "[repo] pushing $N_FILES tracked files @ ${COMMIT:0:7} (dirty=$DIRTY) -> $HOST:$RPATH"
 "${SSH[@]}" "mkdir -p '$RPATH'"

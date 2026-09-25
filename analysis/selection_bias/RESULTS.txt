@@ -373,9 +373,9 @@ Aggregation levels present in the frozen summary:
    process-cells violating the registered direction on the subset: []
 
 ################ adv_3_batch.py ################
-/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:75: RuntimeWarning: invalid value encountered in scalar divide
+analysis/selection_bias/adv_3_batch.py:75: RuntimeWarning: invalid value encountered in scalar divide
   ac1 = float((xc[1:]*xc[:-1]).sum()/ (xc**2).sum())
-/home/yusuf/workspace/go2-phoenix/analysis/selection_bias/adv_3_batch.py:77: RuntimeWarning: invalid value encountered in scalar divide
+analysis/selection_bias/adv_3_batch.py:77: RuntimeWarning: invalid value encountered in scalar divide
   null=np.array([ (lambda y:(y[1:]*y[:-1]).sum()/(y**2).sum())(rng.permutation(xc)) for _ in range(20000)])
 === (a) membership | onset: is block_index informative AT ALL? ===
 membership is 1{onset <= per-pair threshold} with 0/576 mismatches, so by
@@ -572,4 +572,4 @@ processes: 3 ['process_01', 'process_02', 'process_03']
   leakfree_disturbed_pairs_with_discrepancy      0
   by_cell_disturbed                              {'walk_motor': 3, 'walk_obs': 1}
 
-wrote /home/yusuf/workspace/go2-phoenix/analysis/selection_bias/process_level.json
+wrote analysis/selection_bias/process_level.json

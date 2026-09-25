@@ -95,7 +95,7 @@ def test_contract_catches_each_unsafe_edit(mutate, needle) -> None:
 def test_semantic_hash_survives_activation_pinning_and_comments() -> None:
     text = H25.read_text()
     pinned_text, pinned = pin_config_text(
-        text, "/home/unitree/phoenix/stand-h25", {"policy.onnx", "policy.pt"}
+        text, "/robot/phoenix/stand-h25", {"policy.onnx", "policy.pt"}
     )
     assert set(pinned) == {"onnx_path", "torchscript_path"}
     stripped = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))

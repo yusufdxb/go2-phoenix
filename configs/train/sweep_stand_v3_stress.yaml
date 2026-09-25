@@ -1,7 +1,6 @@
 # Sweep spec: stand-v3 stress grid (2026-05-17).
 #
 # 3 friction regimes x 2 push magnitudes x 2 action_rate penalties = 12 cells.
-# See docs/sweep_design_2026-05-17.md for rationale + axis selection.
 #
 # Consumed by scripts/sweep_run.py. All fields are required unless marked
 # optional. The runner ignores unknown top-level keys (forward-compat).
