@@ -18,8 +18,16 @@ export PYTHONUNBUFFERED=1
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 
 SEEDS=(42 43 44)
-MAX_ITER=12000
-NUM_ENVS=4096
+# num_envs=8192 chosen over 4096/16384 by measured throughput (2026-09-25):
+# 4096 envs: 0.62s/iter, ~157-162k env-steps/s
+# 8192 envs: 0.92s/iter, ~213k env-steps/s (+35% over 4096)
+# 16384 envs: 1.72s/iter, ~228k env-steps/s (+7% over 8192, iteration time nearly
+#   doubles; 24*16384=393k transitions/update is well past useful batch-size
+#   returns for this problem, and PPO convergence tracks ITERATION count more
+#   than raw env-steps, so 16384 would complete far fewer updates in the same
+#   wall-clock budget -- worse for training quality despite higher raw steps/s)
+MAX_ITER=9000
+NUM_ENVS=8192
 SAVE_INTERVAL=250
 ACTION_CLIP=100.0
 RUN_ROOTS=("checkpoints/velocity/walk_v1_seed42")  # clip=1.0 control, already trained
