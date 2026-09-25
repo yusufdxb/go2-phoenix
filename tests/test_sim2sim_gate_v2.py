@@ -54,7 +54,7 @@ def report(cfg, per_scenario, spec_checks=()):
 
 
 def test_v2_is_default_and_keeps_every_v1_number():
-    v1, v2 = load_gate_config("v1"), load_gate_config()
+    v1, v2 = load_gate_config("v1"), load_gate_config("v2")
     assert v2.version == 2 and v1.version == 1
     assert v2.raw["name"] == "gate_v2" and v2.path.endswith("gate_v2.yaml")
     for key in ("physics", "actuator", "fall", "tracking", "scenarios", "video"):

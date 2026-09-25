@@ -21,14 +21,20 @@ from .deploy_spec import COMMAND_KEYS, JOINT_GROUPS, DeploySpec
 
 GATE_SCHEMA = "phoenix-sim2sim-gate/v1"
 GATE_SCHEMA_V2 = "phoenix-sim2sim-gate/v2"
-GATE_SCHEMAS = {GATE_SCHEMA: 1, GATE_SCHEMA_V2: 2}
+GATE_SCHEMA_V3 = "phoenix-sim2sim-gate/v3"
+GATE_SCHEMAS = {GATE_SCHEMA: 1, GATE_SCHEMA_V2: 2, GATE_SCHEMA_V3: 3}
 REPORT_SCHEMA = "phoenix-sim2sim-gate-report/v2"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 GATE_CONFIGS = {
     "v1": _REPO_ROOT / "configs" / "sim2sim" / "gate_v1.yaml",
     "v2": _REPO_ROOT / "configs" / "sim2sim" / "gate_v2.yaml",
+    "v3": _REPO_ROOT / "configs" / "sim2sim" / "gate_v3.yaml",
 }
-DEFAULT_GATE_CONFIG = GATE_CONFIGS["v2"]
+DEFAULT_GATE_CONFIG = GATE_CONFIGS["v3"]
+
+#: Command component -> tracked-mean metric in the scenario metrics.
+_RESPONSE_METRIC = {"lin_vel_x": ("tracked_mean_vx", 0), "lin_vel_y": ("tracked_mean_vy", 1),
+                    "ang_vel_z": ("tracked_mean_wz", 2)}
 
 TIERS = ("nominal", "stress")
 #: Check tiers. v1: every check is "gate" (blocking). v2: "safety" blocks,
@@ -318,9 +324,33 @@ def evaluate_scenario(metrics: Mapping[str, Any], scenario: GateScenario, cfg: G
     if scenario.stand_checks:
         checks.append(_check("mean_base_height_m", metrics["mean_base_height_m"], ">=",
                              cfg.thresholds["stand"]["min_mean_base_height_m"]))
+    if cfg.version >= 3:
+        resp = cfg.raw["safety"]["responsiveness"]
+        component = resp["scenarios"].get(scenario.name)
+        if component is not None:
+            checks.append(responsiveness_check(metrics, scenario, component, float(resp["min_fraction"])))
     for c in checks:
         c["tier"] = cfg.check_tier(c["check"])
     return checks
+
+
+def responsiveness_check(metrics: Mapping[str, Any], scenario: GateScenario, component: str,
+                         min_fraction: float) -> dict[str, Any]:
+    """Achieved mean (tracking window) along the command, as a fraction of |command|.
+
+    value = sign(cmd) * mean / |cmd|; pass when >= ``min_fraction``. The command is
+    ``component`` of the scenario's last segment. No tracking window (fall) fails.
+    """
+    key, idx = _RESPONSE_METRIC[component]
+    cmd = float(scenario.segments[-1][1][idx])
+    if cmd == 0.0:
+        raise GateConfigError(f"responsiveness on {scenario.name}.{component}: last command is zero")
+    mean = metrics.get(key)
+    frac = None if mean is None else math.copysign(1.0, cmd) * float(mean) / abs(cmd)
+    c = _check(f"responsiveness.{component}", frac, ">=", min_fraction)
+    c["achieved_mean"] = mean
+    c["command"] = cmd
+    return c
 
 
 def tag_spec_checks(checks: list[dict[str, Any]], cfg: GateConfig) -> list[dict[str, Any]]:
@@ -377,6 +407,8 @@ __all__ = [
     "GATE_CONFIGS",
     "GATE_SCHEMA",
     "GATE_SCHEMA_V2",
+    "GATE_SCHEMA_V3",
+    "responsiveness_check",
     "performance_table",
     "saturation_mask",
     "tag_spec_checks",

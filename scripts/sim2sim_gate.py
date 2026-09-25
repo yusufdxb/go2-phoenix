@@ -48,8 +48,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--manifest", required=True,
                     help="phoenix_manifest.json, the legacy H25 manifest, or a sim2sim deploy spec")
     ap.add_argument("--out", default=None, help="output directory (default runs/sim2sim_gate/<name>_<utc>)")
-    ap.add_argument("--gate", choices=("v1", "v2"), default="v2",
-                    help="preregistered gate version (default v2: blocking SAFETY tier, reported PERFORMANCE tier)")
+    ap.add_argument("--gate", choices=("v1", "v2", "v3"), default="v3",
+                    help="gate version (default v3: v2 plus blocking responsiveness; see docs/sim2sim_gate.md)")
     ap.add_argument("--gate-config", default=None, help="explicit gate yaml; overrides --gate")
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--scenarios", nargs="*", default=None, help="subset (makes the run DIAGNOSTIC)")
