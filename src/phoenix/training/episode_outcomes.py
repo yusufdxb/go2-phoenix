@@ -13,7 +13,17 @@ import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-SCHEMA_VERSION = "2.0.0"
+#: 2.1.0 (2026-09-22): ``success`` means LOCOMOTION success (survived AND a PASS
+#: behavioral verdict from :mod:`phoenix.evaluation`). In 2.0.0 it meant "the
+#: time_out term fired and no termination term did", which labeled every
+#: surviving episode a success regardless of attitude events, interventions or
+#: tracking; that value is preserved in ``legacy_success``.
+SCHEMA_VERSION = "2.1.0"
+SUPPORTED_SCHEMA_VERSIONS = frozenset({"2.0.0", SCHEMA_VERSION})
+SUCCESS_DEFINITIONS = {
+    "2.0.0": "legacy: time_out fired and no termination term fired (survival only)",
+    "2.1.0": "survived to planned end AND phoenix.evaluation verdict PASS",
+}
 
 
 @dataclass(frozen=True)
@@ -43,10 +53,32 @@ class EpisodeOutcome:
     environment_parameters: dict = field(default_factory=dict)
     observation_status: str = "terminal_pre_reset"
     schema_version: str = SCHEMA_VERSION
+    # ---- 2.1.0 ----
+    #: :class:`phoenix.evaluation.outcomes.Outcome` value.
+    outcome_class: str | None = None
+    #: PASS / WARN / FAIL from :mod:`phoenix.evaluation.thresholds`.
+    verdict: str | None = None
+    verdict_reasons: list[str] | None = None
+    #: The 2.0.0 ``success`` value (time_out rule), kept for side-by-side comparison.
+    legacy_success: bool | None = None
 
     def __post_init__(self):
-        if self.schema_version != SCHEMA_VERSION:
+        if self.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
             raise ValueError("unsupported episode outcome schema")
+        if self.schema_version != "2.0.0" and (
+            self.outcome_class is None or self.verdict is None or self.legacy_success is None
+        ):
+            raise ValueError(
+                "schema 2.1.0 requires outcome_class, verdict and legacy_success: success "
+                "without a behavioral verdict is the defect 2.1.0 exists to remove"
+            )
+        if self.schema_version != "2.0.0" and self.success and self.verdict != "PASS":
+            raise ValueError("success=True requires verdict PASS")
+        if self.schema_version != "2.0.0" and self.success and self.outcome_class not in (
+            "timeout",
+            "completed",
+        ):
+            raise ValueError(f"success=True is impossible for outcome {self.outcome_class!r}")
         if not self.policy_id or not self.termination_reason:
             raise ValueError("policy identity and termination reason required")
         if (
@@ -80,7 +112,11 @@ class EpisodeOutcome:
 
     def to_dict(self) -> dict:
         result = asdict(self)
+        if self.schema_version == "2.0.0":
+            for name in ("outcome_class", "verdict", "verdict_reasons", "legacy_success"):
+                result.pop(name)
         result["episode_length_s"] = self.episode_length_steps * self.control_dt_s
+        result["success_definition"] = SUCCESS_DEFINITIONS[self.schema_version]
         return result
 
 
@@ -105,6 +141,10 @@ def load_outcomes(path: str | Path) -> list[EpisodeOutcome]:
     for line in Path(path).read_text().splitlines():
         record = json.loads(line)
         duration = record.pop("episode_length_s")
+        definition = record.pop("success_definition", None)
+        version = record.get("schema_version")
+        if definition is not None and definition != SUCCESS_DEFINITIONS.get(version):
+            raise ValueError("success_definition disagrees with schema_version")
         outcome = EpisodeOutcome(**record)
         if not math.isclose(duration, outcome.episode_length_steps * outcome.control_dt_s):
             raise ValueError("episode duration disagrees with steps and control period")

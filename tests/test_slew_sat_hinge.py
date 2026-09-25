@@ -2,7 +2,7 @@
 
 Pure-torch tests; no Isaac Lab dependency. Uses a trivial stand-in
 `env` object whose only interface is `env.action_manager.action` and
-`env.action_manager.prev_action` — matches how upstream Isaac Lab
+`env.action_manager.prev_action` ,  matches how upstream Isaac Lab
 action-rate rewards access actions (see
 IsaacLab/source/isaaclab/isaaclab/envs/mdp/rewards.py:action_rate_l2).
 """
@@ -28,7 +28,7 @@ class _FakeEnv:
 
 
 def test_zero_below_threshold() -> None:
-    # All deltas = 0.1 (< 0.15 threshold)
+    # Dimensionless delta 0.1 becomes 0.025 rad (< 0.15 threshold).
     prev = torch.zeros(2, 12)
     action = torch.full((2, 12), 0.1)
     env = _FakeEnv(action, prev)
@@ -37,10 +37,10 @@ def test_zero_below_threshold() -> None:
 
 
 def test_squared_above_threshold() -> None:
-    # Env 0: one motor at 0.175 (at clip), rest zero
+    # Dimensionless delta 0.7 becomes 0.175 rad (the deploy clip).
     prev = torch.zeros(1, 12)
     action = torch.zeros(1, 12)
-    action[0, 3] = 0.175
+    action[0, 3] = 0.7
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env)
     # excess = 0.025, squared = 6.25e-4
@@ -48,22 +48,22 @@ def test_squared_above_threshold() -> None:
 
 
 def test_sums_across_motors() -> None:
-    # 3 motors at 0.175 -> 3 * (0.025)^2
+    # 3 motors at dimensionless 0.7 -> 3 * (0.175 - 0.15)^2.
     prev = torch.zeros(1, 12)
     action = torch.zeros(1, 12)
-    action[0, 0] = 0.175
-    action[0, 5] = 0.175
-    action[0, 11] = 0.175
+    action[0, 0] = 0.7
+    action[0, 5] = 0.7
+    action[0, 11] = 0.7
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env)
     assert torch.allclose(r, torch.tensor([3 * 0.025**2]), atol=1e-8)
 
 
 def test_per_env_independent() -> None:
-    # Env 0: all quiet. Env 1: one motor at clip.
+    # Env 0: all quiet. Env 1: one motor at the 0.175 rad clip.
     prev = torch.zeros(2, 12)
     action = torch.zeros(2, 12)
-    action[1, 0] = 0.175
+    action[1, 0] = 0.7
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env)
     assert r.shape == (2,)
@@ -72,13 +72,26 @@ def test_per_env_independent() -> None:
 
 
 def test_threshold_parameter() -> None:
-    # Motor at 0.175. With threshold=0.175 (strict >), penalty must be 0.
+    # Dimensionless 0.7 becomes 0.175 rad. At threshold=0.175 the penalty is 0.
     prev = torch.zeros(1, 12)
     action = torch.zeros(1, 12)
-    action[0, 0] = 0.175
+    action[0, 0] = 0.7
     env = _FakeEnv(action, prev)
     r = slew_sat_hinge_l2(env, threshold=0.175)
     assert torch.allclose(r, torch.zeros(1))
+
+
+def test_action_delta_is_converted_to_target_radians() -> None:
+    """Regression for the H25 unit bug: 0.15 action units is only 0.0375 rad."""
+    prev = torch.zeros(1, 12)
+    action = torch.zeros(1, 12)
+    action[0, 0] = 0.15
+    env = _FakeEnv(action, prev)
+    assert torch.allclose(slew_sat_hinge_l2(env), torch.zeros(1))
+
+    # A 0.7 action delta maps to 0.175 rad, 0.025 rad above the hinge.
+    action[0, 0] = 0.7
+    assert torch.allclose(slew_sat_hinge_l2(env), torch.tensor([0.025**2]), atol=1e-8)
 
 
 def test_default_hinge_threshold_tracks_hardware_slew_clip() -> None:
