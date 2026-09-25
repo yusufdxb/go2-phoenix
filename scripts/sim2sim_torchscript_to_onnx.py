@@ -17,7 +17,9 @@ from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--pt", required=True)
     ap.add_argument("--obs-dim", type=int, required=True)
     ap.add_argument("--out", required=True)
@@ -33,9 +35,16 @@ def main(argv: list[str] | None = None) -> int:
     dummy = torch.zeros(1, args.obs_dim)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    torch.onnx.export(mod, (dummy,), str(out), input_names=["obs"], output_names=["action"],
-                      dynamic_axes={"obs": {0: "batch"}, "action": {0: "batch"}}, opset_version=17,
-                      dynamo=False)
+    torch.onnx.export(
+        mod,
+        (dummy,),
+        str(out),
+        input_names=["obs"],
+        output_names=["action"],
+        dynamic_axes={"obs": {0: "batch"}, "action": {0: "batch"}},
+        opset_version=17,
+        dynamo=False,
+    )
     rng = np.random.default_rng(0)
     x = rng.normal(0.0, 1.0, size=(args.samples, args.obs_dim)).astype(np.float32)
     with torch.no_grad():

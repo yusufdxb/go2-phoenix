@@ -74,7 +74,14 @@ PHOENIX_DEFAULT_ACTION_CLIP = 1.0
 #: rl_sar ``ComputeObservation`` term names this module reproduces.
 #: ``lin_vel`` is refused: the GO2 cannot measure it.
 TERM_NAMES = ("ang_vel", "gravity_vec", "commands", "dof_pos", "dof_vel", "actions")
-TERM_DIMS = {"ang_vel": 3, "gravity_vec": 3, "commands": 3, "dof_pos": 12, "dof_vel": 12, "actions": 12}
+TERM_DIMS = {
+    "ang_vel": 3,
+    "gravity_vec": 3,
+    "commands": 3,
+    "dof_pos": 12,
+    "dof_vel": 12,
+    "actions": 12,
+}
 
 COMMAND_KEYS = ("lin_vel_x", "lin_vel_y", "ang_vel_z")
 JOINT_GROUPS = ("hip", "thigh", "calf")
@@ -97,7 +104,9 @@ def sdk_ids_for(order: Sequence[str]) -> tuple[int, ...]:
     try:
         return tuple(UNITREE_MOTOR_ORDER.index(n) for n in order)
     except ValueError as exc:
-        raise DeploySpecError(f"joint order has a name not in the Unitree motor table: {exc}") from exc
+        raise DeploySpecError(
+            f"joint order has a name not in the Unitree motor table: {exc}"
+        ) from exc
 
 
 def _per_joint(value: Any, n: int, what: str, order: Sequence[str] | None = None) -> np.ndarray:
@@ -211,7 +220,9 @@ class DeploySpec:
         """
         raw = np.asarray(raw, dtype=np.float64).reshape(-1)
         if raw.shape != (len(self.joint_order),):
-            raise DeploySpecError(f"policy returned {raw.shape}, expected ({len(self.joint_order)},)")
+            raise DeploySpecError(
+                f"policy returned {raw.shape}, expected ({len(self.joint_order)},)"
+            )
         if self.action_clip is None:
             sat = np.zeros(raw.shape, dtype=bool)
             action = raw
@@ -291,7 +302,9 @@ def _pose(order: Sequence[str], pose: Mapping[str, float] | Sequence[float]) -> 
     return _per_joint(pose, len(order), "default_joint_pos")
 
 
-def _deploy_block(manifest: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, float | None, list[str]]:
+def _deploy_block(
+    manifest: Mapping[str, Any],
+) -> tuple[np.ndarray, np.ndarray, float | None, list[str]]:
     deploy = manifest.get("deploy") or {}
     assumptions = []
     order = tuple(manifest.get("joint_order") or JOINT_ORDER)
@@ -311,7 +324,9 @@ def _deploy_block(manifest: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, 
         clip = deploy["action_clip"]
     else:
         clip = PHOENIX_DEFAULT_ACTION_CLIP
-        assumptions.append(f"manifest has no deploy.action_clip; used {PHOENIX_DEFAULT_ACTION_CLIP}")
+        assumptions.append(
+            f"manifest has no deploy.action_clip; used {PHOENIX_DEFAULT_ACTION_CLIP}"
+        )
     clip = None if clip is None else float(clip)
     if clip is not None and not clip > 0:
         raise DeploySpecError(f"deploy.action_clip must be > 0 or null, got {clip}")
@@ -356,7 +371,10 @@ def spec_from_phoenix_manifest(
         sdk_joint_ids_map=sdk_ids_for(order),
         manifest_problems=tuple(problems),
         assumptions=tuple(assumptions),
-        provenance={"provenance": manifest.get("provenance"), "checkpoint_sha256": manifest.get("checkpoint_sha256")},
+        provenance={
+            "provenance": manifest.get("provenance"),
+            "checkpoint_sha256": manifest.get("checkpoint_sha256"),
+        },
     )
 
 
@@ -396,7 +414,10 @@ def spec_from_legacy_manifest(manifest: Mapping[str, Any], *, name: str) -> Depl
             "legacy manifest: not a PhoenixVelocity checkpoint, never valid for velocity mode",
         ),
         assumptions=tuple(assumptions),
-        provenance={"checkpoint_sha256": manifest.get("checkpoint_sha256"), "summary": manifest.get("summary")},
+        provenance={
+            "checkpoint_sha256": manifest.get("checkpoint_sha256"),
+            "summary": manifest.get("summary"),
+        },
     )
 
 
@@ -408,13 +429,17 @@ def spec_from_explicit(data: Mapping[str, Any]) -> DeploySpec:
     stated = data.get("sdk_joint_ids_map")
     problems: list[str] = []
     if stated is not None and tuple(int(i) for i in stated) != derived:
-        problems.append(f"stated sdk_joint_ids_map {list(stated)} != derived-by-name {list(derived)}")
+        problems.append(
+            f"stated sdk_joint_ids_map {list(stated)} != derived-by-name {list(derived)}"
+        )
     obs = data["observation"]
     terms = tuple({"name": t["name"], "scale": t.get("scale", 1.0)} for t in obs["terms"])
     dim = 0
     for t in terms:
         if t["name"] not in TERM_NAMES:
-            raise DeploySpecError(f"unsupported observation term {t['name']!r} (allowed {TERM_NAMES})")
+            raise DeploySpecError(
+                f"unsupported observation term {t['name']!r} (allowed {TERM_NAMES})"
+            )
         dim += TERM_DIMS[t["name"]]
     hist = obs.get("history") or {"length": 1}
     hlen = int(hist.get("length", 1))
@@ -454,7 +479,9 @@ def load_deploy_spec(
     data = json.loads(p.read_text())
     schema = data.get("schema")
     if schema == MANIFEST_SCHEMA:
-        return spec_from_phoenix_manifest(data, name=p.parent.name or p.stem, required_envelope=required_envelope)
+        return spec_from_phoenix_manifest(
+            data, name=p.parent.name or p.stem, required_envelope=required_envelope
+        )
     if schema == LEGACY_SCHEMA:
         return spec_from_legacy_manifest(data, name=str(data.get("name", p.stem)))
     if schema == SPEC_SCHEMA:

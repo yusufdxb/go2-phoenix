@@ -77,7 +77,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
 
     pv_env_cfg.register()
 
-    spec = default_spec().replace(sim=dataclasses.replace(default_spec().sim, num_envs=args.num_envs))
+    spec = default_spec().replace(
+        sim=dataclasses.replace(default_spec().sim, num_envs=args.num_envs)
+    )
     env_cfg = pv_env_cfg.build_velocity_env_cfg(spec)
     env = gym.make(TASK_ID, cfg=env_cfg, render_mode=None)
     unwrapped = env.unwrapped
@@ -92,7 +94,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         actor_sd = ckpt["actor_state_dict"]
     elif "model_state_dict" in ckpt:
         actor_sd = {
-            k[len("actor.") :]: v for k, v in ckpt["model_state_dict"].items() if k.startswith("actor.")
+            k[len("actor.") :]: v
+            for k, v in ckpt["model_state_dict"].items()
+            if k.startswith("actor.")
         }
     else:
         raise KeyError(f"checkpoint has no actor weights; keys={list(ckpt)}")
@@ -130,7 +134,6 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         limits[aname] = float(eff.flatten()[0].item()) if hasattr(eff, "flatten") else float(eff)
 
     obs_dict, _ = env.reset()
-    device = unwrapped.device
     n = unwrapped.num_envs
 
     sum_lin_err = {"stand": 0.0, "slow": 0.0, "fast": 0.0}
@@ -218,13 +221,21 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             "n": len(heights_stand),
         },
         "fall_rate": (
-            (terminations["trunk_contact"] + terminations["bad_orientation"] + terminations["numerical_failure"])
+            (
+                terminations["trunk_contact"]
+                + terminations["bad_orientation"]
+                + terminations["numerical_failure"]
+            )
             / max(total_episodes, 1)
         ),
         "termination_breakdown": terminations,
         "joint_near_limit_fraction": near_limit_frac_sum / max(steps_done, 1),
         "torque_headroom": {
-            k: {"peak_torque_nm": torque_peak[k], "limit_nm": limits[k], "peak_over_limit": torque_peak[k] / limits[k]}
+            k: {
+                "peak_torque_nm": torque_peak[k],
+                "limit_nm": limits[k],
+                "peak_over_limit": torque_peak[k] / limits[k],
+            }
             for k in limits
         },
         "action_clip_rate": clip_rate_sum / max(steps_done, 1),

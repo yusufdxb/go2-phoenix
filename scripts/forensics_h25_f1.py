@@ -185,7 +185,9 @@ def analyse(path: Path, display_path: str) -> dict:
                     "target_rad": float(targets[i, j]),
                     "hard_limit_rad": float(lim),
                     "abort_threshold_rad": float(
-                        lim - LIMIT_ABORT_BAND_RAD if lim == LOWER[j] else lim + LIMIT_ABORT_BAND_RAD
+                        lim - LIMIT_ABORT_BAND_RAD
+                        if lim == LOWER[j]
+                        else lim + LIMIT_ABORT_BAND_RAD
                     ),
                     "beyond_limit_by_rad": float(b[i, j]),
                 }

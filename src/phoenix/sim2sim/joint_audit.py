@@ -89,7 +89,9 @@ def unitree_stand_pose_check() -> dict[str, Any]:
     data.qpos[idx.qpos_adr] = q_sim
     mujoco.mj_forward(model, data)
     feet = [data.geom_xpos[g].copy() for g in idx.foot_geom_ids]
-    lowest = min(float(p[2] - model.geom_size[g][0]) for p, g in zip(feet, idx.foot_geom_ids, strict=True))
+    lowest = min(
+        float(p[2] - model.geom_size[g][0]) for p, g in zip(feet, idx.foot_geom_ids, strict=True)
+    )
     return {
         "base_height_m": 1.0 - lowest,
         "feet_below_base": all(p[2] < 1.0 - 0.15 for p in feet),
@@ -97,7 +99,9 @@ def unitree_stand_pose_check() -> dict[str, Any]:
     }
 
 
-def sign_audit(spec: DeploySpec, *, settle_s: float = 0.4, physics_hz: int = 1000) -> dict[str, Any]:
+def sign_audit(
+    spec: DeploySpec, *, settle_s: float = 0.4, physics_hz: int = 1000
+) -> dict[str, Any]:
     """Command +0.1 rad on each policy joint through the spec's deploy path. MuJoCo."""
     import mujoco
 
@@ -112,10 +116,17 @@ def sign_audit(spec: DeploySpec, *, settle_s: float = 0.4, physics_hz: int = 100
     kd = np.empty(12)
     kp[perm], kd[perm] = spec.kp, spec.kd
     base_q = np.array([0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0])
-    foot_of_leg = {leg: g for leg, g in zip(("FL", "FR", "RL", "RR"), idx.foot_geom_ids, strict=True)}
-    hip_body = {leg: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{leg}_thigh") for leg in foot_of_leg}
+    foot_of_leg = {
+        leg: g for leg, g in zip(("FL", "FR", "RL", "RR"), idx.foot_geom_ids, strict=True)
+    }
+    hip_body = {
+        leg: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{leg}_thigh")
+        for leg in foot_of_leg
+    }
 
-    def run(target_sim: np.ndarray, q0_sim: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, float]]:
+    def run(
+        target_sim: np.ndarray, q0_sim: np.ndarray
+    ) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, float]]:
         mujoco.mj_resetData(model, data)
         data.qpos[0:7] = base_q
         data.qpos[idx.qpos_adr] = q0_sim
@@ -129,7 +140,9 @@ def sign_audit(spec: DeploySpec, *, settle_s: float = 0.4, physics_hz: int = 100
             data.qvel[0:6] = 0.0
         mujoco.mj_forward(model, data)
         feet = {leg: data.geom_xpos[g].copy() for leg, g in foot_of_leg.items()}
-        reach = {leg: float(np.linalg.norm(feet[leg] - data.xpos[hip_body[leg]])) for leg in foot_of_leg}
+        reach = {
+            leg: float(np.linalg.norm(feet[leg] - data.xpos[hip_body[leg]])) for leg in foot_of_leg
+        }
         return data.qpos[idx.qpos_adr].copy(), feet, reach
 
     zero = np.zeros(12)
@@ -170,19 +183,21 @@ def sign_audit(spec: DeploySpec, *, settle_s: float = 0.4, physics_hz: int = 100
             and other_feet < FOOT_MIN_MOVE_M
             and bool(ok_dir)
         )
-        results.append({
-            "policy_index": i,
-            "joint": name,
-            "sdk_index": int(spec.sdk_joint_ids_map[i]),
-            "joint_moved_rad": float(dq[j_sim]),
-            "largest_other_rad": float(np.max(others)),
-            "moved_joint": JOINT_ORDER[moved_idx],
-            "foot_delta_m": dfoot.tolist(),
-            "reach_delta_m": reach[leg] - reach_ref[leg],
-            "largest_other_foot_move_m": other_feet,
-            "expected": expect,
-            "pass": bool(ok),
-        })
+        results.append(
+            {
+                "policy_index": i,
+                "joint": name,
+                "sdk_index": int(spec.sdk_joint_ids_map[i]),
+                "joint_moved_rad": float(dq[j_sim]),
+                "largest_other_rad": float(np.max(others)),
+                "moved_joint": JOINT_ORDER[moved_idx],
+                "foot_delta_m": dfoot.tolist(),
+                "reach_delta_m": reach[leg] - reach_ref[leg],
+                "largest_other_foot_move_m": other_feet,
+                "expected": expect,
+                "pass": bool(ok),
+            }
+        )
     return {"pass": all(r["pass"] for r in results), "joints": results}
 
 

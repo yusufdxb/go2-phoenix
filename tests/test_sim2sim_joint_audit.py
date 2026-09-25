@@ -28,11 +28,20 @@ def phoenix_spec():
     m = build_manifest(
         checkpoint_sha256="0" * 64,
         commands=CommandRanges((-1.0, 1.0), (-0.5, 0.5), (-1.0, 1.0), 0.1),
-        git_sha="a" * 40, git_dirty=False, seed=1, task="t", simulator="isaaclab",
-        reward_scales={}, domain_randomization={}, curriculum={},
+        git_sha="a" * 40,
+        git_dirty=False,
+        seed=1,
+        task="t",
+        simulator="isaaclab",
+        reward_scales={},
+        domain_randomization={},
+        curriculum={},
     )
-    return spec_from_phoenix_manifest(m, name="synthetic", required_envelope={
-        "lin_vel_x": 0.5, "lin_vel_y": 0.3, "ang_vel_z": 0.6})
+    return spec_from_phoenix_manifest(
+        m,
+        name="synthetic",
+        required_envelope={"lin_vel_x": 0.5, "lin_vel_y": 0.3, "ang_vel_z": 0.6},
+    )
 
 
 # ------------------------------------------------------------------ order (pure)
@@ -44,7 +53,11 @@ def test_three_orders_are_the_documented_ones():
     assert PER_LEG_ORDER[:3] == ("FL_hip_joint", "FL_thigh_joint", "FL_calf_joint")
     assert PER_LEG_ORDER[3] == "FR_hip_joint" and PER_LEG_ORDER[6] == "RL_hip_joint"
     assert SDK_ORDER[:3] == ("FR_hip_joint", "FR_thigh_joint", "FR_calf_joint")
-    assert SDK_ORDER[3] == "FL_hip_joint" and SDK_ORDER[6] == "RR_hip_joint" and SDK_ORDER[9] == "RL_hip_joint"
+    assert (
+        SDK_ORDER[3] == "FL_hip_joint"
+        and SDK_ORDER[6] == "RR_hip_joint"
+        and SDK_ORDER[9] == "RL_hip_joint"
+    )
 
 
 def test_per_leg_to_sdk_equals_unitree_mjlab_deploy_map():
@@ -57,8 +70,9 @@ def test_isaac_to_sdk_map_values():
     assert order_maps()["isaac_to_sdk"] == (3, 0, 9, 6, 4, 1, 10, 7, 5, 2, 11, 8)
 
 
-@pytest.mark.parametrize("src,dst", [(ISAAC_ORDER, SDK_ORDER), (PER_LEG_ORDER, SDK_ORDER),
-                                     (ISAAC_ORDER, PER_LEG_ORDER)])
+@pytest.mark.parametrize(
+    "src,dst", [(ISAAC_ORDER, SDK_ORDER), (PER_LEG_ORDER, SDK_ORDER), (ISAAC_ORDER, PER_LEG_ORDER)]
+)
 def test_maps_roundtrip_by_name(src, dst):
     fwd = index_map(src, dst)
     back = index_map(dst, src)
@@ -82,7 +96,20 @@ def test_spec_sdk_maps_match_what_each_stack_ships():
     hi = load_deploy_spec(PC / "rl_sar_go2_himloco.json")
     h25 = load_deploy_spec(H25)
     assert rl.sdk_joint_ids_map == tuple(range(12))  # rl_sar joint_mapping identity
-    assert hi.sdk_joint_ids_map == (3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8)  # rl_sar himloco joint_mapping
+    assert hi.sdk_joint_ids_map == (
+        3,
+        4,
+        5,
+        0,
+        1,
+        2,
+        9,
+        10,
+        11,
+        6,
+        7,
+        8,
+    )  # rl_sar himloco joint_mapping
     assert h25.sdk_joint_ids_map == order_maps()["isaac_to_sdk"]
     assert phoenix_spec().sdk_joint_ids_map == order_maps()["isaac_to_sdk"]
     for s in (rl, hi, h25):

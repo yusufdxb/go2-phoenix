@@ -43,19 +43,37 @@ def _fmt(v, nd=3):
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--onnx", required=True, help="exported actor ONNX (obs -> action)")
-    ap.add_argument("--manifest", required=True,
-                    help="phoenix_manifest.json, the legacy H25 manifest, or a sim2sim deploy spec")
-    ap.add_argument("--out", default=None, help="output directory (default runs/sim2sim_gate/<name>_<utc>)")
-    ap.add_argument("--gate", choices=("v1", "v2", "v3"), default="v3",
-                    help="gate version (default v3: v2 plus blocking responsiveness; see docs/sim2sim_gate.md)")
+    ap.add_argument(
+        "--manifest",
+        required=True,
+        help="phoenix_manifest.json, the legacy H25 manifest, or a sim2sim deploy spec",
+    )
+    ap.add_argument(
+        "--out", default=None, help="output directory (default runs/sim2sim_gate/<name>_<utc>)"
+    )
+    ap.add_argument(
+        "--gate",
+        choices=("v1", "v2", "v3"),
+        default="v3",
+        help="gate version (default v3: v2 plus blocking responsiveness; see docs/sim2sim_gate.md)",
+    )
     ap.add_argument("--gate-config", default=None, help="explicit gate yaml; overrides --gate")
     ap.add_argument("--no-video", action="store_true")
-    ap.add_argument("--scenarios", nargs="*", default=None, help="subset (makes the run DIAGNOSTIC)")
-    ap.add_argument("--latency-ms", type=float, default=None, help="override (makes the run DIAGNOSTIC)")
-    ap.add_argument("--action-clip", default=None,
-                    help="override the deploy clip, a float or 'none' (makes the run DIAGNOSTIC)")
+    ap.add_argument(
+        "--scenarios", nargs="*", default=None, help="subset (makes the run DIAGNOSTIC)"
+    )
+    ap.add_argument(
+        "--latency-ms", type=float, default=None, help="override (makes the run DIAGNOSTIC)"
+    )
+    ap.add_argument(
+        "--action-clip",
+        default=None,
+        help="override the deploy clip, a float or 'none' (makes the run DIAGNOSTIC)",
+    )
     args = ap.parse_args(argv)
 
     _configure_headless_gl()
@@ -83,26 +101,35 @@ def main(argv: list[str] | None = None) -> int:
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = Path(args.out) if args.out else _REPO / "runs" / "sim2sim_gate" / f"{spec.name}_{stamp}"
     out.mkdir(parents=True, exist_ok=True)
-    print(f"gate {cfg.path}\nspec {spec.name} ({spec.kind}, obs {spec.obs_dim}-D, clip {spec.action_clip})\n"
-          f"out  {out}")
+    print(
+        f"gate {cfg.path}\nspec {spec.name} ({spec.kind}, obs {spec.obs_dim}-D, clip {spec.action_clip})\n"
+        f"out  {out}"
+    )
 
     blocking = "SAFETY" if cfg.version >= 2 else "GATE"
 
     def progress(name, r):
         m = r["metrics"]
         perf = "" if cfg.version < 2 else f" perf={'PASS' if r['performance_pass'] else 'FAIL'}"
-        print(f"  {name:14s} {blocking} {'PASS' if r['pass'] else 'FAIL'}{perf}  fell={_fmt(m['fell'])} "
-              f"{m['fall_reason'] or ''} lin_rmse={_fmt(m['lin_vel_rmse_mps'])} "
-              f"yaw_rmse={_fmt(m['yaw_rate_rmse_radps'])} h={_fmt(m['mean_base_height_m'])} "
-              f"preclip={_fmt(m['pre_clip_saturation_rate'])} "
-              f"tq_sat={ {g: round(v, 3) for g, v in m['torque_saturation_fraction'].items() if v is not None} }",
-              flush=True)
+        print(
+            f"  {name:14s} {blocking} {'PASS' if r['pass'] else 'FAIL'}{perf}  fell={_fmt(m['fell'])} "
+            f"{m['fall_reason'] or ''} lin_rmse={_fmt(m['lin_vel_rmse_mps'])} "
+            f"yaw_rmse={_fmt(m['yaw_rate_rmse_radps'])} h={_fmt(m['mean_base_height_m'])} "
+            f"preclip={_fmt(m['pre_clip_saturation_rate'])} "
+            f"tq_sat={ {g: round(v, 3) for g, v in m['torque_saturation_fraction'].items() if v is not None} }",
+            flush=True,
+        )
 
     report = run_gate(
-        spec, policy, cfg,
-        policy_info={"onnx": str(Path(args.onnx).resolve()), "onnx_sha256": sha256_file(args.onnx),
-                     "manifest": str(Path(args.manifest).resolve()),
-                     "manifest_sha256": sha256_file(args.manifest)},
+        spec,
+        policy,
+        cfg,
+        policy_info={
+            "onnx": str(Path(args.onnx).resolve()),
+            "onnx_sha256": sha256_file(args.onnx),
+            "manifest": str(Path(args.manifest).resolve()),
+            "manifest_sha256": sha256_file(args.manifest),
+        },
         latency_ms=args.latency_ms,
         video_dir=None if args.no_video else out / "videos",
         scenario_names=args.scenarios,
@@ -113,8 +140,10 @@ def main(argv: list[str] | None = None) -> int:
     vids = [r.get("video_error") for r in report["scenarios"].values() if r.get("video_error")]
     if vids:
         print(f"video skipped: {vids[0]}")
-    print(f"\n{report['gate']['name']}: VERDICT {report['verdict']} "
-          f"({blocking} would-be {report['would_be_verdict']})")
+    print(
+        f"\n{report['gate']['name']}: VERDICT {report['verdict']} "
+        f"({blocking} would-be {report['would_be_verdict']})"
+    )
     for f in report["failures"][:40]:
         print(f"  - {f}")
     if cfg.version >= 2:
@@ -122,8 +151,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PERFORMANCE (non-blocking): {perf['verdict']}")
         for label, row in perf["named"].items():
             if row:
-                print(f"  {label:16s} {row['metric']} {_fmt(row['value'])} <= {row['threshold']} "
-                      f"{'PASS' if row['pass'] else 'FAIL'}")
+                print(
+                    f"  {label:16s} {row['metric']} {_fmt(row['value'])} <= {row['threshold']} "
+                    f"{'PASS' if row['pass'] else 'FAIL'}"
+                )
         for f in report["performance_failures"]:
             print(f"  - {f}")
     print(f"report {path}")

@@ -318,9 +318,7 @@ def compute_episode_metrics(trace: EpisodeTrace) -> EpisodeMetrics:
         yaw_ratio=yaw_ratio,
         max_tilt_rad=_nan_safe_max(trace.tilt_rad),
         max_abs_roll_rad=_nan_safe_max(trace.roll_rad) if trace.roll_rad is not None else None,
-        max_abs_pitch_rad=(
-            _nan_safe_max(trace.pitch_rad) if trace.pitch_rad is not None else None
-        ),
+        max_abs_pitch_rad=(_nan_safe_max(trace.pitch_rad) if trace.pitch_rad is not None else None),
         undesired_contact_steps=(
             int(np.sum(trace.undesired_contact)) if trace.undesired_contact is not None else None
         ),

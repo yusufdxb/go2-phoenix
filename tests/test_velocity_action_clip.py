@@ -18,17 +18,23 @@ def test_default_clip_actions_is_wide_not_unit() -> None:
 
 
 def test_clip_actions_round_trips_through_to_dict_and_back() -> None:
-    spec = s.default_spec().replace(action=dataclasses.replace(s.default_spec().action, clip_actions=1.0))
+    spec = s.default_spec().replace(
+        action=dataclasses.replace(s.default_spec().action, clip_actions=1.0)
+    )
     restored = s.spec_from_dict(spec.to_dict())
     assert restored.action.clip_actions == 1.0
 
 
 def test_validate_rejects_non_positive_clip_actions() -> None:
-    spec = s.default_spec().replace(action=dataclasses.replace(s.default_spec().action, clip_actions=0.0))
+    spec = s.default_spec().replace(
+        action=dataclasses.replace(s.default_spec().action, clip_actions=0.0)
+    )
     problems = spec.validate()
     assert any("clip_actions" in p for p in problems)
 
-    spec_neg = s.default_spec().replace(action=dataclasses.replace(s.default_spec().action, clip_actions=-5.0))
+    spec_neg = s.default_spec().replace(
+        action=dataclasses.replace(s.default_spec().action, clip_actions=-5.0)
+    )
     assert any("clip_actions" in p for p in spec_neg.validate())
 
 
@@ -53,7 +59,9 @@ def test_curriculum_disabled_starts_at_final_ranges() -> None:
     spec = s.default_spec().replace(
         curriculum=dataclasses.replace(s.default_spec().curriculum, enabled=False)
     )
-    cur = CommandCurriculum.from_spec(spec.commands, spec.curriculum, tracking_std=0.5, num_envs=8192)
+    cur = CommandCurriculum.from_spec(
+        spec.commands, spec.curriculum, tracking_std=0.5, num_envs=8192
+    )
     assert cur.level == cur.max_level
     assert cur.ranges.lin_vel_x == spec.commands.final_lin_vel_x
     assert cur.ranges.lin_vel_y == spec.commands.final_lin_vel_y
@@ -65,7 +73,9 @@ def test_curriculum_enabled_starts_at_initial_ranges() -> None:
 
     spec = s.default_spec()
     assert spec.curriculum.enabled is True
-    cur = CommandCurriculum.from_spec(spec.commands, spec.curriculum, tracking_std=0.5, num_envs=8192)
+    cur = CommandCurriculum.from_spec(
+        spec.commands, spec.curriculum, tracking_std=0.5, num_envs=8192
+    )
     assert cur.level == 0
     assert cur.ranges.lin_vel_x == spec.commands.initial_lin_vel_x
 
@@ -109,7 +119,7 @@ def test_with_reward_weight_isolates_one_term() -> None:
 
     # Original untouched (immutability), and only the named term changed.
     assert default.reward("joint_pos_limits").weight == -1.0
-    for a, b in zip(default.rewards, bumped.rewards):
+    for a, b in zip(default.rewards, bumped.rewards, strict=True):
         if a.name != "joint_pos_limits":
             assert a == b
 

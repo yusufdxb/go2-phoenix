@@ -130,4 +130,10 @@ class TargetDelay:
         return self._buf[0]
 
 
-__all__ = ["DCMotorParams", "GO2_DC_MOTOR", "TargetDelay", "clip_dc_motor_effort", "dc_motor_torque"]
+__all__ = [
+    "DCMotorParams",
+    "GO2_DC_MOTOR",
+    "TargetDelay",
+    "clip_dc_motor_effort",
+    "dc_motor_torque",
+]

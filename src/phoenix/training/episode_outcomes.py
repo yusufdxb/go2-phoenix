@@ -74,9 +74,14 @@ class EpisodeOutcome:
             )
         if self.schema_version != "2.0.0" and self.success and self.verdict != "PASS":
             raise ValueError("success=True requires verdict PASS")
-        if self.schema_version != "2.0.0" and self.success and self.outcome_class not in (
-            "timeout",
-            "completed",
+        if (
+            self.schema_version != "2.0.0"
+            and self.success
+            and self.outcome_class
+            not in (
+                "timeout",
+                "completed",
+            )
         ):
             raise ValueError(f"success=True is impossible for outcome {self.outcome_class!r}")
         if not self.policy_id or not self.termination_reason:

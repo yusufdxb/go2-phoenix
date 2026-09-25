@@ -141,9 +141,13 @@ def test_every_on_robot_stage_runs_the_contention_interlock() -> None:
     src = _harness_source()
     assert "assert_no_contention() {" in src
     # B..E plus the shared stand function that serves F, G and H.
-    for call in ("assert_no_contention B", "assert_no_contention C",
-                 "assert_no_contention D", "assert_no_contention E",
-                 'assert_no_contention "$stage"'):
+    for call in (
+        "assert_no_contention B",
+        "assert_no_contention C",
+        "assert_no_contention D",
+        "assert_no_contention E",
+        'assert_no_contention "$stage"',
+    ):
         assert call in src, f"missing {call}"
 
 
@@ -151,7 +155,7 @@ def test_contention_evidence_is_per_stage_not_overwritten() -> None:
     # A single contention.json would let a later stage inherit an earlier
     # stage's evidence, which is the same class of bug as a stale ledger.
     src = _harness_source()
-    assert 'contention_${stage}.json' in src
+    assert "contention_${stage}.json" in src
     assert '"$SESSION/contention.json"' not in src
 
 
@@ -165,8 +169,8 @@ def test_the_operator_gate_fails_closed_on_an_unusable_answer() -> None:
     src = _harness_source()
     gate = src.split("operator_gate() {", 1)[1].split("\n}", 1)[0]
     # A timeout or an ambiguous double press must halt, never become a pass.
-    assert "halt \"operator remote gave no usable judgement" in gate
-    assert "halt \"operator remote returned" in gate
+    assert 'halt "operator remote gave no usable judgement' in gate
+    assert 'halt "operator remote returned' in gate
     # Only an explicit A is a yes.
     assert "yes) printf 'y'" in gate
     assert "no|halt) printf 'n'" in gate
@@ -179,7 +183,7 @@ def test_the_live_stand_prompts_go_through_the_operator_gate() -> None:
     assert "operator_gate judgement " in stand
     assert "operator_gate release " in stand
     # The raw reads they replaced must be gone from the stand path.
-    assert "Press Enter to start: \" _" not in stand
+    assert 'Press Enter to start: " _' not in stand
 
 
 PREP = REPO_ROOT / "scripts" / "payload_prep.sh"
@@ -201,17 +205,20 @@ def test_payload_prep_fails_closed_on_this_workstation(tmp_path) -> None:
     # A workstation has no enP8p1s0, so the NIC check must fail and the script
     # must exit non-zero. A prep script that exits 0 on the wrong host is worse
     # than none, because the operator would trust it.
-    res = subprocess.run(
-        [str(PREP)], cwd=REPO_ROOT, capture_output=True, text=True, timeout=180
-    )
+    res = subprocess.run([str(PREP)], cwd=REPO_ROOT, capture_output=True, text=True, timeout=180)
     assert res.returncode != 0
     assert "NOT READY" in res.stdout + res.stderr
 
 
 def test_payload_prep_checks_every_known_session_killer() -> None:
     src = PREP.read_text()
-    for needle in ("come-here.service", "NetworkInterface", "getusersitepackages",
-                   "contention", "no RTC" if "no RTC" in src else "RTC"):
+    for needle in (
+        "come-here.service",
+        "NetworkInterface",
+        "getusersitepackages",
+        "contention",
+        "no RTC" if "no RTC" in src else "RTC",
+    ):
         assert needle in src, f"payload_prep does not check {needle}"
 
 
@@ -249,7 +256,7 @@ def test_bundle_staging_binds_stage_a_evidence_to_head_and_the_lock() -> None:
     assert "lock_file_sha256" in src
     # A rehearsal must never be stageable as real evidence.
     assert 'r.get("rehearsal")' in src
-    assert 'code_identity' in src
+    assert "code_identity" in src
 
 
 def test_bundle_staging_refuses_evidence_from_another_commit(tmp_path) -> None:
@@ -289,7 +296,6 @@ def test_bundle_staging_refuses_evidence_from_another_commit(tmp_path) -> None:
     assert "but HEAD is" in combined
     assert "REFUSING TO STAGE" in combined
     assert not (tmp_path / "dest").exists(), "a refused stage must leave no bundle"
-
 
 
 def test_launchers_pin_single_threaded_blas() -> None:

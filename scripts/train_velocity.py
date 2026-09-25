@@ -30,7 +30,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--num-envs", type=int, default=None)
     p.add_argument("--max-iterations", type=int, default=None)
     p.add_argument("--seed", type=int, default=None)
-    p.add_argument("--action-clip", type=float, default=None, help="override ActionSpec.clip_actions")
+    p.add_argument(
+        "--action-clip", type=float, default=None, help="override ActionSpec.clip_actions"
+    )
     p.add_argument(
         "--joint-pos-limits-weight",
         type=float,
@@ -43,7 +45,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "already has (see spec.py's joint_pos_limits term)."
         ),
     )
-    p.add_argument("--save-interval", type=int, default=None, help="override PPOSpec.save_interval (checkpoint cadence)")
+    p.add_argument(
+        "--save-interval",
+        type=int,
+        default=None,
+        help="override PPOSpec.save_interval (checkpoint cadence)",
+    )
     p.add_argument("--run-name", type=str, required=True)
     p.add_argument("--output-dir", type=Path, default=Path("checkpoints/velocity"))
     p.add_argument("--resume", type=Path, default=None)
@@ -60,7 +67,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "fine-tune semantics."
         ),
     )
-    p.add_argument("--smoke", action="store_true", help="Use spec.smoke_spec() instead of default_spec()")
+    p.add_argument(
+        "--smoke", action="store_true", help="Use spec.smoke_spec() instead of default_spec()"
+    )
     p.add_argument(
         "--curriculum",
         choices=["on", "off"],
@@ -100,18 +109,25 @@ def main(argv: list[str] | None = None) -> int:
 
     from phoenix.sim_app_exit import run_isaac_main
 
-    return run_isaac_main(lambda: _run(args, simulation_app), simulation_app, label="train_velocity")
+    return run_isaac_main(
+        lambda: _run(args, simulation_app), simulation_app, label="train_velocity"
+    )
 
 
 def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
+    import importlib.metadata as metadata
+
     import gymnasium as gym
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
     from rsl_rl.runners import OnPolicyRunner
 
-    import importlib.metadata as metadata
-
     from phoenix.velocity import env_cfg as pv_env_cfg
-    from phoenix.velocity.spec import PLAY_TASK_ID, TASK_ID, VelocityTaskSpec, default_spec, smoke_spec
+    from phoenix.velocity.spec import (
+        TASK_ID,
+        VelocityTaskSpec,
+        default_spec,
+        smoke_spec,
+    )
 
     pv_env_cfg.register()
 
@@ -159,7 +175,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                 mismatches.append(
                     f"action.clip_actions: prior={prior['action']['clip_actions']} this run={spec.action.clip_actions}"
                 )
-            prior_jpl = next((r["weight"] for r in prior["rewards"] if r["name"] == "joint_pos_limits"), None)
+            prior_jpl = next(
+                (r["weight"] for r in prior["rewards"] if r["name"] == "joint_pos_limits"), None
+            )
             this_jpl = spec.reward("joint_pos_limits").weight
             if prior_jpl is not None and abs(float(prior_jpl) - float(this_jpl)) > 1e-9:
                 mismatches.append(f"joint_pos_limits weight: prior={prior_jpl} this run={this_jpl}")
@@ -214,7 +232,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     runner_cfg = pv_env_cfg.build_ppo_runner_cfg(spec)
     runner_cfg = handle_deprecated_rsl_rl_cfg(runner_cfg, metadata.version("rsl-rl-lib"))
     print("[phoenix.velocity] creating OnPolicyRunner", flush=True)
-    runner = OnPolicyRunner(env, runner_cfg.to_dict(), log_dir=str(log_dir), device=runner_cfg.device)
+    runner = OnPolicyRunner(
+        env, runner_cfg.to_dict(), log_dir=str(log_dir), device=runner_cfg.device
+    )
     print("[phoenix.velocity] runner ready", flush=True)
 
     num_learning_iterations = runner_cfg.max_iterations
@@ -249,16 +269,24 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
                 num_learning_iterations,
             )
             if num_learning_iterations == 0:
-                logger.info("checkpoint already at or past the target iteration count, nothing to do")
+                logger.info(
+                    "checkpoint already at or past the target iteration count, nothing to do"
+                )
 
     start = time.time()
     try:
         if num_learning_iterations > 0:
-            runner.learn(num_learning_iterations=num_learning_iterations, init_at_random_ep_len=True)
+            runner.learn(
+                num_learning_iterations=num_learning_iterations, init_at_random_ep_len=True
+            )
     except KeyboardInterrupt:
         logger.warning("Interrupted, writing final checkpoint.")
     elapsed = time.time() - start
-    logger.info("Training wall-time: %.1fs (%.3f it/s)", elapsed, num_learning_iterations / max(elapsed, 1e-6))
+    logger.info(
+        "Training wall-time: %.1fs (%.3f it/s)",
+        elapsed,
+        num_learning_iterations / max(elapsed, 1e-6),
+    )
 
     # Record the curriculum's ACTUAL state (widest ranges reached, level), not
     # the ranges assumed from the spec. A curriculum that stalls below the
@@ -301,7 +329,9 @@ def _realized_dump(env) -> dict:
             cfg = em.get_term_cfg(name)
             events[name] = {
                 "mode": mode,
-                "func": getattr(cfg.func, "__name__", getattr(cfg.func, "__class__", type(cfg.func)).__name__),
+                "func": getattr(
+                    cfg.func, "__name__", getattr(cfg.func, "__class__", type(cfg.func)).__name__
+                ),
                 "params": {k: repr(v) for k, v in dict(cfg.params).items()},
             }
     robot = unwrapped.scene["robot"]

@@ -33,8 +33,11 @@ GATE_CONFIGS = {
 DEFAULT_GATE_CONFIG = GATE_CONFIGS["v3"]
 
 #: Command component -> tracked-mean metric in the scenario metrics.
-_RESPONSE_METRIC = {"lin_vel_x": ("tracked_mean_vx", 0), "lin_vel_y": ("tracked_mean_vy", 1),
-                    "ang_vel_z": ("tracked_mean_wz", 2)}
+_RESPONSE_METRIC = {
+    "lin_vel_x": ("tracked_mean_vx", 0),
+    "lin_vel_y": ("tracked_mean_vy", 1),
+    "ang_vel_z": ("tracked_mean_wz", 2),
+}
 
 TIERS = ("nominal", "stress")
 #: Check tiers. v1: every check is "gate" (blocking). v2: "safety" blocks,
@@ -96,7 +99,9 @@ def _scenario(d: Mapping[str, Any]) -> GateScenario:
         raise GateConfigError(f"{d.get('name')}: first segment must start at 0")
     times = [s[0] for s in segs]
     if times != sorted(set(times)) or times[-1] >= float(d["duration_s"]):
-        raise GateConfigError(f"{d.get('name')}: segment times must increase and end before duration")
+        raise GateConfigError(
+            f"{d.get('name')}: segment times must increase and end before duration"
+        )
     if any(len(c) != 3 for _t, c in segs):
         raise GateConfigError(f"{d.get('name')}: commands are (vx, vy, wz)")
     tier = d.get("tier", "nominal")
@@ -145,7 +150,12 @@ class GateConfig:
         if self.version == 1:
             return self.raw["thresholds"]
         s, p = self.raw["safety"], self.raw["performance"]
-        return {"all": s["all"], "stand": s["stand"], "nominal": p["nominal"], "stress": p["stress"]}
+        return {
+            "all": s["all"],
+            "stand": s["stand"],
+            "nominal": p["nominal"],
+            "stress": p["stress"],
+        }
 
     @property
     def saturation_ge(self) -> bool:
@@ -183,7 +193,11 @@ def load_gate_config(path: str | Path | None = None) -> GateConfig:
     if raw.get("schema") not in GATE_SCHEMAS:
         raise GateConfigError(f"{p}: schema {raw.get('schema')!r} not in {sorted(GATE_SCHEMAS)}")
     keys = ["physics", "actuator", "fall", "tracking", "required_command_envelope", "scenarios"]
-    keys += ["thresholds"] if GATE_SCHEMAS[raw["schema"]] == 1 else ["safety", "performance", "saturation"]
+    keys += (
+        ["thresholds"]
+        if GATE_SCHEMAS[raw["schema"]] == 1
+        else ["safety", "performance", "saturation"]
+    )
     for key in keys:
         if key not in raw:
             raise GateConfigError(f"{p}: missing {key}")
@@ -243,8 +257,14 @@ def tracking_rmse(
     last = changes[np.searchsorted(changes, times + 1e-9, side="right") - 1]
     mask = (times - last) >= exclude_after_change_s - 1e-9
     if not np.any(mask):
-        return {"n_samples": 0, "lin_vel_rmse_mps": None, "yaw_rate_rmse_radps": None,
-                "mean_vx": None, "mean_vy": None, "mean_wz": None}
+        return {
+            "n_samples": 0,
+            "lin_vel_rmse_mps": None,
+            "yaw_rate_rmse_radps": None,
+            "mean_vx": None,
+            "mean_vy": None,
+            "mean_wz": None,
+        }
     cmd = np.asarray(commands, dtype=np.float64)[mask]
     ev = v[mask] - cmd[:, :2]
     ew = w[mask] - cmd[:, 2]
@@ -292,8 +312,16 @@ def envelope_checks(spec: DeploySpec, required: Mapping[str, float]) -> list[dic
     for k in COMMAND_KEYS:
         need = float(required[k])
         if spec.trained_commands is None:
-            out.append({"check": f"envelope.{k}", "value": None, "op": ">=", "threshold": need,
-                        "pass": False, "note": "trained command envelope not declared"})
+            out.append(
+                {
+                    "check": f"envelope.{k}",
+                    "value": None,
+                    "op": ">=",
+                    "threshold": need,
+                    "pass": False,
+                    "note": "trained command envelope not declared",
+                }
+            )
             continue
         lo, hi = spec.trained_commands[k]
         # Both signs of the required magnitude must be inside the trained range.
@@ -302,40 +330,81 @@ def envelope_checks(spec: DeploySpec, required: Mapping[str, float]) -> list[dic
     return out
 
 
-def evaluate_scenario(metrics: Mapping[str, Any], scenario: GateScenario, cfg: GateConfig) -> list[dict[str, Any]]:
+def evaluate_scenario(
+    metrics: Mapping[str, Any], scenario: GateScenario, cfg: GateConfig
+) -> list[dict[str, Any]]:
     th_all = cfg.thresholds["all"]
     th_tier = cfg.thresholds[scenario.tier]
     checks = [
         _check("no_fall", bool(metrics["fell"]), "==", False),
         _check("finite_actions", bool(metrics["nonfinite_action"]), "==", False),
-        _check("pre_clip_saturation_rate", metrics["pre_clip_saturation_rate"], "<=",
-               th_all["max_pre_clip_saturation_rate"]),
-        _check("hard_limit_violation_steps", metrics["hard_limit_violation_steps"], "<=",
-               th_all["max_hard_limit_violation_steps"]),
+        _check(
+            "pre_clip_saturation_rate",
+            metrics["pre_clip_saturation_rate"],
+            "<=",
+            th_all["max_pre_clip_saturation_rate"],
+        ),
+        _check(
+            "hard_limit_violation_steps",
+            metrics["hard_limit_violation_steps"],
+            "<=",
+            th_all["max_hard_limit_violation_steps"],
+        ),
     ]
     for g in JOINT_GROUPS:
-        checks.append(_check(f"torque_saturation_fraction.{g}", metrics["torque_saturation_fraction"][g],
-                             "<=", th_all["max_torque_saturation_fraction"]))
-        checks.append(_check(f"near_limit_fraction.{g}", metrics["near_limit_fraction"][g], "<=",
-                             th_all["max_near_limit_fraction"]))
-    checks.append(_check("lin_vel_rmse_mps", metrics["lin_vel_rmse_mps"], "<=", th_tier["max_lin_vel_rmse_mps"]))
-    checks.append(_check("yaw_rate_rmse_radps", metrics["yaw_rate_rmse_radps"], "<=",
-                         th_tier["max_yaw_rate_rmse_radps"]))
+        checks.append(
+            _check(
+                f"torque_saturation_fraction.{g}",
+                metrics["torque_saturation_fraction"][g],
+                "<=",
+                th_all["max_torque_saturation_fraction"],
+            )
+        )
+        checks.append(
+            _check(
+                f"near_limit_fraction.{g}",
+                metrics["near_limit_fraction"][g],
+                "<=",
+                th_all["max_near_limit_fraction"],
+            )
+        )
+    checks.append(
+        _check(
+            "lin_vel_rmse_mps", metrics["lin_vel_rmse_mps"], "<=", th_tier["max_lin_vel_rmse_mps"]
+        )
+    )
+    checks.append(
+        _check(
+            "yaw_rate_rmse_radps",
+            metrics["yaw_rate_rmse_radps"],
+            "<=",
+            th_tier["max_yaw_rate_rmse_radps"],
+        )
+    )
     if scenario.stand_checks:
-        checks.append(_check("mean_base_height_m", metrics["mean_base_height_m"], ">=",
-                             cfg.thresholds["stand"]["min_mean_base_height_m"]))
+        checks.append(
+            _check(
+                "mean_base_height_m",
+                metrics["mean_base_height_m"],
+                ">=",
+                cfg.thresholds["stand"]["min_mean_base_height_m"],
+            )
+        )
     if cfg.version >= 3:
         resp = cfg.raw["safety"]["responsiveness"]
         component = resp["scenarios"].get(scenario.name)
         if component is not None:
-            checks.append(responsiveness_check(metrics, scenario, component, float(resp["min_fraction"])))
+            checks.append(
+                responsiveness_check(metrics, scenario, component, float(resp["min_fraction"]))
+            )
     for c in checks:
         c["tier"] = cfg.check_tier(c["check"])
     return checks
 
 
-def responsiveness_check(metrics: Mapping[str, Any], scenario: GateScenario, component: str,
-                         min_fraction: float) -> dict[str, Any]:
+def responsiveness_check(
+    metrics: Mapping[str, Any], scenario: GateScenario, component: str, min_fraction: float
+) -> dict[str, Any]:
     """Achieved mean (tracking window) along the command, as a fraction of |command|.
 
     value = sign(cmd) * mean / |cmd|; pass when >= ``min_fraction``. The command is
@@ -344,7 +413,9 @@ def responsiveness_check(metrics: Mapping[str, Any], scenario: GateScenario, com
     key, idx = _RESPONSE_METRIC[component]
     cmd = float(scenario.segments[-1][1][idx])
     if cmd == 0.0:
-        raise GateConfigError(f"responsiveness on {scenario.name}.{component}: last command is zero")
+        raise GateConfigError(
+            f"responsiveness on {scenario.name}.{component}: last command is zero"
+        )
     mean = metrics.get(key)
     frac = None if mean is None else math.copysign(1.0, cmd) * float(mean) / abs(cmd)
     c = _check(f"responsiveness.{component}", frac, ">=", min_fraction)
@@ -379,8 +450,11 @@ def gate_verdict(report: Mapping[str, Any]) -> dict[str, Any]:
         for c in r["checks"]:
             if not c["pass"]:
                 (failures if _blocking(c) else perf).append(f"{name}:{c['check']}")
-    return {"verdict": "PASS" if not failures else "FAIL", "failures": failures,
-            "performance_failures": perf}
+    return {
+        "verdict": "PASS" if not failures else "FAIL",
+        "failures": failures,
+        "performance_failures": perf,
+    }
 
 
 def performance_table(report: Mapping[str, Any], cfg: GateConfig) -> dict[str, Any]:
@@ -389,14 +463,28 @@ def performance_table(report: Mapping[str, Any], cfg: GateConfig) -> dict[str, A
     for name, r in report["scenarios"].items():
         for c in r["checks"]:
             if c["check"] in _TRACKING_CHECKS:
-                rows.append({"scenario": name, "metric": c["check"], "value": c["value"],
-                             "threshold": c["threshold"], "pass": c["pass"]})
+                rows.append(
+                    {
+                        "scenario": name,
+                        "metric": c["check"],
+                        "value": c["value"],
+                        "threshold": c["threshold"],
+                        "pass": c["pass"],
+                    }
+                )
     named = {}
     for label, ref in (cfg.raw.get("performance", {}).get("named") or {}).items():
-        match = [row for row in rows if row["scenario"] == ref["scenario"] and row["metric"] == ref["metric"]]
+        match = [
+            row
+            for row in rows
+            if row["scenario"] == ref["scenario"] and row["metric"] == ref["metric"]
+        ]
         named[label] = match[0] if match else None
-    return {"rows": rows, "named": named,
-            "verdict": "PASS" if rows and all(row["pass"] for row in rows) else "FAIL"}
+    return {
+        "rows": rows,
+        "named": named,
+        "verdict": "PASS" if rows and all(row["pass"] for row in rows) else "FAIL",
+    }
 
 
 __all__ = [
