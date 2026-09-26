@@ -257,6 +257,7 @@ def _build_commands_cfg(spec: VelocityTaskSpec):
         extra = {
             "cold_start_families": tuple(tuple(f) for f in cs.families),
             "cold_start_settle_s": tuple(cs.settle_s),
+            "gate_kernel_std": float(spec.curriculum.gate_kernel_std or 0.0),
         }
     else:
         cmd_cfg_cls, extra = itmdp.UniformVelocityCommandCfg, {}

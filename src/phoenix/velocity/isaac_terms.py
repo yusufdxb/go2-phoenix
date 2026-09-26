@@ -34,6 +34,12 @@ ENV_CURRICULUM_ATTR = "phoenix_velocity_curriculum"
 #: Bool tensor on the env: envs the cold_start reset event just put in the
 #: deployment start state; consumed by ColdStartVelocityCommand.reset.
 ENV_COLD_START_ATTR = "phoenix_cold_start_pending"
+#: Startup telemetry families (cold-start command direction) and window: a cold
+#: start "started" if its mean velocity on the commanded axis over
+#: STARTUP_WINDOW_S after the command switch is >= 50% of the command.
+STARTUP_FAMILIES = ("fwd", "back", "lat", "yaw")
+STARTUP_WINDOW_S = (1.0, 2.0)
+STARTUP_RING = 512
 
 
 def _env_ids_tensor(env: Any, env_ids: Any) -> torch.Tensor:
@@ -100,11 +106,14 @@ class VelocityCommandCurriculum(ManagerTermBase):
         self.curriculum = CommandCurriculum.from_spec(
             spec.commands,
             spec.curriculum,
-            tracking_std=float(spec.reward("track_lin_vel_xy_exp").params["std"]),
+            tracking_std=float(
+                spec.curriculum.gate_kernel_std or spec.reward("track_lin_vel_xy_exp").params["std"]
+            ),
             num_envs=env.num_envs,
         )
         self._apply_ranges(env)
         setattr(env, ENV_CURRICULUM_ATTR, self.curriculum)
+        self._gate_std = spec.curriculum.gate_kernel_std
         self._last = {
             "lin_score": 0.0,
             "yaw_score": 0.0,
@@ -134,23 +143,22 @@ class VelocityCommandCurriculum(ManagerTermBase):
         if bool(done.any()):
             ids, steps = ids[done], steps[done]
             rm = env.reward_manager
-            lin = episode_mean_kernel_math(
-                rm._episode_sums[lin_term][ids],
-                rm.get_term_cfg(lin_term).weight,
-                env.step_dt,
-                steps,
+            gate_acc = getattr(
+                env.command_manager.get_term(command_name), "gate_lin_kernel_sum", None
             )
+            if self._gate_std and gate_acc is not None:
+                # kernel*dt summed at the gate std (weight 1): same math as the reward path
+                lin_src, lin_w = gate_acc[ids], 1.0
+            else:
+                lin_src, lin_w = rm._episode_sums[lin_term][ids], rm.get_term_cfg(lin_term).weight
+            lin = episode_mean_kernel_math(lin_src, lin_w, env.step_dt, steps)
             yaw = episode_mean_kernel_math(
                 rm._episode_sums[yaw_term][ids],
                 rm.get_term_cfg(yaw_term).weight,
                 env.step_dt,
                 steps,
             )
-            lin_surv = episode_survival_kernel_math(
-                rm._episode_sums[lin_term][ids],
-                rm.get_term_cfg(lin_term).weight,
-                env.max_episode_length_s,
-            )
+            lin_surv = episode_survival_kernel_math(lin_src, lin_w, env.max_episode_length_s)
             terminated = env.termination_manager.terminated[ids]
             decision = self.curriculum.observe(
                 int(ids.numel()),
@@ -231,6 +239,7 @@ class VelocityTelemetry(ManagerTermBase):
             "cold_start_settling_frac": (
                 float(cold_pend.float().mean()) if cold_pend is not None else 0.0
             ),
+            **(cmd_term_obj.startup_rates() if hasattr(cmd_term_obj, "startup_rates") else {}),
         }
 
 
@@ -319,11 +328,25 @@ class ColdStartVelocityCommand(UniformVelocityCommand):
         self.cold_countdown = torch.zeros(n, device=dev)
         self.cold_command = torch.zeros(n, 3, device=dev)
         self._families = torch.tensor(cfg.cold_start_families, dtype=torch.float, device=dev)
+        # curriculum-gate kernel accumulator (sum of exp(-err^2/std^2) * dt this episode)
+        self.gate_lin_kernel_sum = torch.zeros(n, device=dev)
+        # startup telemetry: did a cold start actually start moving?
+        self.startup_active = torch.zeros(n, dtype=torch.bool, device=dev)
+        self.startup_t = torch.zeros(n, device=dev)
+        self.startup_ratio_sum = torch.zeros(n, device=dev)
+        self.startup_count = torch.zeros(n, device=dev)
+        self.startup_family = torch.zeros(n, dtype=torch.long, device=dev)
+        self._ring = torch.full((len(STARTUP_FAMILIES), STARTUP_RING), float("nan"), device=dev)
+        self._ring_ptr = [0] * len(STARTUP_FAMILIES)
+        self.startup_dropped = 0
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         extras = super().reset(env_ids)  # resamples: clears any pending schedule
         ids = _env_ids_tensor(self._env, env_ids)
         self.cold_episode[ids] = False
+        self.gate_lin_kernel_sum[ids] = 0.0
+        self.startup_dropped += int(self.startup_active[ids].sum())
+        self.startup_active[ids] = False
         mask = getattr(self._env, ENV_COLD_START_ATTR, None)
         if mask is not None:
             cold = ids[mask[ids]]
@@ -353,7 +376,69 @@ class ColdStartVelocityCommand(UniformVelocityCommand):
             self.vel_command_b[switch] = self.cold_command[switch]
             self.is_standing_env[switch] = False
             self.cold_pending[switch] = False
+            c = self.cold_command[switch]
+            axis = c.abs().argmax(dim=1)
+            fam = torch.where(axis == 0, torch.where(c[:, 0] > 0, 0, 1), axis + 1)
+            self.startup_family[switch] = fam
+            self.startup_active[switch] = True
+            self.startup_t[switch] = 0.0
+            self.startup_ratio_sum[switch] = 0.0
+            self.startup_count[switch] = 0.0
         super()._update_command()
+
+    def _update_metrics(self):
+        super()._update_metrics()
+        dt = self._env.step_dt
+        vb = as_torch(self.robot.data.root_lin_vel_b)
+        live = self._env.episode_length_buf > 0  # match the reward manager's episode sums
+        if self.cfg.gate_kernel_std > 0.0:
+            err2 = ((self.vel_command_b[:, :2] - vb[:, :2]) ** 2).sum(dim=1)
+            self.gate_lin_kernel_sum += torch.exp(-err2 / self.cfg.gate_kernel_std**2) * dt * live
+        act = self.startup_active
+        if bool(act.any()):
+            wz = as_torch(self.robot.data.root_ang_vel_b)[:, 2]
+            vel = torch.stack([vb[:, 0], vb[:, 1], wz], dim=1)
+            axis = torch.clamp(self.startup_family - 1, min=0)  # fwd/back -> 0, lat -> 1, yaw -> 2
+            cmd_ax = self.vel_command_b.gather(1, axis[:, None]).squeeze(1)
+            v_ax = vel.gather(1, axis[:, None]).squeeze(1)
+            self.startup_t += dt * act
+            in_win = (
+                act
+                & (self.startup_t >= STARTUP_WINDOW_S[0])
+                & (self.startup_t < STARTUP_WINDOW_S[1])
+            )
+            safe = torch.where(cmd_ax.abs() > 1e-6, cmd_ax, torch.ones_like(cmd_ax))
+            self.startup_ratio_sum += torch.where(in_win, v_ax / safe, torch.zeros_like(v_ax))
+            self.startup_count += in_win.float()
+            done = act & (self.startup_t >= STARTUP_WINDOW_S[1])
+            if bool(done.any()):
+                started = (
+                    self.startup_ratio_sum[done] / self.startup_count[done].clamp(min=1.0)
+                ) >= 0.5
+                fams = self.startup_family[done]
+                for f in range(len(STARTUP_FAMILIES)):
+                    self._push(f, started[fams == f].float())
+                self.startup_active[done] = False
+
+    def _push(self, family: int, outcomes: torch.Tensor) -> None:
+        outcomes = outcomes[-STARTUP_RING:]
+        k = outcomes.numel()
+        if k == 0:
+            return
+        idx = (self._ring_ptr[family] + torch.arange(k, device=self.device)) % STARTUP_RING
+        self._ring[family, idx] = outcomes
+        self._ring_ptr[family] = (self._ring_ptr[family] + k) % STARTUP_RING
+
+    def startup_rates(self) -> dict[str, float]:
+        """Share of the last STARTUP_RING classified cold starts per family that started."""
+        out = {}
+        for f, name in enumerate(STARTUP_FAMILIES):
+            row = self._ring[f]
+            valid = ~torch.isnan(row)
+            out[f"startup_rate_{name}"] = (
+                float(row[valid].mean()) if bool(valid.any()) else float("nan")
+            )
+        return out
 
 
 @configclass
@@ -361,3 +446,5 @@ class ColdStartVelocityCommandCfg(UniformVelocityCommandCfg):
     class_type: type = ColdStartVelocityCommand
     cold_start_families: tuple = ()
     cold_start_settle_s: tuple[float, float] = (0.5, 1.5)
+    #: > 0: accumulate the curriculum-gate lin kernel at this std (CurriculumSpec.gate_kernel_std).
+    gate_kernel_std: float = 0.0

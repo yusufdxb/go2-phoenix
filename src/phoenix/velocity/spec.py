@@ -273,6 +273,12 @@ class CurriculumSpec:
     enabled: bool = True
     gate: str = "normalized_lin_yaw"
     lin_kernel_threshold: float = 0.8
+    #: None: the gate's lin kernel comes from the track_lin_vel_xy_exp reward's
+    #: episode sums (so it moves with that reward's std). A value: the kernel is
+    #: accumulated separately from the velocity error at THIS std (command-term
+    #: accumulator, needs cold_start enabled), so a reward std change does not
+    #: also change how the curriculum expands. vnext3 pins 0.5 = vnext2's gate.
+    gate_kernel_std: float | None = None
     num_levels: int = 8
     #: Window length, in finished episodes, as a multiple of num_envs (>= min).
     window_episodes_per_env: float = 1.0
@@ -282,7 +288,9 @@ class CurriculumSpec:
     max_termination_rate: float = 0.10
 
     def window_episodes(self, num_envs: int) -> int:
-        return max(int(self.min_window_episodes), int(round(self.window_episodes_per_env * num_envs)))
+        return max(
+            int(self.min_window_episodes), int(round(self.window_episodes_per_env * num_envs))
+        )
 
 
 CURRICULUM_GATES = ("normalized_lin_yaw", "unitree_lin_kernel")
@@ -704,6 +712,16 @@ class VelocityTaskSpec:
     def replace(self, **changes: Any) -> VelocityTaskSpec:
         return dataclasses.replace(self, **changes)
 
+    def with_reward_params(self, name: str, **params: Any) -> VelocityTaskSpec:
+        """A copy with ONE reward term's params updated (e.g. std), others untouched."""
+        if name not in {t.name for t in self.rewards}:
+            raise KeyError(name)
+        new_rewards = tuple(
+            dataclasses.replace(t, params={**dict(t.params), **params}) if t.name == name else t
+            for t in self.rewards
+        )
+        return self.replace(rewards=new_rewards)
+
     def with_reward_weight(self, name: str, weight: float) -> VelocityTaskSpec:
         """A copy with ONE reward term's weight changed, others untouched.
 
@@ -715,7 +733,8 @@ class VelocityTaskSpec:
         if name not in {t.name for t in self.rewards}:
             raise KeyError(name)
         new_rewards = tuple(
-            dataclasses.replace(t, weight=float(weight)) if t.name == name else t for t in self.rewards
+            dataclasses.replace(t, weight=float(weight)) if t.name == name else t
+            for t in self.rewards
         )
         return self.replace(rewards=new_rewards)
 
@@ -791,6 +810,13 @@ class VelocityTaskSpec:
         cur = self.curriculum
         if cur.gate not in CURRICULUM_GATES:
             p.append(f"curriculum gate {cur.gate!r} not in {CURRICULUM_GATES}")
+        if cur.gate_kernel_std is not None:
+            if not cur.gate_kernel_std > 0:
+                p.append("curriculum.gate_kernel_std must be positive")
+            if not self.cold_start.enabled:
+                p.append(
+                    "curriculum.gate_kernel_std needs cold_start (its accumulator lives there)"
+                )
         if cur.gate == "unitree_lin_kernel":
             if tuple(c.initial_ang_vel_z) != tuple(c.final_ang_vel_z):
                 p.append("unitree_lin_kernel gate: yaw must be at its final range from level 0")
@@ -915,6 +941,20 @@ def vnext2_spec() -> VelocityTaskSpec:
     return base.replace(cold_start=dataclasses.replace(base.cold_start, enabled=True))
 
 
+def vnext3_spec() -> VelocityTaskSpec:
+    """vnext2_spec() with ONE reward change: linear tracking std 0.5 -> 0.35.
+
+    Yaw tracking stays at 0.5. The curriculum gate keeps measuring the linear
+    kernel at 0.5 (gate_kernel_std) so the curriculum expands on the same
+    statistic as vnext2. Evidence: scripts/analyze_startup_reward.py
+    (2026-09-26), on fixed trajectories of vnext/vnext2 seed-47 checkpoints,
+    tracking std 0.35 raised the 2 s advantage of starting over standing by
+    +0.32 (+0.3), +0.25 (-0.3), +0.09 (+0.2); action_l2 = 0 by <= +0.02.
+    """
+    base = vnext2_spec().with_reward_params("track_lin_vel_xy_exp", std=0.35)
+    return base.replace(curriculum=dataclasses.replace(base.curriculum, gate_kernel_std=0.5))
+
+
 def _cold_start_from_dict(blob: Mapping[str, Any] | None) -> ColdStartSpec:
     if not blob:  # pre-cold-start spec.json: that run had none
         return ColdStartSpec()
@@ -1032,5 +1072,6 @@ __all__ = [
     "smoke_spec",
     "spec_from_dict",
     "vnext2_spec",
+    "vnext3_spec",
     "vnext_spec",
 ]

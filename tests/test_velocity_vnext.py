@@ -460,3 +460,32 @@ def test_cold_start_round_trips_and_old_specs_load_without_it() -> None:
     old = json.loads(vnext_spec().to_json())
     old.pop("cold_start")
     assert spec_from_dict(old) == vnext_spec()
+
+
+# ------------------------------------------------ vnext3: linear tracking std 0.35 only
+
+
+def test_vnext3_changes_only_linear_tracking_std() -> None:
+    from phoenix.velocity.spec import vnext2_spec, vnext3_spec
+
+    v2, v3 = vnext2_spec(), vnext3_spec()
+    assert v3.validate() == []
+    assert v3.reward("track_lin_vel_xy_exp").params["std"] == 0.35
+    assert v3.reward("track_ang_vel_z_exp").params["std"] == 0.5
+    assert v3.reward("action_l2").weight == -0.01
+    assert v3.reward("feet_slide") == v2.reward("feet_slide")
+    changed = [a.name for a, b in zip(v3.rewards, v2.rewards, strict=True) if a != b]
+    assert changed == ["track_lin_vel_xy_exp"]
+    # the curriculum gate keeps measuring the linear kernel at vnext2's 0.5
+    assert v3.curriculum.gate_kernel_std == 0.5 and v2.curriculum.gate_kernel_std is None
+    assert v3.replace(rewards=v2.rewards, curriculum=v2.curriculum) == v2
+    assert v3.cold_start == v2.cold_start and v3.health == v2.health
+    assert spec_from_dict(json.loads(v3.to_json())) == v3
+
+
+def test_gate_kernel_std_requires_cold_start() -> None:
+    from phoenix.velocity.spec import vnext3_spec
+
+    v3 = vnext3_spec()
+    bad = v3.replace(cold_start=dataclasses.replace(v3.cold_start, enabled=False))
+    assert any("gate_kernel_std needs cold_start" in p for p in bad.validate())

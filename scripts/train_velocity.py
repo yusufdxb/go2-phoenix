@@ -64,13 +64,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--smoke", action="store_true", help="Shrink the chosen --spec with spec.smoke_spec()")
     p.add_argument(
         "--spec",
-        choices=["default", "vnext", "vnext2"],
+        choices=["default", "vnext", "vnext2", "vnext3"],
         default="default",
         help=(
             "default: default_spec() (walk_v1/v2 arms, obs v1, no health guard). "
             "vnext: spec.vnext_spec() (obs v2 Unitree scales, yaw +-1 from iteration 0, "
             "lin-only Unitree curriculum gate, joint_pos_limits -10, health guard ON). "
-            "vnext2: vnext + cold-start reset mixture (spec.ColdStartSpec)."
+            "vnext2: vnext + cold-start reset mixture (spec.ColdStartSpec). "
+            "vnext3: vnext2 + linear tracking std 0.35 (yaw 0.5; curriculum gate kernel kept at 0.5)."
         ),
     )
     p.add_argument(
@@ -142,12 +143,13 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         default_spec,
         smoke_spec,
         vnext2_spec,
+        vnext3_spec,
         vnext_spec,
     )
 
     pv_env_cfg.register()
 
-    spec: VelocityTaskSpec = {"vnext": vnext_spec, "vnext2": vnext2_spec}.get(args.spec, default_spec)()
+    spec: VelocityTaskSpec = {"vnext": vnext_spec, "vnext2": vnext2_spec, "vnext3": vnext3_spec}.get(args.spec, default_spec)()
     if args.smoke:
         spec = smoke_spec(spec)
     if args.health:
@@ -226,6 +228,12 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             prior_cold = bool((prior.get("cold_start") or {}).get("enabled", False))
             if prior_cold != spec.cold_start.enabled:
                 mismatches.append(f"cold_start.enabled: prior={prior_cold} this run={spec.cold_start.enabled}")
+            prior_std = next(
+                (r["params"].get("std") for r in prior["rewards"] if r["name"] == "track_lin_vel_xy_exp"), None
+            )
+            this_std = spec.reward("track_lin_vel_xy_exp").params.get("std")
+            if prior_std is not None and abs(float(prior_std) - float(this_std)) > 1e-12:
+                mismatches.append(f"track_lin std: prior={prior_std} this run={this_std}")
             if mismatches:
                 raise ValueError(
                     f"resume config mismatch for {run_name}: "
