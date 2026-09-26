@@ -48,6 +48,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--num-steps", type=int, default=1000, help="policy steps (50 Hz -> 20s)")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Evaluation seed (env / randomization / command RNG). Default: the training spec's seed.",
+    )
+    p.add_argument(
         "--spec",
         type=Path,
         default=None,
@@ -98,6 +104,8 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         train_spec = default_spec()
         logger.warning("no spec.json beside %s: using default_spec() (obs v1)", args.checkpoint)
     spec = train_spec.replace(sim=dataclasses.replace(train_spec.sim, num_envs=args.num_envs))
+    if args.seed is not None:
+        spec = spec.replace(seed=int(args.seed))
     env_cfg = pv_env_cfg.build_velocity_env_cfg(spec)
     env = gym.make(TASK_ID, cfg=env_cfg, render_mode=None)
     unwrapped = env.unwrapped
@@ -224,6 +232,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         "checkpoint": str(args.checkpoint),
         "spec_path": str(spec_path) if spec_path.exists() else None,
         "obs_schema": spec.obs_schema,
+        "eval_seed": spec.seed,
         "num_envs": n,
         "num_steps": steps_done,
         "total_episodes": total_episodes,
