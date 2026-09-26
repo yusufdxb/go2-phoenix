@@ -64,12 +64,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--smoke", action="store_true", help="Shrink the chosen --spec with spec.smoke_spec()")
     p.add_argument(
         "--spec",
-        choices=["default", "vnext"],
+        choices=["default", "vnext", "vnext2"],
         default="default",
         help=(
             "default: default_spec() (walk_v1/v2 arms, obs v1, no health guard). "
             "vnext: spec.vnext_spec() (obs v2 Unitree scales, yaw +-1 from iteration 0, "
-            "lin-only Unitree curriculum gate, joint_pos_limits -10, health guard ON)."
+            "lin-only Unitree curriculum gate, joint_pos_limits -10, health guard ON). "
+            "vnext2: vnext + cold-start reset mixture (spec.ColdStartSpec)."
         ),
     )
     p.add_argument(
@@ -140,12 +141,13 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         VelocityTaskSpec,
         default_spec,
         smoke_spec,
+        vnext2_spec,
         vnext_spec,
     )
 
     pv_env_cfg.register()
 
-    spec: VelocityTaskSpec = vnext_spec() if args.spec == "vnext" else default_spec()
+    spec: VelocityTaskSpec = {"vnext": vnext_spec, "vnext2": vnext2_spec}.get(args.spec, default_spec)()
     if args.smoke:
         spec = smoke_spec(spec)
     if args.health:
@@ -221,6 +223,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             prior_gate = prior["curriculum"].get("gate", "normalized_lin_yaw")
             if prior_gate != spec.curriculum.gate:
                 mismatches.append(f"curriculum.gate: prior={prior_gate} this run={spec.curriculum.gate}")
+            prior_cold = bool((prior.get("cold_start") or {}).get("enabled", False))
+            if prior_cold != spec.cold_start.enabled:
+                mismatches.append(f"cold_start.enabled: prior={prior_cold} this run={spec.cold_start.enabled}")
             if mismatches:
                 raise ValueError(
                     f"resume config mismatch for {run_name}: "

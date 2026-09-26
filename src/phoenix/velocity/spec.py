@@ -586,6 +586,52 @@ class DomainRandSpec:
     push_velocity_xy: Range = (-0.5, 0.5)
 
 
+# --------------------------------------------------------------------- cold start
+
+#: ``(axis, lo, hi, weight)``: axis 0 = vx m/s, 1 = vy m/s, 2 = wz rad/s; the
+#: command is ``lo..hi`` uniform on that axis and zero on the others; family drawn
+#: with probability proportional to ``weight``.
+ColdStartFamily = tuple[int, float, float, float]
+
+
+@dataclass(frozen=True)
+class ColdStartSpec:
+    """Cold-start reset mixture: the deployment start state, trained explicitly.
+
+    2026-09-25 finding (walk_vnext_seed47): every checkpoint 750-1500 stood
+    perfectly still in MuJoCo gate v3 at forward 0.3 from the settled default
+    stance (vx exactly 0.0), while walking at 0.5 and still tracking 0.3 when it
+    came DOWN from 0.5 (vx 0.38). Isaac never showed it because every Isaac reset
+    perturbs joint positions (+-0.1 rad) and root velocity (+-0.2), so training
+    never started from a dead-still stance, which is exactly how the robot is
+    handed to the policy (FixStand, then the policy). The same low-command
+    deadband shows in Isaac for backward: model_1000 from reset, vx -0.2 -> 0.000,
+    -0.3 -> -0.153, -0.5 -> -0.412, -0.8 -> -0.674; entering -0.3 from -0.6
+    -> -0.213.
+
+    On a fraction of resets (event ``cold_start`` after the normal reset terms):
+    joint position = default pose exactly, joint velocity 0, root linear and
+    angular velocity 0 (no joint perturbation). That episode then holds a zero
+    command for ``settle_s`` and switches to ONE low command drawn from
+    ``families`` (stand -> low-command transition), held for a normal resampling
+    interval, after which ordinary sampling resumes. Every family must lie inside
+    the level-0 command ranges, so it is valid at every curriculum level.
+    Backward low speed gets double weight: it is the weakest direction.
+    """
+
+    enabled: bool = False
+    fraction: float = 0.15
+    settle_s: Range = (0.5, 1.5)
+    families: tuple[ColdStartFamily, ...] = (
+        (0, 0.15, 0.40, 1.0),  # forward low
+        (0, -0.30, -0.15, 2.0),  # backward low (weakest direction, x2)
+        (1, 0.15, 0.30, 1.0),  # left
+        (1, -0.30, -0.15, 1.0),  # right
+        (2, 0.30, 0.80, 1.0),  # yaw CCW low/moderate
+        (2, -0.80, -0.30, 1.0),  # yaw CW low/moderate
+    )
+
+
 # --------------------------------------------------------------------------- PPO
 
 
@@ -640,6 +686,7 @@ class VelocityTaskSpec:
     domain_randomization: DomainRandSpec = field(default_factory=DomainRandSpec)
     ppo: PPOSpec = field(default_factory=PPOSpec)
     health: HealthGuardSpec = field(default_factory=HealthGuardSpec)
+    cold_start: ColdStartSpec = field(default_factory=ColdStartSpec)
     #: Actor observation schema (contract.ACTOR_OBS_SCALES). v1 = raw SI.
     obs_schema: str = OBS_SCHEMA_V1
     seed: int = 42
@@ -749,6 +796,26 @@ class VelocityTaskSpec:
                 p.append("unitree_lin_kernel gate: yaw must be at its final range from level 0")
             if not 0.0 < cur.lin_kernel_threshold <= 1.0:
                 p.append("curriculum lin_kernel_threshold must be in (0, 1]")
+        cs = self.cold_start
+        if cs.enabled:
+            if not 0.0 < cs.fraction <= 0.5:
+                p.append("cold_start.fraction must be in (0, 0.5]")
+            lo_s, hi_s = cs.settle_s
+            if not 0.0 <= lo_s <= hi_s < c.resampling_time_range_s[0]:
+                p.append("cold_start.settle_s must be within [0, resampling min)")
+            if not cs.families:
+                p.append("cold_start needs at least one command family")
+            init = (c.initial_lin_vel_x, c.initial_lin_vel_y, c.initial_ang_vel_z)
+            for fam in cs.families:
+                axis, lo_f, hi_f, weight = fam
+                if axis not in (0, 1, 2) or not lo_f <= hi_f or weight <= 0:
+                    p.append(f"cold_start family {fam} malformed")
+                    continue
+                if lo_f < init[axis][0] or hi_f > init[axis][1]:
+                    p.append(f"cold_start family {fam} outside level-0 range {init[axis]}")
+                small = (c.small_lin_cmd, c.small_lin_cmd, c.small_yaw_cmd)[axis]
+                if min(abs(lo_f), abs(hi_f)) <= small and lo_f * hi_f >= 0:
+                    p.append(f"cold_start family {fam} reaches the stand-command band")
         h = self.health
         if h.std_warn > h.std_abort or h.action_p99_warn > h.action_p99_abort:
             p.append("health guard warn threshold above its abort threshold")
@@ -842,6 +909,25 @@ def vnext_spec() -> VelocityTaskSpec:
     )
 
 
+def vnext2_spec() -> VelocityTaskSpec:
+    """vnext_spec() plus the cold-start reset mixture (:class:`ColdStartSpec`), nothing else."""
+    base = vnext_spec()
+    return base.replace(cold_start=dataclasses.replace(base.cold_start, enabled=True))
+
+
+def _cold_start_from_dict(blob: Mapping[str, Any] | None) -> ColdStartSpec:
+    if not blob:  # pre-cold-start spec.json: that run had none
+        return ColdStartSpec()
+    return ColdStartSpec(
+        enabled=bool(blob["enabled"]),
+        fraction=float(blob["fraction"]),
+        settle_s=(float(blob["settle_s"][0]), float(blob["settle_s"][1])),
+        families=tuple(
+            (int(f[0]), float(f[1]), float(f[2]), float(f[3])) for f in blob["families"]
+        ),
+    )
+
+
 def spec_from_dict(data: Mapping[str, Any]) -> VelocityTaskSpec:
     """Inverse of :meth:`VelocityTaskSpec.to_dict` (ignores ``schema``/``derived``)."""
 
@@ -866,6 +952,7 @@ def spec_from_dict(data: Mapping[str, Any]) -> VelocityTaskSpec:
         ppo=build(PPOSpec, data["ppo"]),
         # Absent in pre-vNext spec.json files: those runs had no guard and raw obs.
         health=build(HealthGuardSpec, data.get("health", {})),
+        cold_start=_cold_start_from_dict(data.get("cold_start")),
         obs_schema=str(data.get("obs_schema", OBS_SCHEMA_V1)),
         seed=int(data["seed"]),
         task_id=str(data["task_id"]),
@@ -927,6 +1014,7 @@ __all__ = [
     "UNDESIRED_CONTACT_BODIES",
     "ActionSpec",
     "CURRICULUM_GATES",
+    "ColdStartSpec",
     "CommandSpec",
     "CurriculumSpec",
     "HealthGuardSpec",
@@ -943,5 +1031,6 @@ __all__ = [
     "joint_order_problems",
     "smoke_spec",
     "spec_from_dict",
+    "vnext2_spec",
     "vnext_spec",
 ]

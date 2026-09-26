@@ -249,10 +249,21 @@ def _build_commands_cfg(spec: VelocityTaskSpec):
     from isaaclab.utils import configclass
 
     c = spec.commands
+    cs = spec.cold_start
+    if cs.enabled:
+        from . import isaac_terms as pterms
+
+        cmd_cfg_cls = pterms.ColdStartVelocityCommandCfg
+        extra = {
+            "cold_start_families": tuple(tuple(f) for f in cs.families),
+            "cold_start_settle_s": tuple(cs.settle_s),
+        }
+    else:
+        cmd_cfg_cls, extra = itmdp.UniformVelocityCommandCfg, {}
 
     @configclass
     class CommandsCfg:
-        base_velocity = itmdp.UniformVelocityCommandCfg(
+        base_velocity = cmd_cfg_cls(
             asset_name="robot",
             resampling_time_range=c.resampling_time_range_s,
             rel_standing_envs=c.rel_standing_envs,
@@ -264,6 +275,7 @@ def _build_commands_cfg(spec: VelocityTaskSpec):
                 lin_vel_y=c.initial_lin_vel_y,
                 ang_vel_z=c.initial_ang_vel_z,
             ),
+            **extra,
         )
 
     return CommandsCfg()
@@ -362,6 +374,17 @@ def _build_events_cfg(spec: VelocityTaskSpec):
                 "position_range": dr.reset_joint_pos_offset,
                 "velocity_range": (0.0, 0.0),
             },
+        )
+        # After reset_base / reset_robot_joints (reset terms apply in declaration
+        # order): overrides their state for the cold-start fraction.
+        cold_start = (
+            EventTerm(
+                func=pterms.cold_start_reset,
+                mode="reset",
+                params={"fraction": spec.cold_start.fraction, "asset_name": "robot"},
+            )
+            if spec.cold_start.enabled
+            else None
         )
         push_robot = (
             EventTerm(

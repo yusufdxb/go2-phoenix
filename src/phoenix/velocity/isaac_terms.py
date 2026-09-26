@@ -13,7 +13,10 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
+from isaaclab.envs.mdp.commands.commands_cfg import UniformVelocityCommandCfg
+from isaaclab.envs.mdp.commands.velocity_command import UniformVelocityCommand
 from isaaclab.managers import ManagerTermBase
+from isaaclab.utils import configclass
 
 from .contract import ACTION_SCALE, ACTOR_OBS_DIM
 from .curriculum import CommandCurriculum
@@ -28,6 +31,9 @@ from .spec import CRITIC_OBS_DIM, joint_order_problems, spec_from_dict
 #: Attribute on the env instance where the live curriculum object is exposed to
 #: the training script (manifest writing at every checkpoint save).
 ENV_CURRICULUM_ATTR = "phoenix_velocity_curriculum"
+#: Bool tensor on the env: envs the cold_start reset event just put in the
+#: deployment start state; consumed by ColdStartVelocityCommand.reset.
+ENV_COLD_START_ATTR = "phoenix_cold_start_pending"
 
 
 def _env_ids_tensor(env: Any, env_ids: Any) -> torch.Tensor:
@@ -129,13 +135,21 @@ class VelocityCommandCurriculum(ManagerTermBase):
             ids, steps = ids[done], steps[done]
             rm = env.reward_manager
             lin = episode_mean_kernel_math(
-                rm._episode_sums[lin_term][ids], rm.get_term_cfg(lin_term).weight, env.step_dt, steps
+                rm._episode_sums[lin_term][ids],
+                rm.get_term_cfg(lin_term).weight,
+                env.step_dt,
+                steps,
             )
             yaw = episode_mean_kernel_math(
-                rm._episode_sums[yaw_term][ids], rm.get_term_cfg(yaw_term).weight, env.step_dt, steps
+                rm._episode_sums[yaw_term][ids],
+                rm.get_term_cfg(yaw_term).weight,
+                env.step_dt,
+                steps,
             )
             lin_surv = episode_survival_kernel_math(
-                rm._episode_sums[lin_term][ids], rm.get_term_cfg(lin_term).weight, env.max_episode_length_s
+                rm._episode_sums[lin_term][ids],
+                rm.get_term_cfg(lin_term).weight,
+                env.max_episode_length_s,
             )
             terminated = env.termination_manager.terminated[ids]
             decision = self.curriculum.observe(
@@ -198,6 +212,9 @@ class VelocityTelemetry(ManagerTermBase):
         cmd = env.command_manager.get_command("base_velocity")
         v = as_torch(asset.data.root_lin_vel_b)
         w = as_torch(asset.data.root_ang_vel_b)
+        cmd_term_obj = env.command_manager.get_term("base_velocity")
+        cold_ep = getattr(cmd_term_obj, "cold_episode", None)
+        cold_pend = getattr(cmd_term_obj, "cold_pending", None)
         absa = a.abs().flatten()
         k = max(1, int(math.ceil(0.99 * absa.numel())))
         return {
@@ -207,12 +224,140 @@ class VelocityTelemetry(ManagerTermBase):
             "action_abs_p99": float(absa.kthvalue(k).values),
             "lin_err": float(torch.linalg.norm(cmd[:, :2] - v[:, :2], dim=1).mean()),
             "yaw_err": float((cmd[:, 2] - w[:, 2]).abs().mean()),
+            # fraction of envs whose current episode began cold / still settling
+            "cold_start_episode_frac": (
+                float(cold_ep.float().mean()) if cold_ep is not None else 0.0
+            ),
+            "cold_start_settling_frac": (
+                float(cold_pend.float().mean()) if cold_pend is not None else 0.0
+            ),
         }
 
 
 __all__ = [
+    "ENV_COLD_START_ATTR",
     "ENV_CURRICULUM_ATTR",
+    "ColdStartVelocityCommand",
+    "ColdStartVelocityCommandCfg",
     "VelocityCommandCurriculum",
     "VelocityTelemetry",
     "assert_joint_contract",
+    "cold_start_reset",
+    "sample_cold_start_commands",
+    "write_cold_state",
 ]
+
+
+# ----------------------------------------------------------------- cold start
+
+
+def write_cold_state(env: Any, env_ids: torch.Tensor, asset_name: str = "robot") -> None:
+    """Deployment start state: default joint pose exactly, joint and root velocity zero.
+
+    Root pose (position, yaw) is left as the preceding reset term set it; roll and
+    pitch are zero there. Shared by the ``cold_start`` reset event and the
+    evaluation, so both mean the same state.
+    """
+    asset = env.scene[asset_name]
+    q0 = as_torch(asset.data.default_joint_pos)[env_ids].clone()
+    asset.write_joint_position_to_sim_index(position=q0, env_ids=env_ids)
+    asset.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(q0), env_ids=env_ids)
+    asset.write_root_velocity_to_sim_index(
+        root_velocity=torch.zeros(len(env_ids), 6, device=q0.device), env_ids=env_ids
+    )
+
+
+def cold_start_reset(env: Any, env_ids: Any, fraction: float, asset_name: str = "robot") -> None:
+    """Reset event (after reset_base / reset_robot_joints): a ``fraction`` of the
+    resetting envs start cold (:func:`write_cold_state`) and are flagged for the
+    command term's stand -> low-command schedule."""
+    ids = _env_ids_tensor(env, env_ids)
+    mask = getattr(env, ENV_COLD_START_ATTR, None)
+    if mask is None:
+        mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        setattr(env, ENV_COLD_START_ATTR, mask)
+    mask[ids] = False
+    cold = ids[torch.rand(ids.numel(), device=env.device) < float(fraction)]
+    if cold.numel():
+        write_cold_state(env, cold, asset_name)
+        mask[cold] = True
+
+
+def sample_cold_start_commands(
+    families: torch.Tensor, n: int, generator: torch.Generator | None = None
+) -> torch.Tensor:
+    """(n, 3) commands: pick a family by weight, draw its axis value uniformly in [lo, hi].
+
+    ``families`` is (F, 4) rows ``(axis, lo, hi, weight)`` (``ColdStartSpec.families``).
+    """
+    dev = families.device
+    fam = torch.multinomial(families[:, 3], n, replacement=True, generator=generator)
+    axis = families[fam, 0].long()
+    lo, hi = families[fam, 1], families[fam, 2]
+    u = torch.rand(n, device=dev, generator=generator)
+    cmd = torch.zeros(n, 3, device=dev)
+    cmd[torch.arange(n, device=dev), axis] = lo + (hi - lo) * u
+    return cmd
+
+
+class ColdStartVelocityCommand(UniformVelocityCommand):
+    """UniformVelocityCommand plus the cold-start schedule.
+
+    For envs the ``cold_start`` event flagged at reset: zero command for a
+    ``settle_s`` draw, then one low command from the families, held for a
+    normal resampling interval; then ordinary sampling. Other envs behave
+    exactly like UniformVelocityCommand.
+    """
+
+    cfg: ColdStartVelocityCommandCfg
+
+    def __init__(self, cfg: ColdStartVelocityCommandCfg, env: Any):
+        super().__init__(cfg, env)
+        n, dev = self.num_envs, self.device
+        self.cold_episode = torch.zeros(n, dtype=torch.bool, device=dev)
+        self.cold_pending = torch.zeros(n, dtype=torch.bool, device=dev)
+        self.cold_countdown = torch.zeros(n, device=dev)
+        self.cold_command = torch.zeros(n, 3, device=dev)
+        self._families = torch.tensor(cfg.cold_start_families, dtype=torch.float, device=dev)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        extras = super().reset(env_ids)  # resamples: clears any pending schedule
+        ids = _env_ids_tensor(self._env, env_ids)
+        self.cold_episode[ids] = False
+        mask = getattr(self._env, ENV_COLD_START_ATTR, None)
+        if mask is not None:
+            cold = ids[mask[ids]]
+            mask[ids] = False
+            if cold.numel():
+                lo, hi = self.cfg.cold_start_settle_s
+                settle = torch.empty(cold.numel(), device=self.device).uniform_(lo, hi)
+                self.cold_episode[cold] = True
+                self.cold_pending[cold] = True
+                self.cold_countdown[cold] = settle
+                self.cold_command[cold] = sample_cold_start_commands(self._families, cold.numel())
+                self.vel_command_b[cold] = 0.0
+                self.is_standing_env[cold] = True
+                # hold the low command for a full normal interval after the switch
+                r_lo, r_hi = self.cfg.resampling_time_range
+                self.time_left[cold] = settle + torch.empty_like(settle).uniform_(r_lo, r_hi)
+        return extras
+
+    def _resample_command(self, env_ids: Sequence[int]):
+        super()._resample_command(env_ids)
+        self.cold_pending[env_ids] = False
+
+    def _update_command(self):
+        self.cold_countdown -= self._env.step_dt * self.cold_pending.float()
+        switch = self.cold_pending & (self.cold_countdown <= 0.0)
+        if bool(switch.any()):
+            self.vel_command_b[switch] = self.cold_command[switch]
+            self.is_standing_env[switch] = False
+            self.cold_pending[switch] = False
+        super()._update_command()
+
+
+@configclass
+class ColdStartVelocityCommandCfg(UniformVelocityCommandCfg):
+    class_type: type = ColdStartVelocityCommand
+    cold_start_families: tuple = ()
+    cold_start_settle_s: tuple[float, float] = (0.5, 1.5)

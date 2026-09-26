@@ -252,12 +252,129 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         "action_clip_rate": clip_rate_sum / max(steps_done, 1),
     }
     result["fixed_command_sweep"] = _fixed_command_sweep(unwrapped, actor, spec)
+    result["cold_start_sweep"] = _cold_start_sweep(unwrapped, actor, spec)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2))
     logger.info("eval written -> %s", args.out)
     env.close()
     return 0
+
+
+def _pin_command(cmd_term, fixed) -> None:
+    """Hold ``fixed`` as every env's command.
+
+    Writing ``vel_command_b`` alone is not enough: UniformVelocityCommand zeroes
+    the command of its ``rel_standing_envs`` share (~10%) on every compute and
+    resamples when ``time_left`` runs out. Before 2026-09-26 the sweep did only
+    the write, so ~10% of envs were commanded zero and tracking ratios were
+    biased low.
+    """
+    cmd_term.is_standing_env[:] = False
+    cmd_term.time_left[:] = 1.0e9
+    if hasattr(cmd_term, "cold_pending"):
+        cmd_term.cold_pending[:] = False
+    cmd_term.vel_command_b[:] = fixed
+
+
+def _cold_start_sweep(unwrapped, actor, spec, settle_s: float = 1.0, command_s: float = 6.0) -> dict:
+    """Deployment start state -> command, in Isaac.
+
+    Every env is put in the exact default stance with zero joint and root
+    velocity (phoenix.velocity.isaac_terms.write_cold_state, the same state the
+    cold_start reset event trains), held at zero command for ``settle_s``, then
+    given the case's command. Pushes are disabled for the sweep. Measured over
+    the last half of the command phase on envs that never fell:
+      achieved_mean (vx, vy, wz), tracking_ratio on the commanded axis,
+      started_frac = envs whose own mean on that axis reached >= 50% of the
+      command with the right sign, fall_fraction, and reward_by_term (mean
+      weighted per-second reward of every term, for the low-speed deadband
+      diagnosis).
+    Case ``moving_0.5_to_0.3`` starts cold, walks 0.5 for 4 s, then 0.3.
+    """
+    import torch
+
+    from phoenix.velocity.isaac_terms import write_cold_state
+    from phoenix.velocity.mdp import as_torch
+
+    robot = unwrapped.scene["robot"]
+    cmd_term = unwrapped.command_manager.get_term("base_velocity")
+    device = unwrapped.device
+    n = unwrapped.num_envs
+    dt = unwrapped.step_dt
+    all_ids = torch.arange(n, device=device)
+    em = unwrapped.event_manager
+    push_cfg = em.get_term_cfg("push_robot") if "push_robot" in em.active_terms.get("interval", []) else None
+    push_func = None
+    if push_cfg is not None:
+        push_func = push_cfg.func
+        push_cfg.func = lambda *a, **k: None
+    rm = unwrapped.reward_manager
+    term_names = list(rm.active_terms)
+
+    cases = {
+        "cold_to_vx_p0.3": [(0.0, (0.3, 0.0, 0.0))],
+        "cold_to_vx_m0.3": [(0.0, (-0.3, 0.0, 0.0))],
+        "cold_to_vy_p0.3": [(0.0, (0.0, 0.3, 0.0))],
+        "cold_to_vy_m0.3": [(0.0, (0.0, -0.3, 0.0))],
+        "cold_to_yaw_p0.8": [(0.0, (0.0, 0.0, 0.8))],
+        "cold_to_yaw_m0.8": [(0.0, (0.0, 0.0, -0.8))],
+        "moving_0.5_to_0.3": [(0.0, (0.5, 0.0, 0.0)), (4.0, (0.3, 0.0, 0.0))],
+        # low-speed deadband diagnostics (seed 47: backward -0.2 stood still)
+        "cold_to_vx_p0.2": [(0.0, (0.2, 0.0, 0.0))],
+        "cold_to_vx_m0.2": [(0.0, (-0.2, 0.0, 0.0))],
+    }
+    out: dict = {}
+    try:
+        for name, segs in cases.items():
+            obs_dict, _ = unwrapped.reset()
+            write_cold_state(unwrapped, all_ids)
+            unwrapped.scene.write_data_to_sim()
+            unwrapped.sim.forward()
+            unwrapped.scene.update(dt=0.0)
+            obs_dict = unwrapped.observation_manager.compute()
+            total_s = settle_s + segs[-1][0] + command_s
+            steps = int(round(total_s / dt))
+            measure_from = steps - int(round(0.5 * command_s / dt))
+            final = torch.tensor(segs[-1][1], device=device)
+            axis = int(torch.argmax(final.abs()))
+            fell = torch.zeros(n, dtype=torch.bool, device=device)
+            acc = torch.zeros(n, 3, device=device)
+            cnt = 0
+            rew = torch.zeros(len(term_names), device=device)
+            with torch.no_grad():
+                for k in range(steps):
+                    t = k * dt - settle_s
+                    cmd = (0.0, 0.0, 0.0) if t < 0 else [c for t0, c in segs if t >= t0][-1]
+                    fixed = torch.tensor(cmd, device=device).expand(n, 3).clone()
+                    _pin_command(cmd_term, fixed)
+                    action = actor(obs_dict["policy"]).clamp(-spec.action.clip_actions, spec.action.clip_actions)
+                    obs_dict, _r, terminated, truncated, _e = unwrapped.step(action)
+                    _pin_command(cmd_term, fixed)
+                    fell |= terminated.bool() & ~truncated.bool()
+                    if k >= measure_from:
+                        v = as_torch(robot.data.root_lin_vel_b)
+                        w = as_torch(robot.data.root_ang_vel_b)
+                        acc += torch.stack([v[:, 0], v[:, 1], w[:, 2]], dim=1)
+                        rew += rm._step_reward[~fell].mean(dim=0) if bool((~fell).any()) else 0.0
+                        cnt += 1
+            ok = ~fell
+            per_env = acc / max(cnt, 1)
+            achieved = per_env[ok].mean(dim=0).tolist() if bool(ok.any()) else [float("nan")] * 3
+            c = float(final[axis])
+            started = (per_env[ok][:, axis] / c >= 0.5).float().mean() if bool(ok.any()) else torch.tensor(0.0)
+            out[name] = {
+                "command": final.tolist(),
+                "fall_fraction": float(fell.float().mean()),
+                "achieved_mean": achieved,
+                "tracking_ratio": achieved[axis] / c,
+                "started_frac": float(started),
+                "reward_by_term": {t: float(r) / max(cnt, 1) for t, r in zip(term_names, rew, strict=True)},
+            }
+    finally:
+        if push_cfg is not None:
+            push_cfg.func = push_func
+    return out
 
 
 def _fixed_command_sweep(unwrapped, actor, spec, num_steps: int = 250) -> dict:
@@ -299,7 +416,7 @@ def _fixed_command_sweep(unwrapped, actor, spec, num_steps: int = 250) -> dict:
     for name, (vx, vy, wz) in scenarios.items():
         obs_dict, _ = unwrapped.reset()
         fixed = torch.tensor([vx, vy, wz], device=device).expand(n, 3).clone()
-        cmd_term.vel_command_b[:] = fixed
+        _pin_command(cmd_term, fixed)
         near_hard_any_step = torch.zeros(n, dtype=torch.bool, device=device)
         fell = torch.zeros(n, dtype=torch.bool, device=device)
         max_overshoot_rad = 0.0
@@ -311,7 +428,7 @@ def _fixed_command_sweep(unwrapped, actor, spec, num_steps: int = 250) -> dict:
                 action = actor(obs)
                 action_clipped = action.clamp(-spec.action.clip_actions, spec.action.clip_actions)
                 obs_dict, _rew, terminated, truncated, extras = unwrapped.step(action_clipped)
-                cmd_term.vel_command_b[:] = fixed  # re-force every step
+                _pin_command(cmd_term, fixed)  # re-force every step
                 fell |= terminated.bool() & ~truncated.bool()
                 if step >= settle_steps:
                     ok = ~fell

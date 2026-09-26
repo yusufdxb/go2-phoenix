@@ -408,3 +408,55 @@ def test_guard_missing_signals_are_not_failures() -> None:
     g = _guard()
     v = g.update(HealthSample(iteration=500))
     assert v.status == OK
+
+
+# ---------------------------------------------------------------- cold start (vnext2)
+
+
+def test_vnext2_is_vnext_plus_cold_start_only() -> None:
+    from phoenix.velocity.spec import vnext2_spec
+
+    v, v2 = vnext_spec(), vnext2_spec()
+    assert v2.validate() == []
+    assert not v.cold_start.enabled and v2.cold_start.enabled
+    assert v2.replace(cold_start=v.cold_start) == v
+    cs = v2.cold_start
+    assert 0.10 <= cs.fraction <= 0.20
+    assert cs.settle_s == (0.5, 1.5)
+
+
+def test_cold_start_families_cover_the_requested_transitions() -> None:
+    from phoenix.velocity.spec import vnext2_spec
+
+    fams = vnext2_spec().cold_start.families
+    covers = lambda axis, x: any(f[0] == axis and f[1] <= x <= f[2] for f in fams)  # noqa: E731
+    assert covers(0, 0.3) and covers(0, -0.3)  # vx +-0.3
+    assert covers(1, 0.3) and covers(1, -0.3)  # vy +-0.3
+    assert covers(2, 0.8) and covers(2, -0.8) and covers(2, 0.5)  # low/moderate yaw
+    back = sum(f[3] for f in fams if f[0] == 0 and f[2] < 0)
+    assert back / sum(f[3] for f in fams) == pytest.approx(2 / 7)
+
+
+def test_cold_start_validation_rejects_bad_families() -> None:
+    from phoenix.velocity.spec import vnext2_spec
+
+    v2 = vnext2_spec()
+    cs = v2.cold_start
+    bad = v2.replace(cold_start=dataclasses.replace(cs, families=((0, -0.5, -0.2, 1.0),)))
+    assert any("outside level-0" in p for p in bad.validate())  # backward level 0 is -0.3
+    bad = v2.replace(cold_start=dataclasses.replace(cs, families=((0, 0.0, 0.3, 1.0),)))
+    assert any("stand-command band" in p for p in bad.validate())
+    bad = v2.replace(cold_start=dataclasses.replace(cs, fraction=0.9))
+    assert any("fraction" in p for p in bad.validate())
+    bad = v2.replace(cold_start=dataclasses.replace(cs, settle_s=(0.5, 6.0)))
+    assert any("settle_s" in p for p in bad.validate())
+
+
+def test_cold_start_round_trips_and_old_specs_load_without_it() -> None:
+    from phoenix.velocity.spec import vnext2_spec
+
+    v2 = vnext2_spec()
+    assert spec_from_dict(json.loads(v2.to_json())) == v2
+    old = json.loads(vnext_spec().to_json())
+    old.pop("cold_start")
+    assert spec_from_dict(old) == vnext_spec()
