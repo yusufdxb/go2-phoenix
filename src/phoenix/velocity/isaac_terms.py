@@ -252,12 +252,40 @@ __all__ = [
     "VelocityTelemetry",
     "assert_joint_contract",
     "cold_start_reset",
+    "restore_curriculum_state",
     "sample_cold_start_commands",
     "write_cold_state",
 ]
 
 
 # ----------------------------------------------------------------- cold start
+
+
+def restore_curriculum_state(
+    env: Any, manifest_state: dict[str, Any], command_name: str = "base_velocity"
+) -> None:
+    """Put a resumed run's command curriculum back where it stopped.
+
+    ``manifest_state`` is the ``curriculum_final_state.json`` the run wrote
+    (CommandCurriculum.manifest_dict). Restores level, counters and history,
+    applies the level's ranges to the command term and resamples every env's
+    command under them (the env was built at level 0).
+    """
+    cur = getattr(env, ENV_CURRICULUM_ATTR)
+    cur.load_state_dict(
+        {
+            "level": manifest_state["level"],
+            "evaluations": manifest_state.get("evaluations", 0),
+            "total_episodes": manifest_state.get("total_episodes", 0),
+            "history": manifest_state.get("level_history", []),
+        }
+    )
+    term = env.command_manager.get_term(command_name)
+    r = cur.ranges
+    term.cfg.ranges.lin_vel_x = tuple(r.lin_vel_x)
+    term.cfg.ranges.lin_vel_y = tuple(r.lin_vel_y)
+    term.cfg.ranges.ang_vel_z = tuple(r.ang_vel_z)
+    term._resample(torch.arange(env.num_envs, device=env.device))
 
 
 def write_cold_state(env: Any, env_ids: torch.Tensor, asset_name: str = "robot") -> None:

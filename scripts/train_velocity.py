@@ -61,6 +61,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "fine-tune semantics."
         ),
     )
+    p.add_argument(
+        "--faithful-resume",
+        action="store_true",
+        help=(
+            "With --resume and --resume-continue-iterations: continue the SAME run as it was "
+            "(optimizer state and adaptive learning rate from the checkpoint, curriculum state "
+            "from --resume-curriculum-state, commands resampled under the restored ranges). "
+            "Without it, --resume keeps its historical fine-tune semantics (fresh optimizer, "
+            "LR from the config, curriculum from level 0)."
+        ),
+    )
+    p.add_argument(
+        "--resume-curriculum-state",
+        type=Path,
+        default=None,
+        help="curriculum_final_state.json written when the resumed checkpoint's run stopped",
+    )
     p.add_argument("--smoke", action="store_true", help="Shrink the chosen --spec with spec.smoke_spec()")
     p.add_argument(
         "--spec",
@@ -298,14 +315,31 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         logger.info("Resuming from checkpoint: %s", args.resume)
         from phoenix.training.checkpoint import load_runner_checkpoint
 
+        if args.faithful_resume and not (args.resume_continue_iterations and args.resume_curriculum_state):
+            raise SystemExit("--faithful-resume needs --resume-continue-iterations and --resume-curriculum-state")
         ckpt_info = load_runner_checkpoint(
             runner,
             args.resume,
             load_actor=True,
             load_critic=True,
-            load_optimizer=False,
+            load_optimizer=bool(args.faithful_resume),
             load_iteration=bool(args.resume_continue_iterations),
         )
+        if args.faithful_resume:
+            import torch as _torch
+
+            from phoenix.velocity.isaac_terms import restore_curriculum_state
+
+            opt = _torch.load(args.resume, map_location="cpu", weights_only=False)["optimizer_state_dict"]
+            runner.alg.learning_rate = float(opt["param_groups"][0]["lr"])
+            state = json.loads(args.resume_curriculum_state.read_text())
+            restore_curriculum_state(env.unwrapped, state)
+            logger.info(
+                "faithful resume: optimizer loaded, learning_rate=%.3g, curriculum level=%d restored from %s",
+                runner.alg.learning_rate,
+                state["level"],
+                args.resume_curriculum_state,
+            )
         if not ckpt_info.get("actor_match", False):
             raise RuntimeError(f"Actor weights did not round-trip from {args.resume}: {ckpt_info}")
         if args.resume_continue_iterations:
