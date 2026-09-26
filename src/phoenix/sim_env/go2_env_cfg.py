@@ -404,10 +404,25 @@ def scale_explicit_actuator_gains(
     stiffness_distribution_params: tuple[float, float] | None = None,
     damping_distribution_params: tuple[float, float] | None = None,
 ) -> None:
-    """Startup motor-strength DR for EXPLICIT actuators (e.g. Go2 ``DCMotor``).
+    """Motor-strength DR for EXPLICIT actuators (e.g. Go2 ``DCMotor``).
 
-    Per-env, per-joint scales the actuator MODEL's stiffness and damping in
-    place by a uniform factor drawn from the given ranges.
+    Per-env, per-joint sets the actuator MODEL's stiffness and damping to
+    NOMINAL x a uniform factor drawn from the given ranges. The nominal gains
+    are captured on the first call (before any scaling) and stored on the
+    actuator, so the result is the same whether the event runs once
+    (``mode="startup"``, the stand task) or at every reset (``mode="reset"``,
+    PhoenixVelocity).
+
+    2026-09-26 bug (fixed here): this used to multiply the CURRENT gains by the
+    new factor. PhoenixVelocity schedules it at every episode reset, so each
+    env's gains did a multiplicative random walk: after 40 resets the
+    stiffness/nominal 10/50/90% quantiles were 0.42 / 0.86 / 1.74 (live Isaac,
+    1024 envs), vs 0.88 / 1.00 / 1.12 after one. The training plant got harder
+    the longer a process ran and a process restart silently reset it; that
+    was the walk_vnext3_seed47 1500 -> 1750 resume discontinuity (same
+    model_1500 weights: action p99 1.99 fresh, 2.99 aged 40 resets, 2.03 aged
+    with gains restored). Found first by the seed-46 autopsy (2026-09-25,
+    synthetic reproduction), not fixed then.
 
     Why not ``isaaclab...randomize_actuator_gains``: that term resets gains to
     ``asset.data.joint_stiffness`` (the implicit sim drive, which is 0 for an
@@ -430,18 +445,21 @@ def scale_explicit_actuator_gains(
     if env_ids is None:
         env_ids = torch.arange(asset.num_instances, device=asset.device)
     for actuator in asset.actuators.values():
+        if not hasattr(actuator, "_phoenix_nominal_stiffness"):
+            actuator._phoenix_nominal_stiffness = actuator.stiffness.clone()
+            actuator._phoenix_nominal_damping = actuator.damping.clone()
         if stiffness_distribution_params is not None:
             lo, hi = stiffness_distribution_params
             fac = torch.empty(
                 (len(env_ids), actuator.stiffness.shape[1]), device=asset.device
             ).uniform_(float(lo), float(hi))
-            actuator.stiffness[env_ids] = actuator.stiffness[env_ids] * fac
+            actuator.stiffness[env_ids] = actuator._phoenix_nominal_stiffness[env_ids] * fac
         if damping_distribution_params is not None:
             lo, hi = damping_distribution_params
             fac = torch.empty(
                 (len(env_ids), actuator.damping.shape[1]), device=asset.device
             ).uniform_(float(lo), float(hi))
-            actuator.damping[env_ids] = actuator.damping[env_ids] * fac
+            actuator.damping[env_ids] = actuator._phoenix_nominal_damping[env_ids] * fac
 
 
 def _prepare_dr_event_terms(env_cfg: Any, dr: dict[str, Any]) -> None:
