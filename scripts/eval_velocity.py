@@ -48,6 +48,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--num-steps", type=int, default=1000, help="policy steps (50 Hz -> 20s)")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument(
+        "--gain",
+        type=str,
+        default=None,
+        help=(
+            "Actuator gain condition (robustness evals). 'range:LO:HI': every reset redraws each env's "
+            "per-joint stiffness and damping as nominal x U(LO, HI) (independently). 'pattern:NAME': fixed "
+            "per-joint factor on nominal, no randomization; NAME in nominal, weak_rear (RL/RR x0.75), "
+            "weak_calf (calves x0.75), lr_asym (left x0.85, right x1.15), all_0.7. Default: the training spec's DR."
+        ),
+    )
+    p.add_argument(
         "--seed",
         type=int,
         default=None,
@@ -157,9 +168,12 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         eff = act.effort_limit
         limits[aname] = float(eff.flatten()[0].item()) if hasattr(eff, "flatten") else float(eff)
 
+    if args.gain:
+        _apply_gain_condition(unwrapped, args.gain)
     obs_dict, _ = env.reset()
     device = unwrapped.device
     n = unwrapped.num_envs
+    abs_actions = []
 
     sum_lin_err = {"stand": 0.0, "slow": 0.0, "fast": 0.0}
     cnt = {"stand": 0, "slow": 0, "fast": 0}
@@ -179,6 +193,7 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             # Diagnostic rate at a fixed |a|>1 threshold (task spec convention),
             # separate from the clip actually applied below.
             clip_rate_sum += float((action.abs() > 1.0).float().mean())
+            abs_actions.append(action.abs().flatten()[::5])
             # Step with the SAME clip the policy was trained/deployed with
             # (spec.action.clip_actions), not a hardcoded 1.0. A mismatched
             # tight clip here silently changes the env dynamics away from what
@@ -259,6 +274,9 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
             for k in limits
         },
         "action_clip_rate": clip_rate_sum / max(steps_done, 1),
+        "action_abs_p99": float(torch.quantile(torch.cat(abs_actions)[:16_000_000], 0.99)) if abs_actions else None,
+        "gain_condition": args.gain or "training DR",
+        "realized_gain_factor_by_joint": _realized_gains(unwrapped),
     }
     result["fixed_command_sweep"] = _fixed_command_sweep(unwrapped, actor, spec)
     result["cold_start_sweep"] = _cold_start_sweep(unwrapped, actor, spec)
@@ -268,6 +286,64 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
     logger.info("eval written -> %s", args.out)
     env.close()
     return 0
+
+
+GAIN_PATTERNS = ("nominal", "weak_rear", "weak_calf", "lr_asym", "all_0.7")
+
+
+def _pattern_factor(name: str, joint: str) -> float:
+    leg = joint[:2]
+    if name == "weak_rear":
+        return 0.75 if leg in ("RL", "RR") else 1.0
+    if name == "weak_calf":
+        return 0.75 if joint.endswith("calf_joint") else 1.0
+    if name == "lr_asym":
+        return 0.85 if leg in ("FL", "RL") else 1.15
+    if name == "all_0.7":
+        return 0.7
+    return 1.0
+
+
+def _apply_gain_condition(unwrapped, gain: str) -> None:
+    """Replace the motor_strength reset event for this eval (before the first reset)."""
+    import torch
+
+    em = unwrapped.event_manager
+    term = em.get_term_cfg("motor_strength")
+    kind, _, rest = gain.partition(":")
+    if kind == "range":
+        lo, hi = (float(x) for x in rest.split(":"))
+        term.params["stiffness_distribution_params"] = (lo, hi)
+        term.params["damping_distribution_params"] = (lo, hi)
+        return
+    if kind != "pattern" or rest not in GAIN_PATTERNS:
+        raise SystemExit(f"--gain {gain!r}: expected range:LO:HI or pattern:{'|'.join(GAIN_PATTERNS)}")
+    robot = unwrapped.scene["robot"]
+
+    def fixed_pattern(env, env_ids, asset_cfg, **_):  # noqa: ANN001, ANN202
+        ids = torch.arange(env.num_envs, device=env.device) if env_ids is None else env_ids
+        for act in robot.actuators.values():
+            if not hasattr(act, "_phoenix_nominal_stiffness"):
+                act._phoenix_nominal_stiffness = act.stiffness.clone()
+                act._phoenix_nominal_damping = act.damping.clone()
+            f = torch.tensor([_pattern_factor(rest, j) for j in act.joint_names], device=act.stiffness.device)
+            act.stiffness[ids] = act._phoenix_nominal_stiffness[ids] * f
+            act.damping[ids] = act._phoenix_nominal_damping[ids] * f
+
+    term.func = fixed_pattern
+
+
+def _realized_gains(unwrapped) -> dict:
+    """stiffness / nominal per joint across envs, as the plant actually is now (mean, min, max)."""
+    out = {}
+    for act in unwrapped.scene["robot"].actuators.values():
+        nom = getattr(act, "_phoenix_nominal_stiffness", None)
+        if nom is None:
+            continue
+        r = act.stiffness / nom
+        for k, j in enumerate(act.joint_names):
+            out[j] = [round(float(r[:, k].mean()), 4), round(float(r[:, k].min()), 4), round(float(r[:, k].max()), 4)]
+    return out
 
 
 def _pin_command(cmd_term, fixed) -> None:
