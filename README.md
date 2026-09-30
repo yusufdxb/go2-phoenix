@@ -17,7 +17,8 @@ The **Phoenix loop** trains a locomotion policy in simulation, deploys it to
 the real robot, captures the failures that happen on hardware, replays those
 failures in simulation under a randomized physics sweep, and fine-tunes the
 policy on that failure-seeded distribution. The improved policy goes back to
-the robot. Every stage is a concrete Python module with its own CLI,
+the robot. That is the designed loop; it has not yet run on real hardware
+failure data (see Project status). Every stage is a concrete Python module with its own CLI,
 configuration, and (where possible) unit tests.
 
 <p align="center">
@@ -42,7 +43,12 @@ The locomotion policy is trained and verified in simulation. The sim-to-real
 deploy stack (ONNX export, the ROS 2 policy node, the fail-closed safety
 layer) has run end-to-end on the real GO2; that live run surfaced a per-step
 slew-rate saturation (about 33% at `cmd_vel = 0`) that no on-robot stand has
-yet cleared.
+yet cleared. The earlier single-cause attribution of that saturation (see
+[`EVIDENCE.md`](EVIDENCE.md)) is superseded: three mismatches were live in the 2026-04-21 run (a deploy-only per-step rate
+limiter, all four hip joints set to 0.0 in the deploy config while training
+used +0.1 left / -0.1 right, and `base_lin_vel` fed to the policy as zeros).
+Which of the three dominates is pending an ablation
+(`scripts/deploy_ablation.py` on the `feat/causal-viability-replication` branch; see its [superseded-results record](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md#3-the-gate-7-root-cause-attribution)).
 
 **Status as of 2026-08: on-robot locomotion validation (Gate 7) is open and
 awaiting a lab session.** Two things must be re-proven in that one session:
@@ -50,7 +56,8 @@ that the corrected, normalization-carrying ONNX export behaves as the sim eval
 predicts, and that per-step slew saturation drops under the 5% gate for a 10 s
 stand. Note also that the adaptation loop, despite the title, **has not yet
 closed once on real failure data**: the replay and fine-tune path is wired and
-unit-tested, but no hardware failure Parquets exist to feed it.
+unit-tested, but it has not yet been run on any hardware-captured failure
+Parquet.
 
 [`EVIDENCE.md`](EVIDENCE.md) is the verified / inferred / not-validated
 ledger for every claim below.
@@ -58,13 +65,13 @@ ledger for every claim below.
 | Stage | State | Detail |
 |---|:---:|---|
 | Simulation training (PPO, layered-YAML env) | Done | rsl_rl, ~10 shell entry points |
-| Locomotion policy trained and sim-verified | Done | stand-v3-h25 sim eval: 32/32 success, 3.30% slew nominal / 2.91% under full DR, against a &lt;5% gate (sim only) |
-| ONNX export and torch / onnxruntime parity gate | Re-verification owed | `verify_deploy`, max drift 3.8e-06 against a 1e-4 tolerance. A 2026-05-21 audit found every pre-audit export silently dropped observation normalization, so all checkpoints must be re-exported and re-parity-checked before the Gate 7 retry ([EVIDENCE.md](EVIDENCE.md)) |
+| Locomotion policy trained and sim-verified | Done | stand-v3-h25 sim eval: 32/32 success (sim only). Its slew figures (3.30% nominal / 2.91% under full DR, against a &lt;5% gate) are **superseded**: they use a legacy raw-action-delta metric that the `feat/causal-viability-replication` branch has since replaced with deploy-equivalent clip activation, so they are not comparable to the 33% hardware figure ([why](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md#2-every-simulator-slew-saturation-percentage)) |
+| ONNX export and torch / onnxruntime parity gate | Re-verification owed | `verify_deploy`, max drift 3.8e-06 on the stand-v2 export (2026-04-17) and 4.77e-06 on the stand-v3-h25 export (2026-06-20), both against a 1e-4 tolerance. A 2026-05-21 audit found every pre-audit export silently dropped observation normalization, so all checkpoints must be re-exported and re-parity-checked before the Gate 7 retry ([EVIDENCE.md](EVIDENCE.md)) |
 | ROS 2 deploy stack and fail-closed safety layer | Done | 3 bridges, policy node, shared slew cap |
 | Deploy stack ran end-to-end on the GO2 | Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
 | Failure detector and Parquet trajectory logging | Done | rule-based attitude / collapse / slip |
-| Replay and failure-curriculum fine-tune | Done | wired and unit-tested; awaiting real parquets |
-| Live on-robot stand (Gate 7) | In progress | last live run (2026-04-21) saturated at 33%; the stand-v3-h25 recipe clears the gate in sim and is staged for the retry |
+| Replay and failure-curriculum fine-tune | Wired | wired and unit-tested; not yet run on real hardware failure data |
+| Live on-robot stand (Gate 7) | In progress | last live run (2026-04-21) saturated at 33%, cause pending ablation (see above); stand-v3-h25 is staged for the retry, but its sim slew figures are legacy-metric and do not show it clears the gate |
 | Live velocity tracking (Gate 8) | ⬜ Planned | two-policy mode-switch runtime is ready |
 | Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
 
@@ -75,7 +82,8 @@ Full milestone trail: [`docs/changelog.md`](docs/changelog.md).
 Most open-source quadruped RL projects stop at "trained in sim, deployed
 once." Phoenix is explicitly about the loop *after* the first deployment:
 reproducing real failures in sim, using them as training seeds, and shipping
-a better policy. The full pipeline is driven by YAML configs and ~10 shell
+a better policy. (That loop is designed and wired but has not yet run on real
+failure data.) The full pipeline is driven by YAML configs and ~10 shell
 entry points.
 
 ## Quick start
@@ -90,8 +98,9 @@ export ISAACLAB_PATH=/path/to/IsaacLab
 # Export to ONNX, bench it, and print the Jetson bringup steps
 ./scripts/deploy.sh checkpoints/phoenix-base/latest.pt
 
-# After recording a failure on the real robot, replay it in sim
-./scripts/replay.sh data/failures/attitude_2026_04_12.parquet
+# Once a failure has been recorded on the real robot, replay it in sim
+# (placeholder path: no hardware-captured failure has been replayed yet)
+./scripts/replay.sh data/failures/<recorded_failure>.parquet
 
 # Fine-tune with the failure curriculum
 ./scripts/adapt.sh configs/train/adaptation.yaml

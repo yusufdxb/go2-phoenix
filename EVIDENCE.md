@@ -1,6 +1,6 @@
 # Evidence Index
 
-Last reviewed: 2026-06-20 (stand-v3-h25 slew fix finalized). This page exists so a reviewer can see, at a glance,
+Last reviewed: 2026-09-30 (legacy sim slew metric and single-cause Gate-7 attribution marked superseded). This page exists so a reviewer can see, at a glance,
 what is **verified by reproducible artifact**, what is **inferred from
 indirect evidence**, and what is **not yet validated** in this repo. If a
 claim in the README is not listed here as Verified, treat it as Inferred or
@@ -34,17 +34,26 @@ Claims with a reproducible artifact in this repo or a captured log.
   removed from this repo in the hardware-identity scrub; the headline
   figures are the 16/16 success and 20.0 s mean episode length quoted here.
 - **Stand-v3-h25 slew-saturation fix (2026-06-16/20)**: the month-long Gate-7
-  saturation was root-caused to Isaac's `randomize_actuator_gains` zeroing
+  saturation was attributed to Isaac's `randomize_actuator_gains` zeroing
   explicit (DCMotor) actuator gains; replaced with a custom
-  `scale_explicit_actuator_gains` startup term. The winning recipe
+  `scale_explicit_actuator_gains` startup term. **That single-cause
+  attribution is superseded**: three deploy-path mismatches were live in the
+  2026-04-21 run (a deploy-only per-step rate limiter, all four hip joints set
+  to 0.0 in `deploy_stand_v2.yaml` while training used +0.1 left / -0.1 right,
+  and `base_lin_vel` fed to the policy as zeros), and which dominates is
+  pending an ablation (`scripts/deploy_ablation.py` on the
+  `feat/causal-viability-replication` branch, [record](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md#3-the-gate-7-root-cause-attribution)). The winning recipe
   (`configs/env/stand_v3_h25.yaml`: `action_rate -3` + per-motor
   `slew_sat_hinge -25` + full `[0.85,1.15]` actuator DR, 800-iter fine-tune)
-  evaluated at **32/32 success, slew 3.30% nominal / 2.91% under full DR**
-  (gate is <5%), 16 envs x 32 episodes via `phoenix.training.evaluate` on
-  `stand_nodr.yaml` / `stand_v3_h25.yaml`. ONNX-torch parity **4.77e-06**.
-  The 800-iter checkpoint is the deliverable; a 1500-iter run of the same
-  config regressed slew to 5.31% (return traded up), so training is
-  early-stopped at 800. Deliverable at
+  evaluated at **32/32 success**, 16 envs x 32 episodes via
+  `phoenix.training.evaluate` on `stand_nodr.yaml` / `stand_v3_h25.yaml`. Its
+  slew figures (3.30% nominal / 2.91% under full DR, against a <5% gate) are
+  **superseded**: they use a legacy raw-action-delta metric that branch has since
+  replaced with deploy-equivalent clip activation, so they are not comparable
+  to hardware slew figures ([record](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md#2-every-simulator-slew-saturation-percentage)). ONNX-torch parity **4.77e-06** on
+  the stand-v3-h25 export. The 800-iter checkpoint is the deliverable; a
+  1500-iter run of the same config regressed slew to 5.31% (same legacy
+  metric; return traded up), so training is early-stopped at 800. Deliverable at
   `checkpoints/phoenix-stand-v3-h25-final/` (weights gitignored, local only).
 - **v3b flat-velocity sim eval**: 0.091 m/s lin_err, 0.087 rad/s ang_err,
   32 / 32 success on `Isaac-Velocity-Flat-Unitree-Go2-v0`, 16 envs × 32
@@ -97,9 +106,10 @@ Claims that require hardware time or untaken experiments. Treat as **not yet
 true**.
 
 - **Gate 7**: 10 s live stand x3 on real GO2 in low-level mode. Pending hardware.
-  The sim-side blocker is now resolved: the stand-v3-h25 deliverable clears the
-  <5% slew gate in sim (3.30% / 2.91%) after the actuator-gain DR fix. Live
-  hardware retry still owed (the dev workstation now goes to the lab; no T7 staging).
+  The stand-v3-h25 sim slew figures (3.30% / 2.91%) that were read as clearing
+  the <5% gate are legacy-metric and superseded (see Verified above), and the
+  cause of the 2026-04-21 saturation is pending an ablation, so the sim-side
+  blocker is not shown to be resolved. Live hardware retry still owed (the dev workstation now goes to the lab; no T7 staging).
 - **Gate 8**: flat walking on real GO2 with v3b. Not attempted.
 - **Failure-curriculum adaptation against real-robot parquets.**
   `adaptation.yaml` ships with `failure_sample_fraction: 0.0`; the headline
