@@ -128,7 +128,8 @@ pytest tests -m "not sim and not ros"
 
 236 unit tests pass torch-free and ROS-free by construction (5 more exercise
 the torch path when torch is installed; 4 are marked `sim`/`ros` and deselected
-here). They cover the config loader, observation builder, failure detector, trajectory logger,
+here; re-measured 2026-09-30 with the CI command in a clean Python 3.10 venv:
+236 passed, 5 skipped, 4 deselected). They cover the config loader, observation builder, failure detector, trajectory logger,
 Parquet round-trip, Halton variation sampler, curriculum scheduler, per-env
 variation translation, the fail-closed estop / sensor-freshness predicates,
 the projected-gravity helper, the `verify_deploy` parity gate, the ONNX-export

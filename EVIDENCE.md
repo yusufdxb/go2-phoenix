@@ -10,7 +10,9 @@ Not validated until proven otherwise.
 
 Claims with a reproducible artifact in this repo or a captured log.
 
-- **235 unit tests green in CI**: `pytest tests -m "not sim and not ros"`. Coverage
+- **236 unit tests green in CI**: `pytest tests -m "not sim and not ros"`
+  (re-measured 2026-09-30 on `main` with the CI command in a clean Python 3.10
+  venv with `.[dev,real]`, no torch: 236 passed, 5 skipped, 4 deselected). Coverage
   listed in [README §Tests](README.md#tests). CI configured to lazy-import torch
   (commit `f235171`).
 - **ONNX↔torch parity gate**: `verify_deploy` reports max abs-diff
