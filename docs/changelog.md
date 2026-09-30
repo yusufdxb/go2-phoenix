@@ -2,6 +2,23 @@
 
 Release-style summary of past Phoenix milestones.
 
+## 2026-09-30: evidence reconciliation (docs only)
+
+Annotated earlier entries in place rather than rewriting them. Every sim slew
+percentage in this log (for example 0.33%) used a legacy raw-action-delta
+metric that has since been replaced by deploy-equivalent clip activation, so
+it is not comparable to hardware slew figures. The single-cause Gate 7
+root-cause attribution is superseded by three candidate train/deploy
+mismatches (a deploy-only per-step rate limiter, all four hips at 0.0 in
+`configs/sim2real/deploy_stand_v2.yaml` against +/-0.1 in training, and
+`base_lin_vel` fed to the policy as zeros); which dominates is pending
+`scripts/deploy_ablation.py` on the `feat/causal-viability-replication`
+branch. Record: [superseded results](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md).
+
+- `docs/changelog.md`, `README.md`, `EVIDENCE.md`
+- No code, config, or data changes; README and EVIDENCE test count set to the
+  measured 236.
+
 ## 2026-05-17: sweep + harness system
 
 Added a 12-cell sim-side benchmark sweep over friction range, lateral push,
@@ -33,6 +50,16 @@ at 33% on the rear thighs. Two coupled causes were diagnosed (a stand-posture
 offset plus out-of-distribution policy output). v3 attacks the latter via a
 4x action_rate plus 5x joint_acc penalty. Sim slew dropped to 0.33% at cmd=0.
 
+> **Superseded (2026-09-30).** The 0.33% sim figure is a legacy raw-action-delta
+> metric, not deploy-equivalent clip activation, so it is not comparable to the
+> 33% hardware figure ([record](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md#2-every-simulator-slew-saturation-percentage)).
+> The two-cause diagnosis above is also superseded: three train/deploy
+> mismatches were live in that run (a deploy-only per-step rate limiter, all
+> four hips at 0.0 in `deploy_stand_v2.yaml` against +/-0.1 in training, and
+> `base_lin_vel` fed as zeros), and which dominates is pending
+> `scripts/deploy_ablation.py` on the `feat/causal-viability-replication`
+> branch ([record](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md#3-the-gate-7-root-cause-attribution)).
+
 ## 2026-04-19: two-policy mode switch shipped
 
 The single-policy v3b replacement path was exhausted across four retrain
@@ -50,6 +77,14 @@ clip saturated at 30.23% specifically when `cmd_vel = (0, 0, 0)`. Root cause:
 the rough-v0 baseline was trained on 235-dim obs (proprioception plus height
 scan) and zero-padded at deploy, so the policy could not respect the slew
 cap. A flat-v0 retrain in `ppo_flat.yaml` was the next attempt.
+
+> **Note (2026-09-30).** No ablation isolating this single cause is recorded in
+> this repo. For the later 2026-04-21 run, single-cause attribution is
+> superseded by three candidate train/deploy mismatches (deploy-only per-step
+> rate limiter, hips at 0.0 at deploy against +/-0.1 in training,
+> `base_lin_vel` fed as zeros), with the ablation pending
+> ([record](https://github.com/yusufdxb/go2-phoenix/blob/feat/causal-viability-replication/docs/superseded_results.md#3-the-gate-7-root-cause-attribution)). Whether those
+> mismatches also applied to this rough-v0 run is not verified.
 
 ## 2026-04-17: pre-lab gates cleared for phoenix-stand
 
