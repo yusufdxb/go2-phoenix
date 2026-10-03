@@ -136,7 +136,7 @@ _NEW_TERM_FACTORIES: dict[str, tuple[str, Callable[[float], Any]]] = {
         lambda weight: _RewTerm(
             func=slew_sat_hinge_l2,
             weight=float(weight),
-            params={"threshold": 0.15},
+            params={"threshold": 0.15, "action_scale": 0.25},
         ),
     ),
 }
