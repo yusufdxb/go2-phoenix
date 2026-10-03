@@ -194,8 +194,12 @@ def test_apply_rewards_new_term_factory_attaches_reward() -> None:
 
     assert hasattr(env_cfg.rewards, "slew_sat_hinge_l2")
     assert env_cfg.rewards.slew_sat_hinge_l2.weight == -50.0
-    # Sanity: the factory passed threshold=0.15 per the spec.
-    assert env_cfg.rewards.slew_sat_hinge_l2.params == {"threshold": 0.15}
+    # Both values are in the contract: threshold is target radians, while the
+    # action-manager tensors passed to the reward are dimensionless.
+    assert env_cfg.rewards.slew_sat_hinge_l2.params == {
+        "threshold": 0.15,
+        "action_scale": 0.25,
+    }
 
 
 def test_apply_rewards_new_term_factory_mixed_with_upstream() -> None:
