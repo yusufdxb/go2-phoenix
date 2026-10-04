@@ -118,6 +118,8 @@ from .deploy_contract import is_stand_only, load_lock, validate_deploy_contract,
 from .gate import GateConfig, Outcome, SensorSnapshot, evaluate_gates
 from .mode_switch import ModeSwitchCfg, State, initial_state
 from .mode_switch import step as mode_step
+from phoenix.velocity.observation import ObservationError
+
 from .observation import (
     BASE_LIN_VEL_SOURCES,
     BaseLinVelSample,
@@ -128,6 +130,7 @@ from .observation import (
     projected_gravity_from_quat,
     resolve_base_lin_vel,
 )
+from .observation_v2 import ManifestObservationBuilder
 from .deploy_manifest import ManifestError, cfg_manifest_mismatches, load_deploy_manifest
 from .go2_model import limits_in_order, torque_limits_in_order
 from .safety import (
@@ -454,6 +457,20 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             deploy_manifest.kp,
             deploy_manifest.kd,
         )
+        # A manifest that declares a phoenix-velocity-obs schema (v2: 45-D, no
+        # base_lin_vel) is built by the manifest-driven builder, which refuses a
+        # schema/sha/term/scale/joint-order/default-pose disagreement. A manifest
+        # with no such block (H25 era) keeps the 48-D builder below, unchanged.
+        self.actor_obs_builder: ManifestObservationBuilder | None = None
+        if deploy_manifest.obs_schema_version is not None:
+            self.actor_obs_builder = ManifestObservationBuilder.from_manifest_file(
+                Path(manifest_path), cfg["joint_order"], cfg["control"]["default_joint_pos"]
+            )
+            logger.info(
+                "actor observation: %s (%d-D, no base_lin_vel)",
+                self.actor_obs_builder.schema_version,
+                self.actor_obs_builder.dim,
+            )
         # Per-axis (vx, vy, wz) command cap, config-driven so a first live
         # session can run conservative. Defaults match the run-card first-
         # session envelope (vx<=0.5, vy<=0.3, yaw<=0.8 rad/s). A stand-only
@@ -515,7 +532,12 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # Shape sanity: fail fast if padding doesn't match the ONNX input.
         expected_in = self.session.get_inputs()[0].shape
         expected_dim = expected_in[-1] if isinstance(expected_in[-1], int) else None
-        proprio_dim = 48
+        proprio_dim = 48 if self.actor_obs_builder is None else self.actor_obs_builder.dim
+        if self.actor_obs_builder is not None and self.obs_pad_zeros != 0:
+            raise ValueError(
+                f"policy.obs_pad_zeros must be 0 for the {proprio_dim}-D "
+                f"{self.actor_obs_builder.schema_version} observation, got {self.obs_pad_zeros}"
+            )
         if expected_dim is not None and proprio_dim + self.obs_pad_zeros != expected_dim:
             raise ValueError(
                 f"ONNX expects obs_dim={expected_dim} but node will emit "
@@ -529,6 +551,11 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # with all pre-mode-switch bringups.
         ms_cfg = cfg.get("policy", {}).get("mode_switch", {}) or {}
         self.mode_switch_enabled = bool(ms_cfg.get("enabled", False))
+        if self.mode_switch_enabled and self.actor_obs_builder is not None:
+            raise ValueError(
+                "policy.mode_switch builds the 48-D pre-v2 observation; refused with a "
+                f"{self.actor_obs_builder.schema_version} manifest"
+            )
         if self.mode_switch_enabled and self.stand_only:
             raise ValueError(
                 "policy.mode_switch is a walking feature; refused in a stand-only deploy"
@@ -949,17 +976,32 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             # Assembly goes through the one gated function; an inline
             # concatenate here is invisible to phoenix.sim2real.obs_parity,
             # which is how a zeroed term survived every parity run.
-            obs = assemble_policy_observation(
-                self.obs_builder,
-                base_lin_vel=base_lin_vel,
-                quat_xyzw=snap.quat_xyzw,
-                base_ang_vel=base_ang_vel,
-                velocity_command=velocity_command_fed,
-                joint_pos=q,
-                joint_vel=qd,
-                last_action=self._last_action,
-                pad_zeros=self.obs_pad_zeros,
-            ).reshape(1, -1)
+            if self.actor_obs_builder is not None:
+                try:
+                    obs = self.actor_obs_builder.build(
+                        base_ang_vel=base_ang_vel,
+                        quat_xyzw=snap.quat_xyzw,
+                        velocity_command=velocity_command_fed,
+                        joint_pos=q,
+                        joint_vel=qd,
+                        last_action=self._last_action,
+                    ).reshape(1, -1)
+                except ObservationError:
+                    logger.exception("actor observation refused its inputs; aborting")
+                    self._latch_abort("observation_invalid")
+                    return
+            else:
+                obs = assemble_policy_observation(
+                    self.obs_builder,
+                    base_lin_vel=base_lin_vel,
+                    quat_xyzw=snap.quat_xyzw,
+                    base_ang_vel=base_ang_vel,
+                    velocity_command=velocity_command_fed,
+                    joint_pos=q,
+                    joint_vel=qd,
+                    last_action=self._last_action,
+                    pad_zeros=self.obs_pad_zeros,
+                ).reshape(1, -1)
 
             outputs = self.session.run(self._shield_outputs, {"obs": obs})
             raw_action = outputs[0][0]
