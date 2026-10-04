@@ -21,7 +21,7 @@
 # re-verified ON THE PAYLOAD, which is the only check that proves the transfer
 # rather than the copy. Host aliases jetson (wifi 192.168.0.70) and
 # jetson-cable (192.168.123.18) are already in ~/.ssh/config; the password
-# comes from JETSON_PW, default 123.
+# comes from JETSON_PW (must be exported; no default).
 #
 # Examples:
 #   scripts/stage_payload_bundle.sh \
@@ -206,13 +206,13 @@ fi
 # ------------------------------------------------------------------ remote push
 HOST="${REMOTE%%:*}"
 RPATH="${REMOTE#*:}"
-PW="${JETSON_PW:-123}"
-SSH=(sshpass -p "$PW" ssh "$HOST")
+export SSHPASS="${JETSON_PW:?export JETSON_PW (Jetson password)}"
+SSH=(sshpass -e ssh "$HOST")
 
 echo
 echo "[stage] pushing to $HOST:$RPATH"
 "${SSH[@]}" "mkdir -p '$RPATH'"
-sshpass -p "$PW" rsync -a --delete -e "sshpass -p $PW ssh" "$DEST"/ "$HOST:$RPATH"/
+sshpass -e rsync -a --delete -e "sshpass -e ssh" "$DEST"/ "$HOST:$RPATH"/
 
 # The local sha256sum -c above only proves the local copy. This one proves the
 # bytes that actually reached the payload.

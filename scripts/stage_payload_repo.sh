@@ -20,7 +20,7 @@
 # <dest> is the payload's repo root: a local directory (self-test) or
 # [user@]host:/path. Refuses to run from a dirty working tree unless
 # ALLOW_DIRTY=1, because PAYLOAD_SYNC.txt records the commit and a dirty tree
-# makes that record a lie. JETSON_PW defaults to 123 (factory default).
+# makes that record a lie. JETSON_PW must be exported; there is no default.
 #
 # Examples:
 #   scripts/stage_payload_repo.sh /tmp/phoenix-repo-selftest
@@ -109,9 +109,9 @@ fi
 # ------------------------------------------------------------------ remote push
 HOST="${REMOTE%%:*}"
 RPATH="${REMOTE#*:}"
-PW="${JETSON_PW:-123}"
-SSH=(sshpass -p "$PW" ssh "$HOST")
-export RSYNC_RSH="sshpass -p $PW ssh"
+export SSHPASS="${JETSON_PW:?export JETSON_PW (Jetson password)}"
+SSH=(sshpass -e ssh "$HOST")
+export RSYNC_RSH="sshpass -e ssh"
 
 echo "[repo] pushing $N_FILES tracked files @ ${COMMIT:0:7} (dirty=$DIRTY) -> $HOST:$RPATH"
 "${SSH[@]}" "mkdir -p '$RPATH'"

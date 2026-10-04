@@ -280,7 +280,17 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = yaml.safe_load(args.deploy_cfg.read_text())
 
-    policy, obs_dim, action_dim = build_reference_policy(args.checkpoint)
+    # A manifest-declared velocity-obs schema (v2) trains the actor without an
+    # observation normalizer by spec, so the no-normalizer refusal (meant for
+    # legacy checkpoints) does not apply; same rule as stage A.
+    from phoenix.sim2real.deploy_contract import _load_manifest
+    from phoenix.sim2real.observation_v2 import manifest_actor_schema
+
+    deploy_manifest = _load_manifest(cfg)
+    v2_schema = manifest_actor_schema(deploy_manifest) if deploy_manifest else None
+    policy, obs_dim, action_dim = build_reference_policy(
+        args.checkpoint, allow_no_normalizer=v2_schema is not None
+    )
     session = ort.InferenceSession(str(args.onnx), providers=["CPUExecutionProvider"])
     in_name = session.get_inputs()[0].name
     out_names = [o.name for o in session.get_outputs()]
@@ -298,20 +308,35 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("ONNX input dim %s != checkpoint obs_dim %d", onnx_in_dim, obs_dim)
         return 2
 
-    # The node's contract: 48 proprio dims + configured padding.
+    # The node's contract: the manifest's v2 actor dim (45) when the manifest
+    # declares a velocity-obs schema, else the pre-v2 48 proprio dims; plus padding.
     pad = int(cfg.get("policy", {}).get("obs_pad_zeros", 0))
-    node_dim = 48 + pad
+    if v2_schema is not None:
+        from phoenix.sim2real.observation_v2 import ACTOR_OBS_DIM
+
+        base_dim = int(ACTOR_OBS_DIM)
+        if args.parquet:
+            logger.error("--parquet replays the pre-v2 48-D builder; use --npz for %s", v2_schema)
+            return 2
+    else:
+        base_dim = 48
+    node_dim = base_dim + pad
     if isinstance(onnx_in_dim, int) and node_dim != onnx_in_dim:
         logger.error(
-            "SHAPE CONTRACT FAIL: %s emits 48+%d=%d but ONNX expects %s",
+            "SHAPE CONTRACT FAIL: %s emits %d+%d=%d but ONNX expects %s",
             args.deploy_cfg,
+            base_dim,
             pad,
             node_dim,
             onnx_in_dim,
         )
         return 2
     logger.info(
-        "shape contract OK: node emits 48+%d=%d, onnx expects %s", pad, node_dim, onnx_in_dim
+        "shape contract OK: node emits %d+%d=%d, onnx expects %s",
+        base_dim,
+        pad,
+        node_dim,
+        onnx_in_dim,
     )
 
     manifest = shipped_manifest(args.checkpoint, args.onnx)
