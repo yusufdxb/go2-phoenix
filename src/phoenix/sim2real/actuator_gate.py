@@ -190,6 +190,10 @@ class GateParams:
     #: it: a caller must derive it from :func:`deploy_contract.walking_evidence_problems`
     #: (stages F and G on hardware for the same artifacts) before constructing the gate.
     walking_allowed: bool = False
+    #: The deploy manifest declares ``phoenix-velocity-obs/v2`` (45-D, no base_lin_vel
+    #: term), so a ``zeros`` observation source is an inert placeholder rather than a
+    #: blinded trained input. Derived by the bridge from the manifest; never a CLI flag.
+    obs_schema_v2: bool = False
 
     def __post_init__(self) -> None:
         for name in (
@@ -449,7 +453,7 @@ class ActuatorGate:
         # node started from a config that skipped validation must still be
         # unable to walk the robot through this bridge.
         if stand_only != 1.0:
-            if obs_code == _ZEROS_CODE:
+            if obs_code == _ZEROS_CODE and not self.params.obs_schema_v2:
                 self._latch("walking_blocked_zero_base_lin_vel")
                 return
             if not self.params.walking_allowed:

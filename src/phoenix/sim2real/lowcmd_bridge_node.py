@@ -62,7 +62,14 @@ from phoenix.sim2real.bridge_telemetry import (
     TelemetryWriter,
     utc_now_iso,
 )
-from phoenix.sim2real.deploy_contract import load_lock, validate_deploy_contract, verify_lock
+from phoenix.sim2real.deploy_contract import (
+    OBS_SCHEMA_V2,
+    is_stand_only,
+    load_lock,
+    validate_deploy_contract,
+    verify_lock,
+)
+from phoenix.sim2real.deploy_manifest import ManifestError, load_deploy_manifest
 from phoenix.sim2real.go2_model import (
     JOINT_LIMITS_PROVENANCE,
     JOINT_POSITION_LIMITS_RAD,
@@ -131,6 +138,12 @@ class BridgeConfig:
     standup_s: float = 0.0
     standup_kp: float = 60.0
     standup_kd: float = 5.0
+    #: Derived in _build_config from the deploy config, never from a flag: True only for a
+    #: walking config (safety.stand_only: false) whose full deploy contract passes, which
+    #: includes stages F and G GO on hardware for the same artifacts.
+    walking_allowed: bool = False
+    #: The deploy manifest declares phoenix-velocity-obs/v2 (no base_lin_vel term).
+    obs_schema_v2: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
     def gate_params(self) -> GateParams:
@@ -149,12 +162,25 @@ class BridgeConfig:
             standup_s=self.standup_s,
             standup_kp=self.standup_kp,
             standup_kd=self.standup_kd,
+            walking_allowed=self.walking_allowed,
+            obs_schema_v2=self.obs_schema_v2,
         )
 
 
 def _load_deploy_config(path: Path) -> dict[str, Any]:
     with path.open("r") as fh:
         return yaml.safe_load(fh)
+
+
+def _manifest_schema(cfg: dict[str, Any]) -> str | None:
+    """The observation schema the deploy config's manifest declares, or None if unreadable."""
+    path = (cfg.get("policy") or {}).get("manifest_path")
+    if not path:
+        return None
+    try:
+        return load_deploy_manifest(Path(str(path))).obs_schema_version
+    except (ManifestError, OSError, ValueError):
+        return None
 
 
 #: Last-mile substitute when a command is unsendable: the folded pose at kp 5 / kd 1.
@@ -522,6 +548,8 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
     lowstate_timeout_s = 0.2
     first_message_timeout_s = 15.0
     joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
+    walking_allowed = False
+    obs_schema_v2 = False
     if args.config.exists():
         cfg = _load_deploy_config(args.config)
         rate_hz = float(cfg.get("control", {}).get("rate_hz", rate_hz))
@@ -535,6 +563,8 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         first_message_timeout_s = float(s.get("first_message_timeout_s", first_message_timeout_s))
         if cfg.get("joint_order"):
             joint_order = tuple(cfg["joint_order"])
+        obs_schema_v2 = _manifest_schema(cfg) == OBS_SCHEMA_V2
+        walking_allowed = not is_stand_only(cfg) and not validate_deploy_contract(cfg)
 
     # Resolution order for the estop heartbeat timeout, strict-to-loose:
     #   1. CLI flag --estop-timeout-s if explicitly passed (not None).
@@ -576,6 +606,8 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         standup_s=float(getattr(args, "standup_s", 0.0)),
         standup_kp=float(getattr(args, "standup_kp", 60.0)),
         standup_kd=float(getattr(args, "standup_kd", 5.0)),
+        walking_allowed=walking_allowed,
+        obs_schema_v2=obs_schema_v2,
     )
 
 

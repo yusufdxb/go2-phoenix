@@ -115,7 +115,13 @@ from .command_wire import (
     encode,
     obs_source_code,
 )
-from .deploy_contract import is_stand_only, load_lock, validate_deploy_contract, verify_lock
+from .deploy_contract import (
+    OBS_SCHEMA_V2,
+    is_stand_only,
+    load_lock,
+    validate_deploy_contract,
+    verify_lock,
+)
 from .deploy_manifest import ManifestError, cfg_manifest_mismatches, load_deploy_manifest
 from .gate import GateConfig, Outcome, SensorSnapshot, evaluate_gates
 from .go2_model import limits_in_order, torque_limits_in_order
@@ -387,10 +393,6 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # one latches an abort. main() already refused a config that fails the
         # deploy contract; this re-check keeps the class safe when used directly.
         self.stand_only = is_stand_only(cfg)
-        if self.base_lin_vel_source == "zeros" and not self.stand_only:
-            raise ValueError(
-                "base_lin_vel_source=zeros requires safety.stand_only: true; walking is blocked"
-            )
         if self.stand_only:
             logger.warning(
                 "STAND-ONLY deploy: velocity command fixed at zero; any nonzero /cmd_vel "
@@ -463,6 +465,18 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         # base_lin_vel) is built by the manifest-driven builder, which refuses a
         # schema/sha/term/scale/joint-order/default-pose disagreement. A manifest
         # with no such block (H25 era) keeps the 48-D builder below, unchanged.
+        # Same rule as deploy_contract.validate_deploy_contract: zeros for a TRAINED
+        # base_lin_vel term (pre-v2, 48-D) is stand-only. A v2 policy has no such term,
+        # so its 'zeros' is an inert placeholder and does not block walking.
+        if (
+            self.base_lin_vel_source == "zeros"
+            and not self.stand_only
+            and deploy_manifest.obs_schema_version != OBS_SCHEMA_V2
+        ):
+            raise ValueError(
+                "base_lin_vel_source=zeros requires safety.stand_only: true for a pre-v2 "
+                "policy (its observation has a trained base_lin_vel term); walking is blocked"
+            )
         self.actor_obs_builder: ManifestObservationBuilder | None = None
         if deploy_manifest.obs_schema_version is not None:
             self.actor_obs_builder = ManifestObservationBuilder.from_manifest_file(

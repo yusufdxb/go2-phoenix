@@ -459,6 +459,26 @@ def test_odom_walking_is_still_blocked_while_walking_disabled() -> None:
     assert gate.tick(ns(0.01))["fault"] == "walking_blocked_not_enabled"
 
 
+def test_v2_zeros_walking_is_accepted_only_when_walking_is_allowed() -> None:
+    # v2 (45-D) has no base_lin_vel term: its 'zeros' source is an inert placeholder.
+    gate = armed(walking_allowed=True, obs_schema_v2=True)
+    send(gate, 0.0, DEFAULT_P, stand_only=0.0, velocity_command_fed=[0.3, 0.0, 0.0])
+    rec = gate.tick(ns(0.01))
+    assert rec["fault"] is None and rec["mode"] == "policy"
+
+
+def test_v2_zeros_walking_without_walking_allowed_latches() -> None:
+    gate = armed(obs_schema_v2=True)
+    send(gate, 0.0, DEFAULT_P, stand_only=0.0, velocity_command_fed=[0.3, 0.0, 0.0])
+    assert gate.tick(ns(0.01))["fault"] == "walking_blocked_not_enabled"
+
+
+def test_pre_v2_zeros_walking_latches_even_when_walking_is_allowed() -> None:
+    gate = armed(walking_allowed=True)
+    send(gate, 0.0, DEFAULT_P, stand_only=0.0, velocity_command_fed=[0.3, 0.0, 0.0])
+    assert gate.tick(ns(0.01))["fault"] == "walking_blocked_zero_base_lin_vel"
+
+
 def test_command_without_observation_provenance_latches() -> None:
     gate = armed()
     label, data = encode(ORDER, seq=1, kind=KIND_POLICY, target=DEFAULT_P)
