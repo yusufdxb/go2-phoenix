@@ -24,14 +24,14 @@ What this module does instead
   not in time. ``s`` advances by ``1 / (duration * rate)`` per tick only while every
   joint is within ``track_pause_rad`` of the reference; otherwise the reference
   pauses where it is. A leg that cannot follow therefore stops the rise instead of
-  being out-run, and a pause longer than ``max_pause_s`` aborts to damping.
+  being out-run, and a pause longer than ``max_pause_s`` aborts to a hold at the sanitised measured pose (stand gains).
 * The duration is chosen from the largest joint excursion so the smoothstep's
   peak speed (1.5 x average) stays under ``max_ref_speed_rad_s``, with a floor of
   ``min_duration_s``. Every commanded step is also capped at
   ``max_step_rad`` per tick as a second, independent bound.
 * A following error beyond ``track_abort_rad`` on any joint aborts immediately.
 * :meth:`FixStand.abort` switches to holding the sanitised measured posture at the stand gains (never ``kp = 0``) at once
-  and is latched; every later tick is damping.
+  and is latched; every later tick holds the sanitised measured pose at kp > 0.
 * Every tick returns the reference, the measured posture and the per-joint error.
 
 "Ramp complete" (``s == 1``) is reported, but it is NOT a handoff criterion:
@@ -175,7 +175,7 @@ class FixStand:
         fs = FixStand(order, params)
         fs.start(q_measured)              # raises FixStandError if it must not start
         tick = fs.step(q_measured)        # every control tick
-        fs.abort("deadman_released")      # any time; latched damping
+        fs.abort("deadman_released")      # any time; latched measured-pose hold
     """
 
     def __init__(

@@ -166,10 +166,9 @@ def torque_limited_target_array(
         target_hi = q + ( torque_limit + Kd*dq) / Kp
 
     ``target`` is clipped into ``[target_lo, target_hi]``. Where ``Kp`` is
-    zero (damping: no position term, so no position clip is meaningful here)
-    the element passes through unclipped by this function; callers in a
-    damping mode do not reach this path in practice because damping holds
-    the measured position directly.
+    zero the element passes through unclipped (no division by zero). This is
+    defensive only: zero stiffness is never commanded (GateParams, SitParams and
+    the bridge's last-mile sanitize_lowcmd all refuse kp <= 0).
 
     This is a per-step bound, same as the clip it replaces, computed fresh
     every tick from the current measured state -- it is NOT a substitute for
