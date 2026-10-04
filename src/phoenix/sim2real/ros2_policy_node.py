@@ -105,6 +105,7 @@ from phoenix.real_world.trajectory_logger import (
     TrajectoryLogger,
     TrajectoryStep,
 )
+from phoenix.velocity.observation import ObservationError
 
 from .activation import file_sha256
 from .command_wire import (
@@ -115,11 +116,11 @@ from .command_wire import (
     obs_source_code,
 )
 from .deploy_contract import is_stand_only, load_lock, validate_deploy_contract, verify_lock
+from .deploy_manifest import ManifestError, cfg_manifest_mismatches, load_deploy_manifest
 from .gate import GateConfig, Outcome, SensorSnapshot, evaluate_gates
+from .go2_model import limits_in_order, torque_limits_in_order
 from .mode_switch import ModeSwitchCfg, State, initial_state
 from .mode_switch import step as mode_step
-from phoenix.velocity.observation import ObservationError
-
 from .observation import (
     BASE_LIN_VEL_SOURCES,
     BaseLinVelSample,
@@ -131,8 +132,6 @@ from .observation import (
     resolve_base_lin_vel,
 )
 from .observation_v2 import ManifestObservationBuilder
-from .deploy_manifest import ManifestError, cfg_manifest_mismatches, load_deploy_manifest
-from .go2_model import limits_in_order, torque_limits_in_order
 from .safety import (
     DEFAULT_POSITION_CLIP_MARGIN_RAD,
     DEFAULT_SUSTAINED_CLIP_TICKS,
