@@ -265,7 +265,7 @@ def test_velocity_active_small_action_passes_through_unclipped() -> None:
         State.VELOCITY_ACTIVE,
     ],
 )
-def test_abort_reaches_fault_and_damps_from_every_engaged_state(target_state: State) -> None:
+def test_abort_reaches_fault_and_holds_then_sits_from_every_engaged_state(target_state: State) -> None:
     fsm = make_fsm(policy=zero_policy)
     t = 0
     if target_state is State.PRECHECK:
@@ -303,13 +303,13 @@ def test_abort_reaches_fault_and_damps_from_every_engaged_state(target_state: St
     out = fsm.tick(nominal_input(t))
     assert fsm.state is State.FAULT
     assert fsm.fault == "test_abort"
-    assert out.kp == 0.0
-    assert out.kd == pytest.approx(fsm.params.damp_kd)
+    assert out.kp == pytest.approx(fsm.params.hold_kp) and out.kp > 0.0  # hold first, never kp=0
+    assert out.kd == pytest.approx(fsm.params.hold_kd)
     assert out.publish is True
 
-    # FAULT is sticky: further ticks stay in FAULT and keep damping.
+    # FAULT is sticky: further ticks stay in FAULT and never output kp=0.
     out2 = fsm.tick(nominal_input(t + DT_NS))
-    assert fsm.state is State.FAULT and out2.kp == 0.0
+    assert fsm.state is State.FAULT and out2.kp > 0.0
 
 
 def test_estop_release_faults_from_velocity_active() -> None:
@@ -348,7 +348,7 @@ def test_stand_only_nonzero_command_faults() -> None:
 
 
 # --------------------------------------------------------------------- stop
-def test_request_stop_holds_then_damps() -> None:
+def test_request_stop_holds_then_sits() -> None:
     fsm = make_fsm(
         policy=zero_policy, params=FsmParams(rate_hz=RATE_HZ, stop_hold_s=0.04)
     )
@@ -362,10 +362,11 @@ def test_request_stop_holds_then_damps() -> None:
     for _ in range(5):
         out = fsm.tick(nominal_input(t))
         t += DT_NS
-        if out.kp == 0.0:
+        if out.reason == "stopped_sitting":
             break
-    assert out.kp == 0.0
-    assert out.kd == pytest.approx(fsm.params.damp_kd)
+    assert out.reason == "stopped_sitting"
+    assert out.kp == pytest.approx(fsm.params.sit.sit_kp)
+    assert out.kd == pytest.approx(fsm.params.sit.sit_kd)
 
 
 # ------------------------------------------------------------------- params

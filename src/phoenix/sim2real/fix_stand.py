@@ -30,7 +30,7 @@ What this module does instead
   ``min_duration_s``. Every commanded step is also capped at
   ``max_step_rad`` per tick as a second, independent bound.
 * A following error beyond ``track_abort_rad`` on any joint aborts immediately.
-* :meth:`FixStand.abort` switches to damping (``kp = 0``, ``kd = damp_kd``) at once
+* :meth:`FixStand.abort` switches to holding the sanitised measured posture at the stand gains (never ``kp = 0``) at once
   and is latched; every later tick is damping.
 * Every tick returns the reference, the measured posture and the per-joint error.
 
@@ -80,7 +80,7 @@ class FixStandParams:
     rate_hz: float = 50.0
     kp: float = 60.0
     kd: float = 5.0
-    damp_kd: float = 1.0
+    #: Abort holds the sanitised measured q at ``kp``/``kd`` (never kp=0).
     max_ref_speed_rad_s: float = 0.8
     min_duration_s: float = 2.0
     max_step_rad: float = 0.03
@@ -105,7 +105,7 @@ class FixStandParams:
             value = float(getattr(self, name))
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"FixStandParams.{name} must be positive and finite, got {value}")
-        for name in ("kd", "damp_kd", "start_limit_band_rad"):
+        for name in ("kd", "start_limit_band_rad"):
             value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"FixStandParams.{name} must be >= 0 and finite, got {value}")
@@ -242,7 +242,7 @@ class FixStand:
         self.phase = PHASE_RAMP
 
     def abort(self, reason: str) -> None:
-        """Latch damping. Idempotent; the first reason is kept."""
+        """Latch the abort. Idempotent; the first reason is kept."""
         if self.phase != PHASE_ABORTED:
             self.fault = reason
             self.phase = PHASE_ABORTED
@@ -253,14 +253,14 @@ class FixStand:
         a = smoothstep(s)
         return (1.0 - a) * self.q0 + a * self.target
 
-    def _damp(self, q: np.ndarray, err: np.ndarray, notes: list[str]) -> FixStandTick:
+    def _abort_hold(self, q: np.ndarray, err: np.ndarray, notes: list[str]) -> FixStandTick:
         safe_q = np.clip(np.nan_to_num(q, nan=0.0), self.lo, self.hi)
         tick = FixStandTick(
             phase=PHASE_ABORTED,
             publish=True,
             target=safe_q,
-            kp=0.0,
-            kd=self.params.damp_kd,
+            kp=self.params.kp,
+            kd=self.params.kd,
             progress=self._s,
             paused=False,
             q_measured=q,
@@ -281,7 +281,7 @@ class FixStand:
             raise FixStandError("step() before start()")
         if q.shape != (len(self.order),) or not np.all(np.isfinite(q)):
             self.abort("fix_stand_measured_q_invalid")
-            return self._damp(
+            return self._abort_hold(
                 q if q.shape == (len(self.order),) else np.zeros(len(self.order)),
                 np.zeros(len(self.order)),
                 ["measured q invalid"],
@@ -290,15 +290,15 @@ class FixStand:
         err = self._last_cmd - q
         max_err = float(np.max(np.abs(err)))
         if self.phase == PHASE_ABORTED:
-            return self._damp(q, err, notes)
+            return self._abort_hold(q, err, notes)
 
         band = p.start_limit_band_rad
         if np.any((q < self.lo - band) | (q > self.hi + band)):
             self.abort("fix_stand_measured_q_beyond_limit")
-            return self._damp(q, err, ["measured q beyond hard limit band"])
+            return self._abort_hold(q, err, ["measured q beyond hard limit band"])
         if max_err > p.track_abort_rad:
             self.abort(f"fix_stand_tracking_error:{max_err:.3f}rad")
-            return self._damp(q, err, notes)
+            return self._abort_hold(q, err, notes)
 
         self._ticks += 1
         paused = max_err > p.track_pause_rad
@@ -307,7 +307,7 @@ class FixStand:
             notes.append(f"reference paused: max following error {max_err:.3f} rad")
             if self._paused_ticks / p.rate_hz > p.max_pause_s:
                 self.abort("fix_stand_tracking_lost")
-                return self._damp(q, err, notes)
+                return self._abort_hold(q, err, notes)
         else:
             self._paused_ticks = 0
             self._s = min(1.0, self._s + 1.0 / (self.duration_s * p.rate_hz))
@@ -316,7 +316,7 @@ class FixStand:
             self.duration_s
         ):
             self.abort("fix_stand_timeout")
-            return self._damp(q, err, notes)
+            return self._abort_hold(q, err, notes)
 
         ref = self.reference(self._s)
         step = np.clip(ref - self._last_cmd, -p.max_step_rad, p.max_step_rad)

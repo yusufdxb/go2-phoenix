@@ -83,8 +83,8 @@ def test_a_frozen_leg_pauses_the_reference_and_then_aborts_to_damping() -> None:
     assert fs.progress < 1.0
     assert any(t.paused for t in ticks)
     after = [t for t in ticks if t.phase == PHASE_ABORTED]
-    assert after and all(t.kp == 0.0 for t in after)
-    assert all(t.kd == fs.params.damp_kd for t in after)
+    assert after and all(t.kp == fs.params.kp > 0.0 for t in after)  # abort holds, never kp=0
+    assert all(t.kd == fs.params.kd for t in after)
 
 
 def test_huge_following_error_aborts_immediately() -> None:
@@ -92,7 +92,7 @@ def test_huge_following_error_aborts_immediately() -> None:
     fs.start(STAND)
     fs.step(STAND)
     tick = fs.step(STAND + 0.7)  # a joint 0.7 rad from where it was told to be
-    assert tick.phase == PHASE_ABORTED and tick.kp == 0.0
+    assert tick.phase == PHASE_ABORTED and tick.kp > 0.0
     assert fs.fault.startswith("fix_stand_tracking_error")
 
 
@@ -103,7 +103,7 @@ def test_abort_is_immediate_and_latched() -> None:
     _run(fs, plant, 20)
     fs.abort("deadman_released")
     ticks = _run(fs, plant, 5)
-    assert all(t.phase == PHASE_ABORTED and t.kp == 0.0 for t in ticks)
+    assert all(t.phase == PHASE_ABORTED and t.kp > 0.0 for t in ticks)
     assert fs.fault == "deadman_released"
     fs.abort("second")
     assert fs.fault == "deadman_released"

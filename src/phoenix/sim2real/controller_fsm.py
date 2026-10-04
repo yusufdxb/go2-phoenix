@@ -38,8 +38,12 @@ FIX_STAND             the FixStand reference at kp 60 / kd 5
 FIX_STAND_HOLD,
 VELOCITY_READY        the stand target at the FixStand gains
 VELOCITY_ACTIVE       the policy target after the safety filter, at the policy gains
-STOPPING              hold the posture measured on entry for ``stop_hold_s``, then damp
-FAULT                 damp (kp 0, kd ``damp_kd``) at the measured posture, latched
+STOPPING              hold the posture measured on entry for ``stop_hold_s``, then the
+                      controlled sit (:mod:`phoenix.sim2real.sit_policy`)
+FAULT                 latched. Fall (tilt > 60 deg): low stiffness (kp 5), never zero.
+                      Sensors unusable: open-loop sit from the last good q. Otherwise
+                      hold at the hold gains for ``sit.fault_hold_s``, then the
+                      closed-loop sit. ``kp = 0`` is never output.
 """
 
 from __future__ import annotations
@@ -53,9 +57,11 @@ from typing import Any
 import numpy as np
 
 from .fix_stand import FixStand, FixStandError, FixStandParams
+from .go2_model import UNITREE_MOTOR_ORDER
 from .handoff import HandoffCriteria, HandoffMonitor, HandoffSample, HandoffStatus
 from .intervention import InterventionRecorder, SafetyFilter, tick_record
 from .safety import DEFAULT_POSITION_CLIP_MARGIN_RAD, DEFAULT_SUSTAINED_CLIP_TICKS, clip_actions
+from .sit_policy import SitParams, SitTrajectory, fall_tilt_rad
 
 
 class State(str, Enum):
@@ -91,7 +97,8 @@ class FsmParams:
     action_clip: float = 1.0
     hold_kp: float = 20.0
     hold_kd: float = 1.0
-    damp_kd: float = 1.0
+    #: Controlled-sit / FALL_SOFT / fault-hold parameters (kp is never zero).
+    sit: SitParams = SitParams()
     sensor_timeout_s: float = 0.1
     precheck_timeout_s: float = 5.0
     #: FIX_STAND_HOLD must reach the handoff criteria within this long, or FAULT.
@@ -254,7 +261,11 @@ class ControllerFSM:
         self._stop_requested = False
         self._last_action = np.zeros(self.n, dtype=np.float64)
         self._stop_q: np.ndarray | None = None
-        self._stop_damp = False
+        self._sit_traj = SitTrajectory(self.params.sit)
+        self._sit_started = False
+        self._fall_latched = False
+        self._last_good_q: np.ndarray | None = None
+        self._fault_hold_q: np.ndarray | None = None
         self._authority_start_ns: int | None = None
         self.policy_calls = 0
         self._action_saturation_ticks = 0
@@ -278,7 +289,7 @@ class ControllerFSM:
         self._stop_requested = True
 
     def abort(self, reason: str) -> None:
-        """Immediate FAULT (damping) from any state. Idempotent."""
+        """Immediate FAULT (hold, then controlled sit) from any state. Idempotent."""
         self._fault(reason, self._state_since_ns or 0)
 
     # ------------------------------------------------------------ internals
@@ -312,20 +323,61 @@ class ControllerFSM:
                 return f"{name}_stale"
         return None
 
-    def _damp_output(self, inp: FsmInputs, reason: str | None) -> FsmOutput:
+    def _fault_output(
+        self, inp: FsmInputs, reason: str | None, *, hold_first: bool = True
+    ) -> FsmOutput:
+        """Fault / stop output. Never ``kp = 0``. See the module docstring."""
+        sp = self.params.sit
+        t = int(inp.t_ns)
+        lo, hi = self.fix_stand.lo, self.fix_stand.hi
+        # The sit runs in Unitree motor order; this FSM runs in ``self.order``.
+        perm = np.asarray([list(self.order).index(n) for n in UNITREE_MOTOR_ORDER])
+
+        def to_u(x):
+            return np.asarray(x, dtype=np.float64)[perm]
+
+        def to_p(u):
+            out = np.empty(len(perm))
+            out[perm] = u
+            return out
+
         q = self._q(inp)
-        if q is None:
-            q = self.fix_stand.q0 if self.fix_stand.q0 is not None else self.fix_stand.target
-        target = np.clip(q, self.fix_stand.lo, self.fix_stand.hi)
+        sensors_ok = q is not None and self._fresh(inp) is None
+        if q is not None:
+            self._last_good_q = np.clip(q, lo, hi)
+        base = self._last_good_q
+        if base is None and self.fix_stand.q0 is not None:
+            base = np.clip(self.fix_stand.q0, lo, hi)
+        if base is None:  # nothing was ever measured: no posture to hold or sit from
+            return FsmOutput(self.state, False, None, None, None, reason=reason, fault=self.fault)
+        tilt = fall_tilt_rad(inp.quat_wxyz) if inp.quat_wxyz is not None else None
+        if tilt is not None and tilt > sp.fall_tilt_rad:
+            self._fall_latched = True
+        if self._fall_latched:
+            return FsmOutput(
+                state=self.state, publish=True, target=[float(v) for v in base],
+                kp=sp.fall_kp, kd=sp.fall_kd, reason="fall_soft", fault=self.fault,
+            )  # fmt: skip
+        if not self._sit_started:
+            held_s = self._elapsed(t)
+            if hold_first and sensors_ok and held_s < sp.fault_hold_s:
+                assert q is not None
+                if self._fault_hold_q is None:  # latch the posture once, at fault entry
+                    self._fault_hold_q = np.clip(q, lo, hi)
+                return FsmOutput(
+                    state=self.state, publish=True,
+                    target=[float(v) for v in self._fault_hold_q],
+                    kp=self.params.hold_kp, kd=self.params.hold_kd,
+                    reason="fault_hold", fault=self.fault,
+                )  # fmt: skip
+            self._sit_traj.start(to_u(q if sensors_ok else base), t)
+            self._sit_started = True
+        dq = to_u(inp.dq) if sensors_ok and inp.dq is not None else None
+        target, _ = self._sit_traj.step(t, to_u(q) if sensors_ok else None, dq)
         return FsmOutput(
-            state=self.state,
-            publish=True,
-            target=[float(v) for v in target],
-            kp=0.0,
-            kd=self.params.damp_kd,
-            reason=reason,
-            fault=self.fault,
-        )
+            state=self.state, publish=True, target=[float(v) for v in to_p(target)],
+            kp=sp.sit_kp, kd=sp.sit_kd, reason=reason or "sit", fault=self.fault,
+        )  # fmt: skip
 
     def _handoff_sample(self, inp: FsmInputs) -> HandoffSample:
         faults = (self.fault,) if self.fault else ()
@@ -642,16 +694,8 @@ class ControllerFSM:
         if self._stop_q is None:
             base = q if q is not None else self.fix_stand.target
             self._stop_q = np.clip(base, self.fix_stand.lo, self.fix_stand.hi)
-        if self._stop_damp or self._elapsed(t) >= self.params.stop_hold_s:
-            self._stop_damp = True
-            return FsmOutput(
-                state=self.state,
-                publish=True,
-                target=[float(v) for v in self._stop_q],
-                kp=0.0,
-                kd=self.params.damp_kd,
-                reason="stopped_damping",
-            )
+        if self._sit_started or self._elapsed(t) >= self.params.stop_hold_s:
+            return self._fault_output(inp, "stopped_sitting", hold_first=False)
         return FsmOutput(
             state=self.state,
             publish=True,
@@ -662,7 +706,7 @@ class ControllerFSM:
         )
 
     def _tick_fault(self, inp: FsmInputs) -> FsmOutput:
-        return self._damp_output(inp, self.fault)
+        return self._fault_output(inp, self.fault)
 
     # --------------------------------------------------------------- report
     def summary(self) -> dict[str, Any]:
