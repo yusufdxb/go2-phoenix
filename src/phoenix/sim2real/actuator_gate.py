@@ -165,11 +165,19 @@ class GateParams:
     standup_s: float = 0.0
     standup_kp: float = 60.0
     standup_kd: float = 5.0
-    #: Length of the linear kp/kd blend from the stand-up gains to the policy gains,
-    #: starting on the first POLICY tick after the stand-up. Without it the gains
-    #: step 60/5 -> 25/0.5 in one 20 ms tick, a torque step of about (kp_standup -
-    #: kp_policy) x tracking error. 0 restores the step. Only meaningful when
-    #: ``standup_s > 0``. kp stays strictly positive across the whole blend.
+    #: Length of the linear kp blend from the stand-up kp to the policy kp, starting on
+    #: the first POLICY tick after the stand-up. Without it kp steps 60 -> 25 in one
+    #: 20 ms tick, a torque step of about (kp_standup - kp_policy) x tracking error.
+    #: 0 restores the step. Only meaningful when ``standup_s > 0``. kp stays strictly
+    #: positive across the whole blend. kd is NOT blended: it steps from standup_kd to
+    #: the policy kd on the first POLICY tick (2026-10-04 desk gate, frozen for hardware
+    #: A-G). At the end of the stand-up ramp dq is about 0, so the kd step changes torque
+    #: by about (kd_standup - kd_policy) x dq, i.e. almost nothing, while holding the
+    #: policy under kd up to 5 is what aborted: m2750 in sim, 5 seeds x 2000 envs on the
+    #: training DR, the linear 60/5 -> 25/0.5 blend aborted 2.9 % (falls 0.25 %), a
+    #: staged 60/5 -> 25/5 -> 25/0.5 blend 15.3 % (falls 2.4 %), this kd step 0 % (0
+    #: falls), equal to the linear blend on both actuator corners
+    #: (prehardware results exploratory/handover_staged/pooled.json).
     handover_s: float = 1.0
     #: 2026-09-25: a PD controller commanding a target PAST a hard stop is
     #: normal (pressing against it); proven stacks do not abort on it. The
@@ -685,7 +693,7 @@ class ActuatorGate:
                     self._handover_start_ns = now_ns
                 handover_alpha = min(1.0, (now_ns - self._handover_start_ns) / 1e9 / p.handover_s)
                 gain_kp = p.standup_kp + (p.kp - p.standup_kp) * handover_alpha
-                gain_kd = p.standup_kd + (p.kd - p.standup_kd) * handover_alpha
+                gain_kd = p.kd  # kd steps on the first POLICY tick (see handover_s)
                 rec["handover_alpha"] = float(handover_alpha)
             requested = cmd.target[self._perm]
             rec["requested_target_unitree"] = _floats(requested)

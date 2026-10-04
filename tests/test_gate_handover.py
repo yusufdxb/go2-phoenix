@@ -20,21 +20,37 @@ STANDUP_KP, STANDUP_KD = 60.0, 5.0
 POLICY_KP, POLICY_KD = 25.0, 0.5
 
 #: Stated bounds (measured values are asserted in the failure message).
-#: Per-tick gain change: (60-25) / (handover_s / dt) = 0.7 and (5-0.5) / 50 = 0.09.
+#: Per-tick kp change: (60-25) / (handover_s / dt) = 0.7. kd is not blended at the
+#: handover (2026-10-04 desk gate): it steps 5 -> 0.5 once, on the first POLICY tick.
+#: Every OTHER kd change (sit ramp) stays within 0.09 per tick.
 MAX_DKP_PER_TICK = 0.7 + 1e-9
 MAX_DKD_PER_TICK = 0.09 + 1e-9
-#: Largest tick-to-tick change of the commanded joint torque kp (q_cmd - q) - kd dq, N m.
+KD_HANDOVER_STEP = STANDUP_KD - POLICY_KD
+#: Largest tick-to-tick change of the commanded joint torque kp (q_cmd - q) - kd dq, N m,
+#: in the production order (the harness launches the policy node only after the bridge
+#: reports standup_done, so the first POLICY tick finds the stance held at 60/5).
 MAX_TORQUE_STEP_NM = 2.0
+#: Worst case the harness cannot produce: policy commands already flowing, so POLICY
+#: starts on the tick the ramp ends, with the plant still moving at ramp speed and the kd
+#: step multiplying it. Measured 3.78 N m (calf); stated bound 4.0 N m, under a tenth of
+#: the smallest joint torque limit (23.5 N m).
+MAX_TORQUE_STEP_IMMEDIATE_NM = 4.0
+#: Time the production order leaves between standup_done and the first policy command,
+#: lower bound used here (node start, ONNX load and first-message gating take longer).
+PRODUCTION_POLICY_DELAY_S = 0.5
 #: Largest base-height dip below the height at handover start, metres.
 MAX_HANDOVER_DIP_M = 0.01
 
 
-def run(handover_s=1.0, t_end=4.0, fault_at=None, abort=True):
+def run(handover_s=1.0, t_end=4.0, fault_at=None, abort=True, policy_delay_s=None):
+    """``policy_delay_s=None``: policy commands from t=0 (POLICY starts as the ramp ends).
+    A number: commands start that long after the gate first reports standup_done."""
     plant = LimitedPlant(np.clip(FOLDED, -3.0, 3.0))
     plant.load = -load_vector()
     gate = ActuatorGate(params(standup_s=STANDUP_S, handover_s=handover_s), ns(0.0))
     recs, heights, taus, seq = [], [], [], 0
     fault_sent = False
+    done_t = None
     for k in range(int(round(t_end / DT))):
         t = k * DT
         q_p, dq_p = plant.measured()
@@ -46,12 +62,16 @@ def run(handover_s=1.0, t_end=4.0, fault_at=None, abort=True):
                 ORDER, seq=9999, kind=KIND_ABORT, target=DEFAULT_P, abort_reason="t"
             )
             gate.on_command(ns(t), label, data)
-        elif not fault_sent:
+        elif not fault_sent and (
+            policy_delay_s is None or (done_t is not None and t >= done_t + policy_delay_s)
+        ):
             seq += 1
             label, data = policy_cmd(DEFAULT_P, seq=seq)
             gate.on_command(ns(t), label, data)
         rec = gate.tick(ns(t))
         rec["t"] = t
+        if done_t is None and rec.get("standup_done"):
+            done_t = t
         if rec["publish"]:
             tgt = np.asarray(to_p(rec["final_target_unitree"]))
             taus.append(rec["kp"] * (tgt - q_p) - rec["kd"] * np.asarray(dq_p))
@@ -79,33 +99,45 @@ def test_gains_blend_linearly_with_bounded_per_tick_change() -> None:
         STANDUP_KP, abs=MAX_DKP_PER_TICK
     )  # starts at stand-up gains
     assert last["kp"] == pytest.approx(POLICY_KP) and last["kd"] == pytest.approx(POLICY_KD)
+    # kd steps to the policy value on the first POLICY tick and never changes afterwards
+    assert first["kd"] == pytest.approx(POLICY_KD)
+    assert recs[idx[0] - 1]["kd"] == pytest.approx(STANDUP_KD)
+    assert {r["kd"] for r in recs[idx[0] : idx[-1] + 1]} == {POLICY_KD}
     # across the whole run, including stand-up -> first policy tick and the end of the blend
     dkp = np.abs(np.diff(kps))
     dkd = np.abs(np.diff(kds))
     msg = f"max dkp {dkp.max():.4f}, max dkd {dkd.max():.4f}"
     assert dkp.max() <= MAX_DKP_PER_TICK, msg
-    assert dkd.max() <= MAX_DKD_PER_TICK, msg
+    big_kd = [d for d in dkd if d > MAX_DKD_PER_TICK]
+    assert big_kd == [pytest.approx(KD_HANDOVER_STEP)], msg  # the single handover kd step
     # the blend is monotone and takes about handover_s
     blend = [recs[i]["kp"] for i in idx if recs[i]["handover_alpha"] < 1.0]
     assert all(a >= b for a, b in zip(blend, blend[1:], strict=False))
     assert len(blend) == pytest.approx(STANDUP_S / DT, abs=2)
 
 
-def test_handover_torque_step_and_height_dip_are_bounded_and_beat_the_step() -> None:
-    recs, heights, taus = run()
-    idx = _policy_idx(recs)
-    i0 = idx[0]
+def _handover_step(recs, heights, taus):
+    i0 = _policy_idx(recs)[0]
     win = slice(i0 - 2, i0 + int(1.0 / DT) + 3)
-    step = np.abs(np.diff(taus[win], axis=0)).max()
-    dip = float(heights[i0] - heights[win].min())
-    msg = f"max torque step {step:.3f} N m, base height dip {dip * 1e3:.2f} mm"
-    assert step <= MAX_TORQUE_STEP_NM, msg
-    assert dip <= MAX_HANDOVER_DIP_M, msg
-    # the same plant with the old one-tick gain step: strictly larger torque step
-    recs0, _, taus0 = run(handover_s=0.0)
-    j0 = _policy_idx(recs0)[0]
-    step0 = np.abs(np.diff(taus0[j0 - 2 : j0 + 3], axis=0)).max()
+    return np.abs(np.diff(taus[win], axis=0)).max(), float(heights[i0] - heights[win].min())
+
+
+def test_handover_torque_step_is_bounded_and_beats_the_step_in_the_production_order() -> None:
+    step, _dip = _handover_step(*run(t_end=5.0, policy_delay_s=PRODUCTION_POLICY_DELAY_S))
+    assert step <= MAX_TORQUE_STEP_NM, f"max torque step {step:.3f} N m"
+    # the same plant and order with the old one-tick gain step: strictly larger torque step
+    step0, _ = _handover_step(
+        *run(handover_s=0.0, t_end=5.0, policy_delay_s=PRODUCTION_POLICY_DELAY_S)
+    )
     assert step0 > step, f"step baseline {step0:.3f} N m not above blended {step:.3f}"
+
+
+def test_immediate_takeover_worst_case_is_bounded() -> None:
+    """Policy already commanding when the ramp ends (not producible by the harness)."""
+    step, dip = _handover_step(*run())
+    msg = f"max torque step {step:.3f} N m, base height dip {dip * 1e3:.2f} mm"
+    assert step <= MAX_TORQUE_STEP_IMMEDIATE_NM, msg
+    assert dip <= MAX_HANDOVER_DIP_M, msg
 
 
 @pytest.mark.parametrize("phase", ["mid_standup", "mid_handover"])
@@ -153,9 +185,12 @@ def test_sit_after_a_stood_up_gain_hold_blends_down_within_the_handover_bound(fa
     p = params()
     pub = [r for r in recs if r["publish"] and r["t"] >= fault_at - 2 * DT]
     dkp = np.abs(np.diff([r["kp"] for r in pub]))
-    dkd = np.abs(np.diff([r["kd"] for r in pub]))
+    dkd = np.diff([r["kd"] for r in pub])
     assert dkp.max() <= MAX_DKP_PER_TICK, f"max per-tick kp step {dkp.max():.3f}"
-    assert dkd.max() <= MAX_DKD_PER_TICK, f"max per-tick kd step {dkd.max():.3f}"
+    # kd never DROPS faster than the sit ramp; the one rise allowed is a fault after the
+    # handover kd step lifting 0.5 to the hold kd (more damping, never less)
+    assert -dkd.min() <= MAX_DKD_PER_TICK, f"max per-tick kd drop {-dkd.min():.3f}"
+    assert dkd.max() <= max(MAX_DKD_PER_TICK, p.hold_kd - POLICY_KD) + 1e-9
     sit = [r for r in recs if r["mode"] == "sit"]
     assert sit and sit[0]["kp"] > p.sit.sit_kp, "sit did not start from the hold gains"
     assert sit[-1]["kp"] == p.sit.sit_kp and sit[-1]["kd"] == p.sit.sit_kd
@@ -168,7 +203,9 @@ def test_every_published_tick_records_handover_gains_and_torque_margin() -> None
     assert pub
     for r in pub:
         assert r["kp_eff"] == r["kp"] and r["kd_eff"] == r["kd"]
-        assert len(r["torque_margin_nm"]) == 12 and all(m is not None for m in r["torque_margin_nm"])
+        assert len(r["torque_margin_nm"]) == 12 and all(
+            m is not None for m in r["torque_margin_nm"]
+        )
     blend = [r for r in pub if r["mode"] == "policy" and r["handover_alpha"] is not None]
     assert blend and 0.0 <= blend[0]["handover_alpha"] < 1.0
     assert blend[-1]["handover_alpha"] == pytest.approx(1.0, abs=0.03)
