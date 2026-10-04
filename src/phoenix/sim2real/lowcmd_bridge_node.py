@@ -113,7 +113,7 @@ class BridgeConfig:
     # LowState older than this revokes policy authority (deploy
     # safety.sensor_timeout_s, the same freshness authority the policy node uses).
     lowstate_timeout_s: float = 0.2
-    # How long a stale LowState may still be held before damping.
+    # How long a stale LowState may still be held before the controlled sit.
     stale_hold_s: float = 0.2
     # Startup window for the first estop message / deadman discovery
     # (deploy safety.first_message_timeout_s).
@@ -470,7 +470,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--kp", type=float, default=25.0, help="active-control kp (default 25)")
     p.add_argument("--kd", type=float, default=0.5, help="active-control kd (default 0.5)")
     p.add_argument("--hold-kp", type=float, default=20.0, help="hold kp (default 20)")
-    p.add_argument("--hold-kd", type=float, default=1.0, help="hold and damping kd (default 1.0)")
+    p.add_argument("--hold-kd", type=float, default=1.0, help="hold kd (default 1.0)")
     p.add_argument(
         "--watchdog-s",
         type=float,
@@ -487,7 +487,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--stale-hold-s",
         type=float,
         default=None,
-        help="how long a stale LowState may be held before damping (default: --watchdog-s)",
+        help="how long a stale LowState may be held before the controlled sit (default: --watchdog-s)",
     )
     p.add_argument(
         "--lock", type=Path, default=None, help="deploy lock file (required when --live)"

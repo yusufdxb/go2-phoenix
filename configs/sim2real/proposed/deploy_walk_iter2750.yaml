@@ -1,3 +1,4 @@
+# PROPOSED, NOT SHIPPED: walking is refused by deploy_contract until a reviewed walk contract + lock exist (lab card blocker 1).
 # DRAFT, UNCOMMITTED: deployment config for the walk_vnext3c_seed47 model_2750 velocity policy.
 # Derived from configs/sim2real/deploy.yaml. Every control-contract field is checked
 # against the manifest by cfg_manifest_mismatches (0 mismatches at drafting time).
