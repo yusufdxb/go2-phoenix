@@ -163,7 +163,7 @@ def test_lowstate_age_excludes_shutdown_damp_ticks() -> None:
     # 0.2 s limit, all of it from teardown damp ticks; the worst operating tick was 0.022 s.
     operating = [{"mode": "hold", "lowstate_age_s": age, "faults": []} for age in (0.01, 0.022)]
     teardown = [
-        {"mode": "damp", "lowstate_age_s": age, "faults": ["bridge_shutdown"]}
+        {"mode": "sit", "lowstate_age_s": age, "faults": ["bridge_shutdown"]}
         for age in (0.05, 0.193)
     ]
     s = summarize({}, operating + teardown)

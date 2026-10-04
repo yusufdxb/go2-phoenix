@@ -56,7 +56,7 @@ Reason codes
 ``policy_node_slew``   (bridge telemetry) the policy node's own slew clip
 ``bridge_slew``        (bridge telemetry) the bridge's slew clip
 ``not_executed``       (bridge telemetry) the policy had authority but the tick
-                       sent hold or damp instead of its target
+                       sent hold or sit instead of its target
 """
 
 from __future__ import annotations

@@ -113,7 +113,7 @@ _E_ALLOWED_FAULTS = frozenset({"estop_asserted", "bridge_shutdown"})
 _STAND_END_FAULT = "policy_abort:authority_window_complete"
 _STAND_ALLOWED_AFTER_END = frozenset({"estop_asserted", "bridge_shutdown"})
 #: Latched only AFTER bridge_shutdown, this is teardown: the lowstate bridge is stopped
-#: while the lowcmd bridge is still sending its damp window, so LowState ages past the
+#: while the lowcmd bridge is still sending its shutdown sit, so LowState ages past the
 #: timeout. Latched before bridge_shutdown it still fails every stage.
 _TEARDOWN_ONLY_FAULTS = frozenset({"lowstate_stale"})
 
@@ -716,7 +716,7 @@ def hold_test_checks(
     sensor_timeout = float((cfg.get("safety") or {})["sensor_timeout_s"])
     checks = manifest_checks(manifest, live=True, stage="E", lock=lock, expected_sha=expected_sha)
     publishing = [t for t in ticks if t.get("publish")]
-    end = next((i for i, t in enumerate(publishing) if t.get("mode") == "damp"), len(publishing))
+    end = next((i for i, t in enumerate(publishing) if t.get("mode") in ("sit", "fall_soft", "folded")), len(publishing))
     held = publishing[:end]
     checks.append(
         _check("bridge published hold commands", len(held) > 0, f"{len(held)} hold ticks")
@@ -848,7 +848,7 @@ def stand_checks(
         ]
         checks.append(
             _check(
-                "authority continuous (no hold or damp inside the window)",
+                "authority continuous (no hold or sit inside the window)",
                 not interruptions,
                 "; ".join(interruptions[:5]) or "continuous",
             )

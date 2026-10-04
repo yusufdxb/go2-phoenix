@@ -20,9 +20,12 @@ Safety posture:
   telemetry path, and ``--expect-sha`` matching the running code's commit.
 * **Live requires a real deadman.** Exactly one ``/phoenix/estop`` publisher, and
   it must be ``wireless_estop_node`` or ``deadman_joy_node``.
-* **Shutdown damps.** On Ctrl-C the gate latches damping and the bridge sends
-  ``kp=0`` for one watchdog period before exiting, so the last command the motors
-  received is damping rather than a stiff hold of a pose nobody is measuring.
+* **Shutdown sits.** On SIGINT/SIGTERM the gate starts the controlled sit, the
+  bridge streams it, settles, then holds the folded pose at low kp (never zero)
+  before exiting. Total bound: ``SitParams.shutdown_bound_s`` (2.8 s by default)
+  plus one tick, well inside any systemd ``TimeoutStopSec``. SIGKILL or power
+  loss cannot send anything; the firmware's own behaviour then applies (not
+  characterised: use the gantry until it is).
 
 Usage (the preflight and the run card give the exact, complete commands)::
 
@@ -206,7 +209,11 @@ class LowCmdBridge(Node):
     def _on_lowstate(self, msg: LowState) -> None:
         q = [float(msg.motor_state[i].q) for i in range(12)]
         dq = [float(msg.motor_state[i].dq) for i in range(12)]
-        self._gate.on_lowstate(time.monotonic_ns(), q, dq)
+        now = time.monotonic_ns()
+        self._gate.on_lowstate(now, q, dq)
+        quat = getattr(getattr(msg, "imu_state", None), "quaternion", None)
+        if quat is not None:  # (w, x, y, z); ASSUMPTION: unitree_go IMUState.quaternion order
+            self._gate.on_imu(now, [float(v) for v in quat])
 
     def _on_estop(self, msg: Bool) -> None:
         self._gate.on_estop(time.monotonic_ns(), bool(msg.data))
@@ -234,11 +241,17 @@ class LowCmdBridge(Node):
         if self._telemetry is not None:
             self._telemetry.write_tick(rec)
 
-    def shutdown_damp(self) -> None:
-        """Latch damping and send it for one watchdog period. Best effort."""
-        self._gate.request_shutdown()
-        ticks = max(1, int(round(self._cfg.watchdog_s * self._cfg.publish_rate_hz)))
-        for _ in range(ticks):
+    def shutdown_sit(self) -> None:
+        """Run the bounded shutdown sit: sit, settle, folded low-kp hold. Best effort.
+
+        Ends at the first of: the folded hold having lasted ``folded_hold_s``, or
+        ``shutdown_bound_s`` plus a 0.2 s margin of wall time.
+        """
+        sit = self._gate.params.sit
+        self._gate.request_shutdown(time.monotonic_ns())
+        deadline = time.monotonic() + sit.shutdown_bound_s + 0.2
+        folded_since: float | None = None
+        while time.monotonic() < deadline:
             rec = self._gate.tick(time.monotonic_ns())
             if rec["publish"]:
                 # Telemetry must record what went out, not what the gate asked for.
@@ -247,9 +260,13 @@ class LowCmdBridge(Node):
                 else:
                     try:
                         self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
-                    except Exception as exc:  # keep trying the remaining damp ticks
+                    except Exception as exc:  # keep trying the remaining sit ticks
                         rec = {**rec, "publish": False, "publish_skipped": repr(exc)}
             self._report(rec)
+            if rec.get("mode") == "folded":
+                folded_since = folded_since if folded_since is not None else time.monotonic()
+                if time.monotonic() - folded_since >= sit.folded_hold_s:
+                    break
             time.sleep(1.0 / self._cfg.publish_rate_hz)
 
     # --- publish ------------------------------------------------------------
@@ -486,9 +503,9 @@ def main(argv: list[str] | None = None) -> int:
 
     telemetry = TelemetryWriter(cfg.telemetry_path, manifest) if cfg.telemetry_path else None
     # rclpy's own SIGINT handler shuts the context down before ``finally`` runs, which made
-    # shutdown_damp skip every damp publish. Keep the context alive; SIGINT/SIGTERM only set
+    # shutdown_sit skip every sit publish. Keep the context alive; SIGINT/SIGTERM only set
     # a flag (raising inside rclpy's C calls surfaces as a RuntimeError), and the loop below
-    # exits cleanly so the damp window is actually sent.
+    # exits cleanly so the sit window is actually sent.
     from rclpy.signals import SignalHandlerOptions
 
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
@@ -510,7 +527,7 @@ def main(argv: list[str] | None = None) -> int:
         end_reason = "sigint"
     finally:
         try:
-            node.shutdown_damp()
+            node.shutdown_sit()
         finally:
             if telemetry is not None:
                 telemetry.close({"reason": end_reason, "faults": list(node._gate.faults)})

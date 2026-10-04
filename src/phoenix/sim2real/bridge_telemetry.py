@@ -277,7 +277,7 @@ def summarize(manifest: Mapping[str, Any], ticks: list[dict[str, Any]]) -> dict[
         "first_fault": faults[0] if faults else None,
         "policy_abort_reasons": abort_reasons,
         "max_tick_gap_s": float(gaps.max()) if gaps.size else None,
-        # Shutdown-damp ticks are excluded: the bridge sends kp=0 regardless of LowState
+        # Shutdown ticks are excluded: the bridge streams the sit regardless of LowState
         # then, and their age only measures how long teardown took.
         "max_lowstate_age_s": _max("lowstate_age_s", operating),
         "max_lowstate_age_s_teardown": _max("lowstate_age_s", teardown),

@@ -2,7 +2,7 @@
 
 This module automates only synchronization. Start confirms that physical setup
 is ready, A records the operator's explicit safe-result judgement, B records an
-explicit NO-GO, and releasing L1 is always HALT or the request to DAMP. No robot
+explicit NO-GO, and releasing L1 is always HALT or the request to sit down. No robot
 condition is inferred from button timing, and a missing answer never passes.
 """
 
@@ -68,7 +68,7 @@ def _instruction(mode: str) -> str:
             "Keep holding L1. Press A for YES, safe result observed. Press B for NO-GO. "
             "Release L1 to HALT and record NO-GO."
         )
-    return "Release L1 now. The bridge will DAMP and end the attempt."
+    return "Release L1 now. The bridge will hold, then sit the robot down and end the attempt."
 
 
 def wait_for_remote(mode: str, timeout_s: float) -> dict:

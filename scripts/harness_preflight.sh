@@ -373,7 +373,7 @@ stage_E() {
     require_alive deadman lowstate_bridge lowcmd_bridge
     local i
     for i in $(seq "$hold_s"); do sleep 1; require_alive deadman lowstate_bridge lowcmd_bridge; done
-    echo "[E] hold complete; stopping the bridge (it damps on the way out)"
+    echo "[E] hold complete; stopping the bridge (it sits the robot down on the way out)"
     stop_proc lowcmd_bridge
     stop_all
     pf evaluate E --telemetry "$telemetry" --duration "$hold_s"
@@ -418,7 +418,7 @@ stage_stand() {
             --log-parquet "$RUN/policy.parquet"
         # The window ends with the policy's single abort notice, which the bridge
         # latches as a fault; any other fault ends it too. A timeout is recorded,
-        # not fatal here: the processes are still stopped (the bridge damps) and the
+        # not fatal here: the processes are still stopped (the bridge sits the robot down) and the
         # evaluator records the NO-GO.
         local wait_rc=0
         (wait_for_telemetry "$telemetry" 't.get("fault") is not None' \
@@ -432,7 +432,7 @@ stage_stand() {
             answer="$(operator_gate judgement "${stage}${k}" \
                 "[${stage}${k}] Did the robot stand on its feet and hold, with no collapse, oscillation or buzz? [y/n]: ")"
             operator_gate release "${stage}${k}" \
-                "[${stage}${k}] Spotter ready: press Enter to DAMP (the robot sinks onto the mat) and end the attempt: "
+                "[${stage}${k}] Spotter ready: press Enter to end the attempt (the bridge holds, then sits the robot down): "
         fi
         stop_proc policy_node
         stop_proc lowcmd_bridge
