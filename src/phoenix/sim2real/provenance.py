@@ -19,13 +19,27 @@ preflight must observe the code, never move it.
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-#: The corrected source of truth for hardware work. Recorded here so the
-#: preflight can refuse any other branch instead of defaulting to ``main``.
-EXPECTED_BRANCH = "feat/causal-viability-replication"
+#: Default branch hardware work must come from, so the preflight refuses any other
+#: branch instead of defaulting to ``main``. Overridden (never silently) by the lock's
+#: ``expected_branch`` key or the PHOENIX_EXPECT_BRANCH environment variable.
+DEFAULT_EXPECTED_BRANCH = "feat/phoenix-walk-v1-hw"
+EXPECTED_BRANCH = DEFAULT_EXPECTED_BRANCH
+EXPECT_BRANCH_ENV = "PHOENIX_EXPECT_BRANCH"
+
+
+def resolve_expected_branch(lock=None, env=None) -> str:
+    """Environment variable, else the lock's ``expected_branch``, else the default."""
+    env = os.environ if env is None else env
+    value = str(env.get(EXPECT_BRANCH_ENV) or "").strip()
+    if not value and lock:
+        value = str(lock.get("expected_branch") or "").strip()
+    return value or DEFAULT_EXPECTED_BRANCH
+
 
 PAYLOAD_SYNC_NAME = "PAYLOAD_SYNC.txt"
 PAYLOAD_SUMS_NAME = "PAYLOAD_SHA256SUMS"
@@ -159,7 +173,10 @@ def identity_problems(
 
 
 __all__ = [
+    "DEFAULT_EXPECTED_BRANCH",
     "EXPECTED_BRANCH",
+    "EXPECT_BRANCH_ENV",
+    "resolve_expected_branch",
     "CodeIdentity",
     "identity_problems",
     "resolve_code_identity",

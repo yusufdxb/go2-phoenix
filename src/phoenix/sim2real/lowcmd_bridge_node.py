@@ -71,7 +71,11 @@ from phoenix.sim2real.go2_model import (
     UNITREE_MOTOR_ORDER,
 )
 from phoenix.sim2real.motor_crc import PHOENIX_FOR_MOTOR, build_raw_from_motor_values, compute_crc
-from phoenix.sim2real.provenance import identity_problems, resolve_code_identity
+from phoenix.sim2real.provenance import (
+    identity_problems,
+    resolve_code_identity,
+    resolve_expected_branch,
+)
 from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
 from phoenix.sim2real.sit_policy import SIT_POSE_UNITREE, FallbackSit
 
@@ -603,7 +607,9 @@ def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
         problems.append("--live requires --lock")
 
     identity = resolve_code_identity(REPO_ROOT)
-    id_problems = identity_problems(identity, expected_sha=cfg.expect_sha)
+    id_problems = identity_problems(
+        identity, expected_sha=cfg.expect_sha, expected_branch=resolve_expected_branch()
+    )
     if cfg.live:
         if not cfg.expect_sha:
             problems.append("--live requires --expect-sha")
