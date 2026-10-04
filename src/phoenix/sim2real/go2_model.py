@@ -185,6 +185,7 @@ def torque_limits_in_order(order: Sequence[str]) -> np.ndarray:
     """
     return np.asarray([JOINT_TORQUE_LIMITS_NM[n] for n in order], dtype=np.float64)
 
+
 #: Unitree's low-level stand example poses, in Unitree motor order
 #: (``go2_stand_example.cpp`` ``target_pos_1_`` folded and ``target_pos_2_``
 #: standing). Used only as sanity fixtures: a limit table that rejected Unitree's

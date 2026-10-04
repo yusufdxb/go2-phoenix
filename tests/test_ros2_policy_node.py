@@ -832,9 +832,7 @@ def _fake_deploy(tmp_path, **safety_over):
     for name in ("policy.onnx", "policy.onnx.data", "policy.pt", "latest.pt"):
         (ckpt / name).write_bytes(name.encode())
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps({"deploy": {"action_clip": 100.0, "kp": 25.0, "kd": 0.5}})
-    )
+    manifest_path.write_text(json.dumps({"deploy": {"action_clip": 100.0, "kp": 25.0, "kd": 0.5}}))
     cfg = yaml.safe_load(H25.read_text())
     cfg["policy"]["onnx_path"] = str(ckpt / "policy.onnx")
     cfg["policy"]["torchscript_path"] = str(ckpt / "policy.pt")

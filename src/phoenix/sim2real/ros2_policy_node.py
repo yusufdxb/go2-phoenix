@@ -296,7 +296,8 @@ def resolve_startup(cfg: dict, args: argparse.Namespace) -> tuple[Path | None, l
             problems.append(f"deploy manifest: {exc}")
         else:
             problems.extend(
-                f"deploy cfg vs manifest: {m}" for m in cfg_manifest_mismatches(as_written, manifest_path)
+                f"deploy cfg vs manifest: {m}"
+                for m in cfg_manifest_mismatches(as_written, manifest_path)
             )
             logger.info(
                 "deploy manifest %s: action_clip=%.3g kp=%s kd=%s",
@@ -443,7 +444,9 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         deploy_manifest = load_deploy_manifest(Path(manifest_path))
         mismatches = cfg_manifest_mismatches(cfg, manifest_path)
         if mismatches:
-            raise ValueError("deploy cfg disagrees with the checkpoint manifest: " + "; ".join(mismatches))
+            raise ValueError(
+                "deploy cfg disagrees with the checkpoint manifest: " + "; ".join(mismatches)
+            )
         self._action_clip = deploy_manifest.action_clip
         if deploy_manifest.kp is not None:
             self._policy_kp = deploy_manifest.kp
@@ -478,7 +481,9 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             cfg.get("safety", {}).get("max_command", [0.5, 0.3, 0.8]), dtype=np.float64
         )
         if self.max_command.shape != (3,) or np.any(self.max_command < 0):
-            raise ValueError(f"safety.max_command must be 3 non-negative numbers, got {self.max_command}")
+            raise ValueError(
+                f"safety.max_command must be 3 non-negative numbers, got {self.max_command}"
+            )
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
         # Fail-closed timeouts. estop must be heartbeated well inside
         # estop_timeout_s (code default 0.5s; deploy.yaml sets 0.8s; the

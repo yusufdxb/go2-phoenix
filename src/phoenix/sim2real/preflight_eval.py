@@ -111,6 +111,8 @@ def stage_title(stage: str, label: str | None = None) -> str:
     """
     title = STAGE_TITLES[stage]
     return title.replace("H25", label, 1) if label and stage in STAND_AUTHORITY_S else title
+
+
 STAND_AUTHORITY_S: dict[str, float] = {"F": 2.0, "G": 5.0, "H": 10.0}
 H_ATTEMPTS = 3
 
@@ -727,7 +729,10 @@ def hold_test_checks(
     sensor_timeout = float((cfg.get("safety") or {})["sensor_timeout_s"])
     checks = manifest_checks(manifest, live=True, stage="E", lock=lock, expected_sha=expected_sha)
     publishing = [t for t in ticks if t.get("publish")]
-    end = next((i for i, t in enumerate(publishing) if t.get("mode") in ("sit", "fall_soft", "folded")), len(publishing))
+    end = next(
+        (i for i, t in enumerate(publishing) if t.get("mode") in ("sit", "fall_soft", "folded")),
+        len(publishing),
+    )
     held = publishing[:end]
     checks.append(
         _check("bridge published hold commands", len(held) > 0, f"{len(held)} hold ticks")
@@ -894,7 +899,9 @@ def stand_checks(
             # more than the configured consecutive-tick threshold.
             "no non-finite command or sustained clipping",
             not any(
-                f.startswith(("target_beyond_limit", "command_non_finite", "sustained_clip_exceeded"))
+                f.startswith(
+                    ("target_beyond_limit", "command_non_finite", "sustained_clip_exceeded")
+                )
                 for f in faults
             ),
             f"limit clips {summary.get('limit_clip_counts')}",
