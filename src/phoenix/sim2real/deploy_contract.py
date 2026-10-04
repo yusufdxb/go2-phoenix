@@ -8,9 +8,14 @@ no-hardware test suite and can run first in the preflight:
    :func:`validate_deploy_contract`. The one rule that matters most: with
    ``observation.base_lin_vel_source: zeros`` the policy is blind to its own body
    velocity, which is acceptable ONLY for a commanded-zero stand. Such a config
-   must say ``safety.stand_only: true`` explicitly, and a config that is not
-   stand-only (walking) is refused outright until the gates in
-   :data:`WALKING_PREREQUISITES` have hardware evidence.
+   must say ``safety.stand_only: true`` explicitly. That rule is for pre-v2 (48-D) policies.
+   A policy whose manifest declares ``phoenix-velocity-obs/v2`` (45-D, no
+   base_lin_vel term) is held to a different rule: the config must say v2 too and
+   must not name an odometry source for a term the policy does not have. A config
+   that is not stand-only (walking) is refused until
+   :func:`walking_evidence_problems` finds stages F and G PASSED on hardware, for
+   the same onnx / onnx.data / manifest hashes, under the lock of the config's own
+   stand-phase twin (see :data:`WALKING_PREREQUISITES`). There is no switch to flip.
 
 2. **Are the files the node will open exactly the ones that were gated?**
    :func:`verify_lock`. A lock file names the deploy config (by semantic hash, so
@@ -23,11 +28,16 @@ no-hardware test suite and can run first in the preflight:
 
 from __future__ import annotations
 
+import argparse
+import copy
 import hashlib
 import json
-from collections.abc import Mapping
+import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from phoenix.real_world.failure_detector import resolve_attitude_intervention_rad
 
@@ -42,19 +52,32 @@ LOCK_SCHEMA = "phoenix-deploy-lock/v1"
 _ZEROS = "zeros"
 _ODOM = "odom"
 
-#: Walking stays impossible in code, not by convention. Flip this only in the same
-#: change that adds the evidence records named below and a walking deploy config
-#: that references them.
-WALKING_ENABLED = False
+OBS_SCHEMA_V2 = "phoenix-velocity-obs/v2"
+_STAGE_SCHEMA = (
+    "phoenix-preflight-stage/v1"  # preflight_eval.STAGE_SCHEMA, literal: no heavy imports
+)
+#: Stages that must have PASSED on hardware before a walking config is allowed.
+WALKING_EVIDENCE_STAGES = ("F", "G")
+_EVIDENCE_ROLES = ("policy.onnx", "policy.onnx.data", "policy.manifest")
+_V2_ACTOR_DIM = 45
 
-#: What has to exist, on hardware, before a walking config is even considered.
+#: What has to exist, on hardware, before a walking config is allowed. Walking is a
+#: function of this evidence (:func:`walking_evidence_problems`), not of a constant.
 WALKING_PREREQUISITES: tuple[str, ...] = (
-    "H25 cmd=0 stand passes the corrected hardware gate (final LowCmd bridge "
-    "clip telemetry), stages F, G and H",
-    "/utlidar/robot_odom validated on the GO2 from a bag with known motion: contents, "
-    "body-frame twist confirmed from data (not only child_frame_id), latency, noise, dropout",
-    "a walking deploy config with base_lin_vel_source: odom",
-    "observation parity and the no-motor dryrun re-run after that change",
+    "stages F and G (cmd=0 stand of the SAME walking policy, safety.stand_only: true) "
+    "recorded GO on hardware, live and not rehearsal, under a lock for the stand-phase "
+    "twin of the walking config, with the same policy.onnx, policy.onnx.data and "
+    "policy.manifest sha256 as the walking config",
+    "the manifest declares phoenix-velocity-obs/v2 (45-D, no base_lin_vel term) and the "
+    "config's observation block says so (observation.schema_version)",
+    "the deploy runtime builds the v2 45-D observation (ros2_policy_node assumes a 48-D "
+    "proprio vector today)",
+    "stage H (3 x 10 s stand) for the same artifacts before the first walk: expected, "
+    "not enforced here",
+    "observation parity and the no-motor dryrun re-run for the v2 artifacts",
+    "pre-v2 (48-D) walking configs additionally need /utlidar/robot_odom validated on the "
+    "GO2 from a bag with known motion (contents, body-frame twist, latency, noise, dropout) "
+    "and base_lin_vel_source: odom",
 )
 
 _REQUIRED_POSITIVE_SAFETY_KEYS = (
@@ -65,11 +88,58 @@ _REQUIRED_POSITIVE_SAFETY_KEYS = (
 )
 
 
-def validate_deploy_contract(cfg: Mapping[str, Any]) -> list[str]:
+def _load_manifest(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The checkpoint manifest ``policy.manifest_path`` names, or None if absent/unreadable."""
+    path = (cfg.get("policy") or {}).get("manifest_path")
+    if not path:
+        return None
+    try:
+        data = json.loads(Path(str(path)).read_text())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _v2_observation_problems(
+    observation: Mapping[str, Any], policy: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> list[str]:
+    """Config/manifest consistency for a ``phoenix-velocity-obs/v2`` (45-D) policy."""
+    problems: list[str] = []
+    mobs = manifest.get("observation") or {}
+    if observation.get("schema_version") != OBS_SCHEMA_V2:
+        problems.append(
+            f"manifest declares {OBS_SCHEMA_V2} but observation.schema_version is "
+            f"{observation.get('schema_version')!r}: the config must say v2 too"
+        )
+    if mobs.get("actor_dim") != _V2_ACTOR_DIM or "base_lin_vel" in (mobs.get("actor_terms") or ()):
+        problems.append(
+            f"manifest observation is not the v2 layout: actor_dim {mobs.get('actor_dim')!r}, "
+            f"terms {mobs.get('actor_terms')!r} (want {_V2_ACTOR_DIM} and no base_lin_vel)"
+        )
+    source = observation.get("base_lin_vel_source")
+    if source != _ZEROS:
+        problems.append(
+            f"observation.base_lin_vel_source is {source!r} but a v2 policy has no base_lin_vel "
+            "term: it must stay 'zeros' (an inert placeholder the node requires), never an "
+            "odometry source for an observation the policy does not have"
+        )
+    if int(policy.get("obs_pad_zeros", 0) or 0) != 0:
+        problems.append("policy.obs_pad_zeros must be 0 for the 45-D v2 observation")
+    return problems
+
+
+def validate_deploy_contract(
+    cfg: Mapping[str, Any],
+    *,
+    manifest: Mapping[str, Any] | None = None,
+    evidence_sessions: Sequence[str | Path] | None = None,
+) -> list[str]:
     """Return every reason ``cfg`` must not be run on hardware. Empty means allowed.
 
     Deliberately strict and deliberately literal: a missing key is a problem, not
-    a default.
+    a default. ``manifest`` defaults to the file ``policy.manifest_path`` names;
+    ``evidence_sessions`` (hardware session directories) defaults to
+    :func:`default_session_dirs`.
     """
     problems: list[str] = []
     observation = cfg.get("observation") or {}
@@ -77,8 +147,26 @@ def validate_deploy_contract(cfg: Mapping[str, Any]) -> list[str]:
     policy = cfg.get("policy") or {}
     control = cfg.get("control") or {}
 
+    if manifest is None:
+        manifest = _load_manifest(cfg)
+    manifest_schema = ((manifest or {}).get("observation") or {}).get("schema_version")
+    is_v2 = manifest_schema == OBS_SCHEMA_V2
+    if observation.get("schema_version") == OBS_SCHEMA_V2 and manifest is None:
+        problems.append(
+            f"observation.schema_version is {OBS_SCHEMA_V2} but policy.manifest_path "
+            f"{policy.get('manifest_path')!r} cannot be read, so v2 cannot be confirmed"
+        )
+    elif manifest is not None and observation.get("schema_version") not in (None, manifest_schema):
+        problems.append(
+            f"observation.schema_version {observation.get('schema_version')!r} disagrees with the "
+            f"manifest's {manifest_schema!r}"
+        )
+
     source = observation.get("base_lin_vel_source")
-    if source not in (_ZEROS, _ODOM):
+    if is_v2:
+        assert manifest is not None
+        problems.extend(_v2_observation_problems(observation, policy, manifest))
+    elif source not in (_ZEROS, _ODOM):
         problems.append(
             f"observation.base_lin_vel_source must be 'zeros' or 'odom', got {source!r}"
         )
@@ -89,16 +177,19 @@ def validate_deploy_contract(cfg: Mapping[str, Any]) -> list[str]:
             f"safety.stand_only must be set explicitly to true or false, got {stand_only!r}"
         )
     elif stand_only is False:
-        if source == _ZEROS:
+        if source == _ZEROS and not is_v2:
             problems.append(
                 "walking is blocked while observation.base_lin_vel_source=zeros: the policy "
                 "would get velocity commands with no body-velocity observation. Set "
                 "safety.stand_only: true (commanded-zero stand) or validate odom first."
             )
-        if not WALKING_ENABLED:
+        evidence = walking_evidence_problems(cfg, sessions=evidence_sessions)
+        if evidence:
             problems.append(
-                "walking deploy configs are blocked. Prerequisites, none of which have "
-                "hardware evidence yet: " + "; ".join(WALKING_PREREQUISITES)
+                "walking deploy configs are blocked until hardware evidence exists: "
+                + "; ".join(evidence)
+                + ". Prerequisites: "
+                + "; ".join(WALKING_PREREQUISITES)
             )
 
     mode_switch = policy.get("mode_switch") or {}
@@ -131,6 +222,100 @@ def validate_deploy_contract(cfg: Mapping[str, Any]) -> list[str]:
         problems.append(str(exc))
     if not policy.get("onnx_path"):
         problems.append("policy.onnx_path is missing")
+    return problems
+
+
+def stand_twin(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """``cfg`` with ``safety.stand_only: true``: the commanded-zero stand of the same policy."""
+    twin = copy.deepcopy(dict(cfg))
+    twin["safety"] = {**(twin.get("safety") or {}), "stand_only": True}
+    return twin
+
+
+def default_session_dirs() -> list[Path]:
+    """Hardware session directories: ``$PHOENIX_HW_SESSIONS`` or ``<repo>/logs/hw_sessions``."""
+    root = Path(
+        os.environ.get("PHOENIX_HW_SESSIONS")
+        or Path(__file__).resolve().parents[3] / "logs" / "hw_sessions"
+    )
+    return sorted(d for d in root.iterdir() if d.is_dir()) if root.is_dir() else []
+
+
+def _stage_record_rejections(
+    rec: Mapping[str, Any], stage: str, twin_hash: str, want: Mapping[str, str]
+) -> list[str]:
+    why: list[str] = []
+    if rec.get("schema") != _STAGE_SCHEMA:
+        why.append(f"schema {rec.get('schema')!r}")
+    if rec.get("stage") != stage:
+        why.append(f"record is stage {rec.get('stage')!r}")
+    if rec.get("verdict") != "GO":
+        why.append(f"verdict {rec.get('verdict')!r}")
+    if rec.get("rehearsal"):
+        why.append("rehearsal (no robot)")
+    if rec.get("motors") != "live":
+        why.append(f"motors {rec.get('motors')!r}")
+    if rec.get("code_identity_problems"):
+        why.append("code identity problems")
+    if rec.get("lock_semantic_sha256") != twin_hash:
+        why.append("lock is not for the stand-phase twin of this config")
+    got = rec.get("lock_artifact_sha256") or {}
+    for role, sha in want.items():
+        if got.get(role) != sha:
+            why.append(f"{role} hash differs from the walking config's")
+    return why
+
+
+def walking_evidence_problems(
+    cfg: Mapping[str, Any], *, sessions: Sequence[str | Path] | None = None
+) -> list[str]:
+    """Why ``cfg`` may not walk yet. Empty means stages F and G have hardware evidence.
+
+    A stage counts when a ``stage_<S>.json`` record in one of ``sessions`` is a GO,
+    live, non-rehearsal record whose lock was for the stand-phase twin of ``cfg``
+    (same config except ``safety.stand_only: true``) and names the same sha256 for
+    policy.onnx, policy.onnx.data and policy.manifest as the files ``cfg`` reaches
+    on disk now. Records written before ``lock_artifact_sha256`` existed never count.
+    """
+    observed = observed_artifact_hashes(cfg, "<walking-config>")["artifacts"]
+    want: dict[str, str] = {}
+    problems: list[str] = []
+    for role in _EVIDENCE_ROLES:
+        sha = (observed.get(role) or {}).get("sha256")
+        if sha is None:
+            problems.append(
+                f"cannot hash {role} for the walking config (file missing or not named)"
+            )
+        else:
+            want[role] = sha
+    if problems:
+        return problems
+    twin_hash = semantic_config_sha256(stand_twin(cfg))
+    dirs = [Path(d) for d in (default_session_dirs() if sessions is None else sessions)]
+    for stage in WALKING_EVIDENCE_STAGES:
+        seen: list[str] = []
+        ok = False
+        for d in dirs:
+            path = d / f"stage_{stage}.json"
+            if not path.is_file():
+                continue
+            try:
+                rec = json.loads(path.read_text())
+            except ValueError:
+                seen.append(f"{path}: unreadable")
+                continue
+            why = _stage_record_rejections(rec, stage, twin_hash, want)
+            if not why:
+                ok = True
+                break
+            seen.append(f"{path.parent.name}: " + ", ".join(why))
+        if not ok:
+            problems.append(
+                f"stage {stage} has no GO hardware record for this policy's stand-phase twin "
+                f"({len(dirs)} session dir(s) searched; "
+                + ("rejected: " + " | ".join(seen[:3]) if seen else "no stage record found")
+                + ")"
+            )
     return problems
 
 
@@ -177,6 +362,9 @@ def artifact_paths(cfg: Mapping[str, Any]) -> dict[str, Path]:
         out["policy.onnx"] = onnx_path
         out["policy.onnx.data"] = onnx_path.with_name(onnx_path.name + ".data")
         out["checkpoint"] = onnx_path.with_name("latest.pt")
+    manifest_path = policy.get("manifest_path")
+    if manifest_path:
+        out["policy.manifest"] = Path(str(manifest_path))
     torchscript = policy.get("torchscript_path")
     if torchscript:
         out["policy.pt"] = Path(str(torchscript))
@@ -274,6 +462,49 @@ def verify_lock(
     return problems, observed
 
 
+def build_lock(
+    cfg: Mapping[str, Any], config_path: str | Path, *, name: str, repo_config_path: str
+) -> dict[str, Any]:
+    """A lock for ``cfg`` from the files on disk now (the generator; never hand-write hashes)."""
+    observed = observed_artifact_hashes(cfg, config_path)
+    artifacts = {
+        role: {"sha256": e["sha256"], "bytes": e["bytes"]}
+        for role, e in observed["artifacts"].items()
+        if e["sha256"] is not None
+    }
+    return {
+        "schema": LOCK_SCHEMA,
+        "name": name,
+        "stand_only": is_stand_only(cfg),
+        "deploy_config": {
+            "path": repo_config_path,
+            "semantic_sha256": observed["deploy_config"]["semantic_sha256"],
+        },
+        "artifacts": artifacts,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    """``python -m phoenix.sim2real.deploy_contract lock --config C --out L --name N``."""
+    ap = argparse.ArgumentParser(description=main.__doc__)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    lk = sub.add_parser("lock", help="write a lock from the artifacts on disk")
+    lk.add_argument("--config", required=True)
+    lk.add_argument("--out", required=True)
+    lk.add_argument("--name", required=True)
+    args = ap.parse_args(argv)
+    cfg = yaml.safe_load(Path(args.config).read_text())
+    lock = build_lock(cfg, args.config, name=args.name, repo_config_path=str(args.config))
+    header = (
+        f"# Generated by `python -m phoenix.sim2real.deploy_contract lock --config {args.config} "
+        f"--out {args.out} --name {args.name}`. Never hand-edit a hash.\n"
+    )
+    Path(args.out).write_text(header + yaml.safe_dump(lock, sort_keys=False))
+    problems, _ = verify_lock(load_lock(args.out), cfg, args.config)
+    print("\n".join(problems) or f"lock {args.out} verifies")
+    return 1 if problems else 0
+
+
 def _is_sha256(value: Any) -> bool:
     return (
         isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
@@ -282,13 +513,21 @@ def _is_sha256(value: Any) -> bool:
 
 __all__ = [
     "LOCK_SCHEMA",
-    "WALKING_ENABLED",
+    "OBS_SCHEMA_V2",
+    "WALKING_EVIDENCE_STAGES",
     "WALKING_PREREQUISITES",
     "artifact_paths",
+    "build_lock",
+    "default_session_dirs",
     "is_stand_only",
     "load_lock",
     "observed_artifact_hashes",
     "semantic_config_sha256",
+    "stand_twin",
     "validate_deploy_contract",
     "verify_lock",
+    "walking_evidence_problems",
 ]
+
+if __name__ == "__main__":
+    raise SystemExit(main())

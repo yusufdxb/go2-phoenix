@@ -166,6 +166,11 @@ def write_stage(
         "lock_path": str(ctx.lock_path),
         "lock_file_sha256": ctx.lock_sha,
         "lock_semantic_sha256": (ctx.lock.get("deploy_config") or {}).get("semantic_sha256"),
+        # Read by deploy_contract.walking_evidence_problems: which artifacts this stage's lock named.
+        "lock_artifact_sha256": {
+            role: (entry or {}).get("sha256")
+            for role, entry in (ctx.lock.get("artifacts") or {}).items()
+        },
         "checks": [c.to_dict() for c in checks],
         **(extra or {}),
     }
@@ -813,7 +818,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"READY FOR STAND-ONLY LIVE GO2 TEST (stage F):  {'YES' if ready else 'NO'}")
     if status["stand_gate_passed"] and not ctx.id_problems:
         print(
-            "H25 stand gate passed (A to H). Walking stays blocked in code: see deploy_contract.WALKING_PREREQUISITES."
+            "H25 stand gate passed (A to H). Walking stays blocked in code until deploy_contract.walking_evidence_problems finds F and G for the walking artifacts: see deploy_contract.WALKING_PREREQUISITES."
         )
     return 0 if ready else 1
 

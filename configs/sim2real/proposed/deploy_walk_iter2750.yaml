@@ -2,8 +2,10 @@
 # DRAFT, UNCOMMITTED: deployment config for the walk_vnext3c_seed47 model_2750 velocity policy.
 # Derived from configs/sim2real/deploy.yaml. Every control-contract field is checked
 # against the manifest by cfg_manifest_mismatches (0 mismatches at drafting time).
-# Walking is blocked by phoenix.sim2real.deploy_contract until WALKING_ENABLED and
-# the hardware evidence it lists exist; this file does not bypass that guard.
+# Walking is refused by phoenix.sim2real.deploy_contract until stages F and G have
+# PASSED on hardware for this policy's stand-phase twin
+# (configs/sim2real/deploy_walk_iter2750_stand.yaml, same artifacts); this file does
+# not bypass that guard. It stays in proposed/ until then.
 
 policy:
   # Path to exported ONNX (produced by sim2real/export.py)
@@ -105,5 +107,10 @@ safety:
 #           behaviour exactly and is the calibration the shield artifact was fit in.
 #   odom  : use validated /utlidar/robot_odom body twist. HARDWARE-UNVERIFIED and
 #           NOT the input distribution any shipped checkpoint was trained against.
+#
+# schema_version: the manifest declares phoenix-velocity-obs/v2 (45-D, NO base_lin_vel
+# term), so for this policy base_lin_vel_source is an inert placeholder (the node requires
+# the key) and must stay 'zeros'; deploy_contract holds the pair consistent.
 observation:
+  schema_version: phoenix-velocity-obs/v2
   base_lin_vel_source: zeros
