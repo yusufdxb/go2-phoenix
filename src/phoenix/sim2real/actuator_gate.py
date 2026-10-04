@@ -166,6 +166,12 @@ class GateParams:
     standup_s: float = 0.0
     standup_kp: float = 60.0
     standup_kd: float = 5.0
+    #: Length of the linear kp/kd blend from the stand-up gains to the policy gains,
+    #: starting on the first POLICY tick after the stand-up. Without it the gains
+    #: step 60/5 -> 25/0.5 in one 20 ms tick, a torque step of about (kp_standup -
+    #: kp_policy) x tracking error. 0 restores the step. Only meaningful when
+    #: ``standup_s > 0``. kp stays strictly positive across the whole blend.
+    handover_s: float = 1.0
     #: 2026-09-25: a PD controller commanding a target PAST a hard stop is
     #: normal (pressing against it); proven stacks do not abort on it. The
     #: commanded target is clipped into the hard range with this small inward
@@ -210,6 +216,7 @@ class GateParams:
             "standup_s",
             "standup_kp",
             "standup_kd",
+            "handover_s",
             "position_clip_margin",
         ):
             value = getattr(self, name)
@@ -272,6 +279,12 @@ class ActuatorGate:
         self._standup_q0: np.ndarray | None = None
         self._standup_start_ns: int | None = None
         self._standup_done = False
+        # Handover (stand-up gains -> policy gains) bookkeeping.
+        self._handover_start_ns: int | None = None
+        #: (kp, kd) in effect on the last STANDUP tick or still-blending POLICY tick;
+        #: a fault latched while this is set holds at those gains (never below hold gains).
+        self._entry_gains: tuple[float, float] | None = None
+        self._fault_hold_gains: tuple[float, float] | None = None
 
         self._faults: list[str] = []
         self._sit_open = False  # measured posture untrusted: open-loop sit
@@ -533,6 +546,7 @@ class ActuatorGate:
             "limit_margin": None,
             "policy": None if self._last_decoded is None else self._last_decoded.telemetry(),
             "standup_alpha": None,
+            "handover_alpha": None,
             "standup_done": self._standup_done,
             "counters": dict(self.counters),
             "tilt_deg": None if self._tilt is None else float(np.degrees(self._tilt)),
@@ -648,9 +662,18 @@ class ActuatorGate:
             rec["limit_clip"] = [bool(v) for v in final != standup_target]
             kp, kd = p.standup_kp, p.standup_kd
 
+        handover_alpha: float | None = None
+        gain_kp, gain_kd = p.kp, p.kd
         if mode is Mode.POLICY:
             cmd = self._cmd
             assert cmd is not None  # POLICY is only reachable with a command
+            if p.standup_s > 0 and p.handover_s > 0:
+                if self._handover_start_ns is None:
+                    self._handover_start_ns = now_ns
+                handover_alpha = min(1.0, (now_ns - self._handover_start_ns) / 1e9 / p.handover_s)
+                gain_kp = p.standup_kp + (p.kp - p.standup_kp) * handover_alpha
+                gain_kd = p.standup_kd + (p.kd - p.standup_kd) * handover_alpha
+                rec["handover_alpha"] = float(handover_alpha)
             requested = cmd.target[self._perm]
             rec["requested_target_unitree"] = _floats(requested)
             non_finite = ~np.isfinite(requested)
@@ -664,7 +687,9 @@ class ActuatorGate:
             else:
                 dq = self._dq if self._dq is not None else np.zeros(12, dtype=np.float64)
                 torque_clipped = np.asarray(
-                    torque_limited_target_array(requested, q, dq, p.kp, p.kd, self._torque_limit),
+                    torque_limited_target_array(
+                        requested, q, dq, gain_kp, gain_kd, self._torque_limit
+                    ),
                     dtype=np.float64,
                 )
                 # Key kept as "slew_clip" for backward compatibility with
@@ -673,7 +698,7 @@ class ActuatorGate:
                 # now flags a TORQUE-based clip (go2_model.JOINT_TORQUE_LIMITS_NM),
                 # not the old measured-q +-0.175 rad/step position slew.
                 rec["slew_clip"] = [bool(v) for v in torque_clipped != requested]
-                expected_tau = expected_torque(torque_clipped, q, dq, p.kp, p.kd)
+                expected_tau = expected_torque(torque_clipped, q, dq, gain_kp, gain_kd)
                 rec["torque_margin_nm"] = _floats(self._torque_limit - np.abs(expected_tau))
                 # 2026-09-25: a target beyond the hard stop is now CLIPPED,
                 # not an abort trigger (a PD controller pressing into a stop
@@ -700,7 +725,7 @@ class ActuatorGate:
                     rec["cmd_seq"] = cmd.seq
                     rec["cmd_kind"] = cmd.kind
                     rec["policy"] = cmd.telemetry()
-                    kp, kd = p.kp, p.kd
+                    kp, kd = gain_kp, gain_kd
 
         if mode is Mode.SIT:
             sensors_ok = not self._sit_open and fresh
@@ -738,19 +763,41 @@ class ActuatorGate:
             if self._faults or cause == "command_stale":
                 if self._fault_hold_q is None:
                     self._fault_hold_q = np.clip(q, self._lo, self._hi)
+                    # A fault during the stand-up or the gain handover holds at the gains
+                    # in effect at fault entry (never below the hold gains): dropping to
+                    # the hold gains mid-rise is a torque step while the robot is least
+                    # able to take one.
+                    eg = self._entry_gains
+                    self._fault_hold_gains = (
+                        (max(eg[0], p.hold_kp), max(eg[1], p.hold_kd))
+                        if eg is not None
+                        else (p.hold_kp, p.hold_kd)
+                    )
                 base = self._fault_hold_q
+                assert self._fault_hold_gains is not None
+                hold_gains = self._fault_hold_gains
             else:
                 self._fault_hold_q = None
+                self._fault_hold_gains = None
+                self._entry_gains = None
                 base = q
+                hold_gains = (p.hold_kp, p.hold_kd)
             final = np.clip(base, self._lo, self._hi)
             rec["limit_clip"] = [bool(v) for v in final != base]
-            kp, kd = p.hold_kp, p.hold_kd
+            kp, kd = hold_gains
 
         if not np.all(np.isfinite(final)):  # unreachable by construction; fail closed anyway
             self._latch("non_finite_final_target")
             final = np.asarray(SIT_POSE_UNITREE, dtype=np.float64)
             mode, kp, kd = Mode.SIT, p.sit.sit_kp, p.sit.sit_kd
 
+        if mode is Mode.STANDUP:
+            self._entry_gains = (float(kp), float(kd))
+        elif mode is Mode.POLICY:
+            blending = handover_alpha is not None and handover_alpha < 1.0
+            self._entry_gains = (float(kp), float(kd)) if blending else None
+        if mode is not Mode.POLICY:
+            self._handover_start_ns = None
         rec["mode"] = mode.value
         rec["publish"] = True
         rec["hold_cause"] = cause if mode not in (Mode.POLICY, Mode.STANDUP) else None
