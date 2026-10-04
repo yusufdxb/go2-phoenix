@@ -147,4 +147,44 @@ def load_deploy_manifest(path: Path | str) -> DeployManifest:
     )
 
 
-__all__ = ["DeployManifest", "ManifestError", "load_deploy_manifest"]
+def cfg_manifest_mismatches(cfg: Any, manifest_path: Path | str, *, tol: float = 1e-6) -> list[str]:
+    """Compare the deploy YAML's control contract with the checkpoint manifest.
+
+    The node takes ``action_clip``/``kp``/``kd`` from the manifest, but joint order,
+    default joint positions, action scale and control rate come from the deploy
+    YAML (``joint_order``, ``control.*``). Each is a training-contract value, so a
+    YAML that disagrees with the manifest is a silent sim-to-real bug (wrong action
+    offset AND wrong joint_pos observation reference). Only keys the manifest
+    states are compared (H25-era stand manifests state none, so they pass).
+    Returns human-readable problems; empty means consistent.
+    """
+    try:
+        data = json.loads(Path(manifest_path).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"manifest {manifest_path} could not be read: {exc}"]
+    control = (cfg.get("control") or {}) if isinstance(cfg, dict) else {}
+    problems: list[str] = []
+    m_order = data.get("joint_order")
+    if m_order is not None and list(cfg.get("joint_order") or []) != list(m_order):
+        problems.append(f"joint_order differs from manifest {m_order}")
+    m_def = data.get("default_joint_pos")
+    if isinstance(m_def, dict):
+        c_def = control.get("default_joint_pos") or {}
+        for name, val in m_def.items():
+            got = c_def.get(name)
+            if got is None or abs(float(got) - float(val)) > tol:
+                problems.append(f"control.default_joint_pos[{name}]={got} != manifest {val}")
+    m_scale = (data.get("action") or {}).get("scale")
+    if m_scale is not None and not isinstance(m_scale, list):
+        got = control.get("action_scale")
+        if got is None or abs(float(got) - float(m_scale)) > tol:
+            problems.append(f"control.action_scale={got} != manifest action.scale {m_scale}")
+    m_hz = data.get("control_hz")
+    if m_hz is not None:
+        got = control.get("rate_hz")
+        if got is None or abs(float(got) - float(m_hz)) > tol:
+            problems.append(f"control.rate_hz={got} != manifest control_hz {m_hz}")
+    return problems
+
+
+__all__ = ["DeployManifest", "ManifestError", "cfg_manifest_mismatches", "load_deploy_manifest"]

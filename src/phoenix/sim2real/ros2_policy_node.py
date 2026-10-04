@@ -128,7 +128,7 @@ from .observation import (
     projected_gravity_from_quat,
     resolve_base_lin_vel,
 )
-from .deploy_manifest import ManifestError, load_deploy_manifest
+from .deploy_manifest import ManifestError, cfg_manifest_mismatches, load_deploy_manifest
 from .go2_model import limits_in_order, torque_limits_in_order
 from .safety import (
     DEFAULT_POSITION_CLIP_MARGIN_RAD,
@@ -293,6 +293,9 @@ def resolve_startup(cfg: dict, args: argparse.Namespace) -> tuple[Path | None, l
         except ManifestError as exc:
             problems.append(f"deploy manifest: {exc}")
         else:
+            problems.extend(
+                f"deploy cfg vs manifest: {m}" for m in cfg_manifest_mismatches(as_written, manifest_path)
+            )
             logger.info(
                 "deploy manifest %s: action_clip=%.3g kp=%s kd=%s",
                 manifest_path,
@@ -436,6 +439,9 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 "a 'deploy' block). There is no default action_clip."
             )
         deploy_manifest = load_deploy_manifest(Path(manifest_path))
+        mismatches = cfg_manifest_mismatches(cfg, manifest_path)
+        if mismatches:
+            raise ValueError("deploy cfg disagrees with the checkpoint manifest: " + "; ".join(mismatches))
         self._action_clip = deploy_manifest.action_clip
         if deploy_manifest.kp is not None:
             self._policy_kp = deploy_manifest.kp
