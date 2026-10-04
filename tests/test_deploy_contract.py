@@ -286,6 +286,11 @@ def _session(tmp_path, name, records):
     d = tmp_path / "sessions" / name
     d.mkdir(parents=True, exist_ok=True)
     for stage, rec in records.items():
+        rec = dict(rec)
+        if "evidence_files" not in rec:
+            tel = d / f"bridge_{stage}.jsonl"
+            tel.write_text(f'{{"stage": "{stage}"}}\n')
+            rec["evidence_files"] = [{"path": tel.name, "sha256": file_sha256(tel)}]
         (d / f"stage_{stage}.json").write_text(json.dumps(rec))
     return d
 
@@ -415,3 +420,95 @@ def test_lock_generator_round_trips(tmp_path) -> None:
     out = tmp_path / "stand.lock.yaml"
     assert dc.main(["lock", "--config", str(path), "--out", str(out), "--name", "t"]) == 0
     assert dc.verify_lock(dc.load_lock(out), stand, path)[0] == []
+
+
+# ------------------------------------------- evidence hardening (2026-10-04)
+def _valid_pair(tmp_path):
+    cfg, _ = _walk_fixture(tmp_path)
+    s = _session(tmp_path, "s", {"F": _record(cfg, "F"), "G": _record(cfg, "G")})
+    assert dc.walking_evidence_problems(cfg, sessions=[s]) == []
+    return cfg, s
+
+
+def test_hw_sessions_override_rejected_without_the_test_flag(tmp_path, monkeypatch) -> None:
+    cfg, s = _valid_pair(tmp_path)
+    monkeypatch.delenv(dc.HW_SESSIONS_TEST_FLAG, raising=False)
+    monkeypatch.setenv(dc.HW_SESSIONS_ENV, str(s.parent))
+    problems = dc.walking_evidence_problems(cfg)
+    assert problems and dc.HW_SESSIONS_ENV in problems[0]
+    assert dc.default_session_dirs() != sorted(d for d in s.parent.iterdir() if d.is_dir())
+    monkeypatch.setenv(dc.HW_SESSIONS_TEST_FLAG, "1")
+    assert dc.walking_evidence_problems(cfg) == []
+
+
+def test_symlinked_session_directory_rejected(tmp_path) -> None:
+    cfg, s = _valid_pair(tmp_path)
+    link = tmp_path / "links" / "lnk"
+    link.parent.mkdir()
+    link.symlink_to(s, target_is_directory=True)
+    problems = dc.walking_evidence_problems(cfg, sessions=[link])
+    assert any("session directory is a symlink" in p for p in problems)
+
+
+def test_symlinked_stage_record_rejected(tmp_path) -> None:
+    cfg, _ = _walk_fixture(tmp_path)
+    real = _session(tmp_path, "real", {"F": _record(cfg, "F"), "G": _record(cfg, "G")})
+    d = tmp_path / "sessions" / "via_link"
+    d.mkdir()
+    for stage in "FG":
+        (d / f"stage_{stage}.json").symlink_to(real / f"stage_{stage}.json")
+        (d / f"bridge_{stage}.jsonl").write_bytes((real / f"bridge_{stage}.jsonl").read_bytes())
+    problems = dc.walking_evidence_problems(cfg, sessions=[d])
+    assert any("is a symlink" in p for p in problems)
+
+
+def test_missing_or_nonempty_code_identity_problems_rejected(tmp_path) -> None:
+    cfg, _ = _walk_fixture(tmp_path)
+    absent = _record(cfg, "F")
+    absent.pop("code_identity_problems")
+    s = _session(tmp_path, "a", {"F": absent, "G": _record(cfg, "G")})
+    assert any(
+        "code_identity_problems key absent" in p
+        for p in dc.walking_evidence_problems(cfg, sessions=[s])
+    )
+    s2 = _session(
+        tmp_path,
+        "b",
+        {"F": _record(cfg, "F", code_identity_problems=["dirty"]), "G": _record(cfg, "G")},
+    )
+    assert any(
+        "code identity problems" in p for p in dc.walking_evidence_problems(cfg, sessions=[s2])
+    )
+
+
+def test_record_without_evidence_files_rejected(tmp_path) -> None:
+    cfg, _ = _walk_fixture(tmp_path)
+    s = _session(tmp_path, "s", {"F": _record(cfg, "F", evidence_files=[]), "G": _record(cfg, "G")})
+    assert any("no evidence_files" in p for p in dc.walking_evidence_problems(cfg, sessions=[s]))
+
+
+def test_tampered_evidence_file_rejected(tmp_path) -> None:
+    cfg, s = _valid_pair(tmp_path)
+    (s / "bridge_F.jsonl").write_text("edited after the stage was recorded\n")
+    assert any(
+        "hash differs from the record" in p for p in dc.walking_evidence_problems(cfg, sessions=[s])
+    )
+
+
+def test_missing_and_symlinked_evidence_file_rejected(tmp_path) -> None:
+    cfg, s = _valid_pair(tmp_path)
+    data = (s / "bridge_F.jsonl").read_bytes()
+    (s / "bridge_F.jsonl").unlink()
+    assert any("missing" in p for p in dc.walking_evidence_problems(cfg, sessions=[s]))
+    other = tmp_path / "elsewhere.jsonl"
+    other.write_bytes(data)
+    (s / "bridge_F.jsonl").symlink_to(other)
+    assert any("symlink" in p for p in dc.walking_evidence_problems(cfg, sessions=[s]))
+
+
+@pytest.mark.parametrize("rel", ["../outside.jsonl", "/etc/hostname"])
+def test_evidence_file_outside_the_session_rejected(tmp_path, rel) -> None:
+    cfg, _ = _walk_fixture(tmp_path)
+    bad = _record(cfg, "F", evidence_files=[{"path": rel, "sha256": "0" * 64}])
+    s = _session(tmp_path, "s", {"F": bad, "G": _record(cfg, "G")})
+    assert any("not session-relative" in p for p in dc.walking_evidence_problems(cfg, sessions=[s]))

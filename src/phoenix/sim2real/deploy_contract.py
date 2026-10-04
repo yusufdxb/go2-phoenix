@@ -232,17 +232,65 @@ def stand_twin(cfg: Mapping[str, Any]) -> dict[str, Any]:
     return twin
 
 
+HW_SESSIONS_ENV = "PHOENIX_HW_SESSIONS"
+HW_SESSIONS_TEST_FLAG = "PHOENIX_HW_SESSIONS_TEST_ONLY"
+
+
+def hw_sessions_override_problem() -> str | None:
+    """An evidence-directory override is honoured only with the explicit test-only flag."""
+    if os.environ.get(HW_SESSIONS_ENV) and os.environ.get(HW_SESSIONS_TEST_FLAG) != "1":
+        return (
+            f"{HW_SESSIONS_ENV} is set without {HW_SESSIONS_TEST_FLAG}=1: an evidence directory "
+            "override is test-only and never counts as hardware evidence"
+        )
+    return None
+
+
 def default_session_dirs() -> list[Path]:
-    """Hardware session directories: ``$PHOENIX_HW_SESSIONS`` or ``<repo>/logs/hw_sessions``."""
-    root = Path(
-        os.environ.get("PHOENIX_HW_SESSIONS")
-        or Path(__file__).resolve().parents[3] / "logs" / "hw_sessions"
-    )
+    """Hardware session directories: ``<repo>/logs/hw_sessions`` (``$PHOENIX_HW_SESSIONS`` only
+    with ``PHOENIX_HW_SESSIONS_TEST_ONLY=1``)."""
+    default_root = Path(__file__).resolve().parents[3] / "logs" / "hw_sessions"
+    override = os.environ.get(HW_SESSIONS_ENV)
+    root = Path(override) if override and hw_sessions_override_problem() is None else default_root
     return sorted(d for d in root.iterdir() if d.is_dir()) if root.is_dir() else []
 
 
+def _evidence_file_rejections(rec: Mapping[str, Any], session_dir: Path) -> list[str]:
+    """The record must name session telemetry by sha256, and each file must still hash to it."""
+    files = rec.get("evidence_files")
+    if not isinstance(files, list) or not files:
+        return ["no evidence_files (record is not bound to a session telemetry hash)"]
+    why: list[str] = []
+    for entry in files:
+        rel = entry.get("path") if isinstance(entry, Mapping) else None
+        sha = entry.get("sha256") if isinstance(entry, Mapping) else None
+        if not isinstance(rel, str) or not rel:
+            why.append(f"evidence file entry {entry!r} has no path")
+            continue
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            why.append(f"evidence file {rel} is not session-relative")
+            continue
+        cur = session_dir
+        linked = False
+        for part in rel_path.parts:
+            cur = cur / part
+            linked = linked or cur.is_symlink()
+        if linked:
+            why.append(f"evidence file {rel} is or sits under a symlink")
+        elif not cur.is_file():
+            why.append(f"evidence file {rel} missing")
+        elif not _is_sha256(sha) or file_sha256(cur) != sha:
+            why.append(f"evidence file {rel} hash differs from the record")
+    return why
+
+
 def _stage_record_rejections(
-    rec: Mapping[str, Any], stage: str, twin_hash: str, want: Mapping[str, str]
+    rec: Mapping[str, Any],
+    stage: str,
+    twin_hash: str,
+    want: Mapping[str, str],
+    session_dir: Path,
 ) -> list[str]:
     why: list[str] = []
     if rec.get("schema") != _STAGE_SCHEMA:
@@ -255,7 +303,9 @@ def _stage_record_rejections(
         why.append("rehearsal (no robot)")
     if rec.get("motors") != "live":
         why.append(f"motors {rec.get('motors')!r}")
-    if rec.get("code_identity_problems"):
+    if "code_identity_problems" not in rec:
+        why.append("code_identity_problems key absent")
+    elif rec["code_identity_problems"] != []:
         why.append("code identity problems")
     if rec.get("lock_semantic_sha256") != twin_hash:
         why.append("lock is not for the stand-phase twin of this config")
@@ -263,6 +313,7 @@ def _stage_record_rejections(
     for role, sha in want.items():
         if got.get(role) != sha:
             why.append(f"{role} hash differs from the walking config's")
+    why += _evidence_file_rejections(rec, session_dir)
     return why
 
 
@@ -277,6 +328,8 @@ def walking_evidence_problems(
     policy.onnx, policy.onnx.data and policy.manifest as the files ``cfg`` reaches
     on disk now. Records written before ``lock_artifact_sha256`` existed never count.
     """
+    if sessions is None and (override := hw_sessions_override_problem()):
+        return [override]
     observed = observed_artifact_hashes(cfg, "<walking-config>")["artifacts"]
     want: dict[str, str] = {}
     problems: list[str] = []
@@ -297,6 +350,12 @@ def walking_evidence_problems(
         ok = False
         for d in dirs:
             path = d / f"stage_{stage}.json"
+            if d.is_symlink():
+                seen.append(f"{d.name}: session directory is a symlink")
+                continue
+            if path.is_symlink():
+                seen.append(f"{d.name}: stage_{stage}.json is a symlink")
+                continue
             if not path.is_file():
                 continue
             try:
@@ -304,7 +363,7 @@ def walking_evidence_problems(
             except ValueError:
                 seen.append(f"{path}: unreadable")
                 continue
-            why = _stage_record_rejections(rec, stage, twin_hash, want)
+            why = _stage_record_rejections(rec, stage, twin_hash, want, d)
             if not why:
                 ok = True
                 break
@@ -364,7 +423,9 @@ def artifact_paths(cfg: Mapping[str, Any]) -> dict[str, Path]:
         # Default: the run's latest.pt beside the export. policy.checkpoint_path names
         # the source checkpoint explicitly when no latest.pt exists (an archived export).
         checkpoint = policy.get("checkpoint_path")
-        out["checkpoint"] = Path(str(checkpoint)) if checkpoint else onnx_path.with_name("latest.pt")
+        out["checkpoint"] = (
+            Path(str(checkpoint)) if checkpoint else onnx_path.with_name("latest.pt")
+        )
     manifest_path = policy.get("manifest_path")
     if manifest_path:
         out["policy.manifest"] = Path(str(manifest_path))
@@ -567,9 +628,14 @@ def main(argv: list[str] | None = None) -> int:
     lk.add_argument("--name", required=True)
     lk.add_argument("--checkpoint", help="source checkpoint; must be the one the config reaches")
     lk.add_argument(
-        "--parity-input", action="append", default=[], help="PATH:parquet | PATH:npz:KEY (repo-relative)"
+        "--parity-input",
+        action="append",
+        default=[],
+        help="PATH:parquet | PATH:npz:KEY (repo-relative)",
     )
-    lk.add_argument("--canonical-bench", action="store_true", help="record the canonical-stand |a|_inf")
+    lk.add_argument(
+        "--canonical-bench", action="store_true", help="record the canonical-stand |a|_inf"
+    )
     ro = sub.add_parser("reference-obs", help="write the deterministic synthetic v2 parity batch")
     ro.add_argument("--config", required=True)
     ro.add_argument("--out", required=True)
@@ -635,6 +701,7 @@ __all__ = [
     "validate_deploy_contract",
     "verify_lock",
     "walking_evidence_problems",
+    "hw_sessions_override_problem",
 ]
 
 if __name__ == "__main__":
