@@ -139,6 +139,8 @@ class Context:
         self.id_problems = identity_problems(self.identity, expected_sha=self.expected_sha)
         self.session = Path(args.session)
         self.session.mkdir(parents=True, exist_ok=True)
+        #: Names the active config in stage titles (the lock's name, e.g. walk-iter2750-stand).
+        self.label: str | None = self.lock.get("name") or None
 
     def identity_check(self) -> pe.Check:
         return _check(
@@ -154,7 +156,7 @@ def write_stage(
     record = {
         "schema": pe.STAGE_SCHEMA,
         "stage": stage,
-        "title": pe.STAGE_TITLES[stage],
+        "title": pe.stage_title(stage, ctx.label),
         "verdict": pe.verdict(checks),
         "utc": utc_now(),
         "host": socket.gethostname(),
@@ -181,14 +183,18 @@ def write_stage(
         stamp = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).strftime("%Y%m%dT%H%M%S")
         shutil.move(str(path), str(history / f"stage_{stage}_{stamp}.json"))
     path.write_text(json.dumps(_json_safe(record), indent=2, allow_nan=False) + "\n")
-    print_checks(stage, checks, record["verdict"], path)
+    print_checks(stage, checks, record["verdict"], path, ctx.label)
     return record
 
 
 def print_checks(
-    stage: str, checks: list[pe.Check], verdict: str, path: Path | None = None
+    stage: str,
+    checks: list[pe.Check],
+    verdict: str,
+    path: Path | None = None,
+    label: str | None = None,
 ) -> None:
-    print(f"\n=== stage {stage}: {pe.STAGE_TITLES[stage]} ===")
+    print(f"\n=== stage {stage}: {pe.stage_title(stage, label)} ===")
     for c in checks:
         tag = "info" if not c.gating else ("PASS" if c.ok else "FAIL")
         print(f"  [{tag}] {c.name}: {c.detail}")
@@ -287,9 +293,43 @@ def a_joint_model(ctx: Context) -> list[pe.Check]:
 
 
 def a_obs_parity(ctx: Context) -> list[pe.Check]:
+    from .deploy_contract import _load_manifest
     from .obs_parity import check_observation_parity, check_zeros_fallback_is_explicit
     from .observation import JointOrder, ObservationBuilder
+    from .observation_v2 import (
+        ManifestObservationBuilder,
+        ManifestObservationError,
+        manifest_actor_schema,
+        parity_failures,
+    )
 
+    manifest = _load_manifest(ctx.cfg)
+    try:
+        version = manifest_actor_schema(manifest) if manifest else None
+        failures_v2 = (
+            parity_failures(
+                ManifestObservationBuilder(
+                    version, ctx.cfg["joint_order"], ctx.cfg["control"]["default_joint_pos"]
+                )
+            )
+            if version
+            else None
+        )
+    except ManifestObservationError as exc:
+        return [_check("manifest observation schema is reproduced by the deploy builder", False, str(exc))]
+    if version:
+        return [
+            _check(
+                f"manifest observation schema {version} is reproduced by the deploy builder",
+                True,
+                f"sha256 {manifest['observation']['schema_sha256']}",
+            ),
+            _check(
+                f"sensor-to-observation parity, {version} (term order, slices, scales, no zeroed term)",
+                not failures_v2,
+                "; ".join(failures_v2) or "all 6 terms pass",
+            ),
+        ]
     builder = ObservationBuilder(
         JointOrder(tuple(ctx.cfg["joint_order"])), ctx.cfg["control"]["default_joint_pos"]
     )
@@ -316,16 +356,10 @@ def _ort_session(onnx_path: Path):
 
 
 def a_bench(ctx: Context, onnx_path: Path) -> list[pe.Check]:
-    from .bench_export import build_canonical_stand_obs
-    from .observation import JointOrder, ObservationBuilder
+    from .bench_export import canonical_stand_obs_for_cfg
 
     bench = ctx.lock.get("canonical_bench") or {}
-    builder = ObservationBuilder(
-        JointOrder(tuple(ctx.cfg["joint_order"])), ctx.cfg["control"]["default_joint_pos"]
-    )
-    obs = build_canonical_stand_obs(
-        builder, pad_zeros=int((ctx.cfg.get("policy") or {}).get("obs_pad_zeros", 0))
-    )
+    obs = canonical_stand_obs_for_cfg(ctx.cfg)
     session, _ = _ort_session(onnx_path)
     action = np.asarray(
         session.run(None, {session.get_inputs()[0].name: obs[None].astype(np.float32)})[0]
@@ -380,6 +414,11 @@ def a_parity_workstation(ctx: Context, onnx_path: Path) -> tuple[list[pe.Check],
     max_steps = int(parity.get("max_steps_per_input", 2000))
     checks: list[pe.Check] = []
     batches: list[tuple[str, np.ndarray]] = []
+    from .deploy_contract import _load_manifest
+    from .observation_v2 import manifest_actor_schema
+
+    manifest = _load_manifest(ctx.cfg)
+    v2_schema = manifest_actor_schema(manifest) if manifest else None
     for entry in ctx.lock.get("parity_reference_inputs") or []:
         path = REPO_ROOT / entry["path"]
         if not path.is_file():
@@ -392,6 +431,15 @@ def a_parity_workstation(ctx: Context, onnx_path: Path) -> tuple[list[pe.Check],
         )
         if not ok:
             continue
+        if entry["kind"] == "parquet" and v2_schema:
+            checks.append(
+                _check(
+                    f"reference input usable for {v2_schema}: {entry['path']}",
+                    False,
+                    "parquet logs rebuild the 48-D pre-v2 observation; use an npz of 45-D rows",
+                )
+            )
+            continue
         obs = (
             pg.obs_from_parquet(path, ctx.cfg, max_steps)
             if entry["kind"] == "parquet"
@@ -403,7 +451,9 @@ def a_parity_workstation(ctx: Context, onnx_path: Path) -> tuple[list[pe.Check],
         return checks, {}
 
     paths = artifact_paths(ctx.cfg)
-    policy, obs_dim, _ = pg.build_reference_policy(paths["checkpoint"])
+    policy, obs_dim, _ = pg.build_reference_policy(
+        paths["checkpoint"], allow_no_normalizer=v2_schema is not None
+    )
     session, ort_version = _ort_session(onnx_path)
     in_name = session.get_inputs()[0].name
     out_names = [o.name for o in session.get_outputs()]
@@ -818,7 +868,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"READY FOR STAND-ONLY LIVE GO2 TEST (stage F):  {'YES' if ready else 'NO'}")
     if status["stand_gate_passed"] and not ctx.id_problems:
         print(
-            "H25 stand gate passed (A to H). Walking stays blocked in code until deploy_contract.walking_evidence_problems finds F and G for the walking artifacts: see deploy_contract.WALKING_PREREQUISITES."
+            f"{ctx.label or 'H25'} stand gate passed (A to H). Walking stays blocked in code until deploy_contract.walking_evidence_problems finds F and G for the walking artifacts: see deploy_contract.WALKING_PREREQUISITES."
         )
     return 0 if ready else 1
 

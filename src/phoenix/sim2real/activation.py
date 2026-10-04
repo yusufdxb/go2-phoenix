@@ -51,6 +51,8 @@ PATH_KEYS = (
     "stand_onnx_path",
     "walk_onnx_path",
     "artifact",
+    "manifest_path",
+    "checkpoint_path",
 )
 
 _KEY_LINE = re.compile(
@@ -105,6 +107,15 @@ def required_paths(cfg: dict) -> dict[str, str]:
         out["policy.onnx_path"] = str(policy["onnx_path"])
     if policy.get("torchscript_path"):
         out["policy.torchscript_path"] = str(policy["torchscript_path"])
+    # The node opens the checkpoint manifest at startup (action clip, gains, the
+    # observation schema), so it must be pinned and hashed like the policy files.
+    if policy.get("manifest_path"):
+        out["policy.manifest_path"] = str(policy["manifest_path"])
+    # Stage A hashes this source checkpoint; the node never opens it, but a
+    # relative or out-of-bundle path here would let stage A hash a different file
+    # than the one the lock names.
+    if policy.get("checkpoint_path"):
+        out["policy.checkpoint_path"] = str(policy["checkpoint_path"])
 
     mode_switch = policy.get("mode_switch") or {}
     if mode_switch.get("enabled"):

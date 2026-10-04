@@ -17,6 +17,8 @@ policy:
   manifest_path: "/home/yusuf/Archive/phoenix-deploy-candidates-2026-10-03/eval/iter2750_gate/phoenix_manifest.json"
   # Fallback TorchScript policy if onnxruntime missing.
   torchscript_path: "/home/yusuf/Archive/phoenix-deploy-candidates-2026-10-03/eval/iter2750_gate/policy.pt"
+  # Source training checkpoint stage A hashes and parity-checks against (no latest.pt exists in the archive).
+  checkpoint_path: "/home/yusuf/Archive/phoenix-deploy-candidates-2026-10-03/checkpoints/walk_vnext3c_seed47/2026-09-26_21-06-20/model_2750.pt"
   device: "cpu"                  # Jetson/on-robot inference
   # Velocity obs v2 is 45-dim (no height scanner, no base_lin_vel term): no padding.
   obs_pad_zeros: 0

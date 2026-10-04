@@ -210,8 +210,15 @@ def obs_from_npz(npz: Path, key: str, max_steps: int) -> np.ndarray:
 # ---------------------------------------------------------------- the two sides
 
 
-def build_reference_policy(checkpoint: Path, device: str = "cpu") -> tuple[Any, int, int]:
-    """Rebuild the actor from the rsl_rl checkpoint, independent of the export run."""
+def build_reference_policy(
+    checkpoint: Path, device: str = "cpu", *, allow_no_normalizer: bool = False
+) -> tuple[Any, int, int]:
+    """Rebuild the actor from the rsl_rl checkpoint, independent of the export run.
+
+    ``allow_no_normalizer`` is for a manifest-declared observation schema whose
+    per-term scales (not an empirical normalizer) condition the input; the caller
+    sets it only then, so a legacy checkpoint missing its normalizer still refuses.
+    """
     import torch
 
     from phoenix.sim2real import export as ex
@@ -232,7 +239,7 @@ def build_reference_policy(checkpoint: Path, device: str = "cpu") -> tuple[Any, 
     ex._load_actor_weights(actor, actor_sd, layer_keys)
     actor.to(device).eval()
     policy = ex._ExportablePolicy(actor, ckpt, actor_sd, tap_indices=None).to(device).eval()
-    if policy.normalizer is None:
+    if policy.normalizer is None and not allow_no_normalizer:
         raise RuntimeError(
             "checkpoint has no obs normalizer; the exported policy would see raw observations"
         )

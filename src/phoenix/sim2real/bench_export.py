@@ -74,6 +74,36 @@ def build_canonical_stand_obs(
     return proprio
 
 
+def canonical_stand_obs_for_cfg(cfg) -> np.ndarray:
+    """The canonical-stand observation for the schema the deploy config's manifest declares.
+
+    A manifest declaring ``phoenix-velocity-obs/v2`` gets the 45-D manifest-driven
+    builder; a manifest with no velocity-contract block keeps the 48-D builder.
+    Stage A and the lock generator both call this, so the locked bench value and
+    the value stage A reproduces come from one code path.
+    """
+    from .deploy_contract import _load_manifest
+    from .observation_v2 import (
+        ManifestObservationBuilder,
+        canonical_stand_observation,
+        manifest_actor_schema,
+    )
+
+    manifest = _load_manifest(cfg)
+    version = manifest_actor_schema(manifest) if manifest else None
+    if version is not None:
+        v2 = ManifestObservationBuilder(
+            version, cfg["joint_order"], cfg["control"]["default_joint_pos"]
+        )
+        return canonical_stand_observation(v2)
+    builder = ObservationBuilder(
+        JointOrder(tuple(cfg["joint_order"])), cfg["control"]["default_joint_pos"]
+    )
+    return build_canonical_stand_obs(
+        builder, pad_zeros=int((cfg.get("policy") or {}).get("obs_pad_zeros", 0))
+    )
+
+
 def check_canonical_action(
     infer: InferenceFn,
     obs: np.ndarray,

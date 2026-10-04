@@ -361,7 +361,10 @@ def artifact_paths(cfg: Mapping[str, Any]) -> dict[str, Path]:
         onnx_path = Path(str(onnx))
         out["policy.onnx"] = onnx_path
         out["policy.onnx.data"] = onnx_path.with_name(onnx_path.name + ".data")
-        out["checkpoint"] = onnx_path.with_name("latest.pt")
+        # Default: the run's latest.pt beside the export. policy.checkpoint_path names
+        # the source checkpoint explicitly when no latest.pt exists (an archived export).
+        checkpoint = policy.get("checkpoint_path")
+        out["checkpoint"] = Path(str(checkpoint)) if checkpoint else onnx_path.with_name("latest.pt")
     manifest_path = policy.get("manifest_path")
     if manifest_path:
         out["policy.manifest"] = Path(str(manifest_path))
@@ -462,17 +465,71 @@ def verify_lock(
     return problems, observed
 
 
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_PARITY_DEFAULTS = {"max_abs_tol": 1.0e-5, "cos_tol": 0.9999, "max_steps_per_input": 2000}
+
+
+def canonical_bench_record(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """The locked canonical-stand bench value, computed the way stage A recomputes it."""
+    import numpy as np
+    import onnxruntime as ort
+
+    from .bench_export import canonical_stand_obs_for_cfg
+
+    onnx = artifact_paths(cfg)["policy.onnx"]
+    obs = canonical_stand_obs_for_cfg(cfg)
+    session = ort.InferenceSession(str(onnx), providers=["CPUExecutionProvider"])
+    action = np.asarray(
+        session.run(None, {session.get_inputs()[0].name: obs[None].astype(np.float32)})[0]
+    ).reshape(-1)
+    return {
+        "abs_action_inf": float(np.max(np.abs(action))),
+        "max_abs_tol": 1.0e-5,
+        "legacy_threshold": 0.3,
+        "legacy_threshold_is_gate": False,
+    }
+
+
+def parity_input_record(spec: str) -> dict[str, Any]:
+    """``PATH:parquet`` or ``PATH:npz:KEY`` (PATH relative to the repo root) to a pinned entry."""
+    parts = spec.split(":")
+    if len(parts) not in (2, 3) or parts[1] not in ("parquet", "npz"):
+        raise ValueError(f"--parity-input {spec!r}: want PATH:parquet or PATH:npz:KEY")
+    if (parts[1] == "npz") != (len(parts) == 3):
+        raise ValueError(f"--parity-input {spec!r}: npz needs a KEY, parquet takes none")
+    path = _REPO_ROOT / parts[0]
+    if not path.is_file():
+        raise FileNotFoundError(f"parity reference input {path} does not exist")
+    entry: dict[str, Any] = {"path": parts[0], "kind": parts[1]}
+    if parts[1] == "npz":
+        entry["key"] = parts[2]
+    entry["sha256"] = file_sha256(path)
+    return entry
+
+
 def build_lock(
-    cfg: Mapping[str, Any], config_path: str | Path, *, name: str, repo_config_path: str
+    cfg: Mapping[str, Any],
+    config_path: str | Path,
+    *,
+    name: str,
+    repo_config_path: str,
+    checkpoint: str | Path | None = None,
+    parity_inputs: Sequence[str] = (),
+    canonical_bench: bool = False,
 ) -> dict[str, Any]:
-    """A lock for ``cfg`` from the files on disk now (the generator; never hand-write hashes)."""
+    """A lock for ``cfg`` from the files on disk now (the generator; never hand-write hashes).
+
+    ``checkpoint`` must be the file ``artifact_paths(cfg)['checkpoint']`` resolves to
+    (``policy.checkpoint_path``, else ``latest.pt`` beside the export): the lock
+    hashes what stage A will hash, never a file the config does not reach.
+    """
     observed = observed_artifact_hashes(cfg, config_path)
     artifacts = {
         role: {"sha256": e["sha256"], "bytes": e["bytes"]}
         for role, e in observed["artifacts"].items()
         if e["sha256"] is not None
     }
-    return {
+    lock: dict[str, Any] = {
         "schema": LOCK_SCHEMA,
         "name": name,
         "stand_only": is_stand_only(cfg),
@@ -480,24 +537,75 @@ def build_lock(
             "path": repo_config_path,
             "semantic_sha256": observed["deploy_config"]["semantic_sha256"],
         },
-        "artifacts": artifacts,
     }
+    if checkpoint is not None:
+        want = artifact_paths(cfg).get("checkpoint")
+        if want is None or Path(checkpoint).resolve() != want.resolve():
+            raise ValueError(
+                f"--checkpoint {checkpoint} is not the checkpoint the config reaches ({want}); "
+                "set policy.checkpoint_path in the deploy config to it"
+            )
+        if "checkpoint" not in artifacts:
+            raise FileNotFoundError(f"checkpoint {want} does not exist")
+        lock["checkpoint_source"] = "/".join(want.resolve().parts[-3:])
+    lock["artifacts"] = artifacts
+    if parity_inputs:
+        lock["parity_reference_inputs"] = [parity_input_record(s) for s in parity_inputs]
+        lock["parity"] = dict(_PARITY_DEFAULTS)
+    if canonical_bench:
+        lock["canonical_bench"] = canonical_bench_record(cfg)
+    return lock
 
 
 def main(argv: list[str] | None = None) -> int:
-    """``python -m phoenix.sim2real.deploy_contract lock --config C --out L --name N``."""
+    """``python -m phoenix.sim2real.deploy_contract lock|reference-obs ...``."""
     ap = argparse.ArgumentParser(description=main.__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
     lk = sub.add_parser("lock", help="write a lock from the artifacts on disk")
     lk.add_argument("--config", required=True)
     lk.add_argument("--out", required=True)
     lk.add_argument("--name", required=True)
+    lk.add_argument("--checkpoint", help="source checkpoint; must be the one the config reaches")
+    lk.add_argument(
+        "--parity-input", action="append", default=[], help="PATH:parquet | PATH:npz:KEY (repo-relative)"
+    )
+    lk.add_argument("--canonical-bench", action="store_true", help="record the canonical-stand |a|_inf")
+    ro = sub.add_parser("reference-obs", help="write the deterministic synthetic v2 parity batch")
+    ro.add_argument("--config", required=True)
+    ro.add_argument("--out", required=True)
+    ro.add_argument("--n", type=int, default=2000)
+    ro.add_argument("--seed", type=int, default=0)
     args = ap.parse_args(argv)
     cfg = yaml.safe_load(Path(args.config).read_text())
-    lock = build_lock(cfg, args.config, name=args.name, repo_config_path=str(args.config))
+    if args.cmd == "reference-obs":
+        import numpy as np
+
+        from .observation_v2 import ManifestObservationBuilder, reference_observations
+
+        builder = ManifestObservationBuilder.from_manifest_file(
+            cfg["policy"]["manifest_path"], cfg["joint_order"], cfg["control"]["default_joint_pos"]
+        )
+        obs = reference_observations(builder, n=args.n, seed=args.seed)
+        np.savez_compressed(args.out, obs=obs)
+        print(f"{args.out} obs{obs.shape} sha256 {file_sha256(args.out)}")
+        return 0
+    lock = build_lock(
+        cfg,
+        args.config,
+        name=args.name,
+        repo_config_path=str(args.config),
+        checkpoint=args.checkpoint,
+        parity_inputs=args.parity_input,
+        canonical_bench=args.canonical_bench,
+    )
+    extras = "".join(
+        [f" --checkpoint {args.checkpoint}" if args.checkpoint else ""]
+        + [f" --parity-input {s}" for s in args.parity_input]
+        + [" --canonical-bench" if args.canonical_bench else ""]
+    )
     header = (
         f"# Generated by `python -m phoenix.sim2real.deploy_contract lock --config {args.config} "
-        f"--out {args.out} --name {args.name}`. Never hand-edit a hash.\n"
+        f"--out {args.out} --name {args.name}{extras}`. Never hand-edit a hash.\n"
     )
     Path(args.out).write_text(header + yaml.safe_dump(lock, sort_keys=False))
     problems, _ = verify_lock(load_lock(args.out), cfg, args.config)
