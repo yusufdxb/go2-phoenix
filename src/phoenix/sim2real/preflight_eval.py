@@ -100,6 +100,17 @@ STAGE_TITLES: dict[str, str] = {
     "H": "H25 cmd=0 stand, 10 s x 3 attempts (motors LIVE)",
 }
 LIVE_STAGES = frozenset({"E", "F", "G", "H"})
+
+
+def stage_title(stage: str, label: str | None = None) -> str:
+    """The stage title, naming the active deploy config for the cmd=0 stand stages.
+
+    ``STAGE_TITLES`` stays the H25 wording (the default config); ``label`` replaces
+    that name so a record for another policy does not claim to be the H25 stand.
+    Durations, attempt counts and thresholds are untouched.
+    """
+    title = STAGE_TITLES[stage]
+    return title.replace("H25", label, 1) if label and stage in STAND_AUTHORITY_S else title
 STAND_AUTHORITY_S: dict[str, float] = {"F": 2.0, "G": 5.0, "H": 10.0}
 H_ATTEMPTS = 3
 

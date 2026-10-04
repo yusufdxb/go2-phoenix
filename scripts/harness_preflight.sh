@@ -12,7 +12,7 @@
 #   scripts/harness_preflight.sh C            real physical deadman, interactive           motors OFF
 #   scripts/harness_preflight.sh D [secs]     LowState / IMU / joint-state freshness       motors OFF
 #   scripts/harness_preflight.sh E [secs]     LIVE bridge hold-current, no policy          motors LIVE
-#   scripts/harness_preflight.sh F | G | H    LIVE H25 cmd=0 stand, 2 s / 5 s / 10 s x 3   motors LIVE
+#   scripts/harness_preflight.sh F | G | H    LIVE cmd=0 stand of the active config (DEPLOY_LABEL), 2 s / 5 s / 10 s x 3   motors LIVE
 #
 # Stages never chain. Each live stage is its own invocation, refuses unless every
 # earlier stage counts, and refuses without an operator typing the stage phrase at
@@ -51,6 +51,8 @@ ts()      { date -u +%Y%m%dT%H%M%SZ; }
 
 [[ -f "$DEPLOY_CFG" ]] || halt "DEPLOY_CFG $DEPLOY_CFG does not exist"
 [[ -f "$DEPLOY_LOCK" ]] || halt "DEPLOY_LOCK $DEPLOY_LOCK does not exist"
+# Names the active config in operator prompts: the lock's name (h25-stand, walk-iter2750-stand, ...).
+DEPLOY_LABEL="$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get("name") or "H25")' "$DEPLOY_LOCK")"
 
 cfg_get() {
     python3 -c 'import sys, yaml; v = yaml.safe_load(open(sys.argv[1])); [v := v[k] for k in sys.argv[2].split(".")]; print(v)' "$DEPLOY_CFG" "$1"
@@ -385,7 +387,7 @@ stage_stand() {
     need_sha; ros_env
     assert_no_contention "$stage"
     pf require "$stage"
-    live_confirm "$stage" "H25 cmd=0 stand, ${authority} s of policy authority, ${attempts} attempt(s)"
+    live_confirm "$stage" "${DEPLOY_LABEL} cmd=0 stand, ${authority} s of policy authority, ${attempts} attempt(s)"
     local first_msg max_rt telemetry_files=() answers=() k
     local standup_s="${PHOENIX_STANDUP_S:-2.0}"
     first_msg="$(cfg_get safety.first_message_timeout_s)"
