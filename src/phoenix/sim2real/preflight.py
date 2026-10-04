@@ -63,7 +63,7 @@ from .go2_model import (
     verify_joint_model,
 )
 from .motor_crc import PHOENIX_FOR_MOTOR
-from .provenance import EXPECTED_BRANCH, identity_problems, resolve_code_identity
+from .provenance import identity_problems, resolve_code_identity, resolve_expected_branch
 from .safety import MAX_DELTA_PER_STEP_RAD
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -136,7 +136,10 @@ class Context:
         self.lock_sha = file_sha256(self.lock_path)
         self.identity = resolve_code_identity(REPO_ROOT)
         self.expected_sha = getattr(args, "expect_sha", None)
-        self.id_problems = identity_problems(self.identity, expected_sha=self.expected_sha)
+        self.expected_branch = resolve_expected_branch(self.lock)
+        self.id_problems = identity_problems(
+            self.identity, expected_sha=self.expected_sha, expected_branch=self.expected_branch
+        )
         self.session = Path(args.session)
         self.session.mkdir(parents=True, exist_ok=True)
         #: Names the active config in stage titles (the lock's name, e.g. walk-iter2750-stand).
@@ -146,8 +149,30 @@ class Context:
         return _check(
             f"code identity: {self.identity.source} {self.identity.sha} on {self.identity.branch}",
             not self.id_problems,
-            "; ".join(self.id_problems) or f"expected branch {EXPECTED_BRANCH}, clean",
+            "; ".join(self.id_problems) or f"expected branch {self.expected_branch}, clean",
         )
+
+
+def _evidence_files(session: Path, extra: dict | None) -> list[dict]:
+    """Session-relative path and sha256 of each telemetry file a stage record rests on."""
+    ex = extra or {}
+    paths: list[Path] = []
+    if ex.get("run_dir"):
+        paths.append(Path(ex["run_dir"]) / "bridge.jsonl")
+    if ex.get("telemetry"):
+        paths.append(Path(ex["telemetry"]))
+    paths += [Path(a["telemetry"]) for a in ex.get("attempts") or [] if a.get("telemetry")]
+    root = session.resolve()
+    out: list[dict] = []
+    for p in paths:
+        if not p.is_file() or p.is_symlink():
+            continue
+        try:
+            rel = p.resolve().relative_to(root)
+        except ValueError:
+            continue
+        out.append({"path": rel.as_posix(), "sha256": file_sha256(p)})
+    return out
 
 
 def write_stage(
@@ -174,6 +199,9 @@ def write_stage(
             for role, entry in (ctx.lock.get("artifacts") or {}).items()
         },
         "checks": [c.to_dict() for c in checks],
+        # Read by deploy_contract.walking_evidence_problems: sha256 of the session
+        # telemetry this record rests on, re-verified when the evidence is consumed.
+        "evidence_files": _evidence_files(ctx.session, extra),
         **(extra or {}),
     }
     path = ctx.session / f"stage_{stage}.json"
@@ -316,18 +344,22 @@ def a_obs_parity(ctx: Context) -> list[pe.Check]:
             else None
         )
     except ManifestObservationError as exc:
-        return [_check("manifest observation schema is reproduced by the deploy builder", False, str(exc))]
+        return [
+            _check(
+                "manifest observation schema is reproduced by the deploy builder", False, str(exc)
+            )
+        ]
     if version:
         return [
             _check(
                 f"manifest observation schema {version} is reproduced by the deploy builder",
                 True,
-                f"sha256 {manifest['observation']['schema_sha256']}",
+                f"sha256 {(manifest or {}).get('observation', {}).get('schema_sha256')}",
             ),
             _check(
                 f"sensor-to-observation parity, {version} (term order, slices, scales, no zeroed term)",
                 not failures_v2,
-                "; ".join(failures_v2) or "all 6 terms pass",
+                "; ".join(failures_v2 or []) or "all 6 terms pass",
             ),
         ]
     builder = ObservationBuilder(
@@ -355,6 +387,71 @@ def _ort_session(onnx_path: Path):
     return ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"]), ort.__version__
 
 
+#: Owner decision (Yusuf, 2026-10-04): the 0.175 rad per-tick position clip is no
+#: longer in the control path (ActuatorGate applies a torque clip against
+#: go2_model.JOINT_TORQUE_LIMITS_NM, actuator_gate.py), so the canonical-stand first
+#: policy step is gated on the PD torque it implies: at most this fraction of each
+#: joint's torque limit, at the worst of the gains in effect at the first policy tick.
+CANONICAL_STAND_TORQUE_FRACTION = 0.5
+
+
+def canonical_stand_torque_check(
+    action,
+    *,
+    joint_order,
+    default_joint_pos,
+    action_scale: float,
+    gain_sets,
+    fraction: float = CANONICAL_STAND_TORQUE_FRACTION,
+) -> pe.Check:
+    """|kp*(target-q) - kd*dq| per joint for the first canonical-stand policy step.
+
+    The robot is at the default pose with zero velocity (q = default, dq = 0), the
+    target is ``default + action_scale*action``, and the worst case over ``gain_sets``
+    ((label, kp, kd) triples) is compared with ``fraction`` of the per-joint torque limit.
+    """
+    from .go2_model import torque_limits_in_order
+    from .safety import expected_torque
+
+    default = np.asarray([default_joint_pos[n] for n in joint_order], dtype=np.float64)
+    target = default + float(action_scale) * np.asarray(action, dtype=np.float64).reshape(-1)
+    zeros = np.zeros_like(default)
+    per_set = [
+        np.abs(np.asarray(expected_torque(target, default, zeros, kp, kd), dtype=np.float64))
+        for _, kp, kd in gain_sets
+    ]
+    tau = np.max(np.stack(per_set), axis=0)
+    limit = torque_limits_in_order(joint_order)
+    bound = fraction * limit
+    margin = bound - tau
+    ok = bool(np.all(np.isfinite(tau)) and np.all(tau <= bound))
+    gains = ", ".join(f"{label} {kp:g}/{kd:g}" for label, kp, kd in gain_sets)
+    rows = "; ".join(
+        f"{n} {t:.2f} N m of {b:.2f} (margin {m:+.2f})"
+        for n, t, b, m in zip(joint_order, tau, bound, margin, strict=True)
+    )
+    return _check(
+        f"canonical-stand first policy step torque <= {fraction:.0%} of each joint's torque limit "
+        f"(max over gains {gains})",
+        ok,
+        f"worst margin {float(np.min(margin)):+.2f} N m; {rows}",
+    )
+
+
+def _stand_gain_sets(cfg: dict) -> list[tuple[str, float, float]]:
+    """Gains at the first policy tick: handover start (stand-up gains) and the policy gains."""
+    from .actuator_gate import GateParams
+    from .deploy_contract import _load_manifest
+
+    deploy = ((_load_manifest(cfg) or {}).get("deploy")) or {}
+    kp = float(deploy.get("kp", 25.0))
+    kd = float(deploy.get("kd", 0.5))
+    return [
+        ("handover start", float(GateParams.standup_kp), float(GateParams.standup_kd)),
+        ("policy", kp, kd),
+    ]
+
+
 def a_bench(ctx: Context, onnx_path: Path) -> list[pe.Check]:
     from .bench_export import canonical_stand_obs_for_cfg
 
@@ -376,10 +473,19 @@ def a_bench(ctx: Context, onnx_path: Path) -> list[pe.Check]:
             want is not None and finite and abs(a_inf - float(want)) <= tol,
             f"|a|_inf={a_inf:.10f} lock={want} tol={tol:g}",
         ),
+        canonical_stand_torque_check(
+            action,
+            joint_order=ctx.cfg["joint_order"],
+            default_joint_pos=ctx.cfg["control"]["default_joint_pos"],
+            action_scale=scale,
+            gain_sets=_stand_gain_sets(ctx.cfg),
+        ),
         _check(
-            "canonical-stand first target step within one slew cap (action_scale*|a|_inf <= 0.175 rad)",
-            finite and scale * a_inf <= MAX_DELTA_PER_STEP_RAD,
-            f"{scale}*{a_inf:.4f}={scale * a_inf:.4f} rad",
+            "canonical-stand first target step vs the retired 0.175 rad position clip (INFO only)",
+            True,
+            f"{scale}*{a_inf:.4f}={scale * a_inf:.4f} rad, retired limit {MAX_DELTA_PER_STEP_RAD} rad "
+            "(no longer in the control path; ActuatorGate clips torque)",
+            gating=False,
         ),
         _check(
             f"legacy bench threshold {bench.get('legacy_threshold')} (NOT a gate, see lock file)",
