@@ -117,7 +117,37 @@ fi
 
 # latest.pt is a symlink into the dated run directory; -L so the real weights
 # travel, not a dangling link the payload cannot resolve.
-REQUIRED=(policy.onnx policy.onnx.data policy.pt latest.pt)
+# A config that names policy.checkpoint_path ships THAT file (and has no latest.pt
+# requirement); policy.manifest_path, when named, ships too. Both land in the bundle
+# and, because the manifest below is taken over ./*, in SHA256SUMS.
+cfg_policy_key() {
+  python3 -c 'import sys, yaml; print((yaml.safe_load(open(sys.argv[1])).get("policy") or {}).get(sys.argv[2]) or "")' "$DEPLOY_CFG" "$1"
+}
+cfg_file() {  # absolute as written, else relative to the repo root
+  case "$1" in /*) echo "$1" ;; *) echo "$_BUNDLE_REPO/$1" ;; esac
+}
+MANIFEST_SRC=""; CHECKPOINT_SRC=""
+_m="$(cfg_policy_key manifest_path)"; _c="$(cfg_policy_key checkpoint_path)"
+[[ -n "$_m" ]] && MANIFEST_SRC="$(cfg_file "$_m")"
+[[ -n "$_c" ]] && CHECKPOINT_SRC="$(cfg_file "$_c")"
+REQUIRED=(policy.onnx policy.onnx.data policy.pt)
+[[ -z "$CHECKPOINT_SRC" ]] && REQUIRED+=(latest.pt)
+for extra_src in "$MANIFEST_SRC" "$CHECKPOINT_SRC"; do
+  [[ -z "$extra_src" ]] && continue
+  if [[ ! -f "$extra_src" ]]; then
+    echo "REFUSING TO STAGE: $DEPLOY_CFG names $extra_src, which does not exist" >&2
+    exit 1
+  fi
+  case "$(basename "$extra_src")" in
+    policy.onnx|policy.onnx.data|policy.pt|latest.pt|parity_gate.json|workstation_stage_A.json|parity_golden.npz|activation.py|SHA256SUMS|export_report.txt|"$(basename "$DEPLOY_CFG")")
+      echo "REFUSING TO STAGE: $extra_src would collide with a bundle file name" >&2
+      exit 1 ;;
+  esac
+done
+if [[ -n "$MANIFEST_SRC" && "$(basename "$MANIFEST_SRC")" == "$( [[ -n "$CHECKPOINT_SRC" ]] && basename "$CHECKPOINT_SRC")" ]]; then
+  echo "REFUSING TO STAGE: manifest_path and checkpoint_path share a file name" >&2
+  exit 1
+fi
 for f in "${REQUIRED[@]}"; do
   if [[ ! -e "$CKPT_DIR/$f" ]]; then
     echo "REFUSING TO STAGE: missing $CKPT_DIR/$f" >&2
@@ -131,6 +161,8 @@ mkdir -p "$DEST"
 for f in "${REQUIRED[@]}"; do
   cp -Lf "$CKPT_DIR/$f" "$DEST/$f"
 done
+[[ -n "$MANIFEST_SRC" ]] && cp -Lf "$MANIFEST_SRC" "$DEST/$(basename "$MANIFEST_SRC")"
+[[ -n "$CHECKPOINT_SRC" ]] && cp -Lf "$CHECKPOINT_SRC" "$DEST/$(basename "$CHECKPOINT_SRC")"
 cp -f "$GATE" "$DEST/parity_gate.json"
 cp -f "$STAGE_A_JSON" "$DEST/workstation_stage_A.json"
 cp -f "$GOLDEN" "$DEST/parity_golden.npz"

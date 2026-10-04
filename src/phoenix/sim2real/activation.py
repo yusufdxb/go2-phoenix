@@ -336,8 +336,8 @@ def _cmd_pin(args: argparse.Namespace) -> int:
         return 1
 
     config.write_text(pinned_text)
-    for key, target in sorted(pinned.items()):
-        print(f"[activate] pinned {key} -> {target}")
+    for key, pinned_target in sorted(pinned.items()):
+        print(f"[activate] pinned {key} -> {pinned_target}")
     return 0
 
 
