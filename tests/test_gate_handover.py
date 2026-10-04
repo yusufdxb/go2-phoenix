@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from phoenix.sim2real.actuator_gate import ActuatorGate
+from phoenix.sim2real.actuator_gate import SIT_GAIN_RAMP_KP_PER_TICK, ActuatorGate
 from phoenix.sim2real.command_wire import KIND_ABORT, encode
 from tests.test_actuator_gate import DEFAULT_P, ORDER, ns, params, policy_cmd
 from tests.test_fault_sit_plant import DT, LimitedPlant, base_height, to_p, to_u
@@ -129,7 +129,10 @@ def test_fault_holds_at_entry_gains_then_sits(phase: str) -> None:
     assert kp_h >= p.hold_kp and kd_h >= p.hold_kd
     assert kp_h == pytest.approx(max(entry[0], p.hold_kp), abs=MAX_DKP_PER_TICK)
     assert kd_h == pytest.approx(max(entry[1], p.hold_kd), abs=MAX_DKD_PER_TICK)
-    assert recs[sit_start]["kp"] == p.sit.sit_kp
+    # the sit starts at the hold gains and blends down (no 60/5 -> 30/1.5 step in one tick)
+    assert p.sit.sit_kp <= recs[sit_start]["kp"] <= max(kp_h, p.sit.sit_kp)
+    if kp_h > p.sit.sit_kp:
+        assert recs[sit_start]["kp"] == pytest.approx(kp_h - SIT_GAIN_RAMP_KP_PER_TICK)
     assert (recs[sit_start]["t"] - recs[k0]["t"]) == pytest.approx(p.sit.fault_hold_s, abs=2 * DT)
     assert all(r["kp"] > 0.0 for r in recs if r["publish"])
 
@@ -140,3 +143,32 @@ def test_fault_after_the_handover_still_holds_at_hold_gains() -> None:
     assert recs[k0 - 1]["kp"] == pytest.approx(POLICY_KP)
     assert recs[k0]["mode"] == "hold"
     assert (recs[k0]["kp"], recs[k0]["kd"]) == (params().hold_kp, params().hold_kd)
+
+
+@pytest.mark.parametrize("fault_at", [0.5, 1.3])
+def test_sit_after_a_stood_up_gain_hold_blends_down_within_the_handover_bound(fault_at) -> None:
+    """Reviewer follow-up: a fault hold at 60/5 (stand-up or handover gains) then the
+    controlled sit (30/1.5) must not step the gains in one tick."""
+    recs, _, _ = run(t_end=6.0, fault_at=fault_at)
+    p = params()
+    pub = [r for r in recs if r["publish"] and r["t"] >= fault_at - 2 * DT]
+    dkp = np.abs(np.diff([r["kp"] for r in pub]))
+    dkd = np.abs(np.diff([r["kd"] for r in pub]))
+    assert dkp.max() <= MAX_DKP_PER_TICK, f"max per-tick kp step {dkp.max():.3f}"
+    assert dkd.max() <= MAX_DKD_PER_TICK, f"max per-tick kd step {dkd.max():.3f}"
+    sit = [r for r in recs if r["mode"] == "sit"]
+    assert sit and sit[0]["kp"] > p.sit.sit_kp, "sit did not start from the hold gains"
+    assert sit[-1]["kp"] == p.sit.sit_kp and sit[-1]["kd"] == p.sit.sit_kd
+    assert all(r["kp"] > 0.0 and r["kd"] > 0.0 for r in pub)
+
+
+def test_every_published_tick_records_handover_gains_and_torque_margin() -> None:
+    recs, _, _ = run(t_end=3.0)
+    pub = [r for r in recs if r["publish"]]
+    assert pub
+    for r in pub:
+        assert r["kp_eff"] == r["kp"] and r["kd_eff"] == r["kd"]
+        assert len(r["torque_margin_nm"]) == 12 and all(m is not None for m in r["torque_margin_nm"])
+    blend = [r for r in pub if r["mode"] == "policy" and r["handover_alpha"] is not None]
+    assert blend and 0.0 <= blend[0]["handover_alpha"] < 1.0
+    assert blend[-1]["handover_alpha"] == pytest.approx(1.0, abs=0.03)

@@ -80,7 +80,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -284,6 +284,10 @@ class ActuatorGate:
         self._standup_done = False
         # Handover (stand-up gains -> policy gains) bookkeeping.
         self._handover_start_ns: int | None = None
+        #: Gains published on the previous tick, and the (kp, kd) a controlled sit is
+        #: ramping down from when it starts above the sit gains (fault hold at 60/5).
+        self._prev_gains: tuple[float, float] | None = None
+        self._sit_ramp: tuple[float, float] | None = None
         #: (kp, kd) in effect on the last STANDUP tick or still-blending POLICY tick;
         #: a fault latched while this is set holds at those gains (never below hold gains).
         self._entry_gains: tuple[float, float] | None = None
@@ -545,6 +549,8 @@ class ActuatorGate:
             "kd": None,
             "slew_clip": None,
             "torque_margin_nm": None,
+            "kp_eff": None,
+            "kd_eff": None,
             "limit_clip": None,
             "limit_margin": None,
             "policy": None if self._last_decoded is None else self._last_decoded.telemetry(),
@@ -555,9 +561,9 @@ class ActuatorGate:
             "tilt_deg": None if self._tilt is None else float(np.degrees(self._tilt)),
             "imu_valid": self._imu_valid,
             "imu_seen_valid": self._imu_valid_ns is not None,
-            "imu_age_s": None
-            if self._imu_valid_ns is None
-            else (now_ns - self._imu_valid_ns) / 1e9,
+            "imu_age_s": (
+                None if self._imu_valid_ns is None else (now_ns - self._imu_valid_ns) / 1e9
+            ),
         }
         if self._last_decoded is not None:
             rec["cmd_seq"] = self._last_decoded.seq
@@ -733,19 +739,44 @@ class ActuatorGate:
         if mode is Mode.SIT:
             sensors_ok = not self._sit_open and fresh
             if not self._traj.started:
+                pg = self._prev_gains
+                self._sit_ramp = (pg[0], pg[1]) if pg is not None and pg[0] > p.sit.sit_kp else None
+            if not self._traj.started:
                 # Open loop starts from the last COMMANDED target (no command jump);
                 # closed loop from the measured posture.
                 if sensors_ok or (self._last_final is None and self._q_good is None):
                     q_start = q
                 else:
-                    q_start = self._last_final if self._last_final is not None else self._q_good
+                    # Reached only when at least one of the two is set (see condition above).
+                    q_start = cast(
+                        np.ndarray,
+                        self._last_final if self._last_final is not None else self._q_good,
+                    )
                 self._traj.start(q_start, now_ns)
-            final, _done = self._traj.step(
+            final_opt, _done = self._traj.step(
                 now_ns, q if sensors_ok else None, self._dq if sensors_ok else None
             )
+            final = cast(np.ndarray, final_opt)
             rec["limit_clip"] = [False] * 12
             rec["sit_open_loop"] = not sensors_ok
             kp, kd = p.sit.sit_kp, p.sit.sit_kd
+            if self._sit_ramp is not None and self._prev_gains is not None:
+                # A sit that starts above the sit gains (a fault hold at the 60/5 stand-up or
+                # handover gains) blends down at no more than SIT_GAIN_RAMP_KP_PER_TICK per tick
+                # instead of stepping 60/5 -> 30/1.5 in one 20 ms tick; kd follows kp linearly.
+                kp0, kd0 = self._sit_ramp
+                kp = max(p.sit.sit_kp, self._prev_gains[0] - SIT_GAIN_RAMP_KP_PER_TICK)
+                kd = p.sit.sit_kd + (kp - p.sit.sit_kp) / (kp0 - p.sit.sit_kp) * (
+                    kd0 - p.sit.sit_kd
+                )
+                if kp <= p.sit.sit_kp:
+                    self._sit_ramp = None
+                if sensors_ok:
+                    dq_ramp = self._dq if self._dq is not None else np.zeros(12, dtype=np.float64)
+                    final = np.asarray(
+                        torque_limited_target_array(final, q, dq_ramp, kp, kd, self._torque_limit),
+                        dtype=np.float64,
+                    )
             done_ns = self._traj.done_ns
             if (
                 self._shutdown
@@ -810,10 +841,23 @@ class ActuatorGate:
         rec["limit_margin"] = _floats(np.minimum(final - self._lo, self._hi - final))
         rec["kp"] = float(kp)
         rec["kd"] = float(kd)
+        # Stage F evidence: the gains actually published and the torque margin of the
+        # published target (final, after every clip) on EVERY tick, in every mode.
+        rec["kp_eff"] = float(kp)
+        rec["kd_eff"] = float(kd)
+        dq_pub = self._dq if self._dq is not None else np.zeros(12, dtype=np.float64)
+        tau_pub = np.asarray(expected_torque(final, q, dq_pub, kp, kd), dtype=np.float64)
+        if np.all(np.isfinite(tau_pub)):
+            rec["torque_margin_nm"] = _floats(self._torque_limit - np.abs(tau_pub))
+        self._prev_gains = (float(kp), float(kd))
         rec["faults"] = list(self._faults)
         rec["fault"] = self.fault
         rec["counters"] = dict(self.counters)
         return rec
 
+
+#: Largest per-tick kp change while a controlled sit that starts above the sit gains
+#: blends down to them: the handover bound (60 -> 25 over 1 s at 50 Hz = 0.7 per tick).
+SIT_GAIN_RAMP_KP_PER_TICK: float = 0.7
 
 __all__ = ["REAL_DEADMAN_NODE_NAMES", "ActuatorGate", "GateParams", "Mode"]
