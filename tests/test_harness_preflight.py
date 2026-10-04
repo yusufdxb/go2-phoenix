@@ -268,10 +268,15 @@ def test_bundle_staging_refuses_evidence_from_another_commit(tmp_path) -> None:
         )
     )
     (session / "parity_golden.npz").write_bytes(b"not a real npz")
+    # The refusal under test comes AFTER the parity-gate check, and checkpoints/ is not
+    # tracked, so the test supplies its own passed gate instead of relying on a local run.
+    ckpt = tmp_path / "ckpt"
+    ckpt.mkdir()
+    (ckpt / "parity_gate.json").write_text(json.dumps({"passed": True}))
     res = subprocess.run(
         [
             str(BUNDLE),
-            "checkpoints/phoenix-stand-h25-lat-noise",
+            str(ckpt),
             "configs/sim2real/deploy_stand_h25.yaml",
             str(tmp_path / "dest"),
         ],

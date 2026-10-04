@@ -11,6 +11,10 @@ from phoenix.training.evaluate import parse_args
 
 
 def outcome(**kwargs):
+    # schema 2.1.0 (the default) requires a behavioral verdict with every record.
+    kwargs.setdefault("outcome_class", "terminated_contact")
+    kwargs.setdefault("verdict", "FAIL")
+    kwargs.setdefault("legacy_success", False)
     return EpisodeOutcome(
         policy_id="sha256:abc",
         evaluation_seed=19,

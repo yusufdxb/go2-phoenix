@@ -275,6 +275,23 @@ def test_recompute_of_the_historical_report(harvest):
         assert artifact["artifact_of_step_index"] == artifact["step_index"] - 1
 
 
+def _assert_same_report(got, want, path="report"):
+    """Structural equality; floats compare at rel 1e-9 (mean_lead_s differs by 1e-15 across
+    numpy builds: summation order), every count, string and key must match exactly."""
+    if isinstance(want, dict):
+        assert isinstance(got, dict) and set(got) == set(want), f"{path}: keys differ"
+        for key in want:
+            _assert_same_report(got[key], want[key], f"{path}.{key}")
+    elif isinstance(want, list):
+        assert isinstance(got, list) and len(got) == len(want), f"{path}: length differs"
+        for i, (g, w) in enumerate(zip(got, want, strict=True)):
+            _assert_same_report(g, w, f"{path}[{i}]")
+    elif isinstance(want, float) and not isinstance(want, bool):
+        assert got == pytest.approx(want, rel=1e-9, abs=0.0), f"{path}: {got} != {want}"
+    else:
+        assert got == want and type(got) is type(want), f"{path}: {got!r} != {want!r}"
+
+
 @historical
 def test_committed_recomputed_report_is_exactly_derivable(harvest):
     if not RECOMPUTED_REPORT.is_file():
@@ -282,7 +299,7 @@ def test_committed_recomputed_report_is_exactly_derivable(harvest):
     report = harvest.recompute_report_from_v1(
         HISTORICAL_REPORT, max_episode_length_steps=MAX_EPISODE_STEPS
     )
-    assert json.loads(RECOMPUTED_REPORT.read_text()) == json.loads(json.dumps(report))
+    _assert_same_report(json.loads(json.dumps(report)), json.loads(RECOMPUTED_REPORT.read_text()))
 
 
 @historical
