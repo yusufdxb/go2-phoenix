@@ -238,7 +238,7 @@ def reference_observations(
     rows = []
     for _ in range(n):
         axis = rng.normal(size=3)
-        quat = _axis_angle_quat_xyzw(axis, float(rng.uniform(0.0, 0.5)))
+        quat = _axis_angle_quat_xyzw(axis.tolist(), float(rng.uniform(0.0, 0.5)))
         rows.append(
             builder.build(
                 base_ang_vel=rng.normal(0.0, 0.8, 3),

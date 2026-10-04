@@ -559,7 +559,7 @@ def test_sustained_clipping_latches_but_isolated_ticks_do_not() -> None:
     t = run_to_velocity_ready(fsm)
     fsm.request_policy()
     threshold = fsm.params.sustained_clip_ticks
-    for i in range(threshold - 1):
+    for _ in range(threshold - 1):
         out = fsm.tick(nominal_input(t))
         t += DT_NS
         assert fsm.state is State.VELOCITY_ACTIVE, out.fault

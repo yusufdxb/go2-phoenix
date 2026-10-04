@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -190,7 +191,7 @@ class ObservationBuilder:
         obs = np.concatenate(parts, axis=-1)
         if obs.shape[-1] != self.dim:
             raise ValueError(f"Observation dim mismatch: got {obs.shape[-1]}, expected {self.dim}")
-        return obs
+        return cast(np.ndarray, obs)
 
 
 def term_slices(n_joints: int) -> dict[str, slice]:

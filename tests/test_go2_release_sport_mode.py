@@ -29,16 +29,16 @@ class _FakeSwitcher:
         self.select_mode_calls: list[str] = []
         self.release_mode_calls = 0
 
-    def CheckMode(self):
+    def CheckMode(self):  # noqa: N802
         idx = min(self.checks, len(self.sequence) - 1)
         self.checks += 1
         return 0, {"name": self.sequence[idx]}
 
-    def SelectMode(self, name: str):
+    def SelectMode(self, name: str):  # noqa: N802
         self.select_mode_calls.append(name)
         return 0, None
 
-    def ReleaseMode(self):
+    def ReleaseMode(self):  # noqa: N802
         self.release_mode_calls += 1
         return 0, None
 
@@ -47,7 +47,7 @@ class _FakeSport:
     def __init__(self) -> None:
         self.stand_down_calls = 0
 
-    def StandDown(self) -> int:
+    def StandDown(self) -> int:  # noqa: N802
         self.stand_down_calls += 1
         return 0
 

@@ -109,7 +109,7 @@ def test_with_reward_weight_isolates_one_term() -> None:
 
     # Original untouched (immutability), and only the named term changed.
     assert default.reward("joint_pos_limits").weight == -1.0
-    for a, b in zip(default.rewards, bumped.rewards):
+    for a, b in zip(default.rewards, bumped.rewards, strict=True):
         if a.name != "joint_pos_limits":
             assert a == b
 
