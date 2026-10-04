@@ -10,16 +10,26 @@ Modes, in order of precedence
 -----------------------------
 ``silent``  no LowState has ever arrived, so there is no posture to hold. Publish
             nothing (unchanged from the previous bridge).
-``damp``    the measured posture cannot be trusted: LowState went non-finite,
-            reported a physically impossible joint position, or stayed stale for
-            longer than ``stale_hold_s``. Publish ``kp=0, kd=hold_kd`` so the
-            robot sinks onto the mat under damping instead of being stiffened
-            toward a posture nobody has measured. Latched.
+``fall_soft`` the IMU reports tilt beyond ``sit.fall_tilt_rad`` (60 deg): the robot
+            is down. Low stiffness (``sit.fall_kp`` / ``fall_kd``, never zero) at the
+            measured posture so it does not flail. Latched. Highest precedence.
+``sit``     the controlled sit (:mod:`phoenix.sim2real.sit_policy`), latched. Open
+            loop from the last good q when the measured posture cannot be trusted
+            (LowState non-finite, physically impossible q, or stale beyond
+            ``stale_hold_s``); closed loop after ``sit.fault_hold_s`` of hold for
+            every other latched fault (estop, policy abort, NaN or over-limit
+            command, stale command, SIGINT/SIGTERM). Gains ``sit.sit_kp`` /
+            ``sit_kd``; targets rate-limited and torque-clipped; ends holding the
+            folded pose. ``kp=0`` is never commanded in any mode.
+``folded``  shutdown only: the sit has finished and settled; hold it at the low
+            ``sit.folded_kp`` until the process exits.
 ``hold``    hold the last measured posture with the hold gains. Entered for any
             latched fault (estop, ordering mismatch, NaN command, target beyond
             the abort band, policy abort, stale LowState while still inside the
-            stale window) and, NOT latched, for a stale or absent policy command.
-            The non-latching command watchdog is the pre-existing behaviour.
+            stale window) for at most ``sit.fault_hold_s``, after which the
+            closed-loop sit takes over; and, NOT latched, for a stale or absent
+            policy command (stale longer than ``watchdog_s + sit.fault_hold_s``
+            after a command had been followed latches the sit as well).
 ``standup`` (only when ``standup_s > 0``) the bridge is armed, the real deadman is
             held, nothing is latched and the stand has not finished: ramp
             linearly from the posture measured at the first such tick to
@@ -44,7 +54,7 @@ What changed relative to the previous bridge, and why
 * **LowState freshness.** The previous bridge clipped and held against the last
   LowState forever, however old. Now a LowState older than
   ``lowstate_timeout_s`` latches a fault (policy authority revoked), holds the
-  last posture for at most ``stale_hold_s``, then damps.
+  last posture for at most ``stale_hold_s``, then sits open loop.
 * **Monotonic time.** The previous bridge timed the estop heartbeat with the ROS
   wall clock. The payload has no RTC and its clock is set by hand mid-session
   (``docs/go2_field_notes.md`` section 6); a backwards ``date -s`` made a dead
@@ -90,10 +100,10 @@ from .go2_model import (
     TRAINING_DEFAULT_JOINT_POS,
     UNITREE_MOTOR_ORDER,
     limits_in_order,
+    torque_limits_in_order,
     verify_joint_model,
 )
 from .motor_crc import PHOENIX_FOR_MOTOR
-from .go2_model import torque_limits_in_order
 from .safety import (
     DEFAULT_POSITION_CLIP_MARGIN_RAD,
     DEFAULT_SUSTAINED_CLIP_TICKS,
@@ -104,6 +114,7 @@ from .safety import (
     expected_torque,
     torque_limited_target_array,
 )
+from .sit_policy import SIT_POSE_UNITREE, SitParams, SitTrajectory, fall_tilt_rad
 
 #: Node names of the two real deadman adapters in this package
 #: (``wireless_estop_node`` and ``deadman_joy_node``). Nothing else may arm a
@@ -116,7 +127,9 @@ _ZEROS_CODE = float(OBS_SOURCE_CODES["zeros"])
 class Mode(str, Enum):
     SILENT = "silent"
     HOLD = "hold"
-    DAMP = "damp"
+    SIT = "sit"
+    FALL_SOFT = "fall_soft"
+    FOLDED = "folded"
     POLICY = "policy"
     STANDUP = "standup"
 
@@ -155,6 +168,8 @@ class GateParams:
     #: genuinely broken policy rather than a normal brief press. See
     #: safety.DEFAULT_SUSTAINED_CLIP_TICKS.
     sustained_clip_ticks: int = DEFAULT_SUSTAINED_CLIP_TICKS
+    #: The zero-stiffness-free fault policy (controlled sit, FALL_SOFT, folded hold).
+    sit: SitParams = SitParams()
 
     def __post_init__(self) -> None:
         for name in (
@@ -167,10 +182,15 @@ class GateParams:
             value = getattr(self, name)
             if not np.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be positive and finite, got {value}")
+        # Zero stiffness is never a legal gain (owner rule 2026-10-03).
+        for name in ("kp", "hold_kp"):
+            value = getattr(self, name)
+            if not np.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be positive and finite (kp=0 is banned), got {value}")
+        if self.standup_s > 0 and self.standup_kp <= 0:
+            raise ValueError("standup_kp must be positive when standup_s > 0 (kp=0 is banned)")
         for name in (
-            "kp",
             "kd",
-            "hold_kp",
             "hold_kd",
             "stale_hold_s",
             "limit_abort_band",
@@ -243,7 +263,15 @@ class ActuatorGate:
         self._standup_done = False
 
         self._faults: list[str] = []
-        self._damp_latched = False
+        self._sit_open = False  # measured posture untrusted: open-loop sit
+        self._sit_closed = False  # trusted posture: closed-loop sit
+        self._fall = False
+        self._shutdown = False
+        self._fault_since_ns: int | None = None
+        self._q_good: np.ndarray | None = None
+        self._fault_hold_q: np.ndarray | None = None  # posture latched at hold entry
+        self._last_final: np.ndarray | None = None
+        self._traj = SitTrajectory(params.sit)
         self._tick = 0
         self.counters = {"commands_rejected": 0, "lowstate_rejected": 0, "commands_accepted": 0}
 
@@ -261,14 +289,14 @@ class ActuatorGate:
         return tuple(self._faults)
 
     @property
-    def damp_latched(self) -> bool:
-        return self._damp_latched
+    def sit_latched(self) -> bool:
+        return self._sit_open or self._sit_closed
 
-    def _latch(self, reason: str, *, damp: bool = False) -> None:
+    def _latch(self, reason: str, *, sensor_bad: bool = False) -> None:
         if reason not in self._faults:
             self._faults.append(reason)
-        if damp:
-            self._damp_latched = True
+        if sensor_bad:
+            self._sit_open = True
 
     # --------------------------------------------------------------- inputs
     def on_lowstate(
@@ -278,24 +306,37 @@ class ActuatorGate:
         dq = np.asarray(dq_unitree, dtype=np.float64).reshape(-1)
         if q.shape != (12,) or dq.shape != (12,):
             self.counters["lowstate_rejected"] += 1
-            self._latch(f"lowstate_bad_shape:{q.shape}", damp=True)
+            self._latch(f"lowstate_bad_shape:{q.shape}", sensor_bad=True)
             return
         if not (np.all(np.isfinite(q)) and np.all(np.isfinite(dq))):
             self.counters["lowstate_rejected"] += 1
-            self._latch("lowstate_non_finite", damp=True)
+            self._latch("lowstate_non_finite", sensor_bad=True)
             return
         self._q = q
         self._dq = dq
         self._lowstate_ns = int(now_ns)
         band = self.params.limit_abort_band
         impossible = (q < self._lo - band) | (q > self._hi + band)
+        if not impossible.any():
+            self._q_good = q
         if impossible.any():
-            self._latch(f"measured_q_impossible:{_names(impossible)}", damp=True)
+            self._latch(f"measured_q_impossible:{_names(impossible)}", sensor_bad=True)
 
-    def request_shutdown(self) -> None:
-        """Latch damping. The bridge calls this on SIGINT so that the last command
-        the motors received is ``kp=0`` damping, not a stiff hold of a stale pose."""
-        self._latch("bridge_shutdown", damp=True)
+    def request_shutdown(self, now_ns: int | None = None) -> None:
+        """Start the shutdown sit (no hold first). The bridge calls this on
+        SIGINT/SIGTERM; the sequence is sit, settle, folded low-kp hold, bounded
+        by ``params.sit.shutdown_bound_s``. ``kp=0`` is never sent."""
+        self._latch("bridge_shutdown")
+        self._shutdown = True
+        self._sit_closed = True
+
+    def on_imu(self, now_ns: int, quat_wxyz: Sequence[float]) -> None:
+        """Feed the IMU orientation (w, x, y, z). Tilt beyond ``sit.fall_tilt_rad``
+        latches FALL_SOFT. A malformed quaternion is ignored (not a fall)."""
+        tilt = fall_tilt_rad(quat_wxyz)
+        if tilt is not None and tilt > self.params.sit.fall_tilt_rad:
+            self._latch(f"fall_detected:tilt_{tilt:.2f}rad")
+            self._fall = True
 
     def on_estop(self, now_ns: int, value: bool) -> None:
         self._estop_value = bool(value)
@@ -461,16 +502,35 @@ class ActuatorGate:
                 self._stale_since_ns = now_ns
             self._latch("lowstate_stale")
             if (now_ns - self._stale_since_ns) / 1e9 > p.stale_hold_s:
-                self._damp_latched = True
+                self._sit_open = True
 
         estop_state, estop_cause = self._estop_state(now_ns)
         rec["estop_state"] = estop_state
         deadman_ok, deadman_cause = self._deadman_state(now_ns)
 
+        # A command that had been followed and then went silent for longer than the
+        # watchdog plus the hold window ends in the closed-loop sit.
+        if (
+            self._cmd_ns is not None
+            and not self._sit_closed
+            and (now_ns - self._cmd_ns) / 1e9 > p.watchdog_s + p.sit.fault_hold_s
+        ):
+            self._latch("command_stale_timeout")
+            self._sit_closed = True
+        # Any other latched fault holds for at most sit.fault_hold_s, then sits.
+        if self._faults and not self._sit_closed and not self._sit_open:
+            if self._fault_since_ns is None:
+                self._fault_since_ns = now_ns
+            if (now_ns - self._fault_since_ns) / 1e9 >= p.sit.fault_hold_s:
+                self._sit_closed = True
+
         mode = Mode.HOLD
         cause: str | None = None
-        if self._damp_latched:
-            mode = Mode.DAMP
+        if self._fall:
+            mode = Mode.FALL_SOFT
+            cause = self.fault
+        elif self._sit_open or self._sit_closed:
+            mode = Mode.SIT
             cause = self.fault
         elif self._faults:
             cause = self.fault
@@ -570,21 +630,61 @@ class ActuatorGate:
                     rec["policy"] = cmd.telemetry()
                     kp, kd = p.kp, p.kd
 
-        if mode not in (Mode.POLICY, Mode.STANDUP):
-            final = np.clip(q, self._lo, self._hi)
-            rec["limit_clip"] = [bool(v) for v in final != q]
-            kp, kd = (0.0, p.hold_kd) if mode is Mode.DAMP else (p.hold_kp, p.hold_kd)
+        if mode is Mode.SIT:
+            sensors_ok = not self._sit_open and fresh
+            if not self._traj.started:
+                # Open loop starts from the last COMMANDED target (no command jump);
+                # closed loop from the measured posture.
+                if sensors_ok or (self._last_final is None and self._q_good is None):
+                    q_start = q
+                else:
+                    q_start = self._last_final if self._last_final is not None else self._q_good
+                self._traj.start(q_start, now_ns)
+            final, _done = self._traj.step(
+                now_ns, q if sensors_ok else None, self._dq if sensors_ok else None
+            )
+            rec["limit_clip"] = [False] * 12
+            rec["sit_open_loop"] = not sensors_ok
+            kp, kd = p.sit.sit_kp, p.sit.sit_kd
+            done_ns = self._traj.done_ns
+            if (
+                self._shutdown
+                and done_ns is not None
+                and (now_ns - done_ns) / 1e9 >= p.sit.folded_settle_s
+            ):
+                mode = Mode.FOLDED
+                kp, kd = p.sit.folded_kp, p.sit.folded_kd
+        elif mode is Mode.FALL_SOFT:
+            base = self._q_good if self._q_good is not None else q
+            final = np.clip(base, self._lo, self._hi)
+            rec["limit_clip"] = [bool(v) for v in final != base]
+            kp, kd = p.sit.fall_kp, p.sit.fall_kd
+        elif mode not in (Mode.POLICY, Mode.STANDUP):
+            # A fault / stale-command hold targets the posture measured ONCE at entry.
+            # Re-targeting the measured q every tick makes the hold a ratchet: the
+            # restoring term vanishes and the robot sinks at about load / kd.
+            if self._faults or cause == "command_stale":
+                if self._fault_hold_q is None:
+                    self._fault_hold_q = np.clip(q, self._lo, self._hi)
+                base = self._fault_hold_q
+            else:
+                self._fault_hold_q = None
+                base = q
+            final = np.clip(base, self._lo, self._hi)
+            rec["limit_clip"] = [bool(v) for v in final != base]
+            kp, kd = p.hold_kp, p.hold_kd
 
         if not np.all(np.isfinite(final)):  # unreachable by construction; fail closed anyway
-            self._latch("non_finite_final_target", damp=True)
-            final = np.clip(np.nan_to_num(q), self._lo, self._hi)
-            mode, kp, kd = Mode.DAMP, 0.0, p.hold_kd
+            self._latch("non_finite_final_target")
+            final = np.asarray(SIT_POSE_UNITREE, dtype=np.float64)
+            mode, kp, kd = Mode.SIT, p.sit.sit_kp, p.sit.sit_kd
 
         rec["mode"] = mode.value
         rec["publish"] = True
-        rec["hold_cause"] = cause if mode is Mode.HOLD or mode is Mode.DAMP else None
+        rec["hold_cause"] = cause if mode not in (Mode.POLICY, Mode.STANDUP) else None
         rec["standup_done"] = self._standup_done
         rec["final_target_unitree"] = _floats(final)
+        self._last_final = np.asarray(final, dtype=np.float64).copy()
         rec["limit_margin"] = _floats(np.minimum(final - self._lo, self._hi - final))
         rec["kp"] = float(kp)
         rec["kd"] = float(kd)

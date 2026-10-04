@@ -521,7 +521,7 @@ def test_command_watchdog_holds_without_latching_and_resumes() -> None:
 
 
 # ------------------------------------------------------ LowState freshness
-def test_stale_lowstate_revokes_authority_holds_then_damps() -> None:
+def test_stale_lowstate_revokes_authority_holds_then_sits_open_loop() -> None:
     gate = armed()
     send(gate, 0.0, DEFAULT_P)
     assert gate.tick(ns(0.1))["mode"] == "policy"
@@ -533,12 +533,13 @@ def test_stale_lowstate_revokes_authority_holds_then_damps() -> None:
     assert np.allclose(rec["final_target_unitree"], DEFAULT_U)
     gate.on_estop(ns(0.4), False)
     rec = gate.tick(ns(0.46))  # stale for 0.21 s > stale_hold_s
-    assert rec["mode"] == "damp" and rec["kp"] == 0.0 and rec["kd"] == 1.0
-    # Latched: LowState coming back does not re-stiffen or restore authority.
+    assert rec["mode"] == "sit" and rec["kp"] == 30.0 and rec["kd"] == 1.5
+    assert rec["sit_open_loop"] is True
+    # Latched: LowState coming back does not restore authority.
     gate.on_lowstate(ns(0.5), DEFAULT_U, ZERO12)
     gate.on_estop(ns(0.5), False)
     send(gate, 0.5, DEFAULT_P, seq=3)
-    assert gate.tick(ns(0.51))["mode"] == "damp"
+    assert gate.tick(ns(0.51))["mode"] == "sit"
 
 
 def test_lowstate_recovering_inside_stale_window_holds_but_never_resumes_policy() -> None:
@@ -550,25 +551,27 @@ def test_lowstate_recovering_inside_stale_window_holds_but_never_resumes_policy(
     send(gate, 0.3, DEFAULT_P)
     rec = gate.tick(ns(0.31))
     assert rec["mode"] == "hold" and rec["lowstate_fresh"] is True
-    assert np.allclose(rec["final_target_unitree"], DEFAULT_U + 0.01)
+    # The fault-hold target is latched at fault entry (it is not re-targeted at every
+    # measurement, which would make the hold a ratchet): old test expected DEFAULT_U + 0.01.
+    assert np.allclose(rec["final_target_unitree"], DEFAULT_U)
 
 
-def test_non_finite_lowstate_damps_immediately() -> None:
+def test_non_finite_lowstate_sits_open_loop_immediately() -> None:
     gate = armed()
     bad = DEFAULT_U.copy()
     bad[3] = float("nan")
     gate.on_lowstate(ns(0.01), bad, ZERO12)
     rec = gate.tick(ns(0.02))
-    assert rec["mode"] == "damp" and rec["fault"] == "lowstate_non_finite"
+    assert rec["mode"] == "sit" and rec["fault"] == "lowstate_non_finite"
 
 
 @pytest.mark.parametrize("j", range(12))
-def test_impossible_measured_position_damps(j: int) -> None:
+def test_impossible_measured_position_sits_open_loop(j: int) -> None:
     q = DEFAULT_U.copy()
     q[j] = HI_U[j] + 0.3
     gate = armed(q_u=q)
     rec = gate.tick(ns(0.01))
-    assert rec["mode"] == "damp"
+    assert rec["mode"] == "sit" and rec["kp"] > 0.0
     assert rec["fault"] == f"measured_q_impossible:{UNITREE_MOTOR_ORDER[j]}"
 
 
