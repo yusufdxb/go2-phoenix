@@ -145,3 +145,65 @@ def test_main_restore_dry_run_prints_select_mode_mcf(capsys) -> None:
     assert code == 0
     out = capsys.readouterr().out
     assert "SelectMode('mcf')" in out
+
+
+# ---------------------------------------- posture gate (Damp-free policy, item 8)
+import math as _math  # noqa: E402
+
+_STAND_Q = [0.0, 0.67, -1.3] * 4
+_FOLDED_Q = [float(v) for v in mod.SIT_POSE_UNITREE]
+_LEVEL = [1.0, 0.0, 0.0, 0.0]
+_ON_SIDE = [_math.cos(_math.radians(40)), _math.sin(_math.radians(40)), 0.0, 0.0]  # 80 deg tilt
+
+
+def _no_confirm(_prompt: str) -> str:
+    raise AssertionError("must not ask for the gantry phrase when the robot is lying")
+
+
+def _live(monkeypatch, posture, confirm_fn):
+    switcher, sport = _FakeSwitcher(["mcf", ""]), _FakeSport()
+    built = []
+    monkeypatch.setattr(mod, "_build_real_clients", lambda: built.append(1) or (switcher, sport))
+    rc = mod.main(
+        ["--live", "--i-am-at-the-robot", "--poll-interval-s", "0"],
+        read_posture=lambda: posture,
+        confirm_fn=confirm_fn,
+    )
+    return rc, switcher, built
+
+
+def test_release_refuses_when_standing(monkeypatch) -> None:
+    rc, switcher, built = _live(monkeypatch, (_STAND_Q, _LEVEL), lambda _p: "")
+    assert rc == 3 and built == [] and switcher.release_mode_calls == 0
+
+
+def test_release_refuses_standing_with_a_wrong_gantry_phrase(monkeypatch) -> None:
+    rc, switcher, built = _live(monkeypatch, (_STAND_Q, _LEVEL), lambda _p: "yes")
+    assert rc == 3 and built == [] and switcher.release_mode_calls == 0
+
+
+def test_release_refuses_when_posture_unreadable_and_unconfirmed(monkeypatch) -> None:
+    rc, switcher, built = _live(monkeypatch, None, lambda _p: "")
+    assert rc == 3 and built == [] and switcher.release_mode_calls == 0
+
+
+def test_release_allowed_when_lying_folded(monkeypatch) -> None:
+    rc, switcher, _ = _live(monkeypatch, (_FOLDED_Q, _LEVEL), _no_confirm)
+    assert rc == 0 and switcher.release_mode_calls == 1
+
+
+def test_release_allowed_when_on_its_side(monkeypatch) -> None:
+    rc, switcher, _ = _live(monkeypatch, (_STAND_Q, _ON_SIDE), _no_confirm)
+    assert rc == 0 and switcher.release_mode_calls == 1
+
+
+def test_release_allowed_standing_only_with_the_exact_gantry_phrase(monkeypatch) -> None:
+    rc, switcher, _ = _live(monkeypatch, (_STAND_Q, _LEVEL), lambda _p: mod.GANTRY_CONFIRM_PHRASE)
+    assert rc == 0 and switcher.release_mode_calls == 1
+
+
+def test_restore_needs_no_posture_gate(monkeypatch) -> None:
+    switcher = _FakeSwitcher(["mcf"])
+    monkeypatch.setattr(mod, "_build_real_clients", lambda: (switcher, _FakeSport()))
+    rc = mod.main(["--live", "--i-am-at-the-robot", "--restore"], read_posture=lambda: None)
+    assert rc == 0 and switcher.select_mode_calls == ["mcf"]

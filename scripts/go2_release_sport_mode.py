@@ -13,9 +13,11 @@ workstation: CHECK_MODE=1001, SELECT_MODE=1002, RELEASE_MODE=1003)::
         sleep(1..5 s)
         CheckMode()
 
-The robot goes LIMP the moment ReleaseMode succeeds: it must already be hung on
-the gantry or lying down before this script is run with ``--i-am-at-the-robot``.
-Nothing here checks that a gantry is in use; the operator is the safety layer.
+The robot goes LIMP the moment ReleaseMode succeeds. A live release therefore
+runs a posture gate first (:func:`require_safe_to_release`): it proceeds ONLY if
+the LowState/IMU sample shows the robot lying on the ground (folded near the sit
+pose, or tilted past 60 degrees), or the operator types the gantry confirmation
+phrase exactly. A standing, unreadable or unconfirmed robot is refused (exit 3).
 
 Hard, non-negotiable rule (memory: feedback_go2_motion_switcher.md, 2026-04-17
 lab incident): SelectMode may NEVER be called with any name other than "mcf" or
@@ -53,8 +55,15 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from phoenix.sim2real.sit_policy import SIT_POSE_UNITREE, SitParams, fall_tilt_rad  # noqa: E402
 
 #: The ONLY two mode names this GO2 EDU may ever be SelectMode'd into.
 #: See feedback_go2_motion_switcher.md: "normal" wedges the switcher and
@@ -65,6 +74,81 @@ ALLOWED_SELECT_MODE_NAMES: frozenset[str] = frozenset({"mcf", "ai"})
 DEFAULT_RESTORE_MODE = "mcf"
 DEFAULT_POLL_INTERVAL_S = 2.0
 DEFAULT_MAX_ATTEMPTS = 5
+
+
+#: Folded-on-the-ground test: every joint within this of the sit pose.
+LYING_JOINT_TOL_RAD = 0.35
+#: The operator must type this exactly to release a robot that is not lying down.
+GANTRY_CONFIRM_PHRASE = "ROBOT IS HUNG ON THE GANTRY"
+
+
+class ReleaseRefusedError(RuntimeError):
+    """Raised when releasing would drop a robot that may be standing."""
+
+
+def posture_is_lying(q_unitree: Sequence[float], quat_wxyz: Sequence[float]) -> tuple[bool, str]:
+    """``(lying, why)`` from one LowState joint sample and the IMU quaternion."""
+    q = np.asarray(q_unitree, dtype=np.float64).reshape(-1)
+    tilt = fall_tilt_rad(quat_wxyz)
+    if q.shape != (12,) or not np.all(np.isfinite(q)) or tilt is None:
+        return False, "posture sample unreadable"
+    if tilt > SitParams().fall_tilt_rad:
+        return True, f"tilted {np.degrees(tilt):.0f} deg (on its side or back)"
+    dev = float(np.max(np.abs(q - SIT_POSE_UNITREE)))
+    if dev <= LYING_JOINT_TOL_RAD:
+        return True, f"folded on the ground (max {dev:.2f} rad from the sit pose)"
+    return False, f"NOT lying: max {dev:.2f} rad from the folded pose, tilt {np.degrees(tilt):.0f} deg"
+
+
+def require_safe_to_release(
+    posture: tuple[Sequence[float], Sequence[float]] | None,
+    *,
+    confirm_fn: Callable[[str], str] = input,
+) -> str:
+    """Return why a release is allowed, or raise :class:`ReleaseRefusedError`.
+
+    Allowed only when the robot is lying (``posture`` = ``(q_unitree, quat_wxyz)``)
+    or the operator types :data:`GANTRY_CONFIRM_PHRASE` exactly.
+    """
+    why = "no LowState/IMU sample received"
+    if posture is not None:
+        lying, why = posture_is_lying(*posture)
+        if lying:
+            return why
+    try:
+        typed = confirm_fn(
+            f"Posture check: {why}. The robot goes LIMP on release. If it is hung on the "
+            f"gantry, type exactly '{GANTRY_CONFIRM_PHRASE}': "
+        )
+    except EOFError:
+        typed = ""
+    if typed.strip() != GANTRY_CONFIRM_PHRASE:
+        raise ReleaseRefusedError(f"refusing ReleaseMode: {why}; gantry not confirmed")
+    return "operator confirmed the robot is hung on the gantry"
+
+
+def _read_real_posture(timeout_s: float = 3.0):
+    """One (q_unitree, quat_wxyz) sample from rt/lowstate, or None. Best effort.
+
+    NOT verified against the SDK in this environment (no robot, no DDS).
+    """
+    try:
+        from unitree_sdk2py.core.channel import ChannelSubscriber
+        from unitree_sdk2py.idl.unitree_go.msg.dds_ import LowState_
+
+        sub = ChannelSubscriber("rt/lowstate", LowState_)
+        sub.Init()
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            msg = sub.Read(timeout=0.5)
+            if msg is not None:
+                return (
+                    [float(msg.motor_state[i].q) for i in range(12)],
+                    [float(v) for v in msg.imu_state.quaternion],
+                )
+    except Exception as exc:  # unreadable posture means refuse, never guess
+        print(f"posture read failed: {exc!r}", file=sys.stderr)
+    return None
 
 
 class ForbiddenModeNameError(ValueError):
@@ -237,7 +321,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    read_posture: Callable[[], Any] | None = None,
+    confirm_fn: Callable[[str], str] = input,
+) -> int:
     args = parse_args(argv)
     live = args.live and args.i_am_at_the_robot
     if args.live and not args.i_am_at_the_robot:
@@ -256,13 +345,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if live:
-        print(
-            "LIVE run: the robot will go LIMP on release. Confirm it is already hung on "
-            "the gantry or lying down."
-        )
+        print("LIVE run: the robot will go LIMP on release; running the posture gate first.")
+        if not args.restore:
+            try:
+                reason = require_safe_to_release(
+                    (read_posture or _read_real_posture)(), confirm_fn=confirm_fn
+                )
+            except ReleaseRefusedError as exc:
+                print(str(exc), file=sys.stderr)
+                return 3
+            print(f"posture gate passed: {reason}")
         switcher, sport = _build_real_clients()
     else:
         print("DRY RUN (default): printing the sequence, no robot contact.")
+        print("[DRY RUN] a live release first requires a lying posture or the typed gantry phrase")
         switcher, sport = _DryRunSwitcher(), _DryRunSport()
 
     if args.restore:
