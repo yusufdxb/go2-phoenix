@@ -50,6 +50,12 @@
     "training_clip": 1.0,
     "deploy_clip": null
   },
+  "deploy": {
+    "_comment": "Read by phoenix.sim2real.deploy_manifest.load_deploy_manifest (2026-09-24 contract: deploy clip must equal the training clip). This is the pre-clip=100 H25 checkpoint: it trained with clip_actions=1.0 (see action.training_clip above), so deploy.action_clip is 1.0 here too, not the newer 100.0 convention used by walk checkpoints.",
+    "action_clip": 1.0,
+    "kp": 25.0,
+    "kd": 0.5
+  },
   "control_hz": 50,
   "physics_hz": 200,
   "joint_order": [
