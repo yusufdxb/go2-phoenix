@@ -38,6 +38,7 @@ Usage (the preflight and the run card give the exact, complete commands)::
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import signal
 import socket
@@ -72,6 +73,7 @@ from phoenix.sim2real.go2_model import (
 from phoenix.sim2real.motor_crc import PHOENIX_FOR_MOTOR, build_raw_from_motor_values, compute_crc
 from phoenix.sim2real.provenance import identity_problems, resolve_code_identity
 from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
+from phoenix.sim2real.sit_policy import SIT_POSE_UNITREE, FallbackSit
 
 # MAX_DELTA_PER_STEP_RAD is re-exported from phoenix.sim2real.safety so
 # the policy node and the bridge cannot drift on the slew-rate cap.
@@ -151,9 +153,46 @@ def _load_deploy_config(path: Path) -> dict[str, Any]:
         return yaml.safe_load(fh)
 
 
+#: Last-mile substitute when a command is unsendable: the folded pose at kp 5 / kd 1.
+FOLDED_HOLD_KP = 5.0
+FOLDED_HOLD_KD = 1.0
+#: Telemetry/report failures tolerated in a row before telemetry is switched off.
+TELEMETRY_MAX_FAILURES = 5
+
+
+def sanitize_lowcmd(target_unitree, kp: float, kd: float) -> tuple[list[float], float, float, bool]:
+    """Last-mile check before a LowCmd is built. Returns ``(q, kp, kd, substituted)``.
+
+    Any ``kp <= 0`` or non-finite kp/kd/target, or a target that is not 12 numbers,
+    is NOT sent: the folded-hold command (folded pose, kp 5, kd 1) replaces it and
+    ``substituted`` is True so the caller counts a fault. Zero stiffness cannot
+    leave this function. Pure; tested.
+    """
+    try:
+        q = [float(v) for v in target_unitree]
+        kpf, kdf = float(kp), float(kd)
+        ok = (
+            len(q) == 12
+            and all(math.isfinite(v) for v in q)
+            and math.isfinite(kpf)
+            and math.isfinite(kdf)
+            and kpf > 0.0
+            and kdf >= 0.0
+        )
+    except (TypeError, ValueError):
+        ok = False
+    if ok:
+        return q, kpf, kdf, False
+    return [float(v) for v in SIT_POSE_UNITREE], FOLDED_HOLD_KP, FOLDED_HOLD_KD, True
+
+
 def lowcmd_fields(target_unitree, kp: float, kd: float) -> tuple[list[float], int]:
-    """The 12 motor targets and the firmware CRC for a LowCmd. Pure; tested."""
-    q = [float(v) for v in target_unitree]
+    """The 12 motor targets and the firmware CRC for a LowCmd. Pure; tested.
+
+    Unsendable inputs are replaced by the folded-hold command (see :func:`sanitize_lowcmd`),
+    so the returned values and CRC never describe kp <= 0.
+    """
+    q, kp, kd, _sub = sanitize_lowcmd(target_unitree, kp, kd)
     raw = build_raw_from_motor_values(q, [float(kp)] * 12, [float(kd)] * 12)
     return q, compute_crc(raw)
 
@@ -168,6 +207,7 @@ class LowCmdBridge(Node):
         self._gate = ActuatorGate(cfg.gate_params(), time.monotonic_ns())
         self._last_mode: str | None = None
         self._last_fault: str | None = None
+        self._init_guard()
 
         # BEST_EFFORT everywhere: the policy node publishes BEST_EFFORT (a
         # RELIABLE subscriber would receive nothing), LowState comes from the
@@ -200,6 +240,30 @@ class LowCmdBridge(Node):
             f"hard joint limits from {JOINT_LIMITS_PROVENANCE['repository']}"
         )
 
+    def _init_guard(self) -> None:
+        """Counters and state for the paths that must never interrupt control."""
+        self.guard_counts = {
+            "telemetry_failures": 0,
+            "gate_failures": 0,
+            "publish_failures": 0,
+            "lowcmd_substituted": 0,
+            "spin_failures": 0,
+        }
+        self._telemetry_consecutive = 0
+        self._last_log_s: dict[str, float] = {}
+        self._last_sent: list[float] | None = None
+        self._fallback: FallbackSit | None = None
+
+    def _log_limited(self, key: str, msg: str, period_s: float = 1.0) -> None:
+        """Rate-limited error log that cannot itself raise."""
+        try:
+            now = time.monotonic()
+            if now - self._last_log_s.get(key, -1e9) >= period_s:
+                self._last_log_s[key] = now
+                self.get_logger().error(msg)
+        except Exception:  # noqa: S110 - logging must never interrupt control
+            pass
+
     # --- inputs -------------------------------------------------------------
     def _on_cmd(self, msg: Float64MultiArray) -> None:
         dims = getattr(msg.layout, "dim", None) or []
@@ -212,8 +276,15 @@ class LowCmdBridge(Node):
         now = time.monotonic_ns()
         self._gate.on_lowstate(now, q, dq)
         quat = getattr(getattr(msg, "imu_state", None), "quaternion", None)
-        if quat is not None:  # (w, x, y, z); ASSUMPTION: unitree_go IMUState.quaternion order
-            self._gate.on_imu(now, [float(v) for v in quat])
+        if quat is not None:
+            # (w, x, y, z): unitree_ros2 example/src/src/read_low_state.cpp prints
+            # quaternion[0..3] as qw, qx, qy, qz.
+            rpy = getattr(getattr(msg, "imu_state", None), "rpy", None)
+            try:
+                rpy_f = None if rpy is None else [float(v) for v in rpy]
+            except (TypeError, ValueError):
+                rpy_f = None
+            self._gate.on_imu(now, [float(v) for v in quat], rpy_f)
 
     def _on_estop(self, msg: Bool) -> None:
         self._gate.on_estop(time.monotonic_ns(), bool(msg.data))
@@ -224,10 +295,66 @@ class LowCmdBridge(Node):
 
     # --- tick ---------------------------------------------------------------
     def _tick(self) -> None:
-        rec = self._gate.tick(time.monotonic_ns())
+        now_ns = time.monotonic_ns()
+        try:
+            rec = self._gate.tick(now_ns)
+        except Exception as exc:  # the gate failing must not end control
+            self._gate_failed(exc)
+            self._fallback_publish(time.monotonic())
+            return
+        self._fallback = None
         if rec["publish"]:
-            self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
-        self._report(rec)
+            self._safe_publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+        self._safe_report(rec)
+
+    def _gate_failed(self, exc: BaseException) -> None:
+        self.guard_counts["gate_failures"] += 1
+        self._log_limited("gate", f"gate.tick raised {exc!r}; continuing a fallback sit")
+
+    def _fallback_publish(self, now_s: float) -> tuple[bool, str]:
+        """One tick of the minimal fallback sit from the last command sent. Never raises."""
+        try:
+            if self._fallback is None:
+                if self._last_sent is None:
+                    return False, "none"  # nothing was ever sent: nothing to continue
+                self._fallback = FallbackSit(self._gate.params.sit, self._last_sent, now_s)
+            q, kp, kd, mode = self._fallback.step(now_s)
+            self._safe_publish(q, kp, kd)
+            return True, mode
+        except Exception:
+            return False, "none"
+
+    def _safe_publish(self, target_unitree, kp: float, kd: float) -> str | None:
+        """Publish; a failure is counted and logged, never raised. None on success,
+        else the repr of the error."""
+        try:
+            self._publish(target_unitree, kp, kd)
+            return None
+        except Exception as exc:
+            self.guard_counts["publish_failures"] += 1
+            self._log_limited("publish", f"LowCmd publish failed: {exc!r}")
+            return repr(exc)
+
+    def _safe_report(self, rec: dict[str, Any]) -> None:
+        """Report/telemetry must never interrupt control: count, rate-limit the log,
+        and switch telemetry off after ``TELEMETRY_MAX_FAILURES`` failures in a row."""
+        try:
+            self._report(rec)
+            self._telemetry_consecutive = 0
+        except Exception as exc:
+            self.guard_counts["telemetry_failures"] += 1
+            self._telemetry_consecutive += 1
+            self._log_limited("telemetry", f"telemetry/report failed: {exc!r}")
+            if (
+                self._telemetry_consecutive >= TELEMETRY_MAX_FAILURES
+                and self._telemetry is not None
+            ):
+                self._telemetry = None
+                self._log_limited(
+                    "telemetry_off",
+                    "telemetry DISABLED after repeated failures; control continues",
+                    0.0,
+                )
 
     def _report(self, rec: dict[str, Any]) -> None:
         if rec["mode"] != self._last_mode:
@@ -241,29 +368,56 @@ class LowCmdBridge(Node):
         if self._telemetry is not None:
             self._telemetry.write_tick(rec)
 
+    def _spin_for_shutdown(self) -> None:
+        """Non-blocking callback processing so LowState/IMU keep reaching the gate."""
+        for _ in range(4):
+            try:
+                rclpy.spin_once(self, timeout_sec=0)
+            except Exception as exc:
+                self.guard_counts["spin_failures"] += 1
+                self._log_limited("spin", f"spin_once failed during shutdown sit: {exc!r}")
+                return
+
     def shutdown_sit(self) -> None:
         """Run the bounded shutdown sit: sit, settle, folded low-kp hold. Best effort.
 
         Ends at the first of: the folded hold having lasted ``folded_hold_s``, or
-        ``shutdown_bound_s`` plus a 0.2 s margin of wall time.
+        ``shutdown_bound_s`` plus a 0.2 s margin of wall time. Callbacks are spun
+        (non-blocking) every iteration so the sit stays closed-loop and fall/stale
+        detection stay live; the periodic timers are cancelled first so they cannot
+        double-tick. Telemetry, a raising gate or a publish error never stop the sit.
         """
         sit = self._gate.params.sit
+        for tmr in ("_timer", "_graph_timer"):
+            try:
+                getattr(self, tmr).cancel()
+            except Exception:  # noqa: S110 - best effort
+                pass
         self._gate.request_shutdown(time.monotonic_ns())
         deadline = time.monotonic() + sit.shutdown_bound_s + 0.2
         folded_since: float | None = None
         while time.monotonic() < deadline:
-            rec = self._gate.tick(time.monotonic_ns())
-            if rec["publish"]:
-                # Telemetry must record what went out, not what the gate asked for.
-                if not rclpy.ok():
-                    rec = {**rec, "publish": False, "publish_skipped": "ros_context_invalid"}
-                else:
-                    try:
-                        self._publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
-                    except Exception as exc:  # keep trying the remaining sit ticks
-                        rec = {**rec, "publish": False, "publish_skipped": repr(exc)}
-            self._report(rec)
-            if rec.get("mode") == "folded":
+            if rclpy.ok():
+                self._spin_for_shutdown()
+            mode: str | None = None
+            try:
+                rec = self._gate.tick(time.monotonic_ns())
+            except Exception as exc:
+                self._gate_failed(exc)
+                _sent, mode = self._fallback_publish(time.monotonic())
+            else:
+                self._fallback = None
+                mode = rec.get("mode")
+                if rec["publish"]:
+                    # Telemetry must record what went out, not what the gate asked for.
+                    if not rclpy.ok():
+                        rec = {**rec, "publish": False, "publish_skipped": "ros_context_invalid"}
+                    else:
+                        err = self._safe_publish(rec["final_target_unitree"], rec["kp"], rec["kd"])
+                        if err is not None:  # keep trying the remaining sit ticks
+                            rec = {**rec, "publish": False, "publish_skipped": err}
+                self._safe_report(rec)
+            if mode == "folded":
                 folded_since = folded_since if folded_since is not None else time.monotonic()
                 if time.monotonic() - folded_since >= sit.folded_hold_s:
                     break
@@ -271,7 +425,11 @@ class LowCmdBridge(Node):
 
     # --- publish ------------------------------------------------------------
     def _publish(self, target_unitree, kp: float, kd: float) -> None:
-        q, crc = lowcmd_fields(target_unitree, kp, kd)
+        q, kp, kd, substituted = sanitize_lowcmd(target_unitree, kp, kd)
+        if substituted:  # never send kp <= 0 / non-finite: folded hold instead, counted as a fault
+            self.guard_counts["lowcmd_substituted"] += 1
+            self._log_limited("lowcmd_sub", "unsendable LowCmd replaced by folded hold kp 5 / kd 1")
+        _, crc = lowcmd_fields(q, kp, kd)
         msg = LowCmd()
         msg.head[0] = 0xFE
         msg.head[1] = 0xEF
@@ -285,6 +443,7 @@ class LowCmdBridge(Node):
             msg.motor_cmd[i].kd = float(kd)
         msg.crc = crc
         self._pub.publish(msg)
+        self._last_sent = q
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

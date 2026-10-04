@@ -35,6 +35,7 @@ class Feed:
         self.estop = False
         self.q_override: np.ndarray | None = None
         self.target_p = DEFAULT_P
+        self.imu_quat = None
 
 
 def run(apply_fault, t_fault=0.5, t_end=5.2, freeze_q=False, **p_over):
@@ -50,6 +51,8 @@ def run(apply_fault, t_fault=0.5, t_end=5.2, freeze_q=False, **p_over):
         if feed.lowstate:
             gate.on_lowstate(ns(t), qs, ZERO12)
         gate.on_estop(ns(t), feed.estop)
+        if feed.imu_quat is not None:
+            gate.on_imu(ns(t), feed.imu_quat)
         if feed.cmd and k % 10 == 0:
             seq += 1
             label, data = policy_cmd(feed.target_p, seq=seq)
@@ -153,20 +156,20 @@ def test_sit_target_is_torque_clipped_when_the_leg_cannot_follow() -> None:
 
 
 def test_fall_is_low_stiffness_never_zero_and_latched() -> None:
-    def fall(g, _f, t):
-        g.on_imu(ns(t), FALL_QUAT)
+    def fall(_g, f, _t):
+        f.imu_quat = FALL_QUAT
 
     assert fall_tilt_rad(FALL_QUAT) == pytest.approx(math.radians(70))
     _, recs = run(fall, t_end=2.0)
-    post = [r for r in recs if r["t"] > 0.5]
+    post = [r for r in recs if r["t"] > 0.5 + 0.03]  # debounce: 20 ms of tilt
     assert all(r["mode"] == "fall_soft" for r in post)
     assert all(r["kp"] == SIT.fall_kp and 0.0 < r["kp"] < params().hold_kp for r in post)
     assert all(r["kd"] == SIT.fall_kd for r in post)
 
 
 def test_tilt_below_threshold_is_not_a_fall() -> None:
-    def tilt30(g, _f, t):
-        g.on_imu(ns(t), [math.cos(math.radians(15)), math.sin(math.radians(15)), 0.0, 0.0])
+    def tilt30(_g, f, _t):
+        f.imu_quat = [math.cos(math.radians(15)), math.sin(math.radians(15)), 0.0, 0.0]
 
     _, recs = run(tilt30, t_end=1.0)
     assert all(r["mode"] == "policy" for r in recs if r["t"] > 0.3)

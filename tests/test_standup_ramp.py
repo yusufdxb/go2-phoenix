@@ -45,6 +45,7 @@ def _gate(standup_s: float = 2.0) -> ActuatorGate:
             lowstate_timeout_s=0.2,
             stale_hold_s=0.2,
             first_message_timeout_s=15.0,
+            require_imu=False,
             standup_s=standup_s,
         ),
         T0,

@@ -60,6 +60,7 @@ def params(**over) -> GateParams:
         lowstate_timeout_s=0.2,
         stale_hold_s=0.2,
         first_message_timeout_s=15.0,
+        require_imu=False,  # IMU arming is covered in tests/test_fault_hardening.py
     )
     base.update(over)
     return GateParams(**base)

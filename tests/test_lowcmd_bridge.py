@@ -446,20 +446,21 @@ class _SitGate:
         }  # fmt: skip
 
 
-def _sit_self(publish):
+def _sit_self(bridge_module, publish):
     reported: list[dict] = []
-    fake = types.SimpleNamespace(
-        _gate=_SitGate(),
-        _cfg=types.SimpleNamespace(publish_rate_hz=500.0),
-        _publish=publish,
-        _report=reported.append,
-    )
+    fake = object.__new__(bridge_module.LowCmdBridge)
+    fake._gate = _SitGate()
+    fake._cfg = types.SimpleNamespace(publish_rate_hz=500.0)
+    fake._telemetry = None
+    fake._publish = publish
+    fake._report = reported.append
+    fake._init_guard()
     return fake, reported
 
 
 def test_shutdown_sit_streams_the_sit_then_folded_and_never_sends_kp_zero(bridge_module) -> None:
     sent: list[float] = []
-    fake, reported = _sit_self(lambda _t, kp, _kd: sent.append(kp))
+    fake, reported = _sit_self(bridge_module, lambda _t, kp, _kd: sent.append(kp))
     bridge_module.LowCmdBridge.shutdown_sit(fake)
     assert fake._gate.shutdown_requested
     assert sent[:3] == [30.0] * 3 and sent[-1] == 5.0 and all(kp > 0.0 for kp in sent)
@@ -472,7 +473,7 @@ def test_shutdown_sit_does_not_log_unsent_ticks_as_published(bridge_module, monk
     # but telemetry still recorded publish=True.
     monkeypatch.setattr(bridge_module.rclpy, "ok", lambda: False)
     sent: list[float] = []
-    fake, reported = _sit_self(lambda *_a: sent.append(1.0))
+    fake, reported = _sit_self(bridge_module, lambda *_a: sent.append(1.0))
     bridge_module.LowCmdBridge.shutdown_sit(fake)
     assert sent == []
     assert len(reported) >= 4
@@ -488,7 +489,7 @@ def test_shutdown_sit_keeps_going_after_a_publish_error(bridge_module) -> None:
         if calls["n"] == 1:
             raise RuntimeError("publisher's context is invalid")
 
-    fake, reported = _sit_self(flaky)
+    fake, reported = _sit_self(bridge_module, flaky)
     bridge_module.LowCmdBridge.shutdown_sit(fake)
     assert calls["n"] >= 4
     assert (

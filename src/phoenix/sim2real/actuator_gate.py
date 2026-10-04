@@ -114,7 +114,14 @@ from .safety import (
     expected_torque,
     torque_limited_target_array,
 )
-from .sit_policy import SIT_POSE_UNITREE, SitParams, SitTrajectory, fall_tilt_rad
+from .sit_policy import (
+    SIT_POSE_UNITREE,
+    SitParams,
+    SitTrajectory,
+    fall_tilt_rad,
+    rpy_tilt_rad,
+    valid_unit_quat,
+)
 
 #: Node names of the two real deadman adapters in this package
 #: (``wireless_estop_node`` and ``deadman_joy_node``). Nothing else may arm a
@@ -170,6 +177,10 @@ class GateParams:
     sustained_clip_ticks: int = DEFAULT_SUSTAINED_CLIP_TICKS
     #: The zero-stiffness-free fault policy (controlled sit, FALL_SOFT, folded hold).
     sit: SitParams = SitParams()
+    #: The policy may not arm until a valid IMU quaternion has arrived (fall detection
+    #: is otherwise blind). Only tests of unrelated behaviour opt out; BridgeConfig
+    #: never exposes this, so no CLI/config path can disable it.
+    require_imu: bool = True
 
     def __post_init__(self) -> None:
         for name in (
@@ -186,7 +197,9 @@ class GateParams:
         for name in ("kp", "hold_kp"):
             value = getattr(self, name)
             if not np.isfinite(value) or value <= 0:
-                raise ValueError(f"{name} must be positive and finite (kp=0 is banned), got {value}")
+                raise ValueError(
+                    f"{name} must be positive and finite (kp=0 is banned), got {value}"
+                )
         if self.standup_s > 0 and self.standup_kp <= 0:
             raise ValueError("standup_kp must be positive when standup_s > 0 (kp=0 is banned)")
         for name in (
@@ -203,9 +216,7 @@ class GateParams:
             if not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be non-negative and finite, got {value}")
         if self.sustained_clip_ticks < 1:
-            raise ValueError(
-                f"sustained_clip_ticks must be >= 1, got {self.sustained_clip_ticks}"
-            )
+            raise ValueError(f"sustained_clip_ticks must be >= 1, got {self.sustained_clip_ticks}")
         if self.live and self.require_real_deadman is False:
             raise ValueError("a live gate cannot disable the real-deadman requirement")
 
@@ -266,6 +277,11 @@ class ActuatorGate:
         self._sit_open = False  # measured posture untrusted: open-loop sit
         self._sit_closed = False  # trusted posture: closed-loop sit
         self._fall = False
+        self._imu_valid = False
+        self._imu_valid_ns: int | None = None
+        self._tilt: float | None = None
+        self._tilt_run = 0
+        self._tilt_run_start_ns: int | None = None
         self._shutdown = False
         self._fault_since_ns: int | None = None
         self._q_good: np.ndarray | None = None
@@ -273,7 +289,13 @@ class ActuatorGate:
         self._last_final: np.ndarray | None = None
         self._traj = SitTrajectory(params.sit)
         self._tick = 0
-        self.counters = {"commands_rejected": 0, "lowstate_rejected": 0, "commands_accepted": 0}
+        self.counters = {
+            "commands_rejected": 0,
+            "lowstate_rejected": 0,
+            "commands_accepted": 0,
+            "imu_rejected": 0,
+            "imu_disagree": 0,
+        }
 
     # ---------------------------------------------------------------- state
     @property
@@ -330,11 +352,48 @@ class ActuatorGate:
         self._shutdown = True
         self._sit_closed = True
 
-    def on_imu(self, now_ns: int, quat_wxyz: Sequence[float]) -> None:
-        """Feed the IMU orientation (w, x, y, z). Tilt beyond ``sit.fall_tilt_rad``
-        latches FALL_SOFT. A malformed quaternion is ignored (not a fall)."""
-        tilt = fall_tilt_rad(quat_wxyz)
-        if tilt is not None and tilt > self.params.sit.fall_tilt_rad:
+    def on_imu(
+        self, now_ns: int, quat_wxyz: Sequence[float], rpy: Sequence[float] | None = None
+    ) -> None:
+        """Feed the IMU orientation, quaternion order (w, x, y, z) (Unitree
+        ``imu_state.quaternion``; see ``read_low_state.cpp``: qw, qx, qy, qz).
+
+        An invalid quaternion (malformed, non-finite, zero or not unit-norm) is
+        counted and ignored: it is neither a fall nor proof of a working IMU. A fall
+        latches FALL_SOFT only when the quaternion tilt exceeds ``sit.fall_tilt_rad``
+        for ``sit.fall_debounce_samples`` consecutive samples spanning at least
+        ``sit.fall_debounce_s``, and the ``rpy`` roll/pitch tilt (when available)
+        agrees. A single spurious sample never latches.
+        """
+        sit = self.params.sit
+        q = valid_unit_quat(quat_wxyz, sit.imu_unit_tol)
+        if q is None:
+            self.counters["imu_rejected"] += 1
+            self._imu_valid = False
+            return
+        now_ns = int(now_ns)
+        self._imu_valid = True
+        self._imu_valid_ns = now_ns
+        tilt = fall_tilt_rad(q)
+        self._tilt = tilt
+        over = tilt is not None and tilt > sit.fall_tilt_rad
+        if over:
+            tilt_rpy = rpy_tilt_rad(rpy)
+            if tilt_rpy is not None and tilt_rpy <= sit.fall_tilt_rad:
+                self.counters["imu_disagree"] += 1
+                over = False
+        if not over:
+            self._tilt_run = 0
+            self._tilt_run_start_ns = None
+            return
+        if self._tilt_run == 0:
+            self._tilt_run_start_ns = now_ns
+        self._tilt_run += 1
+        start = self._tilt_run_start_ns if self._tilt_run_start_ns is not None else now_ns
+        if (
+            self._tilt_run >= sit.fall_debounce_samples
+            and (now_ns - start) / 1e9 >= sit.fall_debounce_s
+        ):
             self._latch(f"fall_detected:tilt_{tilt:.2f}rad")
             self._fall = True
 
@@ -476,6 +535,12 @@ class ActuatorGate:
             "standup_alpha": None,
             "standup_done": self._standup_done,
             "counters": dict(self.counters),
+            "tilt_deg": None if self._tilt is None else float(np.degrees(self._tilt)),
+            "imu_valid": self._imu_valid,
+            "imu_seen_valid": self._imu_valid_ns is not None,
+            "imu_age_s": None
+            if self._imu_valid_ns is None
+            else (now_ns - self._imu_valid_ns) / 1e9,
         }
         if self._last_decoded is not None:
             rec["cmd_seq"] = self._last_decoded.seq
@@ -503,6 +568,13 @@ class ActuatorGate:
             self._latch("lowstate_stale")
             if (now_ns - self._stale_since_ns) / 1e9 > p.stale_hold_s:
                 self._sit_open = True
+
+        if (
+            p.require_imu
+            and self._imu_valid_ns is not None
+            and (now_ns - self._imu_valid_ns) / 1e9 > p.sit.imu_stale_s
+        ):
+            self._latch("imu_stale")  # hold, then the closed-loop sit (not an open-loop one)
 
         estop_state, estop_cause = self._estop_state(now_ns)
         rec["estop_state"] = estop_state
@@ -538,6 +610,8 @@ class ActuatorGate:
             cause = estop_cause
         elif not deadman_ok:
             cause = deadman_cause
+        elif p.require_imu and self._imu_valid_ns is None:
+            cause = "imu_not_valid_yet"  # refuse to arm blind: no fall detection
         elif self._cmd is None or self._cmd_ns is None:
             cause = "startup_default" if self._startup_default_seen else "no_policy_command"
         elif (now_ns - self._cmd_ns) / 1e9 > p.watchdog_s:
@@ -590,9 +664,7 @@ class ActuatorGate:
             else:
                 dq = self._dq if self._dq is not None else np.zeros(12, dtype=np.float64)
                 torque_clipped = np.asarray(
-                    torque_limited_target_array(
-                        requested, q, dq, p.kp, p.kd, self._torque_limit
-                    ),
+                    torque_limited_target_array(requested, q, dq, p.kp, p.kd, self._torque_limit),
                     dtype=np.float64,
                 )
                 # Key kept as "slew_clip" for backward compatibility with

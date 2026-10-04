@@ -17,7 +17,16 @@ WHITELIST: set[str] = set()
 
 
 def _is_zero(n: ast.AST) -> bool:
-    return isinstance(n, ast.Constant) and isinstance(n.value, int | float) and n.value == 0
+    """A literal zero in any spelling: 0, 0.0, -0.0, +0, float(0), float(), int(0), 0 * x, x * 0."""
+    if isinstance(n, ast.Constant):
+        return isinstance(n.value, int | float) and n.value == 0
+    if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub | ast.UAdd):
+        return _is_zero(n.operand)
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("float", "int"):
+        return not n.args and not n.keywords or (len(n.args) == 1 and _is_zero(n.args[0]))
+    if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Mult):
+        return _is_zero(n.left) or _is_zero(n.right)
+    return False
 
 
 def _zero_in(n: ast.AST | None) -> bool:
@@ -87,6 +96,19 @@ def test_scanner_detects_the_patterns_it_bans() -> None:
     assert zero_kp_sites("d = {'kp': 0}") == [1]
     assert zero_kp_sites("lowcmd_fields(t, 0.0, 1.0)") == [1]
     assert zero_kp_sites("# kp=0\n'''kp=0'''\nx(kp=5.0)") == []
+    assert zero_kp_sites("kp = float(0)") == [1]
+    assert zero_kp_sites("kp = float()") == [1]
+    assert zero_kp_sites("x(kp=-0.0)") == [1]
+    assert zero_kp_sites("hold_kp = 0 * gain") == [1]
+    assert zero_kp_sites("kp = gain * 0.0") == [1]
+    assert zero_kp_sites("d = {'kp': -0.0}") == [1]
+    assert zero_kp_sites("lowcmd_fields(t, float(0), 1.0)") == [1]
+    assert zero_kp_sites("kp = 5.0 * gain") == []
+    assert api_1001_lines("d = {'api_id': 1001}") == [1]
+    assert api_1001_lines('x = {"api_id":1001, "parameter": ""}') == [1]
+    assert api_1001_lines("req = dict(api_id=1001)") == [1]
+    # motion_switcher CheckMode is api 1001 on a different service: allowed where clearly so.
+    assert api_1001_lines("d = {'api_id': 1001}  # motion_switcher CheckMode") == []
 
 
 def test_no_lowcmd_path_sets_kp_zero() -> None:
@@ -101,12 +123,27 @@ def test_no_lowcmd_path_sets_kp_zero() -> None:
     assert not bad, f"kp=0 on a LowCmd path: {bad}"
 
 
+_API_1001 = re.compile(r"""["']?\bapi_id["']?\s*[:=]\s*1001\b""")
+_SWITCHER = re.compile(r"motion_switcher|CheckMode", re.I)
+
+
+def api_1001_lines(source: str) -> list[int]:
+    """Lines that set api_id 1001 (Sport Damp) in any form, unless the line says it is
+    the motion_switcher CheckMode call (also 1001, a different service)."""
+    return [
+        i
+        for i, line in enumerate(source.splitlines(), 1)
+        if _API_1001.search(line) and not _SWITCHER.search(line)
+    ]
+
+
 def test_no_sport_damp_call_or_api_1001_send() -> None:
     pat = re.compile(r"\bDamp\(|API_ID_DAMP|SPORT_API_ID_DAMP|api_id\s*=\s*1001|\.Damp\b")
     offenders = []
     for root in (REPO / "src", REPO / "scripts"):
         for p in list(root.rglob("*.py")) + list(root.rglob("*.sh")):
-            if pat.search(p.read_text()):
+            text = p.read_text()
+            if pat.search(text) or api_1001_lines(text):
                 offenders.append(str(p.relative_to(REPO)))
     assert not offenders, offenders
 

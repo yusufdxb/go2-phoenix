@@ -59,6 +59,16 @@ class SitParams:
     fall_kp: float = 5.0
     fall_kd: float = 1.0
     fall_tilt_rad: float = math.radians(60.0)
+    #: A fall latches only after tilt stays beyond ``fall_tilt_rad`` for this many
+    #: consecutive IMU samples AND for at least ``fall_debounce_s`` (default 3 samples
+    #: spanning 20 ms; at 500 Hz the time term dominates). A single spurious sample
+    #: never latches.
+    fall_debounce_samples: int = 3
+    fall_debounce_s: float = 0.02
+    #: A valid IMU older than this while the gate is running is a sensor fault.
+    imu_stale_s: float = 0.5
+    #: A quaternion is valid when finite, non-zero and its norm is within 1 +- this.
+    imu_unit_tol: float = 0.05
     #: Shutdown tail: hold the finished sit at sit gains, then folded low kp.
     folded_settle_s: float = 0.3
     folded_kp: float = 5.0
@@ -69,11 +79,17 @@ class SitParams:
         for name in (
             "sit_s", "sit_kp", "sit_kd", "max_rate_rad_s", "max_dt_s",
             "fall_kp", "fall_kd", "fall_tilt_rad", "folded_kp", "folded_kd",
+            "imu_stale_s", "imu_unit_tol",
         ):  # fmt: skip
             v = getattr(self, name)
             if not math.isfinite(v) or v <= 0:
                 raise ValueError(f"SitParams.{name} must be positive and finite, got {v}")
-        for name in ("fault_hold_s", "folded_settle_s", "folded_hold_s"):
+        if (
+            int(self.fall_debounce_samples) != self.fall_debounce_samples
+            or self.fall_debounce_samples < 1
+        ):
+            raise ValueError("SitParams.fall_debounce_samples must be an integer >= 1")
+        for name in ("fault_hold_s", "folded_settle_s", "folded_hold_s", "fall_debounce_s"):
             v = getattr(self, name)
             if not math.isfinite(v) or v < 0:
                 raise ValueError(f"SitParams.{name} must be non-negative and finite, got {v}")
@@ -94,6 +110,76 @@ def fall_tilt_rad(quat_wxyz) -> float | None:
         return None
     w, x, y, z = q / n
     return float(np.arccos(np.clip(1.0 - 2.0 * (x * x + y * y), -1.0, 1.0)))
+
+
+def valid_unit_quat(quat_wxyz, tol: float = 0.05):
+    """The (w, x, y, z) quaternion as a normalised float array, or None when it is
+    malformed, non-finite, all-zero or not unit-norm within ``tol``."""
+    try:
+        q = np.asarray(quat_wxyz, dtype=np.float64).reshape(-1)
+    except (TypeError, ValueError):
+        return None
+    if q.shape != (4,) or not np.all(np.isfinite(q)):
+        return None
+    n = float(np.linalg.norm(q))
+    if n < 1e-6 or abs(n - 1.0) > tol:
+        return None
+    return q / n
+
+
+def rpy_tilt_rad(rpy) -> float | None:
+    """Body-z to world-up angle from ZYX Euler (roll, pitch, yaw), or None when the
+    reading is unavailable (missing, non-finite, or exactly all-zero as an unfilled
+    message would be)."""
+    if rpy is None:
+        return None
+    try:
+        r = np.asarray(rpy, dtype=np.float64).reshape(-1)
+    except (TypeError, ValueError):
+        return None
+    if r.shape != (3,) or not np.all(np.isfinite(r)) or not np.any(r != 0.0):
+        return None
+    return float(np.arccos(np.clip(np.cos(r[0]) * np.cos(r[1]), -1.0, 1.0)))
+
+
+class FallbackSit:
+    """Minimal sit that cannot raise: used only if the gate itself fails.
+
+    Plain-float arithmetic from the last command actually sent toward the folded
+    pose at sit gains, then folded gains (never kp <= 0). Any internal error falls
+    back to the constant folded-hold command.
+    """
+
+    def __init__(self, params: SitParams, start_target, now_s: float) -> None:
+        self.params = params
+        self._pose = [float(v) for v in SIT_POSE_UNITREE]
+        try:
+            self._cur = [float(v) for v in start_target]
+            if len(self._cur) != 12 or not all(math.isfinite(v) for v in self._cur):
+                raise ValueError
+        except Exception:
+            self._cur = list(self._pose)
+        self._last_s = float(now_s)
+        self._done_s: float | None = None
+
+    def step(self, now_s: float) -> tuple[list[float], float, float, str]:
+        sp = self.params
+        try:
+            dt = min(max(float(now_s) - self._last_s, 0.0), sp.max_dt_s)
+            self._last_s = float(now_s)
+            lim = sp.max_rate_rad_s * dt
+            worst = 0.0
+            for i in range(12):
+                d = self._pose[i] - self._cur[i]
+                self._cur[i] += max(-lim, min(lim, d))
+                worst = max(worst, abs(self._pose[i] - self._cur[i]))
+            if worst < 1e-3 and self._done_s is None:
+                self._done_s = float(now_s)
+            if self._done_s is not None and now_s - self._done_s >= sp.folded_settle_s:
+                return list(self._cur), sp.folded_kp, sp.folded_kd, "folded"
+            return list(self._cur), sp.sit_kp, sp.sit_kd, "sit"
+        except Exception:
+            return list(self._pose), 5.0, 1.0, "folded"
 
 
 class SitTrajectory:

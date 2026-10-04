@@ -82,6 +82,7 @@ def _run(
             lowstate_timeout_s=0.2,
             stale_hold_s=0.2,
             first_message_timeout_s=15.0,
+            require_imu=False,
         ),
         T0,
     )
