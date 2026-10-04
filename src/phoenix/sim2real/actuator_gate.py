@@ -93,7 +93,6 @@ from .command_wire import (
     decode,
     wire_label,
 )
-from .deploy_contract import WALKING_ENABLED
 from .go2_model import (
     LIMIT_ABORT_BAND_RAD,
     POLICY_JOINT_ORDER,
@@ -187,6 +186,10 @@ class GateParams:
     #: is otherwise blind). Only tests of unrelated behaviour opt out; BridgeConfig
     #: never exposes this, so no CLI/config path can disable it.
     require_imu: bool = True
+    #: Walking commands are refused unless this is True. Nothing in the bridge CLI sets
+    #: it: a caller must derive it from :func:`deploy_contract.walking_evidence_problems`
+    #: (stages F and G on hardware for the same artifacts) before constructing the gate.
+    walking_allowed: bool = False
 
     def __post_init__(self) -> None:
         for name in (
@@ -445,7 +448,7 @@ class ActuatorGate:
             if obs_code == _ZEROS_CODE:
                 self._latch("walking_blocked_zero_base_lin_vel")
                 return
-            if not WALKING_ENABLED:
+            if not self.params.walking_allowed:
                 self._latch("walking_blocked_not_enabled")
                 return
         else:

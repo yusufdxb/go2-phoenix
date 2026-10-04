@@ -113,7 +113,10 @@ def test_deadman_release_mid_ramp_leaves_standup_and_rearm_restarts_from_measure
         _step(gate, i, FOLDED_U)
     half = FOLDED_U + 0.3 * (STAND_U - FOLDED_U)
     rec = _step(gate, 30, half, released=True)
-    assert rec["mode"] == "hold" and rec["kp"] == 20.0
+    # A latched stop mid-ramp holds at the stand-up gains in effect at entry (60 / 5, never
+    # below the 20 / 1 hold gains), not a step down to the hold gains (2026-10-04 handover
+    # change; tests/test_gate_handover.py covers the fault-hold-then-sit sequence).
+    assert rec["mode"] == "hold" and rec["kp"] == 60.0 and rec["kd"] == 5.0
     assert rec["final_target_unitree"] == pytest.approx(list(np.clip(half, -2.7227, None)))
 
 
