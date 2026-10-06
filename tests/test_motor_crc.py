@@ -138,3 +138,23 @@ def test_crc_sensitive_to_gain_change() -> None:
     baseline = compute_crc(build_raw_from_motor_values(q, [25.0] * 12, [0.5] * 12))
     stiffer = compute_crc(build_raw_from_motor_values(q, [26.0] * 12, [0.5] * 12))
     assert baseline != stiffer
+
+
+def test_table_crc_is_bit_identical_to_the_bitwise_reference() -> None:
+    import random
+
+    from phoenix.sim2real.motor_crc import crc32_core_fast
+
+    rng = random.Random(20261006)
+    cases: list[list[int]] = [
+        [],
+        [0],
+        [1],
+        [0x80000000],
+        [0xFFFFFFFF],
+        [0] * 202,
+        [0xFFFFFFFF] * 202,
+    ]
+    cases += [[rng.getrandbits(32) for _ in range(rng.choice([1, 3, 202]))] for _ in range(1500)]
+    for words in cases:
+        assert crc32_core_fast(words) == crc32_core(words)

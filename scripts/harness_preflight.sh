@@ -13,6 +13,10 @@
 #   scripts/harness_preflight.sh D [secs]     LowState / IMU / joint-state freshness       motors OFF
 #   scripts/harness_preflight.sh E [secs]     LIVE bridge hold-current, no policy          motors LIVE
 #   scripts/harness_preflight.sh F | G | H    LIVE cmd=0 stand of the active config (DEPLOY_LABEL), 2 s / 5 s / 10 s x 3   motors LIVE
+#   scripts/harness_preflight.sh W <preset>   LIVE one walking attempt (presets: python3 -m phoenix.sim2real.walk_command --list)   motors LIVE
+#                                             needs a WALKING DEPLOY_CFG/LOCK (safety.stand_only: false). NOT a ledger stage: no evaluator, evidence never counted.
+#                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset>', plus synthetic F/G records via
+#                                             PHOENIX_HW_SESSIONS=<dir> PHOENIX_HW_SESSIONS_TEST_ONLY=1 (deploy_contract.walking_evidence_problems), else walking is refused.
 #
 # Stages never chain. Each live stage is its own invocation, refuses unless every
 # earlier stage counts, and refuses without an operator typing the stage phrase at
@@ -131,7 +135,7 @@ stop_proc() {
 
 stop_all() {
     local name
-    for name in policy_node lowcmd_bridge lowstate_bridge deadman; do
+    for name in walk_cmd policy_node lowcmd_bridge lowstate_bridge deadman; do
         [[ -n "${PIDS[$name]:-}" ]] && stop_proc "$name"
     done
     return 0
@@ -449,6 +453,125 @@ stage_stand() {
     pf evaluate "$stage" --telemetry "${telemetry_files[@]}" --operator-confirmed "${answers[@]}"
 }
 
+# W <preset>: one live walking attempt. NOT a ledger stage: there is no evaluator and
+# nothing here is ever counted; it records evidence (bridge.jsonl, walk_cmd.jsonl,
+# policy.parquet, the operator's answer) and prints a summary. The bridge records
+# walking_allowed from the evidence-gated deploy contract; the policy node refuses to
+# start a walking config whose contract (including F/G hardware evidence) fails.
+# Rehearsal needs synthetic F/G records: see the help text for W.
+stage_walk() {
+    local preset="${1:-}" walk_dur authority margin
+    [[ -n "$preset" ]] || halt "usage: harness_preflight.sh W <preset> (presets: python3 -m phoenix.sim2real.walk_command --list)"
+    walk_dur="$(python3 -c 'import sys; from phoenix.sim2real.walk_command import PRESETS, profile_duration; print(profile_duration(PRESETS[sys.argv[1]]))' "$preset" 2>/dev/null)" \
+        || halt "unknown walk preset '$preset' (python3 -m phoenix.sim2real.walk_command --list)"
+    need_sha; ros_env
+    assert_no_contention W
+    local stand_only=""
+    stand_only="$(cfg_get safety.stand_only 2>/dev/null)" || stand_only="unreadable"
+    [[ "$stand_only" == "False" ]] \
+        || halt "W needs a walking config: safety.stand_only must be explicitly false in $DEPLOY_CFG (set DEPLOY_CFG and DEPLOY_LOCK to the walking config)"
+    echo "[W] walking config $DEPLOY_CFG (lock $DEPLOY_LOCK, ${DEPLOY_LABEL}). The bridge decides walking_allowed itself from the evidence-gated deploy contract (F and G hardware GO records for the stand-phase twin); this script does not."
+    live_confirm "W $preset" "${DEPLOY_LABEL} WALKING attempt '$preset', profile ${walk_dur} s, deadman must stay held, 1 attempt"
+    local first_msg max_rt telemetry standup_s="${PHOENIX_STANDUP_S:-2.0}"
+    # Motion must never outlive the policy window (its end makes the bridge sit the robot).
+    # Window end = profile_duration + margin = 5 + motion_s + margin after policy launch.
+    # Worst-case motion end = walk_cmd start lag (<= 1.0 s, launched right after the policy)
+    # + start deadline 3.0 s (a later deadman never starts: late_start) + lead-in 2.0 s
+    # + motion_s + ramp-down (<= 1.0 s, vx 0.5) = 7 + motion_s. Requiring >= 2.0 s of zero
+    # command before the window ends gives margin >= 9 - 5 = 4.0, hence the default.
+    margin="${PHOENIX_WALK_AUTHORITY_MARGIN_S:-4.0}"
+    first_msg="$(cfg_get safety.first_message_timeout_s)"
+    authority="$(python3 -c "print($walk_dur + $margin)")"
+    max_rt="$(python3 -c "print(float('$first_msg') + $authority)")"
+    new_run "W_${preset}"
+    telemetry="$RUN/bridge.jsonl"
+    if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
+        operator_gate arm "W_${preset}" \
+            "[W $preset] Robot folded on the mat, feet on the ground, spotter ready, clear 2 m radius, deadman HELD (keep holding it for the whole walk). Press Enter to start: "
+    fi
+    # shellcheck disable=SC2046
+    launch deadman $(deadman_cmd)
+    launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
+    sleep 1
+    require_alive deadman lowstate_bridge
+    # --stage is a free-form label in lowcmd_bridge_node (default "unlabelled", never validated), so "W" is accepted as is.
+    # shellcheck disable=SC2046
+    launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args W "$telemetry") \
+        --standup-s "$standup_s"
+    wait_for_telemetry "$telemetry" 't.get("mode") in ("hold", "standup") and t.get("deadman_source_ok")' \
+        "$first_msg" "bridge armed with the real deadman"
+    wait_for_telemetry "$telemetry" 't.get("standup_done")' \
+        "$(python3 -c "print($standup_s + $first_msg)")" "stand-up ramp complete, holding the training stance"
+    require_alive deadman lowstate_bridge lowcmd_bridge
+    launch policy_node python3 -m phoenix.sim2real.ros2_policy_node --config "$DEPLOY_CFG" \
+        --lock "$DEPLOY_LOCK" --authority-s "$authority" --max-runtime-s "$max_rt" \
+        --log-parquet "$RUN/policy.parquet"
+    launch walk_cmd python3 -m phoenix.sim2real.walk_command --preset "$preset" --start-deadline-s 3.0 \
+        --out "$RUN/walk_cmd.jsonl"
+    local wait_rc=0
+    (wait_for_telemetry "$telemetry" 't.get("fault") is not None' \
+        "$(python3 -c "print($max_rt + 2)")" "policy window end or a fault") || wait_rc=$?
+    [[ $wait_rc -eq 0 ]] || c_red "[W $preset] no end-of-window or fault seen in time; ending the attempt"
+    # Let walk_command finish its own zero hold (bounded); stop_proc interrupts it if it is still running.
+    for _ in $(seq 60); do is_alive "${PIDS[walk_cmd]}" || break; sleep 0.1; done
+    echo "[W $preset] policy authority ended; the bridge holds for up to 1 s, then sits the robot down on its own."
+    local answer="n"
+    if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
+        answer="${PHOENIX_REHEARSAL_WALKED:-n}"
+    else
+        answer="$(operator_gate judgement "W_${preset}" \
+            "[W $preset] Did the robot walk the preset (start, move, stop) on its feet, with no collapse, oscillation, buzz or drift outside the spotter's reach? [y/n]: ")"
+        operator_gate release "W_${preset}" \
+            "[W $preset] Press Enter to end the attempt (the bridge sits the robot if it is not already sitting, folds the legs and exits): "
+    fi
+    stop_proc walk_cmd
+    stop_proc policy_node
+    stop_proc lowcmd_bridge
+    stop_all
+    printf '%s\n' "$answer" >"$RUN/operator_answer.txt"
+    echo "[W $preset] NOT a ledger stage: no evaluator ran and this evidence is never counted. Operator answer: $answer"
+    python3 - "$RUN/walk_cmd.jsonl" "$telemetry" <<'WALK_SUMMARY_EOF'
+import json
+import sys
+
+summary = None
+try:
+    with open(sys.argv[1]) as fh:
+        for line in fh:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("record") == "summary":
+                summary = rec
+except FileNotFoundError:
+    pass
+faults = []
+try:
+    with open(sys.argv[2]) as fh:
+        for line in fh:
+            try:
+                tick = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            fault = tick.get("fault")
+            if tick.get("record") == "tick" and fault is not None and fault not in faults:
+                faults.append(fault)
+except FileNotFoundError:
+    pass
+if summary is None:
+    print("[W] walk_cmd: NO summary record (walk_command did not finish cleanly or never ran)")
+else:
+    vx, _vy, wz = summary["max_abs"]
+    print(
+        f"[W] walk_cmd: outcome={summary['outcome']} published={summary['n_published']} "
+        f"max|vx|={vx:.3f} max|wz|={wz:.3f}"
+    )
+print(f"[W] bridge faults: {faults if faults else 'none'}")
+sys.exit(0 if summary is not None and summary["outcome"] == "complete" else 1)
+WALK_SUMMARY_EOF
+}
+
 # ----------------------------------------------------------------------- main
 cmd="${1:-ready}"
 [[ $# -gt 0 ]] && shift
@@ -466,6 +589,7 @@ case "$cmd" in
     D) stage_D "$@" ;;
     E) stage_E "$@" ;;
     F|G|H) stage_stand "$cmd" ;;
-    -h|--help) sed -n '2,33p' "$0" ;;
+    W) stage_walk "$@" ;;
+    -h|--help) sed -n '2,37p' "$0" ;;
     *) halt "unknown command '$cmd' (see --help)" ;;
 esac

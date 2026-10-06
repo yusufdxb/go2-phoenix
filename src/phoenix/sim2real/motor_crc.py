@@ -117,6 +117,38 @@ def crc32_core(words: Iterable[int]) -> int:
     return crc & mask
 
 
+def _build_crc_table() -> tuple[int, ...]:
+    poly = 0x04C11DB7
+    table = []
+    for byte in range(256):
+        crc = byte << 24
+        for _ in range(8):
+            crc = ((crc << 1) ^ poly) & 0xFFFFFFFF if crc & 0x80000000 else (crc << 1) & 0xFFFFFFFF
+        table.append(crc)
+    return tuple(table)
+
+
+_CRC_TABLE = _build_crc_table()
+
+
+def crc32_core_fast(words: Sequence[int]) -> int:
+    """Byte-table form of :func:`crc32_core`, bit-identical for every input.
+
+    Unitree's loop shifts the register, XORs the polynomial if the old top bit was
+    set, then XORs it again if the data bit is set: that is the polynomial applied
+    once when (top bit XOR data bit) is 1, i.e. the standard MSB-first CRC-32
+    (MPEG-2 form: init 0xFFFFFFFF, no reflection, no final XOR) over each word's
+    bits from bit 31 down, which is each word's big-endian bytes. The bitwise
+    version costs 32 Python iterations per word (6,464 per LowCmd) and was the
+    largest single cost in the 500 Hz bridge tick; this one costs 4.
+    """
+    crc = 0xFFFFFFFF
+    table = _CRC_TABLE
+    for byte in struct.pack(f">{len(words)}I", *words):
+        crc = ((crc << 8) & 0xFFFFFFFF) ^ table[(crc >> 24) ^ byte]
+    return crc
+
+
 def compute_crc(raw: LowCmdRaw) -> int:
     """Compute the CRC over all bytes of ``raw`` except the final ``crc``
     uint32. Mirrors ``get_crc``'s ``(sizeof(LowCmd) >> 2) - 1`` length."""
@@ -124,7 +156,7 @@ def compute_crc(raw: LowCmdRaw) -> int:
     assert size == 812, f"LowCmd struct size changed: {size} (expected 812)"
     buf = bytes(raw)[: size - 4]
     words = struct.unpack(f"<{len(buf) // 4}I", buf)
-    return crc32_core(words)
+    return crc32_core_fast(words)
 
 
 def build_raw_from_motor_values(

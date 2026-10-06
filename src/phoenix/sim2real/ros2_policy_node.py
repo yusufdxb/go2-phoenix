@@ -87,6 +87,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import sys
 import time
 from pathlib import Path
@@ -200,6 +201,43 @@ def _require_base_lin_vel_source(cfg: dict) -> str:
             "or in an unidentifiable frame."
         )
     return source
+
+
+DEFAULT_CMD_VEL_TIMEOUT_S = 0.5
+
+
+def parse_cmd_vel_timeout_s(cfg: dict) -> float:
+    """Read optional ``safety.cmd_vel_timeout_s``; must be finite and > 0."""
+    value = float(cfg.get("safety", {}).get("cmd_vel_timeout_s", DEFAULT_CMD_VEL_TIMEOUT_S))
+    if not (math.isfinite(value) and value > 0):
+        raise ValueError(f"safety.cmd_vel_timeout_s must be a finite number > 0, got {value}")
+    return value
+
+
+def _fed_command_of(node) -> np.ndarray:
+    """Command the policy was last fed (zeros when stale); falls back to the stored one."""
+    fed = getattr(node, "_fed_command", None)
+    return node._velocity_command if fed is None else fed
+
+
+def effective_velocity_command(
+    stored: np.ndarray,
+    cmd_ns: int | None,
+    now_ns: int,
+    timeout_s: float,
+    stand_only: bool,
+) -> tuple[np.ndarray, bool]:
+    """Velocity command to feed the policy, and whether it is stale.
+
+    Stand-only: always zeros, never stale (unchanged behaviour). Walking: zeros
+    (stale=True) if /cmd_vel was never received or its last message is older than
+    ``timeout_s``; otherwise the stored, already-clipped command.
+    """
+    if stand_only:
+        return np.zeros(3, dtype=np.float32), False
+    if cmd_ns is None or (now_ns - cmd_ns) / 1e9 > timeout_s:
+        return np.zeros(3, dtype=np.float32), True
+    return np.asarray(stored, dtype=np.float32), False
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -498,6 +536,10 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             raise ValueError(
                 f"safety.max_command must be 3 non-negative numbers, got {self.max_command}"
             )
+        # Walking configs feed a zero command when /cmd_vel was never received or
+        # is older than this (stand-only is unaffected). Optional; no config edit
+        # is needed for the default.
+        self.cmd_vel_timeout_s = parse_cmd_vel_timeout_s(cfg)
         self.max_runtime = float(cfg["safety"]["max_runtime_s"])
         # Fail-closed timeouts. estop must be heartbeated well inside
         # estop_timeout_s (code default 0.5s; deploy.yaml sets 0.8s; the
@@ -719,6 +761,8 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         self._velocity_command = np.zeros(3, dtype=np.float32)
         self._cmd_vel_received = np.full(3, np.nan, dtype=np.float64)
         self._cmd_vel_ns: int | None = None
+        self._fed_command = np.zeros(3, dtype=np.float32)
+        self._cmd_vel_stale = False
         self._seq = 0
         self._authority_started_ns: int | None = None
         self._abort_notice_sent = False
@@ -975,9 +1019,22 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         if base_lin_vel_sample is None:
             return
         base_lin_vel = base_lin_vel_sample.value
-        velocity_command_fed = (
-            np.zeros(3, dtype=np.float32) if self.stand_only else self._velocity_command
+        velocity_command_fed, cmd_vel_stale = effective_velocity_command(
+            self._velocity_command,
+            self._cmd_vel_ns,
+            now_ns,
+            self.cmd_vel_timeout_s,
+            self.stand_only,
         )
+        if cmd_vel_stale != self._cmd_vel_stale:
+            logger.warning(
+                "cmd_vel_stale -> %s (timeout %.2fs): feeding %s command",
+                cmd_vel_stale,
+                self.cmd_vel_timeout_s,
+                "ZERO" if cmd_vel_stale else "received",
+            )
+        self._cmd_vel_stale = cmd_vel_stale
+        self._fed_command = velocity_command_fed
 
         if self.mode_switch_enabled:
             target, action = self._compute_mode_switch_target(
@@ -1175,7 +1232,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
             base_ang_vel_body=ang_vel.astype(np.float32),
             joint_pos=q.astype(np.float32),
             joint_vel=qd.astype(np.float32),
-            command_vel=self._velocity_command.astype(np.float32),
+            command_vel=_fed_command_of(self).astype(np.float32),
             action=action.astype(np.float32),
             contact_forces=contact_forces.astype(np.float32),
             failure_flag=failure_flag,
@@ -1276,13 +1333,13 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 # synthetic zero that would look identical to a real one
                 # (actual := commanded, so cmd_speed >> actual_speed cannot
                 # fire).
-                actual_lin_vel = self._velocity_command[:2].astype(np.float64)
+                actual_lin_vel = _fed_command_of(self)[:2].astype(np.float64)
             event = self._failure_detector.step(
                 timestamp_s=time.monotonic() - self._started_at,
                 pitch_rad=pitch,
                 roll_rad=roll,
                 base_height_m=None,
-                cmd_lin_vel=self._velocity_command[:2].astype(np.float64),
+                cmd_lin_vel=_fed_command_of(self)[:2].astype(np.float64),
                 actual_lin_vel=actual_lin_vel,
             )
         except Exception as exc:  # noqa: BLE001 - logging path must never raise
@@ -1321,7 +1378,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 base_lin_vel=base_lin_vel,
                 quat_xyzw=quat_xyzw,
                 base_ang_vel=base_ang_vel,
-                velocity_command=self._velocity_command,
+                velocity_command=_fed_command_of(self),
                 joint_pos=q,
                 joint_vel=qd,
                 last_action=last_action,
@@ -1339,7 +1396,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
 
         prev_state = self.mode_state
         new_state, new_ticks, alpha = mode_step(
-            prev_state, self.mode_ticks, self._velocity_command, self.mode_cfg
+            prev_state, self.mode_ticks, _fed_command_of(self), self.mode_cfg
         )
 
         if prev_state is State.STAND:
