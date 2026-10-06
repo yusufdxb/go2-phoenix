@@ -3,8 +3,11 @@
 
   actuator_check.py sim-reference --factor calf=0.8 --seconds 10 --out ref_calf_0.80.json
   actuator_check.py estimate --reference ref_nominal.json --boundary-calf ref_calf_0.80.json \
-      --boundary-all ref_all_0.75.json --sweep ref_calf_*.json --bridge F.jsonl G.jsonl --out e2.json
+      --boundary-all ref_all_0.75.json --sweep ref_calf_*.json --session logs/hw_sessions/<date>_<sha> --out e2.json
   (same with --sim-as-hw ref_X.json in place of --bridge)
+
+The check refuses (exit 2, verdict REFUSED, never GO) on mismatched artifact hashes,
+wrong boundary plants, gain mismatch, rehearsal telemetry or a low-quality window.
 
 Primary verdict: hardware calf err vs simulated boundary plants (calf x0.80, all x0.75).
 The ratio g estimates are uncalibrated and reported only.
@@ -26,6 +29,7 @@ sys.path.insert(0, str(_REPO / "scripts"))
 from phoenix.sim2real import actuator_check as ac  # noqa: E402
 
 DEFAULT_DEPLOY = _REPO / "configs/sim2real/deploy_walk_iter2750_stand.yaml"
+DEFAULT_LOCK = _REPO / "configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml"
 GATE_CFG = _REPO / "configs/sim2sim/gate_v3.yaml"
 
 
@@ -34,11 +38,24 @@ def cmd_sim_reference(args: argparse.Namespace) -> int:
     import yaml
     from sim2sim_robustness import pattern_factors
 
+    from phoenix.sim2real import deploy_contract as dc
     from phoenix.sim2sim.deploy_spec import load_deploy_spec
     from phoenix.sim2sim.gate import GateScenario, load_gate_config
     from phoenix.sim2sim.gate_runner import JOINT_ORDER, OnnxPolicy, RunOptions, run_gate_scenario
 
-    deploy = yaml.safe_load(Path(args.deploy_config).read_text())["policy"]
+    deploy_cfg = yaml.safe_load(Path(args.deploy_config).read_text())
+    lock = dc.load_lock(args.lock)
+    problems, observed = dc.verify_lock(
+        lock, deploy_cfg, args.deploy_config, required_roles=ac.ARTIFACT_ROLES
+    )
+    if problems:
+        print("REFUSED: artifacts do not match the lock, not writing a reference:")
+        for prob in problems:
+            print(f"  - {prob}")
+        return 2
+    identity = {role: observed["artifacts"][role]["sha256"] for role in ac.ARTIFACT_ROLES}
+    identity["config_semantic_sha256"] = observed["deploy_config"]["semantic_sha256"]
+    deploy = deploy_cfg["policy"]
     cfg = load_gate_config(GATE_CFG)
     spec = load_deploy_spec(deploy["manifest_path"], required_envelope=cfg.required_envelope)
     fk = np.asarray(
@@ -74,6 +91,8 @@ def cmd_sim_reference(args: argparse.Namespace) -> int:
         g_true={n: g_true[n] for n in ac.POLICY_JOINT_ORDER},
         deploy_config=str(args.deploy_config),
         onnx=deploy["onnx_path"],
+        identity=identity,
+        lock={"path": str(Path(args.lock).name), "name": lock.get("name")},
     )
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(ref, indent=2))
@@ -90,29 +109,70 @@ def _load(path: str) -> dict:
 
 
 def cmd_estimate(args: argparse.Namespace) -> int:
-    ref = _load(args.reference)
-    hw = _load(args.sim_as_hw) if args.sim_as_hw else ac.summarize_hw(ac.load_ticks(args.bridge))
-    decision = ac.decide(hw, _load(args.boundary_calf), _load(args.boundary_all), ref)
-    calibrated: dict = {"sweep": None}
-    if args.sweep:
-        pts = ac.sweep_points([_load(p) for p in args.sweep])
-        g, status = ac.invert_sweep(pts, decision["calf_err_hw"])
-        calibrated = {"sweep": pts, "g_calf_est": g, "status": status}
-    ratio = ac.estimate_effectiveness(ref, hw, min_ref_err=args.min_ref_err)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        ref = _load(args.reference)
+        if args.sim_as_hw:
+            hw = _load(args.sim_as_hw)
+        elif args.session:
+            files, ledger = ac.ledger_telemetry(args.session, ac.ref_identity(ref, "nominal"))
+            hw = ac.summarize_telemetry(
+                ac.load_telemetry(files), ac.ref_identity(ref, "nominal"), allow_rehearsal=False
+            )
+            hw["ledger"] = ledger
+        else:
+            if not args.allow_rehearsal:
+                raise ac.Refusal(
+                    "--bridge files are not bound to a hardware ledger record; use --session "
+                    "(--bridge is for --allow-rehearsal desk checks only)"
+                )
+            hw = ac.summarize_telemetry(
+                ac.load_telemetry(args.bridge),
+                ac.ref_identity(ref, "nominal"),
+                allow_rehearsal=True,
+            )
+        b_calf, b_all = _load(args.boundary_calf), _load(args.boundary_all)
+        decision = ac.decide(hw, b_calf, b_all, ref)
+        sweep_refs = [_load(p) for p in (args.sweep or [])]
+        for p, r in zip(args.sweep or [], sweep_refs, strict=True):
+            ac.check_ref_consistent(p, r, ref)
+        calibrated: dict = {"sweep": None}
+        if sweep_refs:
+            pts = ac.sweep_points(sweep_refs)
+            g, status = ac.invert_sweep(pts, decision["calf_err_hw"])
+            calibrated = {"sweep": pts, "g_calf_est": g, "status": status}
+        ratio = ac.estimate_effectiveness(ref, hw, min_ref_err=args.min_ref_err)
+    except ac.Refusal as exc:
+        out_path.write_text(json.dumps({"verdict": "REFUSED", "reason": str(exc)}, indent=2))
+        print(f"REFUSED: {exc}")
+        print("verdict: REFUSED (no GO/STOP issued)")
+        return 2
     out = {
         "verdict": decision["verdict"],
         "decision": decision,
         "calibrated": calibrated,
         "ratio_uncalibrated": ratio,
         "g_true": hw.get("g_true"),
+        "hardware": {k: hw[k] for k in ("telemetry", "window_gates", "live") if k in hw},
     }
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps(out, indent=2))
+    out_path.write_text(json.dumps(out, indent=2))
     d = decision
+    for info in hw.get("telemetry", []):
+        print(
+            f"telemetry {info['path']}: stage {info['stage']} live {info['live']} "
+            f"commit {str(info['commit'])[:10]} dirty {info['dirty']}"
+        )
+    for g in hw.get("window_gates", []):
+        print(
+            f"window {g['label']}: {g['window_s']:.2f} s ({g['n_window']} ticks) dq_rms_max "
+            f"{g['dq_rms_max_rad_s']:.4f} tilt_max {g['tilt_max_deg']:.2f} gaps<={g['max_tick_gap_s']:.3f}"
+        )
     print(
-        f"calf_err_hw {d['calf_err_hw']:.4f} | calf boundary (calf=0.80) {d['calf_boundary_err']:.4f}"
-        f" -> {'GO' if d['calf_test_go'] else 'STOP'} | global boundary (all=0.75) "
-        f"{d['global_boundary_err']:.4f} -> {'GO' if d['global_test_go'] else 'STOP'}"
+        f"calf_err_hw {d['calf_err_hw']:.4f} | calf boundary ({d['calf_boundary_label']}) "
+        f"{d['calf_boundary_err']:.4f} -> {'GO' if d['calf_test_go'] else 'STOP'} | global boundary "
+        f"({d['global_boundary_label']}) {d['global_boundary_err']:.4f} -> "
+        f"{'GO' if d['global_test_go'] else 'STOP'}"
     )
     t = d["thigh_informational"]
     print(
@@ -147,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     s.add_argument("--seconds", type=float, default=10.0)
     s.add_argument("--deploy-config", default=str(DEFAULT_DEPLOY))
+    s.add_argument("--lock", default=str(DEFAULT_LOCK), help="deploy lock the artifacts must match")
     s.add_argument("--out", required=True)
     s.set_defaults(fn=cmd_sim_reference)
     e = sub.add_parser("estimate")
@@ -155,8 +216,14 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--boundary-all", required=True, help="reference with all=0.75")
     e.add_argument("--sweep", nargs="+", help="calf-only references for the calibrated estimate")
     grp = e.add_mutually_exclusive_group(required=True)
-    grp.add_argument("--bridge", nargs="+")
+    grp.add_argument(
+        "--session", help="hardware session dir; telemetry comes from its stage G and H records"
+    )
+    grp.add_argument("--bridge", nargs="+", help="desk/tests only, requires --allow-rehearsal")
     grp.add_argument("--sim-as-hw")
+    e.add_argument(
+        "--allow-rehearsal", action="store_true", help="accept non-live telemetry (tests only)"
+    )
     e.add_argument("--min-ref-err", type=float, default=ac.MIN_REF_ERR_RAD)
     e.add_argument("--out", required=True)
     e.set_defaults(fn=cmd_estimate)

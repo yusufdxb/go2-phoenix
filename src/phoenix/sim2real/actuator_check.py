@@ -15,6 +15,12 @@ commanded different gains. Torque estimates derived from motor current are
 deliberately not used: they apply the nominal torque constant, so they cannot see
 the gain loss being measured.
 
+Fail-closed contract. The check refuses (raises :class:`Refusal`, never returns GO)
+unless every input is provably comparable: the references and the telemetry carry the
+same policy-artifact and deploy-config hashes; the boundary references are exactly the
+calf=0.80 and all=0.75 plants; the hardware gains equal the reference gains; and each
+telemetry file holds one still, healthy, live policy window of at least 2 s.
+
 This module is pure analysis: numpy only, no ROS and no MuJoCo import. The
 simulator reference is produced by ``scripts/actuator_check.py sim-reference``.
 """
@@ -32,8 +38,21 @@ import numpy as np
 from .go2_model import POLICY_JOINT_ORDER, UNITREE_MOTOR_ORDER
 
 SCHEMA = "phoenix-actuator-ref/v1"
-#: Hardware window: skip this long after the first policy tick (handover kp blend is 1 s).
-HW_SKIP_S = 1.5
+#: Hardware window starts this long after the END of the kp handover blend.
+SETTLE_AFTER_BLEND_S = 1.0
+#: Minimum settled-window length per telemetry file.
+MIN_WINDOW_S = 2.0
+#: Largest gap between consecutive window ticks (a telemetry dropout otherwise passes).
+MAX_TICK_GAP_S = 0.1
+TILT_MAX_DEG = 10.0
+#: Per-joint dq RMS over the window must stay below this (robot standing still).
+DQ_RMS_MAX_RAD_S = 0.05
+#: Hardware gains must equal the reference gains within this.
+GAIN_TOL = 1e-3
+#: Commanded-velocity tick fields, looked up in ``tick`` and in ``tick["policy"]``.
+VELOCITY_FIELDS = ("velocity_command_fed", "cmd_vel_received", "velocity_command", "cmd_vel")
+VELOCITY_ZERO_TOL = 1e-6
+G_TOL = 1e-9
 #: Simulator window: skip this long after the start of the run.
 SIM_SKIP_S = 2.0
 #: Hips carry little load; below this |err_sim| the ratio has no SNR.
@@ -44,6 +63,13 @@ VERDICT_GO = "GO model_2750"
 VERDICT_STOP = "STOP: re-plan"
 #: Joint groups the decision rule is defined over.
 RULE_GROUPS = ("thigh", "calf")
+#: Lock roles hashed into every reference and compared against bridge telemetry.
+ARTIFACT_ROLES = ("policy.onnx", "policy.onnx.data", "policy.manifest")
+IDENTITY_KEYS = (*ARTIFACT_ROLES, "config_semantic_sha256")
+
+
+class Refusal(ValueError):  # noqa: N818
+    """An input is missing, mismatched or of too low quality to compare: no verdict."""
 
 
 def joint_group(name: str) -> str:
@@ -65,48 +91,323 @@ def _per_joint(value: Any) -> dict[str, float]:
     return {name: float(value) for name in UNITREE_MOTOR_ORDER}
 
 
-def load_ticks(paths: Iterable[str | Path]) -> list[list[dict[str, Any]]]:
-    """Bridge telemetry JSONL files -> one list of ``record == "tick"`` dicts per file."""
-    out: list[list[dict[str, Any]]] = []
+def _gain_vec(value: Any) -> np.ndarray:
+    """A scalar or 12-list gain -> a 12-vector (Unitree order for a list)."""
+    arr = np.asarray(value, dtype=float)
+    if arr.ndim == 0:
+        return np.full(len(UNITREE_MOTOR_ORDER), float(arr))
+    if arr.shape != (len(UNITREE_MOTOR_ORDER),):
+        raise ValueError(f"gain has shape {arr.shape}, expected a scalar or 12 values")
+    return arr
+
+
+def load_telemetry(paths: Iterable[str | Path]) -> list[dict[str, Any]]:
+    """Bridge telemetry JSONL files -> ``{"path", "manifest", "n_manifests", "ticks"}`` each.
+
+    ``manifest`` is the file's FIRST record when it is a ``manifest`` record, else
+    ``None`` (a file without one is refused by :func:`check_telemetry_manifest`).
+    """
+    out: list[dict[str, Any]] = []
     for p in paths:
         ticks: list[dict[str, Any]] = []
+        manifest: dict[str, Any] | None = None
+        n_manifests = 0
+        first = True
         with Path(p).open() as fh:
-            for line in fh:
+            for lineno, line in enumerate(fh, 1):
                 line = line.strip()
                 if not line:
                     continue
-                rec = json.loads(line)
-                if rec.get("record") == "tick":
+                try:
+                    rec = json.loads(line)
+                except ValueError as exc:
+                    raise Refusal(f"{p}:{lineno}: unparsable telemetry line ({exc})") from exc
+                kind = rec.get("record")
+                if kind == "manifest":
+                    n_manifests += 1
+                    if first:
+                        manifest = rec
+                elif kind == "tick":
                     ticks.append(rec)
-        out.append(ticks)
+                first = False
+        out.append(
+            {"path": str(p), "manifest": manifest, "n_manifests": n_manifests, "ticks": ticks}
+        )
     return out
+
+
+def load_ticks(paths: Iterable[str | Path]) -> list[list[dict[str, Any]]]:
+    """Bridge telemetry JSONL files -> one list of ``record == "tick"`` dicts per file."""
+    return [f["ticks"] for f in load_telemetry(paths)]
+
+
+# ---------------------------------------------------------------------------
+# Artifact identity
+# ---------------------------------------------------------------------------
+
+
+def _is_sha256(v: Any) -> bool:
+    return isinstance(v, str) and len(v) == 64 and all(c in "0123456789abcdef" for c in v)
+
+
+def ref_identity(ref: Mapping[str, Any], label: str = "reference") -> dict[str, str]:
+    """The identity block a reference must carry (see ``IDENTITY_KEYS``)."""
+    ident = ref.get("identity")
+    if not isinstance(ident, Mapping) or any(not _is_sha256(ident.get(k)) for k in IDENTITY_KEYS):
+        raise Refusal(
+            f"{label} has no complete artifact identity ({', '.join(IDENTITY_KEYS)}): "
+            "regenerate it with sim-reference"
+        )
+    return {k: str(ident[k]) for k in IDENTITY_KEYS}
+
+
+def manifest_identity(manifest: Mapping[str, Any], label: str = "telemetry") -> dict[str, str]:
+    """Artifact and semantic-config hashes the bridge recorded in its manifest record."""
+    try:
+        arts = manifest["artifacts"]
+        out = {role: arts[role]["sha256"] for role in ARTIFACT_ROLES}
+        out["config_semantic_sha256"] = manifest["deploy_config"]["semantic_sha256"]
+    except (KeyError, TypeError) as exc:
+        raise Refusal(f"{label}: manifest lacks artifact/config hashes ({exc!r})") from exc
+    if any(not _is_sha256(v) for v in out.values()):
+        raise Refusal(f"{label}: manifest hashes are not sha256 hex digests")
+    return {k: str(v) for k, v in out.items()}
+
+
+def require_same_identity(
+    label_a: str, a: Mapping[str, str], label_b: str, b: Mapping[str, str]
+) -> None:
+    for k in IDENTITY_KEYS:
+        if a[k] != b[k]:
+            raise Refusal(
+                f"identity mismatch on {k}: {label_a} {a[k][:12]} != {label_b} {b[k][:12]}"
+            )
+
+
+def check_telemetry_manifest(
+    file: Mapping[str, Any], ref_ident: Mapping[str, str], *, allow_rehearsal: bool = False
+) -> dict[str, Any]:
+    """Refuse unless the file's manifest names the reference's artifacts and is live."""
+    label = str(file.get("path", "telemetry"))
+    manifest = file.get("manifest")
+    if manifest is None:
+        raise Refusal(f"{label}: first record is not a manifest record")
+    if int(file.get("n_manifests", 1)) != 1:
+        raise Refusal(f"{label}: {file['n_manifests']} manifest records (concatenated sessions?)")
+    require_same_identity(label, manifest_identity(manifest, label), "reference", ref_ident)
+    live = manifest.get("live") is True
+    if not live and not allow_rehearsal:
+        raise Refusal(
+            f"{label}: telemetry is not live (dry run, motors not commanded); "
+            "--allow-rehearsal is tests-only"
+        )
+    code = manifest.get("code_identity") or {}
+    return {
+        "path": label,
+        "stage": manifest.get("stage"),
+        "live": live,
+        "commit": code.get("sha"),
+        "dirty": code.get("dirty"),
+        "lock": (manifest.get("lock") or {}).get("name"),
+    }
+
+
+LEDGER_STAGES: tuple[str, ...] = ("G", "H")
+
+
+def ledger_telemetry(
+    session_dir: str | Path, ref_ident: Mapping[str, str], stages: Sequence[str] = LEDGER_STAGES
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Telemetry files that a counted hardware ledger record vouches for.
+
+    The bridge manifest's ``live`` only says the motors were commanded; a localhost
+    rehearsal is also ``live``. What separates hardware from rehearsal is the harness
+    stage record: ``verdict`` GO, ``rehearsal`` exactly False, ``motors`` "live", the
+    stand lock's config hash, and every evidence file still hashing to the record.
+    Only files named by such records are returned.
+    """
+    from .deploy_contract import _evidence_file_rejections
+
+    session = Path(session_dir)
+    files: list[str] = []
+    records: list[dict[str, Any]] = []
+    for stage in stages:
+        path = session / f"stage_{stage}.json"
+        if not path.is_file():
+            raise Refusal(f"{path}: no stage {stage} ledger record in the session")
+        rec = json.loads(path.read_text())
+        problems = []
+        if rec.get("stage") != stage:
+            problems.append(f"stage is {rec.get('stage')!r}")
+        if rec.get("verdict") != "GO":
+            problems.append(f"verdict is {rec.get('verdict')!r}, not GO")
+        if rec.get("rehearsal") is not False:
+            problems.append(f"rehearsal is {rec.get('rehearsal')!r}, not False")
+        if rec.get("motors") != "live":
+            problems.append(f"motors is {rec.get('motors')!r}, not live")
+        if rec.get("lock_semantic_sha256") != ref_ident.get("config_semantic_sha256"):
+            problems.append("record is for a different deploy config than the references")
+        problems += _evidence_file_rejections(rec, session)
+        if problems:
+            raise Refusal(f"{path}: " + "; ".join(problems))
+        named = [str(session / e["path"]) for e in rec["evidence_files"]]
+        named = [f for f in named if f.endswith("bridge.jsonl")]
+        if not named:
+            raise Refusal(f"{path}: names no bridge telemetry")
+        files += named
+        records.append({"stage": stage, "record": str(path), "files": named})
+    return files, records
+
+
+# ---------------------------------------------------------------------------
+# Hardware window
+# ---------------------------------------------------------------------------
+
+
+def _velocity_values(tick: Mapping[str, Any]) -> list[tuple[str, Any]]:
+    found = []
+    for src in (tick, tick.get("policy") or {}):
+        if isinstance(src, Mapping):
+            for name in VELOCITY_FIELDS:
+                if src.get(name) is not None:
+                    found.append((name, src[name]))
+    return found
+
+
+def settle_window(
+    ticks: Sequence[Mapping[str, Any]],
+    *,
+    label: str = "telemetry",
+    settle_s: float = SETTLE_AFTER_BLEND_S,
+    min_window_s: float = MIN_WINDOW_S,
+) -> tuple[list[Mapping[str, Any]], dict[str, Any]]:
+    """The settled policy window of one file and its quality report, or :class:`Refusal`.
+
+    Gates: exactly one contiguous policy episode; window starts ``settle_s`` after the
+    first policy tick whose gains equal the final gains (and ``handover_alpha`` is 1 when
+    present); window >= ``min_window_s`` with no tick gap above ``MAX_TICK_GAP_S``; gains
+    constant over it; every tick lowstate-fresh, fault-free, |tilt| < ``TILT_MAX_DEG``, with
+    zero commanded velocity where that field exists; per-joint dq RMS < ``DQ_RMS_MAX_RAD_S``.
+    """
+    idx = [i for i, t in enumerate(ticks) if t.get("mode") == "policy"]
+    if not idx:
+        raise Refusal(f"{label}: no policy-mode ticks")
+    if idx[-1] - idx[0] + 1 != len(idx):
+        episodes = 1 + sum(1 for a, b in zip(idx, idx[1:], strict=False) if b != a + 1)
+        raise Refusal(f"{label}: {episodes} separate policy episodes, exactly one required")
+    pol = [ticks[i] for i in idx]
+    try:
+        ts = [int(t["t_mono_ns"]) for t in pol]
+        kp = [_gain_vec(t["kp_eff"]) for t in pol]
+        kd = [_gain_vec(t["kd_eff"]) for t in pol]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise Refusal(
+            f"{label}: policy tick lacks a usable t_mono_ns/kp_eff/kd_eff ({exc!r})"
+        ) from exc
+    if any(b <= a for a, b in zip(ts, ts[1:], strict=False)):
+        raise Refusal(f"{label}: policy tick times are not strictly increasing")
+
+    def at_final(i: int) -> bool:
+        alpha = pol[i].get("handover_alpha")
+        return (
+            bool(np.allclose(kp[i], kp[-1], rtol=0.0, atol=1e-6))
+            and bool(np.allclose(kd[i], kd[-1], rtol=0.0, atol=1e-6))
+            and (alpha is None or float(alpha) >= 1.0)
+        )
+
+    first = next((i for i in range(len(pol)) if at_final(i)), None)
+    if first is None:
+        raise Refusal(f"{label}: gains never reach their final value (handover incomplete)")
+    t0 = ts[first] + int(round(settle_s * 1e9))
+    win = [i for i in range(first, len(pol)) if ts[i] >= t0]
+    if not win:
+        raise Refusal(f"{label}: no policy ticks {settle_s} s after the end of the kp blend")
+    span_s = (ts[win[-1]] - ts[win[0]]) / 1e9
+    if span_s < min_window_s:
+        raise Refusal(
+            f"{label}: settled window is {span_s:.2f} s over {len(win)} tick(s), need >= "
+            f"{min_window_s} s ({settle_s} s after the kp blend)"
+        )
+    max_gap_s = max((b - a) / 1e9 for a, b in zip(ts[win[0] :], ts[win[0] + 1 :], strict=False))
+    if not max_gap_s <= MAX_TICK_GAP_S:
+        raise Refusal(f"{label}: tick gap {max_gap_s:.3f} s > {MAX_TICK_GAP_S} s in the window")
+
+    tilt_max = 0.0
+    n_vel = 0
+    for i in win:
+        t, tk = pol[i], ts[i]
+        where = f"{label}: tick t_mono_ns={tk}"
+        if t.get("lowstate_fresh") is not True:
+            raise Refusal(f"{where} has stale lowstate")
+        if t.get("fault") is not None or t.get("faults"):
+            raise Refusal(f"{where} carries a fault ({t.get('fault') or t.get('faults')})")
+        if not np.allclose(kp[i], kp[-1], rtol=0.0, atol=1e-6) or not np.allclose(
+            kd[i], kd[-1], rtol=0.0, atol=1e-6
+        ):
+            raise Refusal(f"{where}: gains change inside the settled window")
+        if "tilt_deg" in t:
+            tilt = t["tilt_deg"]
+            if not isinstance(tilt, (int, float)) or not abs(tilt) < TILT_MAX_DEG:
+                raise Refusal(f"{where}: tilt_deg {tilt!r} not within +-{TILT_MAX_DEG} deg")
+            tilt_max = max(tilt_max, abs(float(tilt)))
+        for name, vec in _velocity_values(t):
+            n_vel += 1
+            try:
+                ok = all(abs(float(x)) <= VELOCITY_ZERO_TOL for x in np.ravel(vec))
+            except (TypeError, ValueError):
+                ok = False
+            if not ok:
+                raise Refusal(f"{where}: commanded velocity {name}={vec!r} is not zero")
+    try:
+        dq = np.asarray([pol[i]["dq_unitree"] for i in win], dtype=float)
+        qq = np.asarray([pol[i]["q_unitree"] for i in win], dtype=float)
+        tg = np.asarray([pol[i]["final_target_unitree"] for i in win], dtype=float)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise Refusal(f"{label}: window tick lacks q/dq/target ({exc!r})") from exc
+    if dq.shape[1:] != (12,) or qq.shape[1:] != (12,) or tg.shape[1:] != (12,):
+        raise Refusal(f"{label}: q/dq/target are not 12-vectors")
+    if not (np.isfinite(dq).all() and np.isfinite(qq).all() and np.isfinite(tg).all()):
+        raise Refusal(f"{label}: non-finite q/dq/target in the window")
+    rms = np.sqrt(np.mean(np.square(dq), axis=0))
+    worst = int(np.argmax(rms))
+    if not float(rms[worst]) < DQ_RMS_MAX_RAD_S:
+        raise Refusal(
+            f"{label}: robot is moving, dq RMS {float(rms[worst]):.3f} rad/s on "
+            f"{UNITREE_MOTOR_ORDER[worst]} >= {DQ_RMS_MAX_RAD_S}"
+        )
+    report = {
+        "label": label,
+        "passed": True,
+        "n_policy_ticks": len(pol),
+        "n_window": len(win),
+        "window_s": span_s,
+        "blend_end_to_window_s": settle_s,
+        "max_tick_gap_s": max_gap_s,
+        "tilt_max_deg": tilt_max,
+        "dq_rms_max_rad_s": float(rms[worst]),
+        "velocity_fields_checked": n_vel,
+        "episodes": 1,
+    }
+    return [pol[i] for i in win], report
 
 
 def select_settled_window(
-    ticks: Sequence[Mapping[str, Any]], skip_s: float = HW_SKIP_S
+    ticks: Sequence[Mapping[str, Any]], settle_s: float = SETTLE_AFTER_BLEND_S
 ) -> list[Mapping[str, Any]]:
-    """Policy-mode ticks from ``skip_s`` after the first policy tick to the last one,
-    keeping only those whose ``kp_eff`` equals its value on the last policy tick."""
-    pol = [t for t in ticks if t.get("mode") == "policy"]
-    if not pol:
-        return []
-    t0 = int(pol[0]["t_mono_ns"]) + int(round(skip_s * 1e9))
-    final_kp = _per_joint(pol[-1]["kp_eff"])
-    out = []
-    for t in pol:
-        if int(t["t_mono_ns"]) < t0:
-            continue
-        kp = _per_joint(t["kp_eff"])
-        if all(math.isclose(kp[n], final_kp[n], rel_tol=0.0, abs_tol=1e-9) for n in kp):
-            out.append(t)
-    return out
+    """Settled policy window of one file (:func:`settle_window` without the report)."""
+    return settle_window(ticks, settle_s=settle_s)[0]
 
 
 def summarize_hw(
-    tick_sets: Sequence[Sequence[Mapping[str, Any]]], skip_s: float = HW_SKIP_S
+    tick_sets: Sequence[Sequence[Mapping[str, Any]]],
+    settle_s: float = SETTLE_AFTER_BLEND_S,
+    labels: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Pool the settled windows of several bridge files into one per-joint summary
-    (same shape as a simulator reference, minus ``g_true``)."""
+    (same shape as a simulator reference, minus ``g_true``). Every file must pass
+    :func:`settle_window`; ``window_gates`` records each file's report."""
+    if not tick_sets:
+        raise Refusal("no telemetry files supplied")
     err: dict[str, list[float]] = {n: [] for n in POLICY_JOINT_ORDER}
     q: dict[str, list[float]] = {n: [] for n in POLICY_JOINT_ORDER}
     tgt: dict[str, list[float]] = {n: [] for n in POLICY_JOINT_ORDER}
@@ -114,8 +415,13 @@ def summarize_hw(
     kp: dict[str, list[float]] = {n: [] for n in POLICY_JOINT_ORDER}
     kd: dict[str, list[float]] = {n: [] for n in POLICY_JOINT_ORDER}
     n_ticks = 0
-    for ticks in tick_sets:
-        for t in select_settled_window(ticks, skip_s):
+    gates = []
+    for k, ticks in enumerate(tick_sets):
+        window, report = settle_window(
+            ticks, label=labels[k] if labels else f"file[{k}]", settle_s=settle_s
+        )
+        gates.append(report)
+        for t in window:
             n_ticks += 1
             qm = unitree_to_policy(t["q_unitree"])
             tm = unitree_to_policy(t["final_target_unitree"])
@@ -129,21 +435,39 @@ def summarize_hw(
                 dq[n].append(dm[n])
                 kp[n].append(kpm[n])
                 kd[n].append(kdm[n])
-    if n_ticks == 0:
-        raise ValueError("no settled policy-mode ticks in the supplied telemetry")
-    med = {
-        "err": err,
-        "q": q,
-        "target": tgt,
-        "kp": kp,
-        "kd": kd,
+    med = {"err": err, "q": q, "target": tgt, "kp": kp, "kd": kd}
+    out: dict[str, Any] = {
+        "schema": SCHEMA,
+        "source": "hardware",
+        "n": n_ticks,
+        "skip_s": settle_s,
+        "window_gates": gates,
     }
-    out: dict[str, Any] = {"schema": SCHEMA, "source": "hardware", "n": n_ticks, "skip_s": skip_s}
     for key, d in med.items():
         out[key] = {n: float(np.median(v)) for n, v in d.items()}
     out["dq_rms"] = {n: float(np.sqrt(np.mean(np.square(v)))) for n, v in dq.items()}
     out["joint_order"] = list(POLICY_JOINT_ORDER)
     return out
+
+
+def summarize_telemetry(
+    files: Sequence[Mapping[str, Any]],
+    ref_ident: Mapping[str, str],
+    *,
+    allow_rehearsal: bool = False,
+) -> dict[str, Any]:
+    """Manifest identity and liveness checks, then :func:`summarize_hw` per-file gates."""
+    if not files:
+        raise Refusal("no telemetry files supplied")
+    infos = [check_telemetry_manifest(f, ref_ident, allow_rehearsal=allow_rehearsal) for f in files]
+    hw = summarize_hw(
+        [f["ticks"] for f in files], labels=[str(f.get("path", "telemetry")) for f in files]
+    )
+    hw["identity"] = dict(ref_ident)
+    hw["telemetry"] = infos
+    hw["live"] = all(i["live"] for i in infos)
+    hw["allow_rehearsal"] = bool(allow_rehearsal)
+    return hw
 
 
 def summarize_trace(
@@ -296,28 +620,142 @@ def group_mean_err(summary: Mapping[str, Any], group: str) -> float:
     return float(np.mean(vals))
 
 
+def _g_true(ref: Mapping[str, Any], label: str) -> dict[str, float]:
+    gt = ref.get("g_true")
+    try:
+        out = {n: float(gt[n]) for n in POLICY_JOINT_ORDER}  # type: ignore[index]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise Refusal(f"{label} has no complete g_true (per-joint plant factors)") from exc
+    return out
+
+
+def describe_factors(ref: Mapping[str, Any]) -> str:
+    """Plant label from the reference's recorded ``g_true``: ``all=0.75``, ``calf=0.80``."""
+    gt = _g_true(ref, "reference")
+    vals = set(gt.values())
+    if len(vals) == 1:
+        return f"all={vals.pop():.2f}"
+    parts = []
+    for g in ("hip", "thigh", "calf"):
+        gv = {v for n, v in gt.items() if joint_group(n) == g}
+        parts.append(f"{g}={gv.pop():.2f}" if len(gv) == 1 else f"{g}=mixed")
+    return ",".join(p for p in parts if not p.endswith("=1.00"))
+
+
+def _require_factors(label: str, ref: Mapping[str, Any], want: Mapping[str, float]) -> None:
+    """``want`` maps group -> factor; the reference's g_true must equal it per joint."""
+    gt = _g_true(ref, label)
+    for n in POLICY_JOINT_ORDER:
+        w = want[joint_group(n)]
+        if not abs(gt[n] - w) <= G_TOL:
+            raise Refusal(
+                f"{label} is not the required plant ({want}): {n} g_true {gt[n]:g} != {w:g}"
+                f" (recorded plant: {describe_factors(ref)})"
+            )
+
+
+def _require_gains_equal(
+    label_a: str, a: Mapping[str, Any], label_b: str, b: Mapping[str, Any]
+) -> None:
+    for key in ("kp", "kd"):
+        for n in POLICY_JOINT_ORDER:
+            va, vb = float(a[key][n]), float(b[key][n])
+            if not abs(va - vb) <= GAIN_TOL:
+                raise Refusal(f"{key} mismatch on {n}: {label_a} {va:g} != {label_b} {vb:g}")
+
+
+def check_ref_consistent(label: str, ref: Mapping[str, Any], nominal: Mapping[str, Any]) -> None:
+    """A simulator reference must share the nominal's schema, artifacts and gains, not have fallen."""
+    if ref.get("schema") != SCHEMA or ref.get("source") != "sim":
+        raise Refusal(f"{label}: not a {SCHEMA} simulator reference")
+    if ref.get("fell") is not False:
+        raise Refusal(f"{label}: the simulated robot fell (or fell is not recorded)")
+    require_same_identity(label, ref_identity(ref, label), "nominal", ref_identity(nominal))
+    _require_gains_equal(label, ref, "nominal", nominal)
+    _g_true(ref, label)
+
+
+def validate_boundaries(
+    nominal: Mapping[str, Any],
+    ref_calf_boundary: Mapping[str, Any],
+    ref_all_boundary: Mapping[str, Any],
+) -> dict[str, str]:
+    """Refuse unless nominal is all x1.0, the calf boundary is calf x0.80 (others x1.0)
+    and the global boundary is all x0.75; return the plant labels read from the files."""
+    check_ref_consistent("nominal", nominal, nominal)
+    _require_factors("nominal", nominal, {"hip": 1.0, "thigh": 1.0, "calf": 1.0})
+    check_ref_consistent("boundary-calf", ref_calf_boundary, nominal)
+    _require_factors(
+        "boundary-calf",
+        ref_calf_boundary,
+        {"hip": 1.0, "thigh": 1.0, "calf": BOUNDARY_CALF_G},
+    )
+    check_ref_consistent("boundary-all", ref_all_boundary, nominal)
+    _require_factors(
+        "boundary-all", ref_all_boundary, dict.fromkeys(RULE_GROUPS + ("hip",), BOUNDARY_ALL_G)
+    )
+    return {
+        "nominal": describe_factors(nominal),
+        "calf_boundary": describe_factors(ref_calf_boundary),
+        "global_boundary": describe_factors(ref_all_boundary),
+    }
+
+
+def check_hw_comparable(hw: Mapping[str, Any], nominal: Mapping[str, Any]) -> dict[str, Any]:
+    """Refuse unless ``hw`` is the same policy, the same gains, and a clean live window."""
+    require_same_identity("hardware", _hw_identity(hw), "nominal", ref_identity(nominal))
+    _require_gains_equal("hardware", hw, "nominal", nominal)
+    source = hw.get("source")
+    if source == "hardware":
+        gates = hw.get("window_gates")
+        if not gates or any(not g.get("passed") for g in gates):
+            raise Refusal("hardware summary has no passing window-quality record")
+        if hw.get("allow_rehearsal") is not True:
+            if hw.get("live") is not True:
+                raise Refusal("hardware summary is not from live telemetry")
+            if not hw.get("ledger"):
+                raise Refusal("hardware summary is not bound to G/H ledger records (use --session)")
+        return {"window_gates": list(gates), "live": hw.get("live")}
+    if source == "sim":
+        _g_true(hw, "sim-as-hw")
+        return {"window_gates": [], "live": None}
+    raise Refusal(f"unknown summary source {source!r}")
+
+
+def _hw_identity(hw: Mapping[str, Any]) -> dict[str, str]:
+    return ref_identity(hw, "hardware summary")
+
+
 def decide(
     hw: Mapping[str, Any],
     ref_calf_boundary: Mapping[str, Any],
     ref_all_boundary: Mapping[str, Any],
     ref_nominal: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """GO iff ``calf_err_hw`` is below BOTH boundary calf errors (strict).
+    """GO iff ``calf_err_hw`` is below BOTH boundary calf errors (strict) AND every
+    input gate passes; otherwise STOP, or :class:`Refusal` for unusable inputs.
 
     CALF test: boundary = calf err of the plant with calves x0.80. GLOBAL test:
     boundary = calf err of the plant with every joint x0.75. A weaker calf sags more,
     so a smaller error means a stronger calf. Thigh errors are reported only.
+    Input gates: boundary plants are exactly those (from the recorded ``g_true``), all
+    references share artifact hashes and gains and did not fall, ``hw`` has the same
+    hashes, gains within ``GAIN_TOL`` and, for hardware, a passing window and live data.
     """
+    if ref_nominal is None:
+        raise Refusal("the nominal reference is required")
+    labels = validate_boundaries(ref_nominal, ref_calf_boundary, ref_all_boundary)
+    hw_gates = check_hw_comparable(hw, ref_nominal)
     calf_hw = group_mean_err(hw, "calf")
     b_calf = group_mean_err(ref_calf_boundary, "calf")
     b_all = group_mean_err(ref_all_boundary, "calf")
-    if ref_nominal is not None:
-        nom = group_mean_err(ref_nominal, "calf")
-        if not (nom > 0.0 and b_calf > nom and b_all > nom):
-            raise ValueError(
-                f"sign/monotonicity check failed: calf err nominal {nom:.4f}, "
-                f"calf-0.80 {b_calf:.4f}, all-0.75 {b_all:.4f} (weaker plants must sag more)"
-            )
+    nom = group_mean_err(ref_nominal, "calf")
+    if not (nom > 0.0 and b_calf > nom and b_all > nom and math.isfinite(calf_hw)):
+        raise Refusal(
+            f"sign/monotonicity check failed: calf err nominal {nom:.4f}, "
+            f"calf-0.80 {b_calf:.4f}, all-0.75 {b_all:.4f}, hardware {calf_hw:.4f} "
+            "(weaker plants must sag more)"
+        )
     calf_test = calf_hw < b_calf
     global_test = calf_hw < b_all
     th_hw = group_mean_err(hw, "thigh")
@@ -326,10 +764,18 @@ def decide(
     return {
         "calf_err_hw": calf_hw,
         "calf_boundary_err": b_calf,
+        "calf_boundary_label": labels["calf_boundary"],
         "calf_test_go": calf_test,
         "global_boundary_err": b_all,
+        "global_boundary_label": labels["global_boundary"],
         "global_test_go": global_test,
         "verdict": VERDICT_GO if (calf_test and global_test) else VERDICT_STOP,
+        "input_gates": {
+            "identity": dict(ref_identity(ref_nominal)),
+            "labels": labels,
+            "gains_tol": GAIN_TOL,
+            **hw_gates,
+        },
         "thigh_informational": {
             "thigh_err_hw": th_hw,
             "thigh_err_calf_boundary_ref": th_calf,
