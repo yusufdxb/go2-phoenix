@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import math
 import sys
 import threading
 import time
@@ -325,6 +326,66 @@ def active_units(candidates: Sequence[str]) -> list[str]:
     return found
 
 
+#: Live stages refuse to start at or below this state of charge (percent). Operator rule
+#: 2026-10-06: battery must be above 20 %, the same floor as the in-run abort criterion.
+DEFAULT_MIN_BATTERY_SOC = 20.0
+
+
+def battery_verdict(soc_samples: Sequence[float], min_soc: float) -> tuple[bool, str]:
+    """``(ok, detail)``: ok only if there is at least one sample and every one is above min_soc.
+
+    Fails closed: no sample, a non-finite value or a reading of 0 (what LowState carries
+    when the battery management data is missing) never passes.
+    """
+    if not soc_samples:
+        return False, "no /lowstate battery sample received"
+    values = [float(v) for v in soc_samples]
+    if not all(math.isfinite(v) for v in values):
+        return False, f"non-finite battery reading in {values[:5]}"
+    lowest = min(values)
+    if lowest <= 0.0:
+        return False, "battery reads 0 % (BMS data missing or empty battery)"
+    if lowest <= min_soc:
+        return False, f"battery {lowest:.0f} % is not above the {min_soc:.0f} % floor"
+    return True, f"battery {lowest:.0f} % (floor {min_soc:.0f} %, {len(values)} samples)"
+
+
+def cmd_battery(args: argparse.Namespace) -> int:  # pragma: no cover - needs ROS 2
+    """Read the GO2 state of charge from /lowstate and refuse a live stage when it is low."""
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+    from unitree_go.msg import LowState
+
+    samples: list[float] = []
+    rclpy.init()
+    node = Node("phoenix_battery_probe")
+    qos = QoSProfile(
+        reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10
+    )
+    node.create_subscription(
+        LowState, "/lowstate", lambda m: samples.append(float(m.bms_state.soc)), qos
+    )
+    try:
+        end = time.monotonic() + float(args.duration)
+        while time.monotonic() < end:
+            rclpy.spin_once(node, timeout_sec=0.05)
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+    ok, detail = battery_verdict(samples, float(args.min_soc))
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    record = {"ok": ok, "detail": detail, "min_soc": float(args.min_soc), "n": len(samples)}
+    if samples:
+        record["soc_min"] = min(samples)
+        record["soc_max"] = max(samples)
+    out.write_text(json.dumps(record, indent=2) + "\n")
+    print(f"[battery] {'ok  ' if ok else 'FAIL'} {detail} -> {out}")
+    return 0 if ok else 1
+
+
 def cmd_contention(args: argparse.Namespace) -> int:  # pragma: no cover - needs ROS 2
     """Record who else is sharing the robot right now."""
     import rclpy
@@ -396,6 +457,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cont.add_argument("--out", required=True)
     cont.set_defaults(func=cmd_contention)
+    batt = sub.add_parser("battery", help="refuse when the GO2 battery is not above the floor")
+    batt.add_argument("--min-soc", type=float, default=DEFAULT_MIN_BATTERY_SOC)
+    batt.add_argument("--duration", type=float, default=2.0)
+    batt.add_argument("--out", required=True)
+    batt.set_defaults(func=cmd_battery)
     return p
 
 

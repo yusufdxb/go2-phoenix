@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--deadman-file", type=Path, default=None, help="file holding hold or release")
     p.add_argument("--no-lowstate", action="store_true")
+    p.add_argument("--soc", type=int, default=80, help="battery state of charge to report (%%)")
     args = p.parse_args(argv)
 
     if os.environ.get("ROS_LOCALHOST_ONLY") != "1" or os.environ.get("PHOENIX_REHEARSAL") != "1":
@@ -117,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             msg.motor_state[i].q = float(q[i])
             msg.motor_state[i].dq = 0.0
         msg.imu_state.quaternion = [1.0, 0.0, 0.0, 0.0]  # Unitree order w, x, y, z
+        msg.bms_state.soc = int(args.soc)
         lowstate_pub.publish(msg)
 
     def deadman_held() -> bool:

@@ -15,7 +15,7 @@
 #   scripts/harness_preflight.sh F | G | H    LIVE cmd=0 stand of the active config (DEPLOY_LABEL), 2 s / 5 s / 10 s x 3   motors LIVE
 #   scripts/harness_preflight.sh W <preset>   LIVE one walking attempt (presets: python3 -m phoenix.sim2real.walk_command --list)   motors LIVE
 #                                             needs a WALKING DEPLOY_CFG/LOCK (safety.stand_only: false). NOT a ledger stage: no evaluator, evidence never counted.
-#                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset>', plus synthetic F/G records via
+#                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset> ON GANTRY', plus synthetic F/G records via
 #                                             PHOENIX_HW_SESSIONS=<dir> PHOENIX_HW_SESSIONS_TEST_ONLY=1 (deploy_contract.walking_evidence_problems), else walking is refused.
 #
 # Stages never chain. Each live stage is its own invocation, refuses unless every
@@ -300,6 +300,17 @@ sys.exit(1 if bad else 0)
 CONTENTION_EOF
 }
 
+assert_battery() {
+    # Every motors-live stage refuses to start unless the GO2 battery is ABOVE the floor
+    # (operator rule 2026-10-06: above 20 %). Fails closed on no reading or a 0 % reading.
+    local stage="${1:-unknown}"
+    local out="$SESSION/battery_${stage}.json"
+    mkdir -p "$(dirname "$out")"
+    rm -f "$out"
+    python3 -m phoenix.sim2real.hw_probe battery --min-soc "${PHOENIX_MIN_BATTERY_SOC:-20}" --out "$out" \
+        || halt "battery is not above ${PHOENIX_MIN_BATTERY_SOC:-20} % (evidence: $out); charge the robot"
+}
+
 stage_A() {
     local rc=0
     if [[ "${1:-}" == "--payload" ]]; then
@@ -363,6 +374,7 @@ stage_E() {
     local hold_s="${1:-10}"
     need_sha; ros_env
     assert_no_contention E
+    assert_battery E
     pf require E
     live_confirm E "LowCmd bridge LIVE, holding measured posture for ${hold_s} s, no policy"
     new_run E
@@ -390,6 +402,7 @@ stage_stand() {
     case "$stage" in F) authority=2; attempts=1 ;; G) authority=5; attempts=1 ;; H) authority=10; attempts=3 ;; esac
     need_sha; ros_env
     assert_no_contention "$stage"
+    assert_battery "$stage"
     pf require "$stage"
     live_confirm "$stage" "${DEPLOY_LABEL} cmd=0 stand, ${authority} s of policy authority, ${attempts} attempt(s)"
     local first_msg max_rt telemetry_files=() answers=() k
@@ -466,12 +479,14 @@ stage_walk() {
         || halt "unknown walk preset '$preset' (python3 -m phoenix.sim2real.walk_command --list)"
     need_sha; ros_env
     assert_no_contention W
+    assert_battery W
     local stand_only=""
     stand_only="$(cfg_get safety.stand_only 2>/dev/null)" || stand_only="unreadable"
     [[ "$stand_only" == "False" ]] \
         || halt "W needs a walking config: safety.stand_only must be explicitly false in $DEPLOY_CFG (set DEPLOY_CFG and DEPLOY_LOCK to the walking config)"
     echo "[W] walking config $DEPLOY_CFG (lock $DEPLOY_LOCK, ${DEPLOY_LABEL}). The bridge decides walking_allowed itself from the evidence-gated deploy contract (F and G hardware GO records for the stand-phase twin); this script does not."
-    live_confirm "W $preset" "${DEPLOY_LABEL} WALKING attempt '$preset', profile ${walk_dur} s, deadman must stay held, 1 attempt"
+    # The first walks are gantry-only (operator rule 2026-10-06): the phrase itself says so.
+    live_confirm "W $preset ON GANTRY" "${DEPLOY_LABEL} WALKING attempt '$preset' with the robot ON THE GANTRY, profile ${walk_dur} s, deadman must stay held, 1 attempt"
     local first_msg max_rt telemetry standup_s="${PHOENIX_STANDUP_S:-2.0}"
     # Motion must never outlive the policy window (its end makes the bridge sit the robot).
     # Window end = profile_duration + margin = 5 + motion_s + margin after policy launch.
