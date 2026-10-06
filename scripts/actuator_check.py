@@ -120,7 +120,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                     f"{args.sim_as_hw}: --sim-as-hw takes a simulator reference "
                     "(source 'sim' with g_true), not a hardware summary"
                 )
-            for untrusted in ("allow_rehearsal", "live", "ledger"):
+            for untrusted in ("allow_rehearsal", "live", "ledger", "window_gates", "telemetry"):
                 hw.pop(untrusted, None)
             mode = "sim-as-hw"
         elif args.session:
