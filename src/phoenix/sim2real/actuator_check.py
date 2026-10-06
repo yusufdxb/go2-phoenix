@@ -280,6 +280,7 @@ def settle_window(
     label: str = "telemetry",
     settle_s: float = SETTLE_AFTER_BLEND_S,
     min_window_s: float = MIN_WINDOW_S,
+    strict_fields: bool = False,
 ) -> tuple[list[Mapping[str, Any]], dict[str, Any]]:
     """The settled policy window of one file and its quality report, or :class:`Refusal`.
 
@@ -312,7 +313,7 @@ def settle_window(
         return (
             bool(np.allclose(kp[i], kp[-1], rtol=0.0, atol=1e-6))
             and bool(np.allclose(kd[i], kd[-1], rtol=0.0, atol=1e-6))
-            and (alpha is None or float(alpha) >= 1.0)
+            and (float(alpha) >= 1.0 if alpha is not None else not strict_fields)
         )
 
     first = next((i for i in range(len(pol)) if at_final(i)), None)
@@ -345,6 +346,10 @@ def settle_window(
             kd[i], kd[-1], rtol=0.0, atol=1e-6
         ):
             raise Refusal(f"{where}: gains change inside the settled window")
+        if strict_fields and "tilt_deg" not in t:
+            raise Refusal(f"{where}: hardware tick has no tilt_deg")
+        if strict_fields and "velocity_command_fed" not in dict(_velocity_values(t)):
+            raise Refusal(f"{where}: hardware tick has no velocity_command_fed")
         if "tilt_deg" in t:
             tilt = t["tilt_deg"]
             if not isinstance(tilt, (int, float)) or not abs(tilt) < TILT_MAX_DEG:
@@ -352,6 +357,10 @@ def settle_window(
             tilt_max = max(tilt_max, abs(float(tilt)))
         for name, vec in _velocity_values(t):
             n_vel += 1
+            # A stand-only run never receives /cmd_vel: the bridge logs [None, None, None].
+            # What the policy was fed is velocity_command_fed, which must be zero.
+            if name == "cmd_vel_received" and all(x is None for x in np.ravel(vec)):
+                continue
             try:
                 ok = all(abs(float(x)) <= VELOCITY_ZERO_TOL for x in np.ravel(vec))
             except (TypeError, ValueError):
@@ -402,6 +411,7 @@ def summarize_hw(
     tick_sets: Sequence[Sequence[Mapping[str, Any]]],
     settle_s: float = SETTLE_AFTER_BLEND_S,
     labels: Sequence[str] | None = None,
+    strict_fields: bool = False,
 ) -> dict[str, Any]:
     """Pool the settled windows of several bridge files into one per-joint summary
     (same shape as a simulator reference, minus ``g_true``). Every file must pass
@@ -418,7 +428,10 @@ def summarize_hw(
     gates = []
     for k, ticks in enumerate(tick_sets):
         window, report = settle_window(
-            ticks, label=labels[k] if labels else f"file[{k}]", settle_s=settle_s
+            ticks,
+            label=labels[k] if labels else f"file[{k}]",
+            settle_s=settle_s,
+            strict_fields=strict_fields,
         )
         gates.append(report)
         for t in window:
@@ -461,7 +474,9 @@ def summarize_telemetry(
         raise Refusal("no telemetry files supplied")
     infos = [check_telemetry_manifest(f, ref_ident, allow_rehearsal=allow_rehearsal) for f in files]
     hw = summarize_hw(
-        [f["ticks"] for f in files], labels=[str(f.get("path", "telemetry")) for f in files]
+        [f["ticks"] for f in files],
+        labels=[str(f.get("path", "telemetry")) for f in files],
+        strict_fields=not allow_rehearsal,  # real hardware must carry tilt and velocity fields
     )
     hw["identity"] = dict(ref_ident)
     hw["telemetry"] = infos

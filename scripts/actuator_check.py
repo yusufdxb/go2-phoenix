@@ -115,12 +115,21 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         ref = _load(args.reference)
         if args.sim_as_hw:
             hw = _load(args.sim_as_hw)
+            if hw.get("source") != "sim" or not hw.get("g_true"):
+                raise ac.Refusal(
+                    f"{args.sim_as_hw}: --sim-as-hw takes a simulator reference "
+                    "(source 'sim' with g_true), not a hardware summary"
+                )
+            for untrusted in ("allow_rehearsal", "live", "ledger"):
+                hw.pop(untrusted, None)
+            mode = "sim-as-hw"
         elif args.session:
             files, ledger = ac.ledger_telemetry(args.session, ac.ref_identity(ref, "nominal"))
             hw = ac.summarize_telemetry(
                 ac.load_telemetry(files), ac.ref_identity(ref, "nominal"), allow_rehearsal=False
             )
             hw["ledger"] = ledger
+            mode = "session"
         else:
             if not args.allow_rehearsal:
                 raise ac.Refusal(
@@ -132,6 +141,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                 ac.ref_identity(ref, "nominal"),
                 allow_rehearsal=True,
             )
+            mode = "bridge-desk"
         b_calf, b_all = _load(args.boundary_calf), _load(args.boundary_all)
         decision = ac.decide(hw, b_calf, b_all, ref)
         sweep_refs = [_load(p) for p in (args.sweep or [])]
@@ -148,15 +158,18 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         print(f"REFUSED: {exc}")
         print("verdict: REFUSED (no GO/STOP issued)")
         return 2
+    hardware_evidence = mode == "session"
     out = {
         "verdict": decision["verdict"],
+        "input_mode": mode,
+        "valid_for_walk_decision": hardware_evidence,
+        "ledger": hw.get("ledger"),
         "decision": decision,
         "calibrated": calibrated,
         "ratio_uncalibrated": ratio,
         "g_true": hw.get("g_true"),
         "hardware": {k: hw[k] for k in ("telemetry", "window_gates", "live") if k in hw},
     }
-    out_path.write_text(json.dumps(out, indent=2))
     d = decision
     for info in hw.get("telemetry", []):
         print(
@@ -189,7 +202,14 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         f"ratio (uncalibrated, reported only): calf mean {ratio['calf_mean']} "
         f"global mean {ratio['global_mean']} ratio-verdict {ratio['ratio_verdict_uncalibrated']}"
     )
-    print(f"verdict: {out['verdict']}")
+    if hardware_evidence:
+        print(f"verdict: {out['verdict']}  [input: hardware ledger session]")
+    else:
+        print(
+            f"verdict: {out['verdict']}  [input: {mode}; NOT hardware evidence, not a walk decision]"
+        )
+    # Written last: a crash while printing must never leave a verdict file behind.
+    out_path.write_text(json.dumps(out, indent=2))
     return 0
 
 

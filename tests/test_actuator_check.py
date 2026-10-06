@@ -756,3 +756,55 @@ def test_sweep_points_requires_calf_only_refs():
     assert [p[0] for p in pts] == [0.6, 0.8] and pts[0][1] == pytest.approx(0.2 / 0.6)
     with pytest.raises(ValueError):
         ac.sweep_points([ref(0.8, gt=0.8)])
+
+
+def test_cli_sim_as_hw_rejects_a_hand_made_hardware_summary(tmp_path):
+    """Re-review probe D1: a self-declared 'hardware' file must not reach a verdict."""
+    nom = _shipped("ref_nominal.json")
+    fake = {
+        "schema": nom["schema"], "source": "hardware", "identity": nom["identity"],
+        "err": nom["err"], "kp": nom["kp"], "kd": nom["kd"], "allow_rehearsal": True,
+        "window_gates": [{"passed": True}],
+    }  # fmt: skip
+    f = tmp_path / "fake.json"
+    f.write_text(json.dumps(fake))
+    rc, out = _estimate(tmp_path, "--sim-as-hw", str(f))
+    assert rc == 2 and out["verdict"] == "REFUSED" and "simulator reference" in out["reason"]
+
+
+def test_cli_output_says_whether_it_is_hardware_evidence(tmp_path):
+    rc, out = _estimate(tmp_path, "--sim-as-hw", str(SHIPPED / "ref_calf_1.00.json"))
+    assert rc == 0 and out["input_mode"] == "sim-as-hw" and out["valid_for_walk_decision"] is False
+    nom = _shipped("ref_nominal.json")
+    ident = ac.ref_identity(nom)
+    s = _write_session(
+        tmp_path, _episode(err=nom["err"]), _manifest(ident), ident["config_semantic_sha256"]
+    )
+    rc, out = _estimate(tmp_path, "--session", str(s))
+    assert rc == 0 and out["input_mode"] == "session" and out["valid_for_walk_decision"] is True
+    assert [r["stage"] for r in out["ledger"]] == ["G", "H"]
+
+
+def test_hardware_ticks_must_carry_tilt_and_velocity_fields():
+    """Re-review B10: missing tilt/velocity fields must refuse for hardware, not skip."""
+    ticks = _episode()
+    stripped = [{k: v for k, v in t.items() if k != "tilt_deg"} for t in ticks]
+    with pytest.raises(ac.Refusal, match="tilt_deg"):
+        ac.settle_window(stripped, strict_fields=True)
+    ac.settle_window(stripped, strict_fields=False)  # desk/sim callers keep the lenient path
+
+
+def test_stand_run_never_received_cmd_vel_is_accepted_but_fed_command_is_required():
+    """Real stand telemetry (stage B, 2026-10-06) logs cmd_vel_received [None]*3 and
+    velocity_command_fed [0]*3; the first is 'never received', not a nonzero command."""
+    ticks = _episode()
+    for t in ticks:
+        t.setdefault("policy", {})
+        t["policy"]["cmd_vel_received"] = [None, None, None]
+        t["policy"]["velocity_command_fed"] = [0.0, 0.0, 0.0]
+    ac.settle_window(ticks, strict_fields=True)
+    for t in ticks:
+        del t["policy"]["velocity_command_fed"]
+        t.pop("velocity_command_fed", None)
+    with pytest.raises(ac.Refusal, match="velocity_command_fed"):
+        ac.settle_window(ticks, strict_fields=True)
