@@ -69,9 +69,11 @@ for p in problems:
 sys.exit(1 if problems else 0)
 PY
 
-echo "[walk-bundle] 3/5 assemble and pin"
-mkdir -p "$DEST"
-DEST="$(cd "$DEST" && pwd)"
+echo "[walk-bundle] 3/5 assemble and pin (in a staging directory; DEST appears only after every check)"
+FINAL="$(cd "$(dirname "$DEST")" && pwd)/$(basename "$DEST")"
+DEST="$FINAL.partial.$$"
+mkdir "$DEST"
+trap 'rm -rf "$DEST"' EXIT
 for f in "$STAND"/*; do
     [[ -f "$f" ]] || continue
     case "$(basename "$f")" in
@@ -97,6 +99,26 @@ for p in problems:
     print(f"  {p}", file=sys.stderr)
 sys.exit(1 if problems else 0)
 PY
+
+# Every check passed: pin again at the final path (activation pins absolute paths), then publish.
+mv "$DEST" "$FINAL"
+trap - EXIT
+DEST="$FINAL"
+python3 "$DEST/activation.py" pin --bundle "$DEST" --target "$DEST" >/dev/null
+( cd "$DEST" && rm -f SHA256SUMS && sha256sum ./* > SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS && sha256sum -c --quiet SHA256SUMS )
+python3 "$DEST/activation.py" verify --bundle "$DEST" >/dev/null || halt "walking bundle activation does not verify at $DEST"
+python3 - "$WALK_LOCK" "$DEST/$(basename "$WALK_CFG")" <<'PY2' || halt "walking lock does not verify at $DEST"
+import sys
+
+import yaml
+
+from phoenix.sim2real.deploy_contract import load_lock, verify_lock
+
+problems, _ = verify_lock(load_lock(sys.argv[1]), yaml.safe_load(open(sys.argv[2])), sys.argv[2])
+for p in problems:
+    print(f"  {p}", file=sys.stderr)
+sys.exit(1 if problems else 0)
+PY2
 
 echo "[walk-bundle] 5/5 walking evidence (informational; the bridge enforces it)"
 python3 - "$DEST/$(basename "$WALK_CFG")" <<'PY' || true

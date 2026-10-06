@@ -506,6 +506,13 @@ stage_walk() {
     launch policy_node python3 -m phoenix.sim2real.ros2_policy_node --config "$DEPLOY_CFG" \
         --lock "$DEPLOY_LOCK" --authority-s "$authority" --max-runtime-s "$max_rt" \
         --log-parquet "$RUN/policy.parquet"
+    # The authority window counts from the policy's first commanding tick, not from node
+    # launch, and the policy node starts far slower than walk_command on the payload. Start
+    # the profile only once the bridge is in policy mode, so the 2 s zero lead-in is really
+    # fed to the policy and the margin above is measured from the same origin as the window.
+    wait_for_telemetry "$telemetry" 't.get("mode") == "policy"' \
+        "$first_msg" "policy in control before the walking profile starts"
+    require_alive deadman lowstate_bridge lowcmd_bridge policy_node
     launch walk_cmd python3 -m phoenix.sim2real.walk_command --preset "$preset" --start-deadline-s 3.0 \
         --out "$RUN/walk_cmd.jsonl"
     local wait_rc=0
