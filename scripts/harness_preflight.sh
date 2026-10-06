@@ -426,7 +426,11 @@ stage_stand() {
         (wait_for_telemetry "$telemetry" 't.get("fault") is not None' \
             "$(python3 -c "print($max_rt + 2)")" "policy window end or a fault") || wait_rc=$?
         [[ $wait_rc -eq 0 ]] || c_red "[${stage}${k}] no end-of-window or fault seen in time; ending the attempt"
-        echo "[${stage}${k}] policy authority ended; bridge is HOLDING measured posture."
+        if [[ $wait_rc -eq 0 ]]; then
+            # The window end is latched as a policy abort, so the bridge runs its stop path:
+            # hold for up to 1 s, then a controlled sit, while the deadman is still held.
+            echo "[${stage}${k}] policy authority ended; the bridge holds for up to 1 s, then sits the robot down on its own."
+        fi
         local answer="n"
         if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
             answer="${PHOENIX_REHEARSAL_STOOD:-n}"
@@ -434,7 +438,7 @@ stage_stand() {
             answer="$(operator_gate judgement "${stage}${k}" \
                 "[${stage}${k}] Did the robot stand on its feet and hold, with no collapse, oscillation or buzz? [y/n]: ")"
             operator_gate release "${stage}${k}" \
-                "[${stage}${k}] Spotter ready: press Enter to end the attempt (the bridge holds, then sits the robot down): "
+                "[${stage}${k}] Press Enter to end the attempt (the bridge sits the robot if it is not already sitting, folds the legs and exits): "
         fi
         stop_proc policy_node
         stop_proc lowcmd_bridge

@@ -1,0 +1,306 @@
+{
+  "schema": "phoenix-preflight-stage/v1",
+  "stage": "F",
+  "title": "walk-iter2750-stand cmd=0 stand, 2 s (motors LIVE)",
+  "verdict": "GO",
+  "utc": "2026-10-06T18:51:25.086150Z",
+  "host": "unitree-jetson-payload",
+  "motors": "live",
+  "rehearsal": false,
+  "code_identity": {
+    "sha": "a14ab5939c293c891c52f66b1b42ce6510b46ca7",
+    "source": "payload_sync",
+    "branch": "feat/phoenix-walk-v1-hw",
+    "dirty": false,
+    "manifest_verified": true,
+    "problems": []
+  },
+  "code_identity_problems": [],
+  "deploy_config_path": "/home/unitree/phoenix/walk2750-stand-a14ab59/deploy_walk_iter2750_stand.yaml",
+  "lock_path": "configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml",
+  "lock_file_sha256": "35d2e90916b1166611c4314b1db8d3a98ce063f3ed56ccb9ce1bc5d5429709a2",
+  "lock_semantic_sha256": "68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c",
+  "lock_artifact_sha256": {
+    "checkpoint": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+    "policy.manifest": "c6d4a32021ea064e7079ce08f21af5d16d1161b58095d2b271a3e7ac649d209a",
+    "policy.onnx": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+    "policy.onnx.data": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+    "policy.pt": "371f5a442d5afeab56c40c58d7da23cbb37a0dc37acad030425ff731bce0f110"
+  },
+  "checks": [
+    {
+      "name": "code identity: payload_sync a14ab5939c293c891c52f66b1b42ce6510b46ca7 on feat/phoenix-walk-v1-hw",
+      "ok": true,
+      "detail": "expected branch feat/phoenix-walk-v1-hw, clean",
+      "gating": true
+    },
+    {
+      "name": "every stage before F counts (same commit, same lock)",
+      "ok": true,
+      "detail": "all prior GO",
+      "gating": true
+    },
+    {
+      "name": "1 attempt(s) recorded",
+      "ok": true,
+      "detail": "1 telemetry file(s), 1 operator confirmation(s)",
+      "gating": true
+    },
+    {
+      "name": "attempt 1 (bridge.jsonl)",
+      "ok": true,
+      "detail": "0 failing gating checks",
+      "gating": true
+    }
+  ],
+  "evidence_files": [
+    {
+      "path": "F1_20261006T184847Z/bridge.jsonl",
+      "sha256": "e3529fb806aa20fd180c17630a3bfc17e33b864d023f30125ffd57198ead2355"
+    }
+  ],
+  "attempts": [
+    {
+      "telemetry": "logs/hw_sessions/20261006_a14ab5939c29/F1_20261006T184847Z/bridge.jsonl",
+      "verdict": "GO",
+      "checks": [
+        {
+          "name": "bridge mode",
+          "ok": true,
+          "detail": "live=True, expected True",
+          "gating": true
+        },
+        {
+          "name": "bridge stage label",
+          "ok": true,
+          "detail": "stage='F'",
+          "gating": true
+        },
+        {
+          "name": "bridge started with no startup problems",
+          "ok": true,
+          "detail": "[]",
+          "gating": true
+        },
+        {
+          "name": "bridge ran the expected commit",
+          "ok": true,
+          "detail": "bridge commit a14ab5939c293c891c52f66b1b42ce6510b46ca7, expected a14ab5939c293c891c52f66b1b42ce6510b46ca7",
+          "gating": true
+        },
+        {
+          "name": "bridge code identity clean",
+          "ok": true,
+          "detail": "[]",
+          "gating": true
+        },
+        {
+          "name": "bridge deploy config matches lock",
+          "ok": true,
+          "detail": "68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c vs lock 68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c",
+          "gating": true
+        },
+        {
+          "name": "bridge saw locked policy.onnx",
+          "ok": true,
+          "detail": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32 vs lock 6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+          "gating": true
+        },
+        {
+          "name": "bridge saw locked policy.onnx.data",
+          "ok": true,
+          "detail": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b vs lock b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+          "gating": true
+        },
+        {
+          "name": "bridge slew cap is the deploy constant",
+          "ok": true,
+          "detail": "max_delta=0.175",
+          "gating": true
+        },
+        {
+          "name": "bridge real-deadman requirement matches mode",
+          "ok": true,
+          "detail": "deadman_required=True",
+          "gating": true
+        },
+        {
+          "name": "bridge joint limits are the audited table",
+          "ok": true,
+          "detail": "table matches go2_model",
+          "gating": true
+        },
+        {
+          "name": "policy took authority",
+          "ok": true,
+          "detail": "475 policy ticks",
+          "gating": true
+        },
+        {
+          "name": "policy authority lasted the full 2 s window",
+          "ok": true,
+          "detail": "policy window 2.013 s (needs >= 1.960 s)",
+          "gating": true
+        },
+        {
+          "name": "authority continuous (no hold or sit inside the window)",
+          "ok": true,
+          "detail": "continuous",
+          "gating": true
+        },
+        {
+          "name": "the policy ended only because its window completed",
+          "ok": true,
+          "detail": "policy abort reasons ['authority_window_complete']",
+          "gating": true
+        },
+        {
+          "name": "no bridge fault before the window ended",
+          "ok": true,
+          "detail": "faults in order ['policy_abort:authority_window_complete', 'estop_asserted', 'bridge_shutdown']",
+          "gating": true
+        },
+        {
+          "name": "no non-finite command or sustained clipping",
+          "ok": true,
+          "detail": "limit clips {'FR_calf_joint': 264, 'FL_calf_joint': 264, 'RR_calf_joint': 264, 'RL_calf_joint': 264}",
+          "gating": true
+        },
+        {
+          "name": "LowState fresh on every policy tick",
+          "ok": true,
+          "detail": "stale []",
+          "gating": true
+        },
+        {
+          "name": "policy command age < watchdog (0.2 s) on every policy tick",
+          "ok": true,
+          "detail": "max command age 0.019581248 s",
+          "gating": true
+        },
+        {
+          "name": "real deadman armed throughout authority",
+          "ok": true,
+          "detail": "475 ticks",
+          "gating": true
+        },
+        {
+          "name": "attitude stayed inside the abort thresholds",
+          "ok": true,
+          "detail": "max |roll| 0.04080349047683093, max |pitch| 0.08176845497761016",
+          "gating": true
+        },
+        {
+          "name": "policy fed zeros base_lin_vel and a zero command, stand-only, every tick",
+          "ok": true,
+          "detail": "ok",
+          "gating": true
+        },
+        {
+          "name": "max LowState age within sensor timeout",
+          "ok": true,
+          "detail": "0.001335712 s",
+          "gating": true
+        },
+        {
+          "name": "operator observed a held stand (feet on ground, no collapse, oscillation or buzz)",
+          "ok": true,
+          "detail": "operator confirmation recorded",
+          "gating": true
+        },
+        {
+          "name": "hardware slew clip activation (REPORTED, not a pass criterion)",
+          "ok": true,
+          "detail": "final_target_vs_policy_request_clip_activation_v1: end-to-end 0.0% (per joint {'FR_hip_joint': 0.0, 'FR_thigh_joint': 0.0, 'FR_calf_joint': 0.0, 'FL_hip_joint': 0.0, 'FL_thigh_joint': 0.0, 'FL_calf_joint': 0.0, 'RR_hip_joint': 0.0, 'RR_thigh_joint': 0.0, 'RR_calf_joint': 0.0, 'RL_hip_joint': 0.0, 'RL_thigh_joint': 0.0, 'RL_calf_joint': 0.0}); bridge layer 0.0% (all policy ticks 0.0%), policy node 1.8976897689768977%, per joint {'FR_hip_joint': 0.0, 'FR_thigh_joint': 0.0, 'FR_calf_joint': 0.0, 'FL_hip_joint': 0.0, 'FL_thigh_joint': 0.0, 'FL_calf_joint': 0.0, 'RR_hip_joint': 0.0, 'RR_thigh_joint': 0.0, 'RR_calf_joint': 0.0, 'RL_hip_joint': 0.0, 'RL_thigh_joint': 0.0, 'RL_calf_joint': 0.0}",
+          "gating": false
+        }
+      ],
+      "telemetry_summary": {
+        "metric": "final_target_vs_policy_request_clip_activation_v1",
+        "metric_definition": "100 * mean over tick rows with mode=='policy' and cmd_is_new, and over the 12 joints, of final_target_unitree != the policy's requested target (default_q + action_scale * action, permuted to Unitree motor order): every clip between the policy and the motors",
+        "n_ticks": 13781,
+        "mode_counts": {
+          "silent": 1,
+          "hold": 514,
+          "standup": 801,
+          "policy": 475,
+          "sit": 11916,
+          "folded": 74
+        },
+        "policy_ticks": 475,
+        "policy_new_command_ticks": 101,
+        "end_to_end_clip_pct": 0.0,
+        "end_to_end_clip_pct_per_joint": {
+          "FR_hip_joint": 0.0,
+          "FR_thigh_joint": 0.0,
+          "FR_calf_joint": 0.0,
+          "FL_hip_joint": 0.0,
+          "FL_thigh_joint": 0.0,
+          "FL_calf_joint": 0.0,
+          "RR_hip_joint": 0.0,
+          "RR_thigh_joint": 0.0,
+          "RR_calf_joint": 0.0,
+          "RL_hip_joint": 0.0,
+          "RL_thigh_joint": 0.0,
+          "RL_calf_joint": 0.0
+        },
+        "bridge_slew_clip_pct": 0.0,
+        "bridge_slew_clip_pct_all_policy_ticks": 0.0,
+        "bridge_slew_clip_pct_per_joint": {
+          "FR_hip_joint": 0.0,
+          "FR_thigh_joint": 0.0,
+          "FR_calf_joint": 0.0,
+          "FL_hip_joint": 0.0,
+          "FL_thigh_joint": 0.0,
+          "FL_calf_joint": 0.0,
+          "RR_hip_joint": 0.0,
+          "RR_thigh_joint": 0.0,
+          "RR_calf_joint": 0.0,
+          "RL_hip_joint": 0.0,
+          "RL_thigh_joint": 0.0,
+          "RL_calf_joint": 0.0
+        },
+        "policy_node_slew_clip_pct": 1.8976897689768977,
+        "limit_clip_counts": {
+          "FR_calf_joint": 264,
+          "FL_calf_joint": 264,
+          "RR_calf_joint": 264,
+          "RL_calf_joint": 264
+        },
+        "min_limit_margin_rad": 0.0,
+        "faults": [
+          "policy_abort:authority_window_complete",
+          "estop_asserted",
+          "bridge_shutdown"
+        ],
+        "first_fault": "policy_abort:authority_window_complete",
+        "policy_abort_reasons": [
+          "authority_window_complete"
+        ],
+        "max_tick_gap_s": 0.00797552,
+        "max_lowstate_age_s": 0.001335712,
+        "max_lowstate_age_s_teardown": 0.000369216,
+        "max_cmd_age_s_in_policy": 0.019581248,
+        "max_estop_age_s": 0.100078592,
+        "policy_window_s": 2.013498016,
+        "max_abs_roll_rad": 0.04080349047683093,
+        "max_abs_pitch_rad": 0.08176845497761016,
+        "q_max_excursion_rad": {
+          "FR_hip_joint": 0.18081742525100708,
+          "FR_thigh_joint": 0.5874142646789551,
+          "FR_calf_joint": 1.5856051445007324,
+          "FL_hip_joint": 0.0992194414138794,
+          "FL_thigh_joint": 0.5396060943603516,
+          "FL_calf_joint": 1.5697765350341797,
+          "RR_hip_joint": 0.2800974100828171,
+          "RR_thigh_joint": 0.4529820680618286,
+          "RR_calf_joint": 1.474094271659851,
+          "RL_hip_joint": 0.28370046615600586,
+          "RL_thigh_joint": 0.4344825744628906,
+          "RL_calf_joint": 1.479702353477478
+        },
+        "live": true
+      }
+    }
+  ]
+}

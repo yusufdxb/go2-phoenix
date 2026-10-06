@@ -1,0 +1,130 @@
+{
+  "schema": "phoenix-preflight-stage/v1",
+  "stage": "D",
+  "title": "LowState / IMU / joint-state freshness (motors off)",
+  "verdict": "GO",
+  "utc": "2026-10-06T18:25:07.117715Z",
+  "host": "unitree-jetson-payload",
+  "motors": "off",
+  "rehearsal": false,
+  "code_identity": {
+    "sha": "a14ab5939c293c891c52f66b1b42ce6510b46ca7",
+    "source": "payload_sync",
+    "branch": "feat/phoenix-walk-v1-hw",
+    "dirty": false,
+    "manifest_verified": true,
+    "problems": []
+  },
+  "code_identity_problems": [],
+  "deploy_config_path": "/home/unitree/phoenix/walk2750-stand-a14ab59/deploy_walk_iter2750_stand.yaml",
+  "lock_path": "configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml",
+  "lock_file_sha256": "35d2e90916b1166611c4314b1db8d3a98ce063f3ed56ccb9ce1bc5d5429709a2",
+  "lock_semantic_sha256": "68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c",
+  "lock_artifact_sha256": {
+    "checkpoint": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+    "policy.manifest": "c6d4a32021ea064e7079ce08f21af5d16d1161b58095d2b271a3e7ac649d209a",
+    "policy.onnx": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+    "policy.onnx.data": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+    "policy.pt": "371f5a442d5afeab56c40c58d7da23cbb37a0dc37acad030425ff731bce0f110"
+  },
+  "checks": [
+    {
+      "name": "code identity: payload_sync a14ab5939c293c891c52f66b1b42ce6510b46ca7 on feat/phoenix-walk-v1-hw",
+      "ok": true,
+      "detail": "expected branch feat/phoenix-walk-v1-hw, clean",
+      "gating": true
+    },
+    {
+      "name": "every stage before D counts (same commit, same lock)",
+      "ok": true,
+      "detail": "all prior GO",
+      "gating": true
+    },
+    {
+      "name": "/lowstate flowing",
+      "ok": true,
+      "detail": "15049 messages",
+      "gating": true
+    },
+    {
+      "name": "/lowstate rate >= 200 Hz",
+      "ok": true,
+      "detail": "measured 501.62846413803373 Hz",
+      "gating": true
+    },
+    {
+      "name": "/lowstate max gap < 0.2 s",
+      "ok": true,
+      "detail": "measured max gap 0.005390111999986402 s",
+      "gating": true
+    },
+    {
+      "name": "/joint_states flowing",
+      "ok": true,
+      "detail": "15023 messages",
+      "gating": true
+    },
+    {
+      "name": "/joint_states rate >= 200 Hz",
+      "ok": true,
+      "detail": "measured 500.7624592804162 Hz",
+      "gating": true
+    },
+    {
+      "name": "/joint_states max gap < 0.2 s",
+      "ok": true,
+      "detail": "measured max gap 0.005546655999751238 s",
+      "gating": true
+    },
+    {
+      "name": "/imu/data flowing",
+      "ok": true,
+      "detail": "14999 messages",
+      "gating": true
+    },
+    {
+      "name": "/imu/data rate >= 200 Hz",
+      "ok": true,
+      "detail": "measured 499.9960117667103 Hz",
+      "gating": true
+    },
+    {
+      "name": "/imu/data max gap < 0.2 s",
+      "ok": true,
+      "detail": "measured max gap 0.005765152000094531 s",
+      "gating": true
+    },
+    {
+      "name": "/lowstate joint positions physically possible",
+      "ok": true,
+      "detail": "all 12 within hard limits +/- one slew cap",
+      "gating": true
+    },
+    {
+      "name": "/lowstate has no non-finite joint values",
+      "ok": true,
+      "detail": "non_finite=0",
+      "gating": true
+    },
+    {
+      "name": "/imu/data attitude inside the abort thresholds",
+      "ok": true,
+      "detail": "max |roll| 0.003897889228905554 (< 0.4), max |pitch| 0.09547488687009126 (< 0.4)",
+      "gating": true
+    },
+    {
+      "name": "/imu/data has no non-finite values",
+      "ok": true,
+      "detail": "non_finite=0",
+      "gating": true
+    },
+    {
+      "name": "/joint_states names all 12 policy joints",
+      "ok": true,
+      "detail": "missing []",
+      "gating": true
+    }
+  ],
+  "evidence_files": [],
+  "probe": "logs/hw_sessions/20261006_a14ab5939c29/D_20261006T182434Z/probe.json"
+}

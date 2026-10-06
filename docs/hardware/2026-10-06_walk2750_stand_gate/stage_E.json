@@ -1,0 +1,263 @@
+{
+  "schema": "phoenix-preflight-stage/v1",
+  "stage": "E",
+  "title": "live bridge hold-current (motors LIVE, hold only)",
+  "verdict": "GO",
+  "utc": "2026-10-06T18:31:59.448583Z",
+  "host": "unitree-jetson-payload",
+  "motors": "live",
+  "rehearsal": false,
+  "code_identity": {
+    "sha": "a14ab5939c293c891c52f66b1b42ce6510b46ca7",
+    "source": "payload_sync",
+    "branch": "feat/phoenix-walk-v1-hw",
+    "dirty": false,
+    "manifest_verified": true,
+    "problems": []
+  },
+  "code_identity_problems": [],
+  "deploy_config_path": "/home/unitree/phoenix/walk2750-stand-a14ab59/deploy_walk_iter2750_stand.yaml",
+  "lock_path": "configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml",
+  "lock_file_sha256": "35d2e90916b1166611c4314b1db8d3a98ce063f3ed56ccb9ce1bc5d5429709a2",
+  "lock_semantic_sha256": "68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c",
+  "lock_artifact_sha256": {
+    "checkpoint": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+    "policy.manifest": "c6d4a32021ea064e7079ce08f21af5d16d1161b58095d2b271a3e7ac649d209a",
+    "policy.onnx": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+    "policy.onnx.data": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+    "policy.pt": "371f5a442d5afeab56c40c58d7da23cbb37a0dc37acad030425ff731bce0f110"
+  },
+  "checks": [
+    {
+      "name": "code identity: payload_sync a14ab5939c293c891c52f66b1b42ce6510b46ca7 on feat/phoenix-walk-v1-hw",
+      "ok": true,
+      "detail": "expected branch feat/phoenix-walk-v1-hw, clean",
+      "gating": true
+    },
+    {
+      "name": "every stage before E counts (same commit, same lock)",
+      "ok": true,
+      "detail": "all prior GO",
+      "gating": true
+    },
+    {
+      "name": "bridge mode",
+      "ok": true,
+      "detail": "live=True, expected True",
+      "gating": true
+    },
+    {
+      "name": "bridge stage label",
+      "ok": true,
+      "detail": "stage='E'",
+      "gating": true
+    },
+    {
+      "name": "bridge started with no startup problems",
+      "ok": true,
+      "detail": "[]",
+      "gating": true
+    },
+    {
+      "name": "bridge ran the expected commit",
+      "ok": true,
+      "detail": "bridge commit a14ab5939c293c891c52f66b1b42ce6510b46ca7, expected a14ab5939c293c891c52f66b1b42ce6510b46ca7",
+      "gating": true
+    },
+    {
+      "name": "bridge code identity clean",
+      "ok": true,
+      "detail": "[]",
+      "gating": true
+    },
+    {
+      "name": "bridge deploy config matches lock",
+      "ok": true,
+      "detail": "68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c vs lock 68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c",
+      "gating": true
+    },
+    {
+      "name": "bridge saw locked policy.onnx",
+      "ok": true,
+      "detail": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32 vs lock 6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+      "gating": true
+    },
+    {
+      "name": "bridge saw locked policy.onnx.data",
+      "ok": true,
+      "detail": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b vs lock b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+      "gating": true
+    },
+    {
+      "name": "bridge slew cap is the deploy constant",
+      "ok": true,
+      "detail": "max_delta=0.175",
+      "gating": true
+    },
+    {
+      "name": "bridge real-deadman requirement matches mode",
+      "ok": true,
+      "detail": "deadman_required=True",
+      "gating": true
+    },
+    {
+      "name": "bridge joint limits are the audited table",
+      "ok": true,
+      "detail": "table matches go2_model",
+      "gating": true
+    },
+    {
+      "name": "bridge published hold commands",
+      "ok": true,
+      "detail": "8563 hold ticks",
+      "gating": true
+    },
+    {
+      "name": "every command before teardown was a hold",
+      "ok": true,
+      "detail": "other modes set()",
+      "gating": true
+    },
+    {
+      "name": "hold used the hold gains",
+      "ok": true,
+      "detail": "gains [(20.0, 1.0)]",
+      "gating": true
+    },
+    {
+      "name": "no policy node commanded",
+      "ok": true,
+      "detail": "0 policy ticks",
+      "gating": true
+    },
+    {
+      "name": "no fault other than deadman release or teardown",
+      "ok": true,
+      "detail": "faults ['bridge_shutdown']",
+      "gating": true
+    },
+    {
+      "name": "real deadman verified as the only estop source, and stayed so",
+      "ok": true,
+      "detail": "verified from tick 266",
+      "gating": true
+    },
+    {
+      "name": "LowState fresh on every hold tick",
+      "ok": true,
+      "detail": "stale ticks []",
+      "gating": true
+    },
+    {
+      "name": "held for >= 30 s",
+      "ok": true,
+      "detail": "held 31.40 s",
+      "gating": true
+    },
+    {
+      "name": "bridge tick gap < 0.2 s",
+      "ok": true,
+      "detail": "max tick gap 0.00913216 s",
+      "gating": true
+    },
+    {
+      "name": "no joint moved more than one slew cap (0.175 rad) under hold",
+      "ok": true,
+      "detail": "max excursion 0.05156266689300537 rad",
+      "gating": true
+    },
+    {
+      "name": "max LowState age within sensor timeout",
+      "ok": true,
+      "detail": "0.000801408 s",
+      "gating": true
+    }
+  ],
+  "evidence_files": [
+    {
+      "path": "E_20261006T183121Z/bridge.jsonl",
+      "sha256": "73abc16179eed55aa65507117603bb405ab4ef0432c1cb8fa80d5363d66c71f7"
+    }
+  ],
+  "telemetry": "logs/hw_sessions/20261006_a14ab5939c29/E_20261006T183121Z/bridge.jsonl",
+  "telemetry_summary": {
+    "metric": "final_target_vs_policy_request_clip_activation_v1",
+    "metric_definition": "100 * mean over tick rows with mode=='policy' and cmd_is_new, and over the 12 joints, of final_target_unitree != the policy's requested target (default_q + action_scale * action, permuted to Unitree motor order): every clip between the policy and the motors",
+    "n_ticks": 8983,
+    "mode_counts": {
+      "silent": 1,
+      "hold": 8563,
+      "sit": 345,
+      "folded": 74
+    },
+    "policy_ticks": 0,
+    "policy_new_command_ticks": 0,
+    "end_to_end_clip_pct": null,
+    "end_to_end_clip_pct_per_joint": {
+      "FR_hip_joint": null,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": null,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": null,
+      "RR_thigh_joint": null,
+      "RR_calf_joint": null,
+      "RL_hip_joint": null,
+      "RL_thigh_joint": null,
+      "RL_calf_joint": null
+    },
+    "bridge_slew_clip_pct": null,
+    "bridge_slew_clip_pct_all_policy_ticks": null,
+    "bridge_slew_clip_pct_per_joint": {
+      "FR_hip_joint": null,
+      "FR_thigh_joint": null,
+      "FR_calf_joint": null,
+      "FL_hip_joint": null,
+      "FL_thigh_joint": null,
+      "FL_calf_joint": null,
+      "RR_hip_joint": null,
+      "RR_thigh_joint": null,
+      "RR_calf_joint": null,
+      "RL_hip_joint": null,
+      "RL_thigh_joint": null,
+      "RL_calf_joint": null
+    },
+    "policy_node_slew_clip_pct": null,
+    "limit_clip_counts": {
+      "FR_calf_joint": 8563,
+      "FL_calf_joint": 8563,
+      "RR_calf_joint": 8563,
+      "RL_calf_joint": 8563
+    },
+    "min_limit_margin_rad": 0.0,
+    "faults": [
+      "bridge_shutdown"
+    ],
+    "first_fault": "bridge_shutdown",
+    "policy_abort_reasons": [],
+    "max_tick_gap_s": 0.00913216,
+    "max_lowstate_age_s": 0.000801408,
+    "max_lowstate_age_s_teardown": 0.000377472,
+    "max_cmd_age_s_in_policy": null,
+    "max_estop_age_s": 0.100104736,
+    "policy_window_s": 0.0,
+    "max_abs_roll_rad": null,
+    "max_abs_pitch_rad": null,
+    "q_max_excursion_rad": {
+      "FR_hip_joint": 0.012989044189453125,
+      "FR_thigh_joint": 0.05113875865936279,
+      "FR_calf_joint": 0.0068242549896240234,
+      "FL_hip_joint": 0.01192927360534668,
+      "FL_thigh_joint": 0.046687960624694824,
+      "FL_calf_joint": 0.009036064147949219,
+      "RR_hip_joint": 0.026644229888916016,
+      "RR_thigh_joint": 0.05156266689300537,
+      "RR_calf_joint": 0.005639553070068359,
+      "RL_hip_joint": 0.03176116943359375,
+      "RL_thigh_joint": 0.04538595676422119,
+      "RL_calf_joint": 0.003949403762817383
+    },
+    "live": true
+  }
+}

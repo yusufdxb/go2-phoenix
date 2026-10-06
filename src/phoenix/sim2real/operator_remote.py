@@ -68,7 +68,10 @@ def _instruction(mode: str) -> str:
             "Keep holding L1. Press A for YES, safe result observed. Press B for NO-GO. "
             "Release L1 to HALT and record NO-GO."
         )
-    return "Release L1 now. The bridge will hold, then sit the robot down and end the attempt."
+    return (
+        "Release L1 now. The bridge sits the robot if it is not already sitting, "
+        "folds the legs and ends the attempt."
+    )
 
 
 def wait_for_remote(mode: str, timeout_s: float) -> dict:

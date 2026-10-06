@@ -1,0 +1,76 @@
+{
+  "schema": "phoenix-preflight-stage/v1",
+  "stage": "C",
+  "title": "real physical deadman verified (motors off)",
+  "verdict": "GO",
+  "utc": "2026-10-06T18:24:22.159371Z",
+  "host": "unitree-jetson-payload",
+  "motors": "off",
+  "rehearsal": false,
+  "code_identity": {
+    "sha": "a14ab5939c293c891c52f66b1b42ce6510b46ca7",
+    "source": "payload_sync",
+    "branch": "feat/phoenix-walk-v1-hw",
+    "dirty": false,
+    "manifest_verified": true,
+    "problems": []
+  },
+  "code_identity_problems": [],
+  "deploy_config_path": "/home/unitree/phoenix/walk2750-stand-a14ab59/deploy_walk_iter2750_stand.yaml",
+  "lock_path": "configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml",
+  "lock_file_sha256": "35d2e90916b1166611c4314b1db8d3a98ce063f3ed56ccb9ce1bc5d5429709a2",
+  "lock_semantic_sha256": "68b18c225b815c8ea2e46c911a5fe21d37878c84d269cc5d3d2eb692e179f89c",
+  "lock_artifact_sha256": {
+    "checkpoint": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+    "policy.manifest": "c6d4a32021ea064e7079ce08f21af5d16d1161b58095d2b271a3e7ac649d209a",
+    "policy.onnx": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+    "policy.onnx.data": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+    "policy.pt": "371f5a442d5afeab56c40c58d7da23cbb37a0dc37acad030425ff731bce0f110"
+  },
+  "checks": [
+    {
+      "name": "code identity: payload_sync a14ab5939c293c891c52f66b1b42ce6510b46ca7 on feat/phoenix-walk-v1-hw",
+      "ok": true,
+      "detail": "expected branch feat/phoenix-walk-v1-hw, clean",
+      "gating": true
+    },
+    {
+      "name": "every stage before C counts (same commit, same lock)",
+      "ok": true,
+      "detail": "all prior GO",
+      "gating": true
+    },
+    {
+      "name": "exactly one real deadman node publishes /phoenix/estop",
+      "ok": true,
+      "detail": "publisher sets seen [('phoenix_wireless_estop',)]",
+      "gating": true
+    },
+    {
+      "name": "heartbeat never silent for 0.8 s",
+      "ok": true,
+      "detail": "max gap 0.10018342399962421 s over 195 messages",
+      "gating": true
+    },
+    {
+      "name": "holding the deadman gives a sustained False",
+      "ok": true,
+      "detail": "final False streak 3.10 s (needs >= 0.8 s)",
+      "gating": true
+    },
+    {
+      "name": "releasing the deadman asserts True and it stays True",
+      "ok": true,
+      "detail": "32 messages, first True at index 0",
+      "gating": true
+    },
+    {
+      "name": "holding again returns False (switch is live, not stuck)",
+      "ok": true,
+      "detail": "32 messages",
+      "gating": true
+    }
+  ],
+  "evidence_files": [],
+  "trace": "logs/hw_sessions/20261006_a14ab5939c29/C_20261006T182400Z/deadman_trace.json"
+}

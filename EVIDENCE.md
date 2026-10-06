@@ -10,6 +10,22 @@ Not validated until proven otherwise.
 
 Claims with a reproducible artifact in this repo or a captured log.
 
+- **First policy control of the physical GO2, stand only (2026-10-06)**: code
+  `a14ab59`, deploy config `deploy_walk_iter2750_stand.yaml` (walking checkpoint
+  model_2750 commanded to zero velocity). Every harness stage A-H returned GO on
+  the robot: payload onnxruntime vs workstation torch max abs-diff 1.19e-06
+  (A); 60 s dry pipeline with nothing published on `/lowcmd` (B); physical
+  deadman (C); LowState / IMU / joint states at about 500 Hz (D); live
+  hold-current for 31.4 s, max joint excursion 0.052 rad (E); policy authority
+  for 2.01 s (F), 5.02 s (G) and three 10 s windows (H), each continuous, ended
+  by its timer, with max |roll| <= 0.041 rad and max |pitch| <= 0.082 rad and
+  an operator confirmation recorded. Verdicts:
+  [`docs/hardware/2026-10-06_walk2750_stand_gate/`](docs/hardware/2026-10-06_walk2750_stand_gate/).
+  Limits: every live start was from the folded pose on the floor, not a
+  gantry; no non-zero velocity command was sent; the bridge published `/lowcmd`
+  at about 273 Hz against its 500 Hz target; firmware behaviour on a bridge
+  SIGKILL was not measured. The raw telemetry for E-H is not in the repo.
+
 - **235 unit tests green in CI**: `pytest tests -m "not sim and not ros"`. Coverage
   listed in [README §Tests](README.md#tests). CI configured to lazy-import torch
   (commit `f235171`).
