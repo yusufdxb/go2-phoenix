@@ -101,6 +101,9 @@ target-version = ["py310"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Import phoenix from THIS checkout's src/, not from whichever tree the editable install points
+# at (in a git worktree that is the main checkout, so bare `pytest` silently tested other code).
+pythonpath = ["src"]
 # The two -p no: entries block ROS 2 Humble's launch_testing pytest plugins, which
 # autoload whenever /opt/ros is on PYTHONPATH. They install a Logger subclass that
 # sets propagate=False on every logger created afterwards, so caplog sees nothing

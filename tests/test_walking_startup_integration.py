@@ -184,26 +184,298 @@ def test_contract_passes_once_fg_evidence_exists(fg_evidence) -> None:
     assert validate_deploy_contract(_walk_cfg()) == []
 
 
-def test_resolve_startup_with_the_harness_argv_passes(fg_evidence, walk_lock) -> None:
+def _issue(run_dir: Path, mode="GANTRY", preset="vx03_4s", **kw) -> dict:
+    """A grant for the real walking config/ONNX, as the harness issues it."""
+    from phoenix.sim2real import walk_grant as wg
+
+    cfg = _walk_cfg()
+    run_dir.mkdir(parents=True, exist_ok=True)
+    kwargs = dict(
+        mode=mode,
+        preset=preset,
+        run_dir=run_dir,
+        code_sha=resolve_code_identity(REPO).sha or "",
+        config_path=WALK_CFG,
+        onnx_path=Path(cfg["policy"]["onnx_path"]),
+        first_message_timeout_s=float(cfg["safety"]["first_message_timeout_s"]),
+        standup_s=2.0,
+    )
+    kwargs.update(kw)
+    grant, why = wg.issue_grant(**kwargs)
+    assert grant is not None, why
+    return grant
+
+
+def _node_argv(run_dir: Path, walk_lock: Path, *extra: str) -> list[str]:
+    return [
+        "--config",
+        str(WALK_CFG),
+        "--lock",
+        str(walk_lock),
+        "--log-parquet",
+        str(run_dir / "policy.parquet"),
+        *extra,
+    ]
+
+
+def test_resolve_startup_with_the_harness_argv_passes(fg_evidence, walk_lock, tmp_path) -> None:
     from phoenix.sim2real.ros2_policy_node import parse_args, resolve_startup
 
+    run = tmp_path / "W_vx03_4s_1"
+    grant = _issue(run)
     args = parse_args(
-        [
-            "--config",
-            str(WALK_CFG),
-            "--lock",
-            str(walk_lock),
+        _node_argv(
+            run,
+            walk_lock,
             "--authority-s",
-            "10",
+            str(grant["authority_s"]),
             "--max-runtime-s",
-            "25",
-        ]
+            str(grant["max_runtime_s"]),
+            "--grant",
+            str(run / "walk_grant.json"),
+        )
     )
     cfg = yaml.safe_load(args.config.read_text())
     onnx, problems = resolve_startup(cfg, args)
     assert problems == []
     assert onnx == Path(cfg["policy"]["onnx_path"])
     assert cfg["safety"]["stand_only"] is False
+    assert args.grant_record["preset"] == "vx03_4s"
+
+
+def test_hand_launched_policy_node_without_a_grant_cannot_start(
+    fg_evidence, walk_lock, tmp_path
+) -> None:
+    """The old behaviour: no --authority-s meant 120 s (safety.max_runtime_s) at any /cmd_vel."""
+    from phoenix.sim2real.ros2_policy_node import parse_args, resolve_startup
+
+    run = tmp_path / "HAND_1"
+    run.mkdir()
+    args = parse_args(_node_argv(run, walk_lock))
+    _, problems = resolve_startup(yaml.safe_load(WALK_CFG.read_text()), args)
+    assert any("walking grant" in p and "needs --grant" in p for p in problems)
+
+
+def test_policy_node_is_bounded_to_the_grant_not_to_the_config_runtime(
+    fg_evidence, walk_lock, tmp_path
+) -> None:
+    from phoenix.sim2real.ros2_policy_node import parse_args, resolve_startup
+
+    run = tmp_path / "W_vx03_4s_1"
+    grant = _issue(run)
+    cfg = yaml.safe_load(WALK_CFG.read_text())
+    assert cfg["safety"]["max_runtime_s"] > grant["max_runtime_s"]  # the unbounded window of old
+    args = parse_args(_node_argv(run, walk_lock, "--grant", str(run / "walk_grant.json")))
+    _, problems = resolve_startup(cfg, args)
+    assert problems == []
+    assert (
+        args.authority_s == grant["authority_s"]
+    ), "no --authority-s: the grant's window, not None"
+    assert cfg["safety"]["max_runtime_s"] == grant["max_runtime_s"]
+    # asking for more than the grant allows is refused, not clipped
+    for extra in (("--authority-s", "60"), ("--max-runtime-s", "120")):
+        args = parse_args(
+            _node_argv(run, walk_lock, "--grant", str(run / "walk_grant.json"), *extra)
+        )
+        _, problems = resolve_startup(yaml.safe_load(WALK_CFG.read_text()), args)
+        assert any("exceeds the grant" in p for p in problems), extra
+
+
+def test_policy_node_refuses_expired_wrong_run_and_wrong_policy_grants(
+    fg_evidence, walk_lock, tmp_path
+) -> None:
+    import time
+
+    from phoenix.sim2real.ros2_policy_node import parse_args, resolve_startup
+
+    def problems_for(run: Path, grant_path: Path) -> list[str]:
+        args = parse_args(_node_argv(run, walk_lock, "--grant", str(grant_path)))
+        return resolve_startup(yaml.safe_load(WALK_CFG.read_text()), args)[1]
+
+    expired = tmp_path / "W_expired"
+    _issue(expired, now=time.time() - 3600)
+    assert any("expired" in p for p in problems_for(expired, expired / "walk_grant.json"))
+
+    mine, other = tmp_path / "W_mine", tmp_path / "W_other"
+    _issue(other)
+    assert any("is for run" in p for p in problems_for(mine, other / "walk_grant.json"))
+
+    # a grant issued for different code (as if issued before a commit)
+    stale = tmp_path / "W_stale"
+    g = _issue(stale, mode="GANTRY", preset="vx03_4s", code_sha="0" * 40)
+    assert g["code_sha"] == "0" * 40
+    assert any("different code" in p for p in problems_for(stale, stale / "walk_grant.json"))
+
+
+def test_stand_only_policy_node_needs_no_grant(tmp_path) -> None:
+    from phoenix.sim2real.ros2_policy_node import parse_args, resolve_startup
+
+    args = parse_args(["--config", str(STAND_CFG), "--lock", str(STAND_LOCK)])
+    _, problems = resolve_startup(yaml.safe_load(STAND_CFG.read_text()), args)
+    assert not any("walking grant" in p for p in problems)
+
+
+def _live_bridge_args(run: Path, walk_lock: Path, sha: str, *extra: str) -> list[str]:
+    return [
+        "--live",
+        "--config",
+        str(WALK_CFG),
+        "--lock",
+        str(walk_lock),
+        "--telemetry",
+        str(run / "bridge.jsonl"),
+        "--stage",
+        "W",
+        "--expect-sha",
+        sha,
+        *extra,
+    ]
+
+
+def test_hand_launched_live_bridge_cannot_walk_or_start_without_a_grant(
+    fg_evidence, walk_lock, tmp_path
+) -> None:
+    pytest.importorskip("unitree_go.msg")
+    from phoenix.sim2real.lowcmd_bridge_node import _build_config, _parse_args, startup_problems
+
+    sha = resolve_code_identity(REPO).sha or ""
+    run = tmp_path / "HAND_1"
+    run.mkdir()
+    cfg = _build_config(_parse_args(_live_bridge_args(run, walk_lock, sha)))
+    assert (
+        cfg.gate_params().walking_allowed is False
+    ), "the contract passes; only the grant is missing"
+    assert cfg.gate_params().walk_window_s is None
+    problems, _ = startup_problems(cfg)
+    assert any(p.startswith("walking grant:") and "needs --grant" in p for p in problems)
+
+
+def test_live_bridge_with_a_valid_grant_walks_inside_it_and_nowhere_else(
+    fg_evidence, walk_lock, tmp_path
+) -> None:
+    pytest.importorskip("unitree_go.msg")
+    from phoenix.sim2real.lowcmd_bridge_node import _build_config, _parse_args, startup_problems
+
+    sha = resolve_code_identity(REPO).sha or ""
+    run = tmp_path / "W_vx03_4s_1"
+    grant = _issue(run)
+    args = _live_bridge_args(run, walk_lock, sha, "--grant", str(run / "walk_grant.json"))
+    cfg = _build_config(_parse_args(args))
+    params = cfg.gate_params()
+    assert params.walking_allowed is True
+    assert params.walk_envelope == (0.3, 0.0, 0.0)
+    assert 0 < params.walk_window_s <= grant["expires_unix"] - grant["issued_unix"]
+    problems, _ = startup_problems(cfg)
+    assert not any(p.startswith("walking grant:") for p in problems)
+
+    # the same grant presented from another run directory, or after expiry, grants nothing
+    elsewhere = tmp_path / "W_elsewhere"
+    elsewhere.mkdir()
+    cfg2 = _build_config(
+        _parse_args(
+            _live_bridge_args(elsewhere, walk_lock, sha, "--grant", str(run / "walk_grant.json"))
+        )
+    )
+    assert cfg2.gate_params().walking_allowed is False
+    assert any("is for run" in p for p in startup_problems(cfg2)[0])
+
+
+def test_live_bridge_refuses_an_expired_or_wrong_code_grant(
+    fg_evidence, walk_lock, tmp_path
+) -> None:
+    import time
+
+    pytest.importorskip("unitree_go.msg")
+    from phoenix.sim2real.lowcmd_bridge_node import _build_config, _parse_args, startup_problems
+
+    sha = resolve_code_identity(REPO).sha or ""
+    old = tmp_path / "W_old"
+    _issue(old, now=time.time() - 3600)
+    cfg = _build_config(
+        _parse_args(_live_bridge_args(old, walk_lock, sha, "--grant", str(old / "walk_grant.json")))
+    )
+    assert cfg.gate_params().walking_allowed is False
+    assert any("expired" in p for p in startup_problems(cfg)[0])
+
+    other = tmp_path / "W_other_code"
+    _issue(other, code_sha="1" * 40)
+    cfg = _build_config(
+        _parse_args(
+            _live_bridge_args(other, walk_lock, sha, "--grant", str(other / "walk_grant.json"))
+        )
+    )
+    assert any("different code" in p for p in startup_problems(cfg)[0])
+
+
+def test_dry_bridge_and_stand_only_live_bridge_need_no_grant(
+    fg_evidence, walk_lock, tmp_path
+) -> None:
+    pytest.importorskip("unitree_go.msg")
+    from phoenix.sim2real.lowcmd_bridge_node import _build_config, _parse_args, startup_problems
+
+    dry = _build_config(
+        _parse_args(
+            [
+                "--config",
+                str(WALK_CFG),
+                "--lock",
+                str(walk_lock),
+                "--telemetry",
+                str(tmp_path / "t"),
+            ]
+        )
+    )
+    assert dry.gate_params().walking_allowed is True  # /lowcmd_dry only: no motor is reachable
+    sha = resolve_code_identity(REPO).sha or ""
+    stand = _build_config(
+        _parse_args(
+            [
+                "--live",
+                "--config",
+                str(STAND_CFG),
+                "--lock",
+                str(STAND_LOCK),
+                "--telemetry",
+                str(tmp_path / "bridge.jsonl"),
+                "--expect-sha",
+                sha,
+            ]
+        )
+    )
+    assert not any(p.startswith("walking grant:") for p in startup_problems(stand)[0])
+
+
+def test_policy_node_latches_a_command_beyond_the_grant_and_an_expired_grant(
+    fg_evidence, isolated_ros, tmp_path
+) -> None:
+    import time
+
+    from phoenix.sim2real.ros2_policy_node import _PhoenixPolicyNode
+
+    cfg = _walk_cfg()
+    grant = _issue(tmp_path / "W_vx03_4s_1")  # vx03_4s: |vx| <= 0.3, no vy, no wz
+    node = _PhoenixPolicyNode(cfg, Path(cfg["policy"]["onnx_path"]), authority_s=10.0, grant=grant)
+    try:
+        node.cmd_pub = _Recorder()
+        _sensor_msgs(node, cmd_vx=0.45)  # inside safety.max_command (0.5), outside the preset
+        assert node._estopped and node._abort_reason == "command_exceeds_grant"
+    finally:
+        node.node.destroy_node()
+
+    short = dict(grant, expires_unix=time.time() + 0.3)
+    node = _PhoenixPolicyNode(cfg, Path(cfg["policy"]["onnx_path"]), authority_s=10.0, grant=short)
+    try:
+        recorder = _Recorder()
+        node.cmd_pub = recorder
+        _sensor_msgs(node, cmd_vx=0.3)
+        node._control_step()
+        assert not node._estopped, node._abort_reason
+        time.sleep(0.5)
+        _sensor_msgs(node, cmd_vx=0.3)
+        node._control_step()
+        assert node._estopped and node._abort_reason == "walking_grant_expired"
+    finally:
+        node.node.destroy_node()
 
 
 class _Recorder:

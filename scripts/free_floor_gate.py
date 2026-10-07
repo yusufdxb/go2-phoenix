@@ -63,6 +63,7 @@ import yaml  # noqa: E402
 
 from phoenix.sim2real import deploy_contract as dc  # noqa: E402
 from phoenix.sim2real import free_floor_state as st  # noqa: E402
+from phoenix.sim2real import walk_grant as wg  # noqa: E402
 from phoenix.sim2real.provenance import (  # noqa: E402
     CodeIdentity,
     resolve_code_identity,
@@ -1094,6 +1095,13 @@ def begin(
     if bundle is None:
         return ["a live free-floor run needs the activated bundle (PHOENIX_BUNDLE)"]
     ident = resolve_code_identity(REPO) if ident is None else ident
+    # One walking authority at a time: a live gantry (W) grant blocks this run BEFORE the
+    # run-start record is written, so a refusal here never leaves a walk latched as started.
+    live = wg.other_live_grants(
+        session_root if session_root is not None else dc.session_root(), run_dir, time.time()
+    )
+    if live:
+        return [f"another walking grant is live: {p}" for p in live]
     runtime = runtime_identity(cfg, cfg_path, lock_path, bundle, session, ident, env)
     problems = check(
         kind,

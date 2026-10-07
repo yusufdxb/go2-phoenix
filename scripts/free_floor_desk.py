@@ -71,6 +71,24 @@ def desk_checks() -> list[dict[str, Any]]:
     def add(name: str, ok: bool, detail: str = "") -> None:
         out.append({"check": name, "ok": bool(ok), "detail": detail})
 
+    import phoenix
+    from phoenix.sim2real import walk_grant as wg
+
+    # An editable install elsewhere (the main checkout) must never be what the desk tests or what
+    # the lab code runs: the readiness answer is only about THIS tree.
+    phoenix_file = Path(phoenix.__file__).resolve()
+    add(
+        "phoenix is imported from THIS checkout (not another worktree or the main checkout)",
+        phoenix_file.is_relative_to(REPO),
+        f"phoenix resolves to {phoenix_file}, repo is {REPO}",
+    )
+    add(
+        "walk grant: FREE_FLOOR is bound to the incumbent ONNX, GANTRY and FREE_FLOOR presets are "
+        "the registered ones",
+        wg.FREE_FLOOR_ONNX_SHA256 == ff.INCUMBENT["policy.onnx"]
+        and wg.ALLOWED_PRESETS[wg.MODE_FREE_FLOOR] == (wg.STAND_ZERO, ff.FREE_FLOOR_PRESET)
+        and all(p in ff.PRESETS for p in wg.GANTRY_PRESETS),
+    )
     ident = resolve_code_identity(REPO)
     idp = identity_problems(ident, expected_branch=DEFAULT_EXPECTED_BRANCH)
     add("code identity: branch, clean tracked tree", not idp, "; ".join(idp) or f"{ident.branch}")
@@ -137,6 +155,7 @@ def desk_checks() -> list[dict[str, Any]]:
         "scripts/stage_payload_bundle.sh",
         "scripts/payload_prep.sh",
         "src/phoenix/sim2real/free_floor_state.py",
+        "src/phoenix/sim2real/walk_grant.py",
     ):
         add(f"tracked: {rel}", bool(_git("ls-files", "--", rel)))
     real = REPO / "tests/fixtures/gantry_ab/real_policy_exits.json"

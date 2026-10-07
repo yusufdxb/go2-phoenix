@@ -88,6 +88,10 @@ from phoenix.sim2real.provenance import (
 )
 from phoenix.sim2real.safety import MAX_DELTA_PER_STEP_RAD
 from phoenix.sim2real.sit_policy import SIT_POSE_UNITREE, FallbackSit
+from phoenix.sim2real.walk_grant import file_sha256 as _grant_file_sha256
+from phoenix.sim2real.walk_grant import grant_problems as _walk_grant_problems
+from phoenix.sim2real.walk_grant import read_grant as _read_walk_grant
+from phoenix.sim2real.walk_grant import window_remaining_s as _walk_grant_remaining_s
 
 # MAX_DELTA_PER_STEP_RAD is re-exported from phoenix.sim2real.safety so
 # the policy node and the bridge cannot drift on the slew-rate cap.
@@ -147,6 +151,14 @@ class BridgeConfig:
     walking_allowed: bool = False
     #: The deploy manifest declares phoenix-velocity-obs/v2 (no base_lin_vel term).
     obs_schema_v2: bool = False
+    #: Walking grant (``--grant``, see walk_grant.py). A LIVE bridge on a walking config
+    #: refuses to start, and keeps ``walking_allowed`` False, unless the grant is valid for
+    #: this run; ``grant_problems`` is what startup refuses with. The envelope and window the
+    #: gate enforces come from the verified grant only.
+    grant_path: Path | None = None
+    grant_problems: tuple[str, ...] = ()
+    walk_envelope: tuple[float, float, float] | None = None
+    walk_window_s: float | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     def gate_params(self) -> GateParams:
@@ -167,6 +179,8 @@ class BridgeConfig:
             standup_kd=self.standup_kd,
             walking_allowed=self.walking_allowed,
             obs_schema_v2=self.obs_schema_v2,
+            walk_envelope=self.walk_envelope,
+            walk_window_s=self.walk_window_s,
         )
 
 
@@ -531,6 +545,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--expect-sha", default=None, help="commit the running code must be (live)")
     p.add_argument("--stage", default="unlabelled", help="gate stage label for the record")
     p.add_argument(
+        "--grant",
+        type=Path,
+        default=None,
+        help="walk_grant.json issued for THIS run directory by the harness (required for a live "
+        "walking config; never needed for a stand-only one)",
+    )
+    p.add_argument(
         "--standup-s",
         type=float,
         default=0.0,
@@ -540,6 +561,40 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--standup-kp", type=float, default=60.0, help="standup kp (default 60)")
     p.add_argument("--standup-kd", type=float, default=5.0, help="standup kd (default 5)")
     return p.parse_args(argv)
+
+
+def _verify_walking_grant(
+    args: argparse.Namespace,
+) -> tuple[list[str], tuple[float, float, float] | None, float | None]:
+    """(problems, envelope, seconds of validity left) for a LIVE bridge on a walking config.
+
+    The run id is the telemetry directory's name (the harness creates one run directory per
+    launch and puts both the grant and bridge.jsonl in it)."""
+    grant_path = getattr(args, "grant", None)
+    if grant_path is None:
+        return (
+            [
+                "a live walking bridge needs --grant: walking is only authorized by a bounded "
+                "grant the harness issues (scripts/harness_preflight.sh W | FREE_FLOOR)"
+            ],
+            None,
+            None,
+        )
+    grant, err = _read_walk_grant(grant_path)
+    if err:
+        return err, None, None
+    telemetry = getattr(args, "telemetry", None)
+    problems = _walk_grant_problems(
+        grant,
+        run_id=Path(telemetry).parent.name if telemetry else None,
+        code_sha=getattr(args, "expect_sha", None),
+        config_sha256=_grant_file_sha256(args.config),
+        rehearsal=os.environ.get("PHOENIX_REHEARSAL") == "1",
+    )
+    if problems or grant is None:
+        return problems, None, None
+    envelope = tuple(float(v) for v in grant["envelope"])
+    return [], (envelope[0], envelope[1], envelope[2]), max(0.0, _walk_grant_remaining_s(grant))
 
 
 def _build_config(args: argparse.Namespace) -> BridgeConfig:
@@ -553,6 +608,9 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
     joint_order: tuple[str, ...] = POLICY_JOINT_ORDER
     walking_allowed = False
     obs_schema_v2 = False
+    grant_problems: list[str] = []
+    walk_envelope: tuple[float, float, float] | None = None
+    walk_window_s: float | None = None
     if args.config.exists():
         cfg = _load_deploy_config(args.config)
         rate_hz = float(cfg.get("control", {}).get("rate_hz", rate_hz))
@@ -568,6 +626,10 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
             joint_order = tuple(cfg["joint_order"])
         obs_schema_v2 = _manifest_schema(cfg) == OBS_SCHEMA_V2
         walking_allowed = not is_stand_only(cfg) and not validate_deploy_contract(cfg)
+        if args.live and not is_stand_only(cfg):
+            grant_problems, walk_envelope, walk_window_s = _verify_walking_grant(args)
+            if grant_problems:
+                walking_allowed = False
 
     # Resolution order for the estop heartbeat timeout, strict-to-loose:
     #   1. CLI flag --estop-timeout-s if explicitly passed (not None).
@@ -611,6 +673,10 @@ def _build_config(args: argparse.Namespace) -> BridgeConfig:
         standup_kd=float(getattr(args, "standup_kd", 5.0)),
         walking_allowed=walking_allowed,
         obs_schema_v2=obs_schema_v2,
+        grant_path=getattr(args, "grant", None),
+        grant_problems=tuple(grant_problems),
+        walk_envelope=walk_envelope,
+        walk_window_s=walk_window_s,
     )
 
 
@@ -646,6 +712,7 @@ def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
         identity, expected_sha=cfg.expect_sha, expected_branch=resolve_expected_branch()
     )
     if cfg.live:
+        problems.extend(f"walking grant: {p}" for p in cfg.grant_problems)
         problems.extend(f"environment: {p}" for p in live_environment_problems())
         if cfg.walking_allowed:
             # A free-floor walk that nobody has reviewed latches every later walking launch,

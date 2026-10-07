@@ -88,6 +88,7 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -139,6 +140,7 @@ from .observation import (
     resolve_base_lin_vel,
 )
 from .observation_v2 import ManifestObservationBuilder
+from .provenance import resolve_code_identity
 from .safety import (
     DEFAULT_POSITION_CLIP_MARGIN_RAD,
     DEFAULT_SUSTAINED_CLIP_TICKS,
@@ -153,6 +155,9 @@ from .telemetry import (
     foot_force_to_array,
     sample_odom,
 )
+from .walk_grant import ENVELOPE_TOL, window_remaining_s
+from .walk_grant import grant_problems as walk_grant_problems
+from .walk_grant import read_grant as read_walk_grant
 
 logger = logging.getLogger("phoenix.sim2real.ros2_policy_node")
 
@@ -275,6 +280,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Lower safety.max_runtime_s for this run. It can only lower it, never raise it.",
     )
+    p.add_argument(
+        "--grant",
+        type=Path,
+        default=None,
+        help="walk_grant.json issued for THIS run directory by the harness. Required for a "
+        "walking config (safety.stand_only: false); it bounds the authority window, the "
+        "runtime and the /cmd_vel envelope. Never needed for a stand-only config.",
+    )
     return p.parse_args(argv)
 
 
@@ -365,7 +378,62 @@ def resolve_startup(cfg: dict, args: argparse.Namespace) -> tuple[Path | None, l
     authority = getattr(args, "authority_s", None)
     if authority is not None and not float(authority) > 0.0:
         problems.append(f"--authority-s must be positive, got {authority}")
+    if (as_written.get("safety") or {}).get("stand_only") is not True:
+        problems.extend(f"walking grant: {p}" for p in _apply_walking_grant(cfg, args, onnx_path))
     return onnx_path, problems
+
+
+def _apply_walking_grant(cfg: dict, args: argparse.Namespace, onnx_path: Path | None) -> list[str]:
+    """A walking config runs only inside a bounded grant for exactly this run.
+
+    On success the verified grant is left on ``args.grant_record`` and the run is bounded to it:
+    the authority window defaults to (and may never exceed) the grant's, and the runtime cap is
+    lowered to the grant's. The grant is re-derived from the preset by the verifier, so editing
+    the file cannot widen anything."""
+    grant_path = getattr(args, "grant", None)
+    if grant_path is None:
+        return [
+            "a walking config needs --grant: walking is only authorized by a bounded grant the "
+            "harness issues (scripts/harness_preflight.sh W | FREE_FLOOR)"
+        ]
+    grant, why = read_walk_grant(grant_path)
+    if why:
+        return why
+    log = getattr(args, "log_parquet", None)
+    if log is None or onnx_path is None or not onnx_path.is_file():
+        return ["a walking run needs --log-parquet inside its run directory and a readable ONNX"]
+    problems = walk_grant_problems(
+        grant,
+        run_id=Path(log).parent.name,
+        code_sha=resolve_code_identity(Path(__file__).resolve().parents[3]).sha,
+        config_sha256=file_sha256(args.config),
+        onnx_sha256=file_sha256(onnx_path),
+        rehearsal=os.environ.get("PHOENIX_REHEARSAL") == "1",
+    )
+    if problems or grant is None:
+        return problems
+    authority = getattr(args, "authority_s", None)
+    if authority is not None and float(authority) > float(grant["authority_s"]) + 1e-9:
+        problems.append(
+            f"--authority-s {authority} exceeds the grant's {grant['authority_s']} s for "
+            f"{grant['preset']}"
+        )
+    override = getattr(args, "max_runtime_s", None)
+    if override is not None and float(override) > float(grant["max_runtime_s"]) + 1e-9:
+        problems.append(
+            f"--max-runtime-s {override} exceeds the grant's {grant['max_runtime_s']} s"
+        )
+    if problems:
+        return problems
+    args.authority_s = float(grant["authority_s"]) if authority is None else float(authority)
+    safety = cfg.setdefault("safety", {})
+    safety["max_runtime_s"] = min(
+        float(safety.get("max_runtime_s", grant["max_runtime_s"])),
+        float(grant["max_runtime_s"]),
+        float(override) if override is not None else float("inf"),
+    )
+    args.grant_record = grant
+    return []
 
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires ROS 2
@@ -383,7 +451,11 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - requires R
 
     rclpy.init()
     node = _PhoenixPolicyNode(
-        cfg, onnx_path, log_parquet=args.log_parquet, authority_s=args.authority_s
+        cfg,
+        onnx_path,
+        log_parquet=args.log_parquet,
+        authority_s=args.authority_s,
+        grant=getattr(args, "grant_record", None),
     )
     try:
         rclpy.spin(node.node)
@@ -408,6 +480,7 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         onnx_path: Path,
         log_parquet: Path | None = None,
         authority_s: float | None = None,
+        grant: dict | None = None,
     ):
         import onnxruntime as ort
         from geometry_msgs.msg import Twist
@@ -437,6 +510,16 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
                 "latches abort 'walking_command_blocked_stand_only'."
             )
         self._authority_s = authority_s
+        # Verified walking grant (resolve_startup): its envelope bounds /cmd_vel and its expiry,
+        # converted once to the monotonic clock, ends policy authority. None = no grant enforced
+        # here (stand-only runs; unit tests). The bridge enforces its own copy independently.
+        self._grant_envelope: np.ndarray | None = None
+        self._grant_deadline_ns: int | None = None
+        if grant is not None:
+            self._grant_envelope = np.asarray(grant["envelope"], dtype=np.float64)
+            self._grant_deadline_ns = time.monotonic_ns() + int(
+                max(0.0, window_remaining_s(grant)) * 1e9
+            )
         self.action_scale = float(cfg["control"]["action_scale"])
         self.rate_hz = float(cfg["control"]["rate_hz"])
         # Deploy PD gains, matched to the LowCmd bridge's --kp/--kd (both
@@ -882,6 +965,13 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         if not np.all(np.isfinite(received)):
             self._velocity_command = np.zeros(3, dtype=np.float32)
             return
+        envelope = getattr(self, "_grant_envelope", None)
+        if envelope is not None and bool(np.any(np.abs(received) > envelope + ENVELOPE_TOL)):
+            # Above what the approved preset allows: no clipping, a latch (hold, then sit).
+            if not self._estopped:
+                self._latch_abort("command_exceeds_grant")
+            self._velocity_command = np.zeros(3, dtype=np.float32)
+            return
         self._velocity_command = np.clip(received, -self.max_command, self.max_command).astype(
             np.float32
         )
@@ -1006,6 +1096,9 @@ class _PhoenixPolicyNode:  # pragma: no cover - requires ROS 2 runtime
         authority_elapsed_s = (now_ns - self._authority_started_ns) / 1e9
         if self._authority_s is not None and authority_elapsed_s >= self._authority_s:
             self._latch_abort("authority_window_complete")
+            return
+        if self._grant_deadline_ns is not None and now_ns >= self._grant_deadline_ns:
+            self._latch_abort("walking_grant_expired")
             return
 
         # base_lin_vel is a trained observation term, not a free variable.

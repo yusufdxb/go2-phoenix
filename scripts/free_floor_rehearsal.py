@@ -223,12 +223,18 @@ class Run:
         extra_env: dict[str, str] | None = None,
         confirm: str | None = None,
         timeout_s: float = HARNESS_TIMEOUT_S,
+        stage: str = "FREE_FLOOR",
     ) -> None:
         self.world, self.session, self.args = world, session, args
         self.release_after_s, self.fault, self.no_fake = release_after_s, fault, no_fake
         self.follow = follow
         self.extra_env, self.timeout_s = extra_env, timeout_s
-        self.confirm = confirm or "LIVE FREE_FLOOR " + " ".join(args) + " NO GANTRY"
+        self.stage = stage
+        self.confirm = confirm or (
+            "LIVE W " + " ".join(args) + " ON GANTRY"
+            if stage == "W"
+            else "LIVE FREE_FLOOR " + " ".join(args) + " NO GANTRY"
+        )
         self.deadman_file = world.root / "deadman.txt"
         self.proc: subprocess.Popen | None = None
         self.fake: subprocess.Popen | None = None
@@ -240,7 +246,9 @@ class Run:
     # newest run dir created by THIS invocation
     def run_dir(self) -> Path | None:
         cands = [
-            d for d in self.session.glob("FF_*") if d.is_dir() and d.stat().st_ctime >= self._t0 - 1
+            d
+            for d in self.session.glob("W_*" if self.stage == "W" else "FF_*")
+            if d.is_dir() and d.stat().st_ctime >= self._t0 - 1
         ]
         return sorted(cands)[-1] if cands else None
 
@@ -317,7 +325,13 @@ class Run:
                 3.0
             )  # the fake refuses a graph with other publishers after a 2 s discovery wait
         self.proc = subprocess.Popen(
-            ["bash", str(HARNESS), "FREE_FLOOR", *self.args],
+            [
+                "bash",
+                str(HARNESS),
+                *([] if self.stage == "W" else ["FREE_FLOOR"]),
+                *(["W"] if self.stage == "W" else []),
+                *self.args,
+            ],
             cwd=REPO,
             env=env,
             stdout=subprocess.PIPE,
@@ -904,6 +918,249 @@ def sc_artifact_swap(w: World, c: Check) -> None:
     )
 
 
+# ------------------------------------------------------------------ walking authority (grant)
+def _live_grant(w: World, s: Path, mode: str, preset: str, name: str) -> Path:
+    """A valid, unreleased grant sitting in another run directory of the session (an active run)."""
+    from phoenix.sim2real import walk_grant as wg
+    from phoenix.sim2real.provenance import resolve_code_identity
+
+    run = s / name
+    run.mkdir()
+    cfg = w.bundle / WALK_CFG.name
+    grant, why = wg.issue_grant(
+        mode=mode,
+        preset=preset,
+        run_dir=run,
+        code_sha=resolve_code_identity(REPO).sha or "",
+        config_path=cfg,
+        onnx_path=w.bundle / "policy.onnx",
+        first_message_timeout_s=15.0,
+        standup_s=2.0,
+        rehearsal=True,
+    )
+    assert grant is not None, why
+    return run
+
+
+def gantry_w(w: World, s: Path, preset: str = "vx03_2s", **kw) -> Run:
+    return Run(w, s, [preset], stage="W", **kw).go()
+
+
+def sc_gantry_w_ok(w: World, c: Check) -> None:
+    """The legitimate gantry W path still works, bounded by a GANTRY grant it issued itself."""
+    s = w.new_session()
+    r = gantry_w(w, s)
+    run = r.run_dir()
+    c.ok("W: harness rc 0", r.rc == 0, f"rc={r.rc} {r.events} {r.out[-300:]}")
+    c.ok("W: run directory created", run is not None)
+    g = rec(run, "walk_grant.json") if run else None
+    c.ok(
+        "W: a GANTRY grant for vx03_2s was issued in the run directory",
+        bool(g) and g["mode"] == "GANTRY" and g["preset"] == "vx03_2s" and g["run_id"] == run.name,
+        str(g),
+    )
+    c.ok(
+        "W: the grant was released at the end",
+        bool(run) and (run / "walk_grant.released").is_file(),
+    )
+    summary = None
+    try:
+        lines = [json.loads(x) for x in (run / "walk_cmd.jsonl").read_text().splitlines()]
+        summary = next((x for x in lines if x.get("record") == "summary"), None)
+    except (OSError, ValueError, TypeError):
+        pass
+    c.ok(
+        "W: walk_command completed the preset",
+        bool(summary) and summary["outcome"] == "complete",
+        str(summary),
+    )
+    faults = set()
+    try:
+        for x in (run / "bridge.jsonl").read_text().splitlines():
+            t = json.loads(x)
+            for f in t.get("faults") or []:
+                faults.add(f)
+    except (OSError, ValueError, TypeError):
+        pass
+    c.ok("W: no grant fault in the bridge", not any("grant" in f for f in faults), str(faults))
+    c.ok("W: no processes left", not any("LEFTOVER" in e for e in r.events), str(r.events))
+
+
+def sc_gantry_w_bad_preset(w: World, c: Check) -> None:
+    """W authorizes only the registered gantry presets: nothing else launches."""
+    s = w.new_session()
+    for preset in ("vx05_3s", "vxm03_2s", "vx09_9s", "../vx03_2s", ""):
+        p = subprocess.run(
+            ["bash", str(HARNESS), "W", preset],
+            env=w.env(s, f"LIVE W {preset} ON GANTRY"),
+            capture_output=True,
+            text=True,
+            cwd=REPO,
+            stdin=subprocess.DEVNULL,
+            timeout=120,
+        )
+        t = p.stdout + p.stderr
+        c.ok(
+            f"W preset {preset!r}: refused, nothing launched",
+            p.returncode != 0 and no_motion(t) and not list(s.glob("W_*")),
+            t[-250:],
+        )
+
+
+def sc_grant_mutual_exclusion(w: World, c: Check) -> None:
+    """One walking authority at a time, in both directions; a released grant frees the slot."""
+    s = w.new_session()
+    gdir = _live_grant(w, s, "GANTRY", "vx03_4s", "W_vx03_4s_active")
+    r = Run(w, s, ["drill"], release_after_s=2.0).go()
+    t = r.out
+    c.ok(
+        "FREE_FLOOR drill refused while a gantry grant is live, nothing launched, nothing latched",
+        r.rc != 0
+        and "another walking grant is live" in t
+        and no_motion(t)
+        and not (s / "free_floor_started.json").exists(),
+        t[-300:],
+    )
+    (gdir / "walk_grant.released").write_text("done\n")
+    good_drill(w, s, c)
+    s2 = w.new_session()
+    _live_grant(w, s2, "FREE_FLOOR", "vx03_2s", "FF_walk_active")
+    r = gantry_w(w, s2)
+    t = r.out
+    c.ok(
+        "gantry W refused while a free-floor grant is live, nothing launched",
+        r.rc != 0 and "another walking grant is live" in t and no_motion(t),
+        t[-300:],
+    )
+
+
+def sc_hand_launch_refused(w: World, c: Check) -> None:
+    """A bridge or policy node started by hand, without a valid grant, cannot walk."""
+    from phoenix.sim2real import walk_grant as wg
+
+    s = w.new_session()
+    run = s / "HAND_1"
+    run.mkdir()
+    env = w.env(s, "x")
+    cfg = str(w.bundle / WALK_CFG.name)
+    sha = env["PHOENIX_EXPECT_SHA"]
+
+    def bridge(grant: str | None) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "phoenix.sim2real.lowcmd_bridge_node",
+                "--live",
+                "--config",
+                cfg,
+                "--lock",
+                str(WALK_LOCK),
+                "--telemetry",
+                str(run / "bridge.jsonl"),
+                "--stage",
+                "HAND",
+                "--expect-sha",
+                sha,
+                *(["--grant", grant] if grant else []),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            cwd=REPO,
+            timeout=60,
+            stdin=subprocess.DEVNULL,
+        )
+
+    def policy(grant: str | None) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "phoenix.sim2real.ros2_policy_node",
+                "--config",
+                cfg,
+                "--lock",
+                str(WALK_LOCK),
+                "--log-parquet",
+                str(run / "policy.parquet"),
+                *(["--grant", grant] if grant else []),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            cwd=REPO,
+            timeout=60,
+            stdin=subprocess.DEVNULL,
+        )
+
+    b = bridge(None)
+    c.ok(
+        "hand bridge, no grant: refuses to start",
+        b.returncode == 2 and "walking grant" in b.stderr,
+        b.stderr[-250:],
+    )
+    n = policy(None)
+    c.ok(
+        "hand policy node, no grant: refuses to start",
+        n.returncode == 2 and "walking grant" in (n.stderr + n.stdout),
+        (n.stderr + n.stdout)[-250:],
+    )
+    # an EXPIRED grant, issued in the past for this very run
+    grant, why = wg.issue_grant(
+        mode="GANTRY",
+        preset="vx03_2s",
+        run_dir=run,
+        code_sha=sha,
+        config_path=Path(cfg),
+        onnx_path=w.bundle / "policy.onnx",
+        first_message_timeout_s=15.0,
+        standup_s=2.0,
+        rehearsal=True,
+        now=time.time() - 3600,
+    )
+    assert grant is not None, why
+    b = bridge(str(run / "walk_grant.json"))
+    c.ok(
+        "hand bridge, expired grant: refuses to start",
+        b.returncode == 2 and "expired" in b.stderr,
+        b.stderr[-250:],
+    )
+    n = policy(str(run / "walk_grant.json"))
+    c.ok(
+        "hand policy node, expired grant: refuses to start",
+        n.returncode == 2 and "expired" in (n.stderr + n.stdout),
+        (n.stderr + n.stdout)[-250:],
+    )
+    # a valid grant for ANOTHER run directory
+    other = s / "HAND_2"
+    other.mkdir()
+    g2, why = wg.issue_grant(
+        mode="GANTRY",
+        preset="vx03_2s",
+        run_dir=other,
+        code_sha=sha,
+        config_path=Path(cfg),
+        onnx_path=w.bundle / "policy.onnx",
+        first_message_timeout_s=15.0,
+        standup_s=2.0,
+        rehearsal=True,
+    )
+    assert g2 is not None, why
+    b = bridge(str(other / "walk_grant.json"))
+    c.ok(
+        "hand bridge, grant of another run: refuses to start",
+        b.returncode == 2 and "is for run" in b.stderr,
+        b.stderr[-250:],
+    )
+    n = policy(str(other / "walk_grant.json"))
+    c.ok(
+        "hand policy node, grant of another run: refuses to start",
+        n.returncode == 2 and "is for run" in (n.stderr + n.stdout),
+        (n.stderr + n.stdout)[-250:],
+    )
+
+
 SCENARIOS: dict[str, Callable[[World, Check], None]] = {
     "happy_reject": sc_happy_reject,
     "happy_accept": sc_happy_accept,
@@ -928,6 +1185,10 @@ SCENARIOS: dict[str, Callable[[World, Check], None]] = {
     "walk_deadman_released": sc_walk_deadman_released,
     "walk_lowstate_stops": sc_walk_lowstate_stops,
     "walk_harness_killed": sc_walk_harness_killed,
+    "gantry_w_ok": sc_gantry_w_ok,
+    "gantry_w_bad_preset": sc_gantry_w_bad_preset,
+    "grant_mutual_exclusion": sc_grant_mutual_exclusion,
+    "hand_launch_refused": sc_hand_launch_refused,
 }
 
 

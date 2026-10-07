@@ -130,6 +130,10 @@ REAL_DEADMAN_NODE_NAMES: frozenset[str] = frozenset({"phoenix_wireless_estop", "
 _ZEROS_CODE = float(OBS_SOURCE_CODES["zeros"])
 
 
+#: Float noise allowed on the walking-grant command envelope (matches walk_grant.ENVELOPE_TOL).
+_GRANT_TOL = 1e-6
+
+
 class Mode(str, Enum):
     SILENT = "silent"
     HOLD = "hold"
@@ -202,6 +206,13 @@ class GateParams:
     #: term), so a ``zeros`` observation source is an inert placeholder rather than a
     #: blinded trained input. Derived by the bridge from the manifest; never a CLI flag.
     obs_schema_v2: bool = False
+    #: Walking grant (see walk_grant.py), set by the bridge from a verified grant, never a flag
+    #: of its own: the per-axis |command| ceiling of the approved preset and the seconds, from
+    #: the gate's start, until the grant expires. Both None means no grant is enforced here
+    #: (stand-only bridges and unit tests); the bridge CLI cannot reach a walking-allowed gate
+    #: without them.
+    walk_envelope: tuple[float, float, float] | None = None
+    walk_window_s: float | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -269,6 +280,11 @@ class ActuatorGate:
         self._clip_tracker = SustainedClipTracker(12, params.sustained_clip_ticks)
         self._label = wire_label(params.joint_order)
         self._started_ns = int(started_ns)
+        self._walk_deadline_ns: int | None = (
+            None
+            if params.walk_window_s is None
+            else self._started_ns + int(max(0.0, params.walk_window_s) * 1e9)
+        )
 
         self._q: np.ndarray | None = None
         self._dq: np.ndarray | None = None
@@ -467,6 +483,18 @@ class ActuatorGate:
             if not self.params.walking_allowed:
                 self._latch("walking_blocked_not_enabled")
                 return
+            if self._walk_deadline_ns is not None and int(now_ns) >= self._walk_deadline_ns:
+                self._latch("walking_grant_expired")
+                return
+            envelope = self.params.walk_envelope
+            if envelope is not None and any(
+                np.isfinite(v) and abs(v) > e + _GRANT_TOL
+                for v, e in zip(
+                    (*f["velocity_command_fed"], *f["cmd_vel_received"]), envelope * 2, strict=True
+                )
+            ):
+                self._latch("walking_blocked_command_exceeds_grant")
+                return
         else:
             moving = [
                 v
@@ -655,6 +683,16 @@ class ActuatorGate:
             cause = "standup_in_progress"
         else:
             mode = Mode.POLICY
+        if (
+            mode is Mode.POLICY
+            and self._walk_deadline_ns is not None
+            and now_ns >= self._walk_deadline_ns
+        ):
+            # The grant ran out while the policy still has the robot: remove walking capability
+            # through the existing latch (hold, then the controlled sit). STOP/deadman above do
+            # not depend on any of this.
+            self._latch("walking_grant_expired")
+            mode, cause = Mode.HOLD, "walking_grant_expired"
 
         standup_ok = (
             p.standup_s > 0

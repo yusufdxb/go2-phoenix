@@ -148,7 +148,9 @@ stop_all() {
     done
     return 0
 }
-trap stop_all EXIT
+GRANT_RUN=""
+cleanup_all() { stop_all; release_walk_grant; }
+trap cleanup_all EXIT
 
 new_run() {
     RUN="$SESSION/$1_$(ts)"
@@ -247,6 +249,24 @@ EOF
 bridge_args() {
     local stage="$1" telemetry="$2"
     echo --config "$DEPLOY_CFG" --lock "$DEPLOY_LOCK" --telemetry "$telemetry" --stage "$stage" --expect-sha "$EXPECT"
+}
+
+# Walking authority: every walking launch (W, FREE_FLOOR drill|walk) issues ONE bounded grant in
+# its run directory, after the operator's arm and before any process that can move a motor. The
+# bridge and the policy node refuse a walking config without it (phoenix.sim2real.walk_grant).
+# A hand-launched bridge + policy node has no grant, so it cannot walk. The grant is released
+# (marked finished) when this script exits so the next launch is not held back until it expires.
+issue_walk_grant() {
+    local mode="$1" preset="$2" standup_s="$3"
+    python3 -m phoenix.sim2real.walk_grant issue --mode "$mode" --preset "$preset" --run-dir "$RUN" \
+        --config "$DEPLOY_CFG" --expect-sha "$EXPECT" --standup-s "$standup_s" \
+        || halt "no walking grant could be issued (see BLOCKED lines above); no motion"
+    GRANT_RUN="$RUN"
+}
+release_walk_grant() {
+    [[ -n "${GRANT_RUN:-}" && -f "$GRANT_RUN/walk_grant.json" ]] \
+        && python3 -m phoenix.sim2real.walk_grant release --run-dir "$GRANT_RUN" 2>/dev/null
+    return 0
 }
 
 # --------------------------------------------------------------------- stages
@@ -513,6 +533,10 @@ stage_walk() {
     [[ -n "$preset" ]] || halt "usage: harness_preflight.sh W <preset> (presets: python3 -m phoenix.sim2real.walk_command --list)"
     walk_dur="$(python3 -c 'import sys; from phoenix.sim2real.walk_command import PRESETS, profile_duration; print(profile_duration(PRESETS[sys.argv[1]]))' "$preset" 2>/dev/null)" \
         || halt "unknown walk preset '$preset' (python3 -m phoenix.sim2real.walk_command --list)"
+    case "$preset" in
+        vx03_2s|vx03_4s|yaw05_3s) ;;
+        *) halt "W is gantry-only and authorizes only the registered gantry presets (vx03_2s, vx03_4s, yaw05_3s), not '$preset'" ;;
+    esac
     need_sha; ros_env
     # A free-floor walk nobody has reviewed latches every later walking launch (the bridge refuses too).
     python3 "$REPO_ROOT/scripts/free_floor_gate.py" unreviewed || halt "an unreviewed free-floor walk blocks W (review it first)"
@@ -533,6 +557,9 @@ stage_walk() {
     # + motion_s + ramp-down (<= 1.0 s, vx 0.5) = 7 + motion_s. Requiring >= 2.0 s of zero
     # command before the window ends gives margin >= 9 - 5 = 4.0, hence the default.
     margin="${PHOENIX_WALK_AUTHORITY_MARGIN_S:-4.0}"
+    # The grant fixes the window at profile + 4.0 s; a longer one would be refused by the node anyway.
+    python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) <= 4.0 else 1)" "$margin" \
+        || halt "PHOENIX_WALK_AUTHORITY_MARGIN_S=$margin exceeds the 4.0 s a walking grant allows"
     first_msg="$(cfg_get safety.first_message_timeout_s)"
     authority="$(python3 -c "print($walk_dur + $margin)")"
     max_rt="$(python3 -c "print(float('$first_msg') + $authority)")"
@@ -542,6 +569,8 @@ stage_walk() {
         operator_gate arm "W_${preset}" \
             "[W $preset] Robot folded on the mat UNDER THE GANTRY, safety rope ATTACHED (slack, catches a fall), feet on the ground, spotter ready, clear 2 m radius, deadman HELD (keep holding it for the whole walk). Press Enter to start: "
     fi
+    # The bounded GANTRY grant: refused while a free-floor walk is unreviewed or another grant is live.
+    issue_walk_grant GANTRY "$preset" "$standup_s"
     # shellcheck disable=SC2046
     launch deadman $(deadman_cmd)
     launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
@@ -550,7 +579,7 @@ stage_walk() {
     # --stage is a free-form label in lowcmd_bridge_node (default "unlabelled", never validated), so "W" is accepted as is.
     # shellcheck disable=SC2046
     launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args W "$telemetry") \
-        --standup-s "$standup_s"
+        --standup-s "$standup_s" --grant "$RUN/walk_grant.json"
     wait_for_telemetry "$telemetry" 't.get("mode") in ("hold", "standup") and t.get("deadman_source_ok")' \
         "$first_msg" "bridge armed with the real deadman"
     wait_for_telemetry "$telemetry" 't.get("standup_done")' \
@@ -558,7 +587,7 @@ stage_walk() {
     require_alive deadman lowstate_bridge lowcmd_bridge
     launch policy_node python3 -m phoenix.sim2real.ros2_policy_node --config "$DEPLOY_CFG" \
         --lock "$DEPLOY_LOCK" --authority-s "$authority" --max-runtime-s "$max_rt" \
-        --log-parquet "$RUN/policy.parquet"
+        --log-parquet "$RUN/policy.parquet" --grant "$RUN/walk_grant.json"
     # The authority window counts from the policy's first commanding tick, not from node
     # launch, and the policy node starts far slower than walk_command on the payload. Start
     # the profile only once the bridge is in policy mode, so the 2 s zero lead-in is really
@@ -760,6 +789,8 @@ stage_free_floor() {
     # next walk until a human reviews.
     python3 "$ff" begin --kind "$sub" --run-dir "$RUN" ${preset:+--preset "$preset"} "${common[@]}" \
         || halt "free-floor $sub could not start (see BLOCKED lines above); no motion"
+    # The bounded FREE_FLOOR grant (drill: zero command; walk: vx03_2s only, incumbent ONNX only).
+    issue_walk_grant FREE_FLOOR "${preset:-stand_zero}" "$standup_s"
     # shellcheck disable=SC2046
     launch deadman $(deadman_cmd)
     launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
@@ -768,7 +799,7 @@ stage_free_floor() {
     require_alive deadman lowstate_bridge remote_trace
     # shellcheck disable=SC2046
     launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args FF "$telemetry") \
-        --standup-s "$standup_s"
+        --standup-s "$standup_s" --grant "$RUN/walk_grant.json"
     wait_for_telemetry "$telemetry" 't.get("mode") in ("hold", "standup") and t.get("deadman_source_ok")' \
         "$first_msg" "bridge armed with the real deadman"
     wait_for_telemetry "$telemetry" 't.get("standup_done")' \
@@ -776,7 +807,7 @@ stage_free_floor() {
     require_alive deadman lowstate_bridge lowcmd_bridge remote_trace
     launch policy_node python3 -m phoenix.sim2real.ros2_policy_node --config "$DEPLOY_CFG" \
         --lock "$DEPLOY_LOCK" --authority-s "$authority" --max-runtime-s "$max_rt" \
-        --log-parquet "$RUN/policy.parquet"
+        --log-parquet "$RUN/policy.parquet" --grant "$RUN/walk_grant.json"
     wait_for_telemetry "$telemetry" 't.get("mode") == "policy"' "$first_msg" "policy in control"
     require_alive deadman lowstate_bridge lowcmd_bridge policy_node remote_trace
     python3 "$ff" snapshot --label start --config "$DEPLOY_CFG" --run-dir "$RUN" || halt "could not re-hash the loaded artifacts"
