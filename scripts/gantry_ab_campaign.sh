@@ -195,13 +195,14 @@ record_run() {  # block arm slot attempt rc run log
     aborted="$(yn "  Was the run ABORTED (deadman released early or halted)?" && echo true || echo false)"
     note="$(ask "  Note (free text, one line): ")"
     append "$d/campaign.jsonl" "$(python3 - "$block" "$arm" "$slot" "$attempt" "$rc" "$run" "$log" "$tape_f" "$tape_l" "$rope" "$touched" "$aborted" "$note" <<'PY'
-import json, sys
+import json, os, sys
 a = sys.argv[1:]
 num = lambda s: float(s) if s.strip() else None
 print(json.dumps({"kind": "run", "block": int(a[0]), "arm": a[1], "slot": a[2], "attempt": int(a[3]),
                   "harness_rc": int(a[4]), "run_dir": a[5], "harness_log": a[6],
                   "tape_fwd_m": num(a[7]), "tape_lat_m": num(a[8]), "rope_loaded": a[9] == "true",
-                  "touched": a[10] == "true", "aborted": a[11] == "true", "note": a[12]}))
+                  "touched": a[10] == "true", "aborted": a[11] == "true", "note": a[12],
+                  "rehearsal": os.environ.get("PHOENIX_REHEARSAL") == "1"}))
 PY
 )"
     [[ "$aborted" == false && "$rope" == false && "$touched" == false && "$rc" == 0 ]]

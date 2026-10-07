@@ -168,3 +168,13 @@ the simulator is missing drivetrain or contact behaviour that friction DR did no
 
 Promote a policy; define a new promotion rule from these results; run on the ground without
 the gantry; run any preset not listed; change the friction-DR preregistration.
+
+## Amendment 1 (2026-10-07, before any campaign data; desk rehearsal finding)
+
+A localhost rehearsal (fake GO2) showed that the bridge manifest's `live` flag is also
+true in rehearsal, so "`live` true" alone does not identify a hardware run. Added to the
+validity rule: the bridge manifest's `code_identity.source` must be `payload_sync` with
+`manifest_verified` true (every one of the 14 hardware runs of 2026-10-06/07 has this; the
+rehearsal has `git`), the run's code sha must equal the campaign commit, and the runner
+records `rehearsal` on every run record (any rehearsal record is invalid). No metric,
+arm, order, threshold or decision rule changed.

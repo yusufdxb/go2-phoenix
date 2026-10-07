@@ -349,6 +349,17 @@ def analyze_run(rec: dict) -> dict:
         why.append(f"artifact hashes are arm {measured_arm}, planned {rec.get('arm')}")
     if not manifest.get("live") or manifest.get("code_identity_problems") != []:
         why.append("not live or code identity problems")
+    ident = manifest.get("code_identity") or {}
+    # Amendment 1: only the payload's verified sync counts as hardware. A localhost
+    # rehearsal is also launched --live, but its identity source is the workstation git.
+    if ident.get("source") != "payload_sync" or ident.get("manifest_verified") is not True:
+        why.append(f"not a verified payload run (code identity source {ident.get('source')!r})")
+    if rec.get("rehearsal"):
+        why.append("runner recorded PHOENIX_REHEARSAL=1")
+    if rec.get("campaign_commit") and ident.get("sha") != rec["campaign_commit"]:
+        why.append(
+            f"code {str(ident.get('sha'))[:12]} is not the campaign commit {rec['campaign_commit'][:12]}"
+        )
     b = out["bridge"]
     if not b["one_policy_episode"]:
         why.append("not exactly one policy episode")
@@ -502,6 +513,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     recs = [json.loads(ln) for ln in args.campaign.read_text().splitlines() if ln.strip()]
     run_recs = [r for r in recs if r.get("kind") == "run"]
+    header = next((r for r in recs if r.get("kind") == "header"), {})
+    for r in run_recs:
+        r.setdefault("campaign_commit", header.get("commit"))
     base = args.campaign.parent
     for r in run_recs:
         if not Path(r["run_dir"]).is_absolute():

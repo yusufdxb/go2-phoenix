@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import subprocess
 import sys
@@ -152,3 +153,49 @@ def test_runner_refuses_without_a_campaign(tmp_path):
     if (REPO / "logs/gantry_ab/CURRENT").exists():
         pytest.skip("a campaign exists in this checkout")
     assert res.returncode != 0 and "no campaign" in res.stderr
+
+
+def _bridge(tmp_path, source, verified, sha="c" * 40):
+    arm = ga.ARMS["B"]
+    man = {
+        "record": "manifest",
+        "live": True,
+        "code_identity_problems": [],
+        "code_identity": {"source": source, "manifest_verified": verified, "sha": sha},
+        "artifacts": {
+            k: {"sha256": arm[k]} for k in ("checkpoint", "policy.onnx", "policy.onnx.data")
+        },
+    }
+    tick = {"record": "tick", "t_mono_ns": 0, "mode": "silent", "faults": []}
+    d = tmp_path / source
+    d.mkdir()
+    (d / "bridge.jsonl").write_text("\n".join(json.dumps(r) for r in (man, tick)) + "\n")
+    return d
+
+
+def test_rehearsal_and_foreign_commit_runs_are_invalid(tmp_path):
+    rehearsal = ga.analyze_run(
+        {
+            "run_dir": str(_bridge(tmp_path, "git", None)),
+            "arm": "B",
+            "slot": "stop_drill",
+            "block": 1,
+        }
+    )
+    assert not rehearsal["valid"]
+    assert any("not a verified payload run" in w for w in rehearsal["why"])
+    d = _bridge(tmp_path, "payload_sync", True)
+    other = ga.analyze_run(
+        {
+            "run_dir": str(d),
+            "arm": "B",
+            "slot": "stop_drill",
+            "block": 1,
+            "campaign_commit": "d" * 40,
+        }
+    )
+    assert any("not the campaign commit" in w for w in other["why"])
+    flagged = ga.analyze_run(
+        {"run_dir": str(d), "arm": "B", "slot": "stop_drill", "block": 1, "rehearsal": True}
+    )
+    assert any("PHOENIX_REHEARSAL" in w for w in flagged["why"])
