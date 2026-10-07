@@ -197,3 +197,15 @@ Three analysis gaps closed; no metric, arm, order, threshold or decision rule ch
 The 60 s rest between runs and the gantry rope remain operator responsibilities (not
 sensed); calling `scripts/harness_preflight.sh W` directly during the campaign is a
 protocol violation (the runner restricts presets; the harness alone does not).
+
+## Amendment 3 (2026-10-07, before any campaign data; audit follow-up)
+
+A deadman release is logged as `policy_abort:external_estop` (policy node latch, recorded by
+the actuator gate); Amendment 2 would have counted every STOP drill as a fault. Now:
+`policy_abort:external_estop` is part of the normal end latch, and WHEN the deadman was
+released is judged from the ticks (estop asserted on a policy-mode tick). A STOP drill is
+valid only if that release happened during policy authority; in a G or W run such a release
+is an aborted run (invalid, safety event) even if the operator did not say so. Verified on
+the real 2026-10-06/07 hardware logs: every G/H/W run stays valid with unchanged metrics; the
+two FP runs carrying `external_estop` released after the policy window (not flagged). No
+metric, arm, order, threshold or decision rule changed.

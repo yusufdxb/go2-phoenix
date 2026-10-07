@@ -231,3 +231,64 @@ def test_ladder_safety_event_makes_b_worse():
 def test_runner_never_reruns_a_started_block():
     src = RUNNER.read_text()
     assert "k not in started" in src and "abandon)" in src
+
+
+def _with_ticks(d, estop_on_policy_tick):
+    rows = [json.loads(ln) for ln in (d / "bridge.jsonl").read_text().splitlines()]
+    man = rows[0]
+    ticks = [
+        {
+            "record": "tick",
+            "t_mono_ns": int(i * 2e6),
+            "mode": "policy",
+            "faults": [],
+            "lowstate_fresh": True,
+            "estop_value": bool(estop_on_policy_tick and i >= 5),
+        }
+        for i in range(8)
+    ] + [
+        {
+            "record": "tick",
+            "t_mono_ns": int(8 * 2e6),
+            "mode": "hold",
+            "faults": [],
+            "estop_value": True,
+        },
+        {
+            "record": "tick",
+            "t_mono_ns": int(9 * 2e6),
+            "mode": "sit",
+            "faults": [],
+            "estop_value": True,
+        },
+    ]
+    end = {
+        "record": "end",
+        "faults": ["policy_abort:external_estop", "estop_asserted", "bridge_shutdown"],
+    }
+    (d / "bridge.jsonl").write_text("\n".join(json.dumps(r) for r in [man, *ticks, end]) + "\n")
+    return d
+
+
+def test_real_deadman_release_fault_string_is_expected_in_the_drill(tmp_path):
+    d = _with_ticks(_bridge(tmp_path, "payload_sync", True), estop_on_policy_tick=True)
+    r = ga.analyze_run(
+        {"run_dir": str(d), "arm": "B", "slot": "stop_drill", "block": 5, "aborted": True}
+    )
+    assert r["valid"], r["why"]
+    assert not r["safety_event"]
+    assert r["bridge"]["stop_latency_s"] is not None
+
+
+def test_drill_without_release_under_policy_is_invalid_and_release_in_a_stand_is_an_abort(tmp_path):
+    d = _with_ticks(_bridge(tmp_path, "payload_sync", True), estop_on_policy_tick=False)
+    r = ga.analyze_run({"run_dir": str(d), "arm": "B", "slot": "stop_drill", "block": 5})
+    assert not r["valid"] and any("not released during policy" in w for w in r["why"])
+    d2 = _with_ticks(
+        _bridge(
+            tmp_path / "x" if (tmp_path / "x").mkdir() is None else tmp_path, "payload_sync", True
+        ),
+        True,
+    )
+    g = ga.analyze_run({"run_dir": str(d2), "arm": "B", "slot": "G", "block": 2})
+    assert not g["valid"] and g["safety_event"] and g["aborted_from_ticks"]

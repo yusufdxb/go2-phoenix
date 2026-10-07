@@ -44,7 +44,15 @@ ARMS = {
         "sim_sag": "configs/sim2real/e2/walk_fric_s50_3749/ref_nominal.json",
     },
 }
-NORMAL_END_FAULTS = {"policy_abort:authority_window_complete", "estop_asserted", "bridge_shutdown"}
+# Amendment 3: a deadman release latches policy_abort:external_estop in the policy node
+# (ros2_policy_node.py _latch_abort("external_estop"), recorded by actuator_gate as
+# policy_abort:<reason>). WHEN the release happened is judged from the ticks instead.
+NORMAL_END_FAULTS = {
+    "policy_abort:authority_window_complete",
+    "policy_abort:external_estop",
+    "estop_asserted",
+    "bridge_shutdown",
+}
 PRESETS = ("vx03_4s", "yaw05_3s")
 SETTLE_AFTER_CMD_S = 1.0
 YAW_SETTLE_RAD_S = 0.1
@@ -375,6 +383,11 @@ def analyze_run(rec: dict) -> dict:
         or (rec.get("aborted") and slot != "stop_drill")
     ):
         why.append("operator: rope loaded / touched / aborted")
+    released_under_policy = b["stop_latency_s"] is not None
+    if slot == "stop_drill" and not released_under_policy:
+        why.append("STOP drill: the deadman was not released during policy authority")
+    if slot != "stop_drill" and released_under_policy:
+        why.append("deadman released during policy authority (aborted run, from the ticks)")
     if (rec.get("physical_attempt") or 1) > 2:
         why.append(f"physical attempt {rec.get('physical_attempt')} of this slot (max 2)")
     if slot in PRESETS:
@@ -393,10 +406,13 @@ def analyze_run(rec: dict) -> dict:
         out["stand"] = stand_metrics(ticks)
         if slot == "G" and not out["stand"].get("settle_window_ok"):
             why.append("E2 settle window refused")
+    out["operator_aborted"] = bool(rec.get("aborted"))
+    out["aborted_from_ticks"] = released_under_policy and slot != "stop_drill"
     out["safety_event"] = bool(
         b["abnormal_faults"]
         or b["limit_clip_ticks_policy"]
         or (rec.get("aborted") and slot != "stop_drill")
+        or out["aborted_from_ticks"]
     )
     out["valid"] = not why
     out["why"] = why
@@ -471,7 +487,7 @@ def stop_conditions(runs: list[dict]) -> list[str]:
             found.append(f"{tag}: faults {b['abnormal_faults']}")
         if b.get("limit_clip_ticks_policy"):
             found.append(f"{tag}: limit clip under the policy")
-        if r.get("slot") in PRESETS and any("aborted" in w for w in r.get("why") or []):
+        if r.get("slot") in PRESETS and (r.get("operator_aborted") or r.get("aborted_from_ticks")):
             key = (r.get("arm"), r.get("slot"))
             aborts[key] = aborts.get(key, 0) + 1
     found += [f"arm {a} {p}: {n} aborted runs" for (a, p), n in aborts.items() if n >= 2]
