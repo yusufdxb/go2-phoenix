@@ -474,7 +474,8 @@ def _drill_fail(w: World, c: Check, name: str, *, fault=None, release: float | N
     d = drill_rec(s)
     c.ok(f"{name}: drill is not GO", not d or d["verdict"] != "GO", f"rc={r.rc} {r.events} {(d or {}).get('problems')}")
     c.ok(f"{name}: nothing left running", not any("LEFTOVER" in e for e in r.events), str(r.events))
-    c.ok(f"{name}: walk gate stays closed", harness(w, s, "gate").returncode != 0)
+    g = harness(w, s, "gate")
+    c.ok(f"{name}: the walk phase of the gate stays closed", "walk: NO-GO" in g.stdout, g.stdout[-200:])
     refused(w, s, c, f"{name}: walk", "walk", "vx03_2s")
     c.notes.append(f"{name}: rc={r.rc} problems={(d or {}).get('problems')} {why}")
     return r
@@ -628,7 +629,9 @@ def sc_review_forgery(w: World, c: Check) -> None:
     shutil.copyfile(s / "free_floor_started.json", other / "free_floor_started.json")
     shutil.copyfile(s / "free_floor_review.json", other / "free_floor_review.json")
     u = ff_cli(w, s, "unreviewed")
-    c.ok("a genuine review releases the latch", u.returncode == 0, u.stderr[-200:])
+    c.ok("the copy in another session stays latched", other.name in u.stderr, u.stderr[-200:])
+    c.ok("a genuine review releases ITS session's latch", s.name not in u.stderr, u.stderr[-200:])
+    shutil.rmtree(other)
     res = json.loads((s / "free_floor_result.json").read_text())
     res["utc"] = "tampered"
     (s / "free_floor_result.json").write_text(json.dumps(res))

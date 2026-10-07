@@ -496,3 +496,45 @@ def test_shutdown_sit_keeps_going_after_a_publish_error(bridge_module) -> None:
         reported[0]["publish"] is False and "context is invalid" in reported[0]["publish_skipped"]
     )
     assert all(r["publish"] for r in reported[1:])
+
+
+def test_live_bridge_refuses_inherited_test_evidence_override(bridge_module, monkeypatch) -> None:
+    """A rehearsal's PHOENIX_HW_SESSIONS(+TEST_ONLY) left in a lab shell must not let fake F/G
+    records satisfy the walking contract on a live bridge."""
+    monkeypatch.delenv("PHOENIX_REHEARSAL", raising=False)
+    monkeypatch.setenv("PHOENIX_HW_SESSIONS", "/tmp/fake")
+    monkeypatch.setenv("PHOENIX_HW_SESSIONS_TEST_ONLY", "1")
+    cfg = bridge_module._build_config(
+        _ns(_REPO / "configs/sim2real/deploy_stand_h25.yaml", live=True)
+    )
+    problems, _ = bridge_module.startup_problems(cfg)
+    assert sum("environment:" in p for p in problems) == 2
+    monkeypatch.setenv("PHOENIX_REHEARSAL", "1")
+    problems, _ = bridge_module.startup_problems(cfg)
+    assert not any("environment:" in p for p in problems)
+
+
+def test_live_walking_bridge_refuses_while_a_free_floor_walk_is_unreviewed(
+    bridge_module, monkeypatch, tmp_path
+) -> None:
+    import json
+
+    sess = tmp_path / "20261008_s"
+    (sess / "FF_walk_1").mkdir(parents=True)
+    (sess / "free_floor_started.json").write_text(json.dumps({"run_dir": "FF_walk_1"}))
+    monkeypatch.setenv("PHOENIX_REHEARSAL", "1")
+    monkeypatch.setenv("PHOENIX_HW_SESSIONS", str(tmp_path))
+    monkeypatch.setenv("PHOENIX_HW_SESSIONS_TEST_ONLY", "1")
+    cfg = bridge_module._build_config(
+        _ns(_REPO / "configs/sim2real/deploy_stand_h25.yaml", live=True)
+    )
+    cfg.walking_allowed = True
+    problems, _ = bridge_module.startup_problems(cfg)
+    assert any("free-floor review" in p for p in problems)
+    cfg.telemetry_path = sess / "FF_walk_1" / "bridge.jsonl"  # the walk that is itself starting
+    problems, _ = bridge_module.startup_problems(cfg)
+    assert not any("free-floor review" in p for p in problems)
+    cfg.walking_allowed = False  # a stand-only bridge is not a walking launch
+    cfg.telemetry_path = None
+    problems, _ = bridge_module.startup_problems(cfg)
+    assert not any("free-floor review" in p for p in problems)
