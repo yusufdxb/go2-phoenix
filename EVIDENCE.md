@@ -10,6 +10,18 @@ Not validated until proven otherwise.
 
 Claims with a reproducible artifact in this repo or a captured log.
 
+- **Live stand gates and first walking commands on the GO2 (2026-10-06/07)**: a newer
+  walking policy (development branch, not yet published) passed the staged hardware
+  gates at zero command (2 s, 5 s, 3 x 10 s of policy control; max tilt 0.082 rad; no
+  target altered by the safety layer), then ran three short walking commands in a
+  harness: 0.71 m measured for a 0.3 m/s, 4 s command (about 60 %), 17-19 deg for a
+  0.5 rad/s, 3 s turn (about 20 %). Captured logs are held with the development branch.
+- **Measured joint static friction (2026-10-07)**: active breakaway probe on the hung
+  robot, estimator validated in MuJoCo against set friction (0-1.5 N m recovered within
+  0.03 N m): hips 0.24-0.35, thighs 0.17-0.34, calves 0.42-0.96 N m. A MuJoCo replay of
+  the hardware command profiles with these values gives 66 % forward / 34-47 % yaw
+  tracking, against 89 % / 76 % without friction.
+
 - **236 unit tests green in CI**: `pytest tests -m "not sim and not ros"`
   (re-measured 2026-09-30 on `main` with the CI command in a clean Python 3.10
   venv with `.[dev,real]`, no torch: 236 passed, 5 skipped, 4 deselected). Coverage
@@ -107,12 +119,16 @@ Claims supported by indirect evidence but not directly measured.
 Claims that require hardware time or untaken experiments. Treat as **not yet
 true**.
 
-- **Gate 7**: 10 s live stand x3 on real GO2 in low-level mode. Pending hardware.
+- **Gate 7 with the stand-v3-h25 policy**: 10 s live stand x3 on real GO2 in low-level mode.
+  Not re-run (the gate passed on 2026-10-06 with a newer walking policy, see Verified).
   The stand-v3-h25 sim slew figures (3.30% / 2.91%) that were read as clearing
   the <5% gate are legacy-metric and superseded (see Verified above), and the
   cause of the 2026-04-21 saturation is pending an ablation, so the sim-side
   blocker is not shown to be resolved. Live hardware retry still owed (the dev workstation now goes to the lab; no T7 staging).
-- **Gate 8**: flat walking on real GO2 with v3b. Not attempted.
+- **Gate 8**: walking that tracks the command on the real GO2. First walking commands ran
+  (2026-10-07) and under-track; a friction-aware retrain and its hardware re-test are owed.
+- **Friction under load**: the 1.25-1.5x factor that makes the replay match is a
+  hypothesis (friction measured unloaded, legs hanging); not measured.
 - **Failure-curriculum adaptation against real-robot parquets.**
   `adaptation.yaml` ships with `failure_sample_fraction: 0.0`; the headline
   adaptation result (16.64 / 100% on slippery) is **plain warm-start PPO**,

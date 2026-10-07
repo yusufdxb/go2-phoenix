@@ -39,6 +39,25 @@ overlay, and where the project stands.
 
 ## Project status
 
+**Update 2026-10-07: first live stands and first walking commands on the GO2.**
+A newer walking policy (trained in Isaac Lab, on a development branch that is not yet
+published) passed every live stand gate on the robot at zero command: 2 s, 5 s and three
+10 s windows of policy control, body tilt under 0.09 rad, no safety-layer interventions.
+It then executed its first walking commands with the robot in a safety harness. It walks,
+but it under-tracks: about 60 % of the commanded forward distance and about 20 % of the
+commanded turn, against 89 % and 76 % for the same policy and command profile replayed
+in MuJoCo.
+
+The cause is measured, not guessed: **unmodeled joint friction**. An active probe on the
+hung robot (feet off the ground, one joint ramped slowly each way until it breaks away)
+measured static friction of 0.24-0.35 N m at the hips, 0.17-0.34 N m at the thighs and
+0.42-0.96 N m at the calves; the training simulator modelled none. Replaying the walk
+profiles in MuJoCo with the measured values drops tracking to 66 % / 34-47 %, and about
+1.25-1.5x the measured values (friction rising under load is the leading, untested
+explanation) matches the robot. Floor friction, control latency and harness drag do not
+reproduce the gap in simulation. Next: retrain with joint-friction randomization around
+the measured values. The paragraphs below describe the earlier stand-v3 track.
+
 The locomotion policy is trained and verified in simulation. The sim-to-real
 deploy stack (ONNX export, the ROS 2 policy node, the fail-closed safety
 layer) has run end-to-end on the real GO2; that live run surfaced a per-step
@@ -71,8 +90,8 @@ ledger for every claim below.
 | Deploy stack ran end-to-end on the GO2 | Done | live on the Jetson 2026-04; surfaced the 33% slew saturation, no stand passed |
 | Failure detector and Parquet trajectory logging | Done | rule-based attitude / collapse / slip |
 | Replay and failure-curriculum fine-tune | Wired | wired and unit-tested; not yet run on real hardware failure data |
-| Live on-robot stand (Gate 7) | In progress | last live run (2026-04-21) saturated at 33%, cause pending ablation (see above); stand-v3-h25 is staged for the retry, but its sim slew figures are legacy-metric and do not show it clears the gate |
-| Live velocity tracking (Gate 8) | ⬜ Planned | two-policy mode-switch runtime is ready |
+| Live on-robot stand (Gate 7) | Done (newer policy) | 2026-10-06: a newer walking policy at zero command passed 2 s, 5 s and 3 x 10 s live stands. The stand-v3-h25 policy itself was not re-run; its 2026-04-21 saturation cause is still pending the ablation |
+| Live velocity tracking (Gate 8) | In progress | 2026-10-07: first walking commands, in a harness; under-tracks (about 60 % forward, 20 % yaw); cause measured as joint friction (see above) |
 | Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
 
 Full milestone trail: [`docs/changelog.md`](docs/changelog.md).
