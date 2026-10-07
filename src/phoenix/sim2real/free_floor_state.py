@@ -71,12 +71,20 @@ def review_problems(session: Path) -> list[str]:
     return problems
 
 
-def unreviewed_runs(dirs: Sequence[Path]) -> list[str]:
-    """Free-floor walks that were started and have no valid human review. They block walking."""
+def unreviewed_runs(dirs: Sequence[Path], *, current_run: Path | None = None) -> list[str]:
+    """Free-floor walks that were started and have no valid human review. They block walking.
+
+    ``current_run`` is the run directory of the process asking (the bridge's telemetry directory):
+    the walk that is starting right now has, by design, a started record and no review yet."""
     out = []
     for d in dirs:
         if not (d / STARTED).exists():
             continue
+        if current_run is not None:
+            started, _ = read_json(d / STARTED)
+            name = started.get("run_dir") if isinstance(started, dict) else None
+            if name and (d / name).resolve() == current_run.resolve():
+                continue
         if (d / REVIEW).exists() and not review_problems(d):
             continue
         why = review_problems(d) if (d / REVIEW).exists() else ["no review record"]

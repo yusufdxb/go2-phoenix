@@ -651,7 +651,11 @@ def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
             # A free-floor walk that nobody has reviewed latches every later walking launch,
             # whichever runner starts it (FREE_FLOOR, W, the gantry A/B or a hand launch).
             problems.extend(
-                f"free-floor review: {p}" for p in unreviewed_runs(default_session_dirs())
+                f"free-floor review: {p}"
+                for p in unreviewed_runs(
+                    default_session_dirs(),
+                    current_run=cfg.telemetry_path.parent if cfg.telemetry_path else None,
+                )
             )
         if not cfg.expect_sha:
             problems.append("--live requires --expect-sha")
