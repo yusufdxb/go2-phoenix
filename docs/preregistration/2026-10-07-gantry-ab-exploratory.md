@@ -209,3 +209,17 @@ is an aborted run (invalid, safety event) even if the operator did not say so. V
 the real 2026-10-06/07 hardware logs: every G/H/W run stays valid with unchanged metrics; the
 two FP runs carrying `external_estop` released after the policy window (not flagged). No
 metric, arm, order, threshold or decision rule changed.
+
+## Correction to Amendment 3 (2026-10-07, before any campaign data)
+
+Amendment 3's sentence "the two FP runs carrying `external_estop` released after the policy
+window" is FALSE. Both FP runs (`20261007_fa58780dd4f8/FP_20261007T005825Z` ticks 4769-4770,
+`20261007_04f3d46edbfe/FP_20261007T011645Z` ticks 16226-16227) were deadman releases DURING
+policy authority: the last policy tick has estop false and the next tick is already `hold`
+with estop true and `hold_cause policy_abort:external_estop` (3.2-3.3 ms later). The bridge
+never logs estop true on a policy-mode tick, so Amendment 3's release-timing rule cannot fire
+on real data: every real STOP drill would be marked invalid and an un-reported abort in a G
+stand would not be detected from the ticks. STATUS: the analyzer's STOP-drill / abort
+detection is KNOWN DEFECTIVE and the campaign must not start until it is fixed under a new
+amendment, with a test built from this real tick sequence. Two fixes to this mechanism
+(Amendment 2 item 2, Amendment 3) failed; the next fix waits for explicit instruction.
