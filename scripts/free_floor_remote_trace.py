@@ -27,7 +27,9 @@ from pathlib import Path
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--button-mask", type=lambda s: int(s, 0), default=0x02, help="deadman bit (L1)")
+    ap.add_argument(
+        "--button-mask", type=lambda s: int(s, 0), default=0x02, help="deadman bit (L1)"
+    )
     ap.add_argument("--estop-topic", default="/phoenix/estop")
     args = ap.parse_args(argv)
 
@@ -47,18 +49,23 @@ def main(argv: list[str] | None = None) -> int:
     def on_remote(msg: WirelessController) -> None:
         held = bool(int(msg.keys) & args.button_mask)
         out.write(
-            json.dumps({"t_mono_ns": time.monotonic_ns(), "topic": "wireless", "value": held}) + "\n"
+            json.dumps({"t_mono_ns": time.monotonic_ns(), "topic": "wireless", "value": held})
+            + "\n"
         )
 
     def on_estop(msg: Bool) -> None:
         out.write(
-            json.dumps({"t_mono_ns": time.monotonic_ns(), "topic": "estop", "value": bool(msg.data)})
+            json.dumps(
+                {"t_mono_ns": time.monotonic_ns(), "topic": "estop", "value": bool(msg.data)}
+            )
             + "\n"
         )
 
     node.create_subscription(WirelessController, "/wirelesscontroller", on_remote, qos)
     node.create_subscription(Bool, args.estop_topic, on_estop, qos)
-    out.write(json.dumps({"t_mono_ns": time.monotonic_ns(), "topic": "start", "value": None}) + "\n")
+    out.write(
+        json.dumps({"t_mono_ns": time.monotonic_ns(), "topic": "start", "value": None}) + "\n"
+    )
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

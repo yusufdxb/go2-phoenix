@@ -650,7 +650,8 @@ free_floor_confirm() {
 ================================================================================
  LIVE FREE-FLOOR $what: model_2750 ONLY, NO GANTRY, NO ROPE SUPPORT
  Software cannot see the floor, the rope or the people. YOU are confirming:
-   1. the robot is on LEVEL FLOOR (clean, dry, no mats; friction checked, mu >= 0.4)
+   1. the robot is on LEVEL, CLEAN, DRY floor, no mats; incline test done: a rubber foot pad on
+      this floor did not slide below 22 deg (mu >= 0.4, the lowest friction the sim sweep passed)
    2. NO gantry, rope or harness is supporting it
    3. the FALL AREA is clear
    4. the SPOTTER(S) stand OUTSIDE the fall envelope

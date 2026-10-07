@@ -86,13 +86,29 @@ class World:
         for f in self.bundle.iterdir():
             f.chmod(0o644)
         run = lambda *a: subprocess.run(a, check=True, capture_output=True, text=True)  # noqa: E731
-        run(sys.executable, str(self.bundle / "activation.py"), "pin", "--bundle", str(self.bundle), "--target", str(self.bundle))
+        run(
+            sys.executable,
+            str(self.bundle / "activation.py"),
+            "pin",
+            "--bundle",
+            str(self.bundle),
+            "--target",
+            str(self.bundle),
+        )
         sums = subprocess.run(
             "sha256sum ./* > SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS",
-            shell=True, cwd=self.bundle, check=True,
+            shell=True,
+            cwd=self.bundle,
+            check=True,
         )
         del sums
-        run(sys.executable, str(self.bundle / "activation.py"), "verify", "--bundle", str(self.bundle))
+        run(
+            sys.executable,
+            str(self.bundle / "activation.py"),
+            "verify",
+            "--bundle",
+            str(self.bundle),
+        )
 
     # -- evidence: synthetic stage records written by the PRODUCTION writer (never counts live)
     def _stage(self, session: Path, stage: str, **extra) -> None:
@@ -118,7 +134,9 @@ class World:
         sys.stdout = open(os.devnull, "w")
         try:
             preflight.write_stage(
-                ctx, stage, [pe.Check(name="fixture", ok=True, detail="rehearsal fixture")],
+                ctx,
+                stage,
+                [pe.Check(name="fixture", ok=True, detail="rehearsal fixture")],
                 {"run_dir": str(run_dir), **extra},
             )
         finally:
@@ -151,16 +169,22 @@ class World:
         return s
 
     # -- a clean environment, built from scratch
-    def env(self, session: Path, confirm: str, extra: dict[str, str] | None = None) -> dict[str, str]:
+    def env(
+        self, session: Path, confirm: str, extra: dict[str, str] | None = None
+    ) -> dict[str, str]:
         if self._ros_env is None:
             out = subprocess.run(
                 ["bash", "-c", f"set +u; source {ROS_SETUP}; source {UNITREE_SETUP}; env -0"],
                 env={"HOME": str(Path.home()), "PATH": "/usr/bin:/bin:/usr/local/bin"},
-                capture_output=True, check=True,
+                capture_output=True,
+                check=True,
             ).stdout.decode()
             self._ros_env = dict(kv.split("=", 1) for kv in out.split("\0") if "=" in kv)
         sha = subprocess.run(
-            ["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+            ["git", "-C", str(REPO), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         e = dict(self._ros_env)
         e.update(
@@ -193,7 +217,7 @@ class Run:
         args: list[str],
         *,
         release_after_s: float | None = None,
-        fault: Callable[["Run"], None] | None = None,
+        fault: Callable[[Run], None] | None = None,
         no_fake: bool = False,
         follow: bool = False,
         extra_env: dict[str, str] | None = None,
@@ -215,7 +239,9 @@ class Run:
 
     # newest run dir created by THIS invocation
     def run_dir(self) -> Path | None:
-        cands = [d for d in self.session.glob("FF_*") if d.is_dir() and d.stat().st_ctime >= self._t0 - 1]
+        cands = [
+            d for d in self.session.glob("FF_*") if d.is_dir() and d.stat().st_ctime >= self._t0 - 1
+        ]
         return sorted(cands)[-1] if cands else None
 
     def policy_started(self) -> bool:
@@ -223,7 +249,9 @@ class Run:
         if d is None or not (d / "bridge.jsonl").is_file():
             return False
         try:
-            return any('"mode":"policy"' in line.replace(" ", "") for line in open(d / "bridge.jsonl"))
+            return any(
+                '"mode":"policy"' in line.replace(" ", "") for line in open(d / "bridge.jsonl")
+            )
         except OSError:
             return False
 
@@ -232,14 +260,18 @@ class Run:
         if d is None or not (d / "bridge.jsonl").is_file():
             return 0
         try:
-            return sum('"mode":"policy"' in line.replace(" ", "") for line in open(d / "bridge.jsonl"))
+            return sum(
+                '"mode":"policy"' in line.replace(" ", "") for line in open(d / "bridge.jsonl")
+            )
         except OSError:
             return 0
 
     def kill(self, pattern: str, sig: int = signal.SIGKILL) -> int:
         """Kill this world's processes whose command line has ``pattern`` and the world root."""
         n = 0
-        for pid_s in subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True).stdout.split():
+        for pid_s in subprocess.run(
+            ["pgrep", "-f", pattern], capture_output=True, text=True
+        ).stdout.split():
             try:
                 cmd = Path(f"/proc/{pid_s}/cmdline").read_bytes().replace(b"\0", b" ").decode()
             except OSError:
@@ -263,19 +295,36 @@ class Run:
         if self.fault is not None:
             self.fault(self)
 
-    def go(self) -> "Run":
+    def go(self) -> Run:
         env = self.world.env(self.session, self.confirm, self.extra_env)
         self.deadman_file.write_text("hold")
         if not self.no_fake:
             self.fake = subprocess.Popen(
-                [sys.executable, str(FAKE), "--pose", "stand", "--deadman-file", str(self.deadman_file), *(["--follow-lowcmd"] if self.follow else [])],
-                env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                [
+                    sys.executable,
+                    str(FAKE),
+                    "--pose",
+                    "stand",
+                    "--deadman-file",
+                    str(self.deadman_file),
+                    *(["--follow-lowcmd"] if self.follow else []),
+                ],
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            time.sleep(3.0)  # the fake refuses a graph with other publishers after a 2 s discovery wait
+            time.sleep(
+                3.0
+            )  # the fake refuses a graph with other publishers after a 2 s discovery wait
         self.proc = subprocess.Popen(
             ["bash", str(HARNESS), "FREE_FLOOR", *self.args],
-            cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            stdin=subprocess.DEVNULL, start_new_session=True,
+            cwd=REPO,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
         )
         for target in (self._driver, self._faulter):
             threading.Thread(target=target, daemon=True).start()
@@ -302,7 +351,9 @@ class Run:
 
     def leftovers(self) -> list[int]:
         out = []
-        for pid_s in subprocess.run(["pgrep", "-f", str(self.world.root)], capture_output=True, text=True).stdout.split():
+        for pid_s in subprocess.run(
+            ["pgrep", "-f", str(self.world.root)], capture_output=True, text=True
+        ).stdout.split():
             if int(pid_s) != os.getpid():
                 try:
                     cmd = Path(f"/proc/{pid_s}/cmdline").read_bytes().decode(errors="replace")
@@ -313,17 +364,28 @@ class Run:
         return out
 
 
-def ff_cli(world: World, session: Path, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+def ff_cli(
+    world: World, session: Path, *args: str, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
     env = world.env(session, "x", extra_env)
-    return subprocess.run([sys.executable, str(FF), *args], env=env, capture_output=True, text=True, cwd=REPO)
+    return subprocess.run(
+        [sys.executable, str(FF), *args], env=env, capture_output=True, text=True, cwd=REPO
+    )
 
 
-def harness(world: World, session: Path, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+def harness(
+    world: World, session: Path, *args: str, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
     """A harness call that must not start anything (gates, review, refusals)."""
     env = world.env(session, "x", extra_env)
     return subprocess.run(
-        ["bash", str(HARNESS), "FREE_FLOOR", *args], env=env, capture_output=True, text=True,
-        cwd=REPO, stdin=subprocess.DEVNULL, timeout=120,
+        ["bash", str(HARNESS), "FREE_FLOOR", *args],
+        env=env,
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
 
 
@@ -362,7 +424,9 @@ def good_drill(w: World, s: Path, c: Check, release: float = 2.0) -> Run:
     r = Run(w, s, ["drill"], release_after_s=release).go()
     d = drill_rec(s)
     c.ok("drill: harness rc 0", r.rc == 0, f"rc={r.rc} {r.events}")
-    c.ok("drill: GO record written", bool(d) and d["verdict"] == "GO", str((d or {}).get("problems")))
+    c.ok(
+        "drill: GO record written", bool(d) and d["verdict"] == "GO", str((d or {}).get("problems"))
+    )
     c.ok("drill: no processes left", not any("LEFTOVER" in e for e in r.events), str(r.events))
     return r
 
@@ -381,7 +445,11 @@ def good_walk(w: World, s: Path, c: Check, **kw) -> Run:
 def refused(w: World, s: Path, c: Check, what: str, *args: str, needle: str = "BLOCKED") -> None:
     p = harness(w, s, *args)
     text = p.stdout + p.stderr
-    c.ok(f"{what}: refused, nothing launched", p.returncode != 0 and no_motion(text) and needle in text, text[-300:])
+    c.ok(
+        f"{what}: refused, nothing launched",
+        p.returncode != 0 and no_motion(text) and needle in text,
+        text[-300:],
+    )
 
 
 # ------------------------------------------------------------------ scenarios
@@ -389,27 +457,63 @@ def sc_happy_reject(w: World, c: Check) -> None:
     """gate -> drill -> walk -> blocked second walk -> review reject -> session closed."""
     s = w.new_session()
     g = harness(w, s, "gate")
-    c.ok("gate: drill phase passes, walk phase needs the drill", "drill gates pass" in (g.stdout + g.stderr), (g.stdout + g.stderr)[-300:])
+    c.ok(
+        "gate: drill phase passes, walk phase needs the drill",
+        "drill gates pass" in (g.stdout + g.stderr),
+        (g.stdout + g.stderr)[-300:],
+    )
     good_drill(w, s, c)
     g = harness(w, s, "gate")
-    c.ok("gate after a GO drill: NEXT is the walk", g.returncode == 0 and "FREE_FLOOR walk vx03_2s" in g.stdout, g.stdout[-300:])
+    c.ok(
+        "gate after a GO drill: NEXT is the walk",
+        g.returncode == 0 and "FREE_FLOOR walk vx03_2s" in g.stdout,
+        g.stdout[-300:],
+    )
     good_walk(w, s, c)
     res = rec(s, "free_floor_result.json") or {}
     rep = res.get("report") or {}
-    c.ok("report: valid, planned end, no safety event", rep.get("valid") is True and rep.get("end_condition") == "planned_end" and rep.get("safety_event") is False, json.dumps(rep)[:300])
-    c.ok("report: tape measurement recorded (41 cm)", (rep.get("operator_measurement") or {}).get("forward_cm") == 41.0, str(rep.get("operator_measurement")))
+    c.ok(
+        "report: valid, planned end, no safety event",
+        rep.get("valid") is True
+        and rep.get("end_condition") == "planned_end"
+        and rep.get("safety_event") is False,
+        json.dumps(rep)[:300],
+    )
+    c.ok(
+        "report: tape measurement recorded (41 cm)",
+        (rep.get("operator_measurement") or {}).get("forward_cm") == 41.0,
+        str(rep.get("operator_measurement")),
+    )
     c.ok("report: odometry marked unreliable", (rep.get("odometry") or {}).get("reliable") is False)
     refused(w, s, c, "second walk, unreviewed", "walk", "vx03_2s")
-    refused(w, s, c, "W is blocked by the unreviewed walk", "gate")  # gate shows the unreviewed block
-    w_run = subprocess.run(["bash", str(HARNESS), "W", "vx03_2s"], env=w.env(s, "x"), capture_output=True, text=True, cwd=REPO, stdin=subprocess.DEVNULL, timeout=120)
-    c.ok("gantry W refuses while a free-floor walk is unreviewed", w_run.returncode != 0 and "unreviewed free-floor walk" in (w_run.stdout + w_run.stderr), (w_run.stdout + w_run.stderr)[-250:])
+    refused(
+        w, s, c, "W is blocked by the unreviewed walk", "gate"
+    )  # gate shows the unreviewed block
+    w_run = subprocess.run(
+        ["bash", str(HARNESS), "W", "vx03_2s"],
+        env=w.env(s, "x"),
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
+    )
+    c.ok(
+        "gantry W refuses while a free-floor walk is unreviewed",
+        w_run.returncode != 0 and "unreviewed free-floor walk" in (w_run.stdout + w_run.stderr),
+        (w_run.stdout + w_run.stderr)[-250:],
+    )
     p = harness(w, s, "review", "reject", "--by", "rehearsal", "--note", "rehearsal reject")
     c.ok("review reject accepted", p.returncode == 0, p.stderr[-200:])
     p = harness(w, s, "review", "accept", "--by", "rehearsal", "--note", "again")
     c.ok("a run cannot be reviewed twice", p.returncode != 0, p.stderr[-200:])
     refused(w, s, c, "walk after reject, same session", "walk", "vx03_2s")
     u = ff_cli(w, s, "unreviewed")
-    c.ok("after the review nothing is unreviewed (latch released, session still closed)", u.returncode == 0, u.stderr[-200:])
+    c.ok(
+        "after the review nothing is unreviewed (latch released, session still closed)",
+        u.returncode == 0,
+        u.stderr[-200:],
+    )
 
 
 def sc_happy_accept(w: World, c: Check) -> None:
@@ -424,7 +528,11 @@ def sc_happy_accept(w: World, c: Check) -> None:
     refused(w, s, c, "longer preset", "walk", "vx03_4s")
     s2 = w.new_session()
     g = harness(w, s2, "gate")
-    c.ok("a NEW session has no drill: its walk gate is closed", "no STOP/deadman drill" in (g.stdout + g.stderr), (g.stdout + g.stderr)[-250:])
+    c.ok(
+        "a NEW session has no drill: its walk gate is closed",
+        "no STOP/deadman drill" in (g.stdout + g.stderr),
+        (g.stdout + g.stderr)[-250:],
+    )
 
 
 def sc_stale_env(w: World, c: Check) -> None:
@@ -435,17 +543,31 @@ def sc_stale_env(w: World, c: Check) -> None:
         ("PHOENIX_MIN_BATTERY_SOC", "1"),
     ):
         p = harness(w, s, "gate", extra_env={var: val})
-        c.ok(f"{var}={val} is refused", p.returncode != 0 and var in (p.stdout + p.stderr), (p.stdout + p.stderr)[-200:])
-    p = harness(w, s, "gate", extra_env={"PHOENIX_REHEARSAL": "0"})  # a LIVE invocation inheriting the test overrides
+        c.ok(
+            f"{var}={val} is refused",
+            p.returncode != 0 and var in (p.stdout + p.stderr),
+            (p.stdout + p.stderr)[-200:],
+        )
+    p = harness(
+        w, s, "gate", extra_env={"PHOENIX_REHEARSAL": "0"}
+    )  # a LIVE invocation inheriting the test overrides
     t = p.stdout + p.stderr
-    c.ok("live invocation with the evidence-override variables is refused", p.returncode != 0 and "PHOENIX_HW_SESSIONS" in t, t[-300:])
+    c.ok(
+        "live invocation with the evidence-override variables is refused",
+        p.returncode != 0 and "PHOENIX_HW_SESSIONS" in t,
+        t[-300:],
+    )
 
 
 def sc_wrong_session(w: World, c: Check) -> None:
     outside = Path(tempfile.mkdtemp(prefix="ffreh_outside_", dir=w.root))
     p = harness(w, outside, "gate")
     t = p.stdout + p.stderr
-    c.ok("a session outside hw_sessions is refused (invisible to the review latch)", p.returncode != 0 and "not a direct child" in t, t[-250:])
+    c.ok(
+        "a session outside hw_sessions is refused (invisible to the review latch)",
+        p.returncode != 0 and "not a direct child" in t,
+        t[-250:],
+    )
 
 
 def _kill_at_policy(pattern: str, delay: float = 0.5):
@@ -460,6 +582,7 @@ def _kill_at_policy(pattern: str, delay: float = 0.5):
 
 def _kill_when_cmd_running(pattern: str):
     """After the walk profile has certainly started (>= 3.5 s of policy ticks incl. the 2 s lead-in)."""
+
     def f(r: Run) -> None:
         while r.proc and r.proc.poll() is None and r.policy_ticks() < 175:
             time.sleep(0.05)
@@ -468,14 +591,24 @@ def _kill_when_cmd_running(pattern: str):
     return f
 
 
-def _drill_fail(w: World, c: Check, name: str, *, fault=None, release: float | None = 2.0, why: str = "") -> Run:
+def _drill_fail(
+    w: World, c: Check, name: str, *, fault=None, release: float | None = 2.0, why: str = ""
+) -> Run:
     s = w.new_session()
     r = Run(w, s, ["drill"], release_after_s=release, fault=fault).go()
     d = drill_rec(s)
-    c.ok(f"{name}: drill is not GO", not d or d["verdict"] != "GO", f"rc={r.rc} {r.events} {(d or {}).get('problems')}")
+    c.ok(
+        f"{name}: drill is not GO",
+        not d or d["verdict"] != "GO",
+        f"rc={r.rc} {r.events} {(d or {}).get('problems')}",
+    )
     c.ok(f"{name}: nothing left running", not any("LEFTOVER" in e for e in r.events), str(r.events))
     g = harness(w, s, "gate")
-    c.ok(f"{name}: the walk phase of the gate stays closed", "walk: NO-GO" in g.stdout, g.stdout[-200:])
+    c.ok(
+        f"{name}: the walk phase of the gate stays closed",
+        "walk: NO-GO" in g.stdout,
+        g.stdout[-200:],
+    )
     refused(w, s, c, f"{name}: walk", "walk", "vx03_2s")
     c.notes.append(f"{name}: rc={r.rc} problems={(d or {}).get('problems')} {why}")
     return r
@@ -490,7 +623,9 @@ def sc_drill_policy_dies(w: World, c: Check) -> None:
 
 
 def sc_drill_logger_dies(w: World, c: Check) -> None:
-    _drill_fail(w, c, "STOP-path recorder dies", fault=_kill_at_policy("free_floor_remote_trace", 0.3))
+    _drill_fail(
+        w, c, "STOP-path recorder dies", fault=_kill_at_policy("free_floor_remote_trace", 0.3)
+    )
 
 
 def sc_drill_no_release(w: World, c: Check) -> None:
@@ -526,23 +661,52 @@ def sc_drill_retry(w: World, c: Check) -> None:
     refused(w, s, c, "walk after a NO-GO drill", "walk", "vx03_2s")
     time.sleep(1.1)  # run directories are named by the second
     good_drill(w, s, c)
-    c.ok("two drill records on disk (nothing overwritten)", len(list(s.glob("free_floor_drill_FF_drill_*.json"))) == 2)
+    c.ok(
+        "two drill records on disk (nothing overwritten)",
+        len(list(s.glob("free_floor_drill_FF_drill_*.json"))) == 2,
+    )
     g = harness(w, s, "gate")
-    c.ok("walk gate opens only on the newest GO drill", g.returncode == 0, (g.stdout + g.stderr)[-300:])
+    c.ok(
+        "walk gate opens only on the newest GO drill",
+        g.returncode == 0,
+        (g.stdout + g.stderr)[-300:],
+    )
     for _ in range(2):
         time.sleep(1.1)
         Run(w, s, ["drill"], release_after_s=2.0).go()
     refused(w, s, c, "fourth drill attempt (cap 3)", "drill", needle="drill attempts already")
 
 
-def _walk_fail(w: World, c: Check, name: str, *, fault=None, release: float | None = None, expect_blocked: bool = True) -> tuple[World, Path, Run]:
+def _walk_fail(
+    w: World,
+    c: Check,
+    name: str,
+    *,
+    fault=None,
+    release: float | None = None,
+    expect_blocked: bool = True,
+) -> tuple[World, Path, Run]:
     s = w.new_session()
     good_drill(w, s, Check("x"))
     time.sleep(1.1)
-    r = Run(w, s, ["walk", "vx03_2s"], release_after_s=release, fault=fault, extra_env={"PHOENIX_REHEARSAL_FORWARD_CM": "30"}).go()
+    r = Run(
+        w,
+        s,
+        ["walk", "vx03_2s"],
+        release_after_s=release,
+        fault=fault,
+        extra_env={"PHOENIX_REHEARSAL_FORWARD_CM": "30"},
+    ).go()
     res = rec(s, "free_floor_result.json")
-    c.ok(f"{name}: started record exists (written before motion)", (s / "free_floor_started.json").is_file())
-    c.ok(f"{name}: not a GO result", not res or res["verdict"] != "GO", f"rc={r.rc} {r.events} {(res or {}).get('problems')}")
+    c.ok(
+        f"{name}: started record exists (written before motion)",
+        (s / "free_floor_started.json").is_file(),
+    )
+    c.ok(
+        f"{name}: not a GO result",
+        not res or res["verdict"] != "GO",
+        f"rc={r.rc} {r.events} {(res or {}).get('problems')}",
+    )
     c.ok(f"{name}: nothing left running", not any("LEFTOVER" in e for e in r.events), str(r.events))
     refused(w, s, c, f"{name}: next walk", "walk", "vx03_2s")
     p = harness(w, s, "review", "accept", "--by", "r", "--note", "n")
@@ -554,19 +718,33 @@ def _walk_fail(w: World, c: Check, name: str, *, fault=None, release: float | No
 
 
 def sc_walk_bridge_dies_before_cmd(w: World, c: Check) -> None:
-    _walk_fail(w, c, "bridge dies before the command", fault=_kill_at_policy("lowcmd_bridge_node", 0.2))
+    _walk_fail(
+        w, c, "bridge dies before the command", fault=_kill_at_policy("lowcmd_bridge_node", 0.2)
+    )
 
 
 def sc_walk_bridge_dies_during_cmd(w: World, c: Check) -> None:
-    _walk_fail(w, c, "bridge dies during the command", fault=_kill_when_cmd_running("lowcmd_bridge_node"))
+    _walk_fail(
+        w, c, "bridge dies during the command", fault=_kill_when_cmd_running("lowcmd_bridge_node")
+    )
 
 
 def sc_walk_policy_dies(w: World, c: Check) -> None:
-    _walk_fail(w, c, "policy node dies during the command", fault=_kill_when_cmd_running("ros2_policy_node"))
+    _walk_fail(
+        w,
+        c,
+        "policy node dies during the command",
+        fault=_kill_when_cmd_running("ros2_policy_node"),
+    )
 
 
 def sc_walk_cmd_dies(w: World, c: Check) -> None:
-    _walk_fail(w, c, "walk_command exits early", fault=_kill_when_cmd_running("phoenix.sim2real.walk_command"))
+    _walk_fail(
+        w,
+        c,
+        "walk_command exits early",
+        fault=_kill_when_cmd_running("phoenix.sim2real.walk_command"),
+    )
 
 
 def sc_walk_deadman_released(w: World, c: Check) -> None:
@@ -585,6 +763,7 @@ def sc_walk_lowstate_stops(w: World, c: Check) -> None:
 
 def sc_walk_harness_killed(w: World, c: Check) -> None:
     """SIGKILL of the harness itself (power loss analogue): no analysis, no cleanup, still latched."""
+
     def f(r: Run) -> None:
         while r.proc and r.proc.poll() is None and r.policy_ticks() < 175:
             time.sleep(0.05)
@@ -603,15 +782,51 @@ def sc_crash_after_begin(w: World, c: Check) -> None:
     run = s / "FF_walk_20261008T000000Z"
     run.mkdir()
     p = ff_cli(
-        w, s, "begin", "--kind", "walk", "--preset", "vx03_2s", "--run-dir", str(run),
-        "--config", str(w.bundle / WALK_CFG.name), "--lock", str(WALK_LOCK), "--session", str(s),
-        "--bundle", str(w.bundle),
+        w,
+        s,
+        "begin",
+        "--kind",
+        "walk",
+        "--preset",
+        "vx03_2s",
+        "--run-dir",
+        str(run),
+        "--config",
+        str(w.bundle / WALK_CFG.name),
+        "--lock",
+        str(WALK_LOCK),
+        "--session",
+        str(s),
+        "--bundle",
+        str(w.bundle),
     )
-    c.ok("begin succeeds and records the walk", p.returncode == 0 and (s / "free_floor_started.json").is_file(), p.stderr[-300:])
+    c.ok(
+        "begin succeeds and records the walk",
+        p.returncode == 0 and (s / "free_floor_started.json").is_file(),
+        p.stderr[-300:],
+    )
     refused(w, s, c, "walk after a crash between begin and launch", "walk", "vx03_2s")
-    q = ff_cli(w, s, "walk-eval", "--run-dir", str(run), "--config", str(w.bundle / WALK_CFG.name), "--lock", str(WALK_LOCK), "--session", str(s), "--bundle", str(w.bundle))
+    q = ff_cli(
+        w,
+        s,
+        "walk-eval",
+        "--run-dir",
+        str(run),
+        "--config",
+        str(w.bundle / WALK_CFG.name),
+        "--lock",
+        str(WALK_LOCK),
+        "--session",
+        str(s),
+        "--bundle",
+        str(w.bundle),
+    )
     res = rec(s, "free_floor_result.json")
-    c.ok("analysing the empty run is a NO-GO, not a crash or a pass", q.returncode != 0 and bool(res) and res["verdict"] == "NO-GO", q.stderr[-200:])
+    c.ok(
+        "analysing the empty run is a NO-GO, not a crash or a pass",
+        q.returncode != 0 and bool(res) and res["verdict"] == "NO-GO",
+        q.stderr[-200:],
+    )
     p = harness(w, s, "review", "accept", "--by", "r", "--note", "n")
     c.ok("accept refused on the empty run", p.returncode != 0)
 
@@ -622,7 +837,11 @@ def sc_review_forgery(w: World, c: Check) -> None:
     good_walk(w, s, Check("x"))
     (s / "free_floor_review.json").write_text("{}")
     u = ff_cli(w, s, "unreviewed")
-    c.ok("a hand-made empty review file does not release the latch", u.returncode != 0, u.stderr[-200:])
+    c.ok(
+        "a hand-made empty review file does not release the latch",
+        u.returncode != 0,
+        u.stderr[-200:],
+    )
     (s / "free_floor_review.json").unlink()
     harness(w, s, "review", "accept", "--by", "r", "--note", "n")
     other = w.new_session()
@@ -646,7 +865,11 @@ def sc_missing_raw_log(w: World, c: Check) -> None:
     run = sorted(s.glob("FF_walk_*"))[-1]
     (run / "bridge.jsonl").unlink()
     p = harness(w, s, "review", "accept", "--by", "r", "--note", "n")
-    c.ok("accept refused when the result's raw log is gone", p.returncode != 0 and "evidence no longer matches" in p.stderr, p.stderr[-250:])
+    c.ok(
+        "accept refused when the result's raw log is gone",
+        p.returncode != 0 and "evidence no longer matches" in p.stderr,
+        p.stderr[-250:],
+    )
 
 
 def sc_artifact_swap(w: World, c: Check) -> None:
@@ -674,7 +897,11 @@ def sc_artifact_swap(w: World, c: Check) -> None:
     # the same files in another directory than PHOENIX_BUNDLE: the bundle is not what loads
     p = harness(w, s, "gate", extra_env={"PHOENIX_BUNDLE": str(ARCHIVE / "eval/iter2750_gate")})
     t = p.stdout + p.stderr
-    c.ok("a bundle that is not the directory the config loads from is refused", p.returncode != 0 and ("outside the bundle" in t or "SHA256SUMS" in t), t[-250:])
+    c.ok(
+        "a bundle that is not the directory the config loads from is refused",
+        p.returncode != 0 and ("outside the bundle" in t or "SHA256SUMS" in t),
+        t[-250:],
+    )
 
 
 SCENARIOS: dict[str, Callable[[World, Check], None]] = {
@@ -716,10 +943,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     why = available()
     if why:
-        print(f"SKIP: rehearsal needs ROS 2, the unitree messages and the model_2750 archive ({why})")
+        print(
+            f"SKIP: rehearsal needs ROS 2, the unitree messages and the model_2750 archive ({why})"
+        )
         return 77
-    if subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True).stdout.strip():
-        print("REFUSING: the tracked tree is dirty. The bridge refuses to go live on a dirty tree (as it must); commit first.")
+    if subprocess.run(
+        ["git", "-C", str(REPO), "status", "--porcelain", "--untracked-files=no"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip():
+        print(
+            "REFUSING: the tracked tree is dirty. The bridge refuses to go live on a dirty tree (as it must); commit first."
+        )
         return 2
     names = args.scenarios or list(SCENARIOS)
     bad = [n for n in names if n not in SCENARIOS]
@@ -740,7 +975,10 @@ def main(argv: list[str] | None = None) -> int:
             c.ok("scenario ran to completion", False, f"{type(exc).__name__}: {exc}")
         print(f"\n=== {name}  ({time.time() - t0:.0f} s) {'PASS' if c.passed else 'FAIL'}")
         for row_name, ok, detail in c.rows:
-            print(f"  [{'ok' if ok else 'FAIL'}] {row_name}" + ("" if ok or not detail else f"\n         {detail}"))
+            print(
+                f"  [{'ok' if ok else 'FAIL'}] {row_name}"
+                + ("" if ok or not detail else f"\n         {detail}")
+            )
         for n in c.notes:
             print(f"  note: {n}")
         results.append((name, c.passed))

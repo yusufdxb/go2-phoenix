@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -109,7 +108,11 @@ def desk_checks() -> list[dict[str, Any]]:
     stand = yaml.safe_load(STAND_CFG.read_text())
     for stage, motors in (("C", "off"), ("F", "live"), ("G", "live"), ("H", "live")):
         ok, why = ff._stage_ok(stage, cfg, dc.default_session_dirs(), motors=motors)
-        add(f"hardware evidence: stage {stage} GO for model_2750's stand twin (2026-10-06)", ok, "; ".join(why)[:300])
+        add(
+            f"hardware evidence: stage {stage} GO for model_2750's stand twin (2026-10-06)",
+            ok,
+            "; ".join(why)[:300],
+        )
     del stand
     unrev = ff.unreviewed_runs(dc.default_session_dirs())
     add("no unreviewed free-floor walk in logs/hw_sessions", not unrev, "; ".join(unrev)[:300])
@@ -117,11 +120,14 @@ def desk_checks() -> list[dict[str, Any]]:
     add(
         "workstation stage A GO at THIS commit on the stand lock (needed to stage the bundle)",
         sa is not None,
-        sa or "run: DEPLOY_CFG=configs/sim2real/deploy_walk_iter2750_stand.yaml "
+        sa
+        or "run: DEPLOY_CFG=configs/sim2real/deploy_walk_iter2750_stand.yaml "
         "DEPLOY_LOCK=configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml "
         "PHOENIX_EXPECT_SHA=$(git rev-parse HEAD) scripts/harness_preflight.sh A",
     )
-    sh = subprocess.run(["bash", "-n", str(REPO / "scripts/harness_preflight.sh")], capture_output=True)
+    sh = subprocess.run(
+        ["bash", "-n", str(REPO / "scripts/harness_preflight.sh")], capture_output=True
+    )
     add("harness_preflight.sh parses", sh.returncode == 0, sh.stderr.decode()[:200])
     for rel in (
         "scripts/free_floor_gate.py",
@@ -164,7 +170,10 @@ def main_desk(args: Any) -> int:
         print(json.dumps({"desk_ready": ready, "checks": checks, "pending": pending()}, indent=2))
         return 0 if ready else 1
     for c in checks:
-        print(f"  [{'PASS' if c['ok'] else 'FAIL'}] {c['check']}" + (f"\n         {c['detail']}" if c["detail"] and not c["ok"] else ""))
+        print(
+            f"  [{'PASS' if c['ok'] else 'FAIL'}] {c['check']}"
+            + (f"\n         {c['detail']}" if c["detail"] and not c["ok"] else "")
+        )
     print()
     print("VERDICT: " + ("FREE-FLOOR DESK READY" if ready else "DESK BLOCKERS REMAIN"))
     print("This is NOT robot readiness. Still pending, and not claimable from here:")

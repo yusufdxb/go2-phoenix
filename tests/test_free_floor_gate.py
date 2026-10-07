@@ -51,8 +51,8 @@ from phoenix.sim2real import preflight  # noqa: E402
 from phoenix.sim2real import preflight_eval as pe  # noqa: E402
 from phoenix.sim2real.deploy_contract import (  # noqa: E402
     artifact_paths,
-    load_lock,
     live_environment_problems,
+    load_lock,
 )
 from phoenix.sim2real.provenance import CodeIdentity, resolve_code_identity  # noqa: E402
 
@@ -188,7 +188,12 @@ def _run(
         ff._write_record(
             session,
             ff.STARTED,
-            {"schema": st.STARTED_SCHEMA, "run_dir": name, "code_sha": SHA, "runtime_identity": runtime},
+            {
+                "schema": st.STARTED_SCHEMA,
+                "run_dir": name,
+                "code_sha": SHA,
+                "runtime_identity": runtime,
+            },
         )
     return d
 
@@ -252,7 +257,10 @@ def test_every_mixture_that_is_not_exactly_model_2750_is_refused():
 
     roles = ("checkpoint", "policy.onnx", "policy.onnx.data")
     for pick in itertools.product((False, True), repeat=3):
-        h = {r: (ff.SEED50_HASHES if s else ff.INCUMBENT)[r] for r, s in zip(roles, pick, strict=True)}
+        h = {
+            r: (ff.SEED50_HASHES if s else ff.INCUMBENT)[r]
+            for r, s in zip(roles, pick, strict=True)
+        }
         why = ff.hash_identity_problems(h, "mix")
         assert (why == []) == (not any(pick)), (pick, why)
         assert len(why) == sum(pick)
@@ -304,8 +312,9 @@ def test_the_cli_has_no_way_to_name_a_velocity_or_duration():
     body = harness[harness.index("\nstage_free_floor() {") :]
     body = body[: body.index("\n}\n")]
     assert body.count("--preset") == 4  # check walk (gate, live), begin, the walk_command launch
-    assert "PHOENIX_WALK_AUTHORITY_MARGIN_S" not in body and "PHOENIX_STANDUP_S" not in body.replace(
-        "standup_s=2.0", ""
+    assert (
+        "PHOENIX_WALK_AUTHORITY_MARGIN_S" not in body
+        and "PHOENIX_STANDUP_S" not in body.replace("standup_s=2.0", "")
     )
 
 
@@ -347,8 +356,12 @@ def test_environment_that_could_change_a_run_is_refused():
     ):
         why = ff.env_problems(live | {var: val})
         assert why and any(needle in w for w in why), (var, why)
-    assert ff.env_problems(live | {"PHOENIX_STANDUP_S": "2.0"}) == []  # the pinned value is harmless
-    assert ff.env_problems(live | {"PHOENIX_MIN_BATTERY_SOC": "30"}) == []  # raising the floor is fine
+    assert (
+        ff.env_problems(live | {"PHOENIX_STANDUP_S": "2.0"}) == []
+    )  # the pinned value is harmless
+    assert (
+        ff.env_problems(live | {"PHOENIX_MIN_BATTERY_SOC": "30"}) == []
+    )  # raising the floor is fine
     reh = {"PHOENIX_REHEARSAL": "1", "ROS_LOCALHOST_ONLY": "1"}
     assert ff.env_problems(reh) == []
 
@@ -402,7 +415,9 @@ def test_accept_needs_a_go_result_for_the_started_run_and_a_named_reviewer(sessi
     (s3 / "r").mkdir()
     (s3 / "r" / "bridge.jsonl").write_text("{}\n")
     ev = [{"path": "r/bridge.jsonl", "sha256": hashlib.sha256(b"{}\n").hexdigest()}]
-    ff._write_record(s3, ff.RESULT, {"verdict": "GO", "run_dir": "r", "rehearsal": False, "evidence_files": ev})
+    ff._write_record(
+        s3, ff.RESULT, {"verdict": "GO", "run_dir": "r", "rehearsal": False, "evidence_files": ev}
+    )
     with pytest.raises(ValueError, match="name and a note"):
         ff.review(s3, "accept", " ", "x")
     assert ff.review(s3, "accept", "yusuf", "ok")["decision"] == "accept"
@@ -541,10 +556,14 @@ def test_stop_latency_gate_measures_resolvable_ticks(session):
     ticks = _ticks(REL, 2.0)
     k = max(i for i, t in enumerate(ticks) if t["mode"] == "policy")
     for t in ticks[k + 1 :]:
-        t["t_mono_ns"] += 200_000_000  # a 0.2 s gap between the last policy tick and the release read
+        t[
+            "t_mono_ns"
+        ] += 200_000_000  # a 0.2 s gap between the last policy tick and the release read
     d = _run(session, "FF_drill_001", ticks)
     rec = ff.drill_eval(d, session, SHA, RT)
-    assert rec["verdict"] == "NO-GO" and any("too coarse" in p or "spacing" in p for p in rec["problems"])
+    assert rec["verdict"] == "NO-GO" and any(
+        "too coarse" in p or "spacing" in p for p in rec["problems"]
+    )
 
 
 def test_malformed_run_evidence_is_an_analyzer_failure_and_no_go(session):
@@ -570,7 +589,9 @@ def test_drill_records_are_per_attempt_and_a_retry_is_analysed(session):
     assert ff.drill_problems(session, _ident(), RT) == []  # the NEWEST attempt counts
     assert len(list(session.glob("free_floor_drill_FF_drill_*.json"))) == 2
     with pytest.raises(FileExistsError):
-        ff.drill_eval(session / "FF_drill_002", session, SHA, RT)  # one record per run, never overwritten
+        ff.drill_eval(
+            session / "FF_drill_002", session, SHA, RT
+        )  # one record per run, never overwritten
 
 
 def test_an_interrupted_newer_drill_withdraws_an_older_go(session):
@@ -689,12 +710,18 @@ def test_walk_fails_closed(session, case):
         ff._write_record(
             session,
             ff.STARTED,
-            {"schema": st.STARTED_SCHEMA, "run_dir": "FF_walk_001", "runtime_identity": RT | {"boot_id": "x"}},
+            {
+                "schema": st.STARTED_SCHEMA,
+                "run_dir": "FF_walk_001",
+                "runtime_identity": RT | {"boot_id": "x"},
+            },
         )
         kw["started"] = False
     elif case == "no_started_record":
         kw["started"] = False
-    rec = ff.walk_eval(_run(session, "FF_walk_001", ticks, manifest=man, walk=walk, **kw), session, SHA, RT)
+    rec = ff.walk_eval(
+        _run(session, "FF_walk_001", ticks, manifest=man, walk=walk, **kw), session, SHA, RT
+    )
     assert rec["verdict"] == "NO-GO" and rec["problems"], case
 
 
@@ -760,9 +787,7 @@ def _check(r, phase="drill", cfg=WALK_CFG, lock=WALK_LOCK, **kw):
     kw.setdefault("ident", r.ident)
     kw.setdefault("env", CLEAN_ENV)
     kw.setdefault("session_root", r.hw)
-    return ff.check(
-        phase, cfgd, cfg, lock, r.sess, sessions=r.dirs, preset="vx03_2s", **kw
-    )
+    return ff.check(phase, cfgd, cfg, lock, r.sess, sessions=r.dirs, preset="vx03_2s", **kw)
 
 
 @needs_artifacts
@@ -821,8 +846,15 @@ def test_wrong_checkpoint_is_rejected(ready, tmp_path):
     p = tmp_path / "cfg.yaml"
     p.write_text(yaml.safe_dump(cfg))
     why = ff.check(
-        "drill", cfg, p, WALK_LOCK, ready.sess, sessions=ready.dirs, ident=ready.ident,
-        env=CLEAN_ENV, session_root=ready.hw,
+        "drill",
+        cfg,
+        p,
+        WALK_LOCK,
+        ready.sess,
+        sessions=ready.dirs,
+        ident=ready.ident,
+        env=CLEAN_ENV,
+        session_root=ready.hw,
     )
     assert any("checkpoint" in w and "unknown artifact" in w for w in why)
 
@@ -860,8 +892,13 @@ def test_stage_a_must_cover_the_files_now_running_and_be_on_the_payload(ready):
     other = _ident(sha="d" * 40)
     assert any("stage A is not for the code" in w for w in _check(ready, "drill", ident=other))
     # same commit string, different files (a tampered or re-synced tree): the digest differs
-    tampered = CodeIdentity(sha=SHA, source="payload_sync", branch="feat/phoenix-walk-v1-hw",
-                            dirty=False, execution_set_sha256="payload:other")
+    tampered = CodeIdentity(
+        sha=SHA,
+        source="payload_sync",
+        branch="feat/phoenix-walk-v1-hw",
+        dirty=False,
+        execution_set_sha256="payload:other",
+    )
     why = _check(ready, "drill", ident=tampered)
     assert any("does not cover the files now running" in w for w in why)
     # an identity with problems (manifest mismatch) blocks regardless of the sha
@@ -888,7 +925,9 @@ def test_bundle_must_be_what_the_config_loads(ready, tmp_path):
     for p in paths.values():
         (b / p.name).write_bytes(p.read_bytes())
     (b / "SHA256SUMS").write_text(
-        "".join(f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}\n" for f in sorted(b.iterdir()))
+        "".join(
+            f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}\n" for f in sorted(b.iterdir())
+        )
     )
     # the bundle is a verified copy, but the config still loads the ARCHIVE: not the same files
     why = ff.containment_problems(cfg, WALK_CFG, b)
@@ -912,7 +951,7 @@ def _fn(name):
 def test_generic_w_stays_the_gantry_command_and_cannot_reach_free_floor():
     walk = _fn("stage_walk")
     assert 'live_confirm "W $preset ON GANTRY"' in walk
-    assert "free_floor_gate.py\" unreviewed" in walk  # but an unreviewed floor walk latches it
+    assert 'free_floor_gate.py" unreviewed' in walk  # but an unreviewed floor walk latches it
     assert "FREE_FLOOR" not in walk.replace("free-floor", "")
     assert "W) stage_walk" in HARNESS_TEXT and "FREE_FLOOR) stage_free_floor" in HARNESS_TEXT
 
@@ -932,9 +971,16 @@ def test_the_run_start_record_precedes_every_process_that_can_move_a_motor():
     f = _fn("stage_free_floor")
     begin = f.index('"$ff" begin --kind "$sub"')
     assert begin < f.index("launch deadman") < f.index("launch lowcmd_bridge")
-    assert f.index("operator_gate arm") < begin  # the operator's arm comes first, then the final re-check
+    assert (
+        f.index("operator_gate arm") < begin
+    )  # the operator's arm comes first, then the final re-check
     assert f.index("free_floor_confirm") < f.index("new_run") < begin
-    for launch in ("launch lowstate_bridge", "launch policy_node", "launch walk_cmd", "launch remote_trace"):
+    for launch in (
+        "launch lowstate_bridge",
+        "launch policy_node",
+        "launch walk_cmd",
+        "launch remote_trace",
+    ):
         assert begin < f.index(launch)
     assert 'halt "free-floor $sub could not start' in f  # a refused begin stops the run
 
@@ -943,7 +989,7 @@ def test_free_floor_pins_the_values_a_stale_shell_could_change():
     f = _fn("stage_free_floor")
     assert "standup_s=2.0" in f and "PHOENIX_STANDUP_S" not in f
     assert "PHOENIX_WALK_AUTHORITY_MARGIN_S" not in f and "walk_dur + 4.0" in f
-    assert "--lock \"$DEPLOY_LOCK\"" in f and "--authority-s \"$authority\"" in f
+    assert '--lock "$DEPLOY_LOCK"' in f and '--authority-s "$authority"' in f
     assert "alive_at_end" in f and "snapshot --label start" in f and "snapshot --label end" in f
 
 
@@ -985,9 +1031,18 @@ def test_lab_commands_are_resolved_complete_and_password_free():
     sha = resolve_code_identity(REPO).sha
     assert sha in text and sha[:12] in text
     for needle in (
-        "lablink doctor", "lablink status orin", "lablink resolve orin", "stage_payload_repo.sh",
-        "stage_payload_bundle.sh", "derive_walk_bundle.sh", "A --payload", "FREE_FLOOR gate",
-        "FREE_FLOOR drill", "FREE_FLOOR walk vx03_2s", "FREE_FLOOR review accept", "env -i",
+        "lablink doctor",
+        "lablink status orin",
+        "lablink resolve orin",
+        "stage_payload_repo.sh",
+        "stage_payload_bundle.sh",
+        "derive_walk_bundle.sh",
+        "A --payload",
+        "FREE_FLOOR gate",
+        "FREE_FLOOR drill",
+        "FREE_FLOOR walk vx03_2s",
+        "FREE_FLOOR review accept",
+        "env -i",
     ):
         assert needle in text, needle
     assert "JETSON_PW=" not in text and "password" not in text.lower().replace("no passwords", "")
@@ -1003,5 +1058,7 @@ def test_desk_checks_never_claim_robot_readiness(capsys):
     assert any("DRILL" in k for k in desk.pending()) and any("PAYLOAD" in k for k in desk.pending())
     rc = desk.main_desk(types.SimpleNamespace(cmd="desk-ready", json=False))
     out = capsys.readouterr().out
-    assert "VERDICT:" in out and "NOT robot readiness" in out and "PAYLOAD VERIFICATION PENDING" in out
+    assert (
+        "VERDICT:" in out and "NOT robot readiness" in out and "PAYLOAD VERIFICATION PENDING" in out
+    )
     assert rc in (0, 1)

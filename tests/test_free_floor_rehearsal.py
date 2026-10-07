@@ -24,7 +24,8 @@ pytestmark = [pytest.mark.ros, pytest.mark.slow]
 def test_rehearsal_scenario(scenario):
     dirty = subprocess.run(
         ["git", "-C", str(REPO), "status", "--porcelain", "--untracked-files=no"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     if dirty:
         pytest.skip("tracked tree is dirty; the bridge refuses to go live on it")

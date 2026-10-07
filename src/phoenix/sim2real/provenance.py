@@ -110,9 +110,10 @@ def resolve_code_identity(repo_root: str | Path) -> CodeIdentity:
             ident.manifest_verified = False
             ident.problems.append(f"{PAYLOAD_SYNC_NAME} present but {PAYLOAD_SUMS_NAME} missing")
             return ident
-        ident.execution_set_sha256 = "payload:" + hashlib.sha256(
-            sync_path.read_bytes() + b"\0" + sums_path.read_bytes()
-        ).hexdigest()
+        ident.execution_set_sha256 = (
+            "payload:"
+            + hashlib.sha256(sync_path.read_bytes() + b"\0" + sums_path.read_bytes()).hexdigest()
+        )
         mismatched: list[str] = []
         checked = 0
         for line in sums_path.read_text().splitlines():
@@ -154,8 +155,10 @@ def resolve_code_identity(repo_root: str | Path) -> CodeIdentity:
     tree = _git(root, "rev-parse", "HEAD^{tree}")
     diff = _git(root, "diff", "HEAD") if ident.dirty else ""
     if tree is not None and diff is not None:
-        ident.execution_set_sha256 = "git-tree:" + tree + (
-            ":dirty-" + hashlib.sha256(diff.encode()).hexdigest() if diff else ""
+        ident.execution_set_sha256 = (
+            "git-tree:"
+            + tree
+            + (":dirty-" + hashlib.sha256(diff.encode()).hexdigest() if diff else "")
         )
     return ident
 

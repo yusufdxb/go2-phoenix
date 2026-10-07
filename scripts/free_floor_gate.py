@@ -213,7 +213,9 @@ def env_problems(env: Mapping[str, str] | None = None) -> list[str]:
             dc.HW_SESSIONS_TEST_FLAG,
         ):
             if set_(name):
-                out.append(f"{name} is set in a live invocation (rehearsal/test variable): unset it")
+                out.append(
+                    f"{name} is set in a live invocation (rehearsal/test variable): unset it"
+                )
         if env.get("ROS_LOCALHOST_ONLY") == "1":
             out.append("ROS_LOCALHOST_ONLY=1: localhost-only DDS cannot reach the robot")
     elif env.get("ROS_LOCALHOST_ONLY") != "1":
@@ -576,7 +578,9 @@ def check(
     problems += session_problems(session, session_root)
     problems += [
         f"code now: {p}"
-        for p in code_identity_problems(ident, expected_branch=resolve_expected_branch(env=env or {}))
+        for p in code_identity_problems(
+            ident, expected_branch=resolve_expected_branch(env=env or {})
+        )
     ]
     problems += identity_problems(cfg, cfg_path, lock_path, bundle)
     dirs = [Path(d) for d in (dc.default_session_dirs() if sessions is None else sessions)]
@@ -613,7 +617,9 @@ def e2e_stop(trace: Sequence[Mapping[str, Any]], ex: Mapping[str, Any]) -> dict[
     if t_zero is None or t_obs is None:
         out["why"] = "bridge zero-command tick not established"
         return out
-    held = [r["t_mono_ns"] for r in trace if r.get("topic") == "wireless" and r.get("value") is True]
+    held = [
+        r["t_mono_ns"] for r in trace if r.get("topic") == "wireless" and r.get("value") is True
+    ]
     held = [t for t in held if t <= t_obs]
     est = [
         r["t_mono_ns"]
@@ -712,7 +718,9 @@ def _run_checks(
             problems.append("run-start record names a different run directory")
         if bool(attempt.get("rehearsal")) != _rehearsal():
             problems.append("run-start record rehearsal flag mismatch")
-        problems += identity_diff(attempt.get("runtime_identity") or {}, runtime, "run start vs end")
+        problems += identity_diff(
+            attempt.get("runtime_identity") or {}, runtime, "run start vs end"
+        )
     alive, err = _read_json(run_dir / ALIVE_AT_END)
     if err or not isinstance(alive, dict):
         problems.append(f"{ALIVE_AT_END} missing: {err}")
