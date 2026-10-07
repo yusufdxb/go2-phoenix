@@ -64,12 +64,15 @@ from phoenix.sim2real.bridge_telemetry import (
 )
 from phoenix.sim2real.deploy_contract import (
     OBS_SCHEMA_V2,
+    default_session_dirs,
     is_stand_only,
+    live_environment_problems,
     load_lock,
     validate_deploy_contract,
     verify_lock,
 )
 from phoenix.sim2real.deploy_manifest import ManifestError, load_deploy_manifest
+from phoenix.sim2real.free_floor_state import unreviewed_runs
 from phoenix.sim2real.go2_model import (
     JOINT_LIMITS_PROVENANCE,
     JOINT_POSITION_LIMITS_RAD,
@@ -643,6 +646,13 @@ def startup_problems(cfg: BridgeConfig) -> tuple[list[str], dict[str, Any]]:
         identity, expected_sha=cfg.expect_sha, expected_branch=resolve_expected_branch()
     )
     if cfg.live:
+        problems.extend(f"environment: {p}" for p in live_environment_problems())
+        if cfg.walking_allowed:
+            # A free-floor walk that nobody has reviewed latches every later walking launch,
+            # whichever runner starts it (FREE_FLOOR, W, the gantry A/B or a hand launch).
+            problems.extend(
+                f"free-floor review: {p}" for p in unreviewed_runs(default_session_dirs())
+            )
         if not cfg.expect_sha:
             problems.append("--live requires --expect-sha")
         problems.extend(f"code identity: {p}" for p in id_problems)

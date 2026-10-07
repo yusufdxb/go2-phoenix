@@ -58,7 +58,7 @@ DEADMAN="${PHOENIX_DEADMAN:-wireless}"
 
 c_red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 c_green() { printf '\033[32m%s\033[0m\n' "$*"; }
-halt()    { c_red "HALT: $*" >&2; exit 1; }
+halt()    { c_red "HALT: $*" >&2; [[ -n "${RUN:-}" && -d "${RUN:-}" ]] && printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$RUN/halt_reason.txt"; exit 1; }
 ts()      { date -u +%Y%m%dT%H%M%SZ; }
 
 [[ -f "$DEPLOY_CFG" ]] || halt "DEPLOY_CFG $DEPLOY_CFG does not exist"
@@ -143,7 +143,7 @@ stop_proc() {
 
 stop_all() {
     local name
-    for name in friction_probe walk_cmd policy_node lowcmd_bridge lowstate_bridge deadman; do
+    for name in friction_probe walk_cmd policy_node lowcmd_bridge lowstate_bridge remote_trace deadman; do
         [[ -n "${PIDS[$name]:-}" ]] && stop_proc "$name"
     done
     return 0
@@ -514,6 +514,8 @@ stage_walk() {
     walk_dur="$(python3 -c 'import sys; from phoenix.sim2real.walk_command import PRESETS, profile_duration; print(profile_duration(PRESETS[sys.argv[1]]))' "$preset" 2>/dev/null)" \
         || halt "unknown walk preset '$preset' (python3 -m phoenix.sim2real.walk_command --list)"
     need_sha; ros_env
+    # A free-floor walk nobody has reviewed latches every later walking launch (the bridge refuses too).
+    python3 "$REPO_ROOT/scripts/free_floor_gate.py" unreviewed || halt "an unreviewed free-floor walk blocks W (review it first)"
     assert_no_contention W
     assert_battery W
     local stand_only=""
@@ -634,6 +636,13 @@ WALK_SUMMARY_EOF
 # NO gantry. It never goes through W, whose phrase says ON GANTRY and which stays as it was.
 # All identity/evidence/analysis logic is in scripts/free_floor_gate.py and fails closed; this
 # function only runs the processes and asks the operator what software cannot see.
+#
+# Process choreography (one attempt = one invocation, nothing chains, nothing retries):
+#   check -> banner -> typed confirmations -> new run dir -> operator arm -> `begin` (final re-check;
+#   writes the run-start record, and for the walk free_floor_started.json) -> deadman, lowstate,
+#   remote_trace -> bridge --live -> stand-up ramp -> policy -> artifact snapshot -> (walk: walk_cmd)
+#   -> window end -> judgement -> release -> alive_at_end -> artifact snapshot -> stop all -> tape
+#   measurement (walk) -> analyzer. The run-start record precedes every process that can move a motor.
 free_floor_confirm() {
     local what="$1" want="LIVE FREE_FLOOR $1 NO GANTRY"
     cat <<EOF
@@ -641,11 +650,13 @@ free_floor_confirm() {
 ================================================================================
  LIVE FREE-FLOOR $what: model_2750 ONLY, NO GANTRY, NO ROPE SUPPORT
  Software cannot see the floor, the rope or the people. YOU are confirming:
-   1. the robot is on LEVEL FLOOR (friction checked, mu >= 0.4)
+   1. the robot is on LEVEL FLOOR (clean, dry, no mats; friction checked, mu >= 0.4)
    2. NO gantry, rope or harness is supporting it
    3. the FALL AREA is clear
    4. the SPOTTER(S) stand OUTSIDE the fall envelope
    5. the DEADMAN control is in your hand and READY
+ Releasing the deadman is NOT instant: the remote goes silent, the deadman node waits
+ 0.5 s, publishes at 10 Hz, then the bridge holds. Expect up to ~0.6 s of motion first.
  Low-level mode (sport service released; never SelectMode normal).
  HALT (release the deadman) on: joint snap or buzz, tipping or oscillation,
  drift toward a person, any node crash, Jetson reboot or brownout.
@@ -659,7 +670,7 @@ EOF
     fi
     [[ -t 0 ]] || halt "free-floor $what requires an operator at an interactive terminal"
     local item answer n=0
-    for item in "the robot is on LEVEL FLOOR" "NO gantry/rope/harness is supporting it" \
+    for item in "the robot is on LEVEL, CLEAN, DRY floor with no mats" "NO gantry/rope/harness is supporting it" \
         "the FALL AREA is clear" "the SPOTTER(S) are OUTSIDE the fall envelope" "the DEADMAN control is READY in your hand"; do
         n=$((n + 1))
         read -r -p "[$n/5] Type YES if ${item}: " answer
@@ -669,33 +680,64 @@ EOF
     [[ "$answer" == "$want" ]] || halt "operator did not confirm free-floor $what"
 }
 
+# alive_at_end.json: which processes are still running at the moment the attempt is ended.
+free_floor_alive_at_end() {
+    local name sep="" out="{"
+    for name in deadman lowstate_bridge lowcmd_bridge policy_node remote_trace walk_cmd; do
+        [[ -n "${PIDS[$name]:-}" ]] || continue
+        local alive=false
+        is_alive "${PIDS[$name]}" && alive=true
+        out+="${sep}\"$name\": $alive"
+        sep=", "
+    done
+    printf '%s}\n' "$out" >"$RUN/alive_at_end.json"
+}
+
 stage_free_floor() {
     local sub="${1:-}" ff="$REPO_ROOT/scripts/free_floor_gate.py" preset="" phase authority
     [[ $# -gt 0 ]] && shift
     case "$sub" in
         review) python3 "$ff" review "${1:-}" --session "$SESSION" "${@:2}"; return ;;
-        gate)   phase="${1:-walk}"; preset="vx03_2s" ;;
+        desk-ready|lab-commands|unreviewed) python3 "$ff" "$sub" "$@"; return ;;
+        gate)   phase="${1:-both}"; preset="vx03_2s" ;;
         drill)  phase=drill ;;
         walk)   phase=walk; preset="${1:-}"
                 [[ -n "$preset" ]] || halt "usage: harness_preflight.sh FREE_FLOOR walk vx03_2s (the preset is typed explicitly)" ;;
-        *)      halt "usage: harness_preflight.sh FREE_FLOOR gate|drill|walk|review (see --help)" ;;
+        *)      halt "usage: harness_preflight.sh FREE_FLOOR gate [drill|walk] | drill | walk vx03_2s | review accept|reject --by NAME --note TEXT | unreviewed | desk-ready | lab-commands" ;;
     esac
     local bundle_args=()
     [[ -n "${PHOENIX_BUNDLE:-}" ]] && bundle_args=(--bundle "$PHOENIX_BUNDLE")
     need_sha
-    python3 "$ff" check --phase "$phase" --config "$DEPLOY_CFG" --lock "$DEPLOY_LOCK" --session "$SESSION" \
-        ${preset:+--preset "$preset"} "${bundle_args[@]}" \
+    local common=(--config "$DEPLOY_CFG" --lock "$DEPLOY_LOCK" --session "$SESSION" ${bundle_args[@]+"${bundle_args[@]}"})
+    if [[ "$sub" == gate && "$phase" == both ]]; then
+        # Both phases, side by side: the drill is the next step until a GO drill exists on this runtime.
+        local rc_d=0 rc_w=0
+        echo "[FREE_FLOOR gate] --- drill phase ---"
+        python3 "$ff" check --phase drill "${common[@]}" || rc_d=$?
+        echo "[FREE_FLOOR gate] --- walk phase (needs a GO drill first) ---"
+        python3 "$ff" check --phase walk --preset vx03_2s "${common[@]}" || rc_w=$?
+        if [[ $rc_w -eq 0 ]]; then
+            c_green "[FREE_FLOOR gate] NEXT: set the robot on the walking floor, then: scripts/harness_preflight.sh FREE_FLOOR walk vx03_2s   (gates only; not permission to move)"
+        elif [[ $rc_d -eq 0 ]]; then
+            c_green "[FREE_FLOOR gate] NEXT: scripts/harness_preflight.sh FREE_FLOOR drill   (drill gates pass; the walk needs its GO first; not permission to move)"
+        else
+            c_red "[FREE_FLOOR gate] BLOCKED: fix the BLOCKED lines above; nothing may move"
+        fi
+        return $((rc_d != 0 && rc_w != 0))
+    fi
+    python3 "$ff" check --phase "$phase" ${preset:+--preset "$preset"} "${common[@]}" \
         || halt "free-floor $phase gates failed (see BLOCKED lines above); no motion"
     [[ "$sub" == gate ]] && { c_green "[FREE_FLOOR] $phase software gates pass; this is not permission to move (no operator confirmation yet)"; return 0; }
     [[ ${#bundle_args[@]} -gt 0 ]] || halt "live free-floor needs PHOENIX_BUNDLE (the activated model_2750 walking bundle)"
     ros_env
-    assert_no_contention FF
-    assert_battery FF
+    assert_no_contention "FF_${sub}"
+    assert_battery "FF_${sub}"
     [[ "$(cfg_get safety.stand_only 2>/dev/null)" == "False" ]] || halt "free-floor needs the incumbent WALKING config (safety.stand_only: false)"
     local label="$sub"
     [[ "$sub" == walk ]] && label="walk $preset"
+    python3 "$ff" banner --kind "$sub" "${common[@]}" || halt "could not summarise the identity (see above); no motion"
     free_floor_confirm "$label"
-    local first_msg max_rt standup_s="${PHOENIX_STANDUP_S:-2.0}" walk_dur=0
+    local first_msg max_rt standup_s=2.0 walk_dur=0
     if [[ "$sub" == drill ]]; then
         authority=5.0
     else
@@ -708,17 +750,21 @@ stage_free_floor() {
     new_run "FF_${sub}"
     local telemetry="$RUN/bridge.jsonl"
     printf '{"phrase": "LIVE FREE_FLOOR %s NO GANTRY", "utc": "%s"}\n' "$label" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$RUN/operator_confirmation.json"
-    # One attempt per session and per review: the marker is written BEFORE any motor can move,
-    # so a crash, an analyzer failure or an interrupted run still blocks until a human reviews.
-    [[ "$sub" == walk ]] && { python3 "$ff" mark-started --session "$SESSION" --run-dir "$RUN" || halt "a free-floor walk was already started in this session"; }
     if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
         operator_gate arm "FF_${sub}" "[FREE_FLOOR $label] Robot folded on the LEVEL FLOOR, NO gantry/rope support, fall area clear, spotters outside it, deadman HELD (keep holding it). Press Enter to start: "
     fi
+    # The run-start record: a final re-check of every gate (the confirmations took time), then
+    # free_floor_started.json (walk) and attempt.json. It is written BEFORE any process that can
+    # move a motor, so a crash, a power loss or an analyzer failure afterwards still blocks the
+    # next walk until a human reviews.
+    python3 "$ff" begin --kind "$sub" --run-dir "$RUN" ${preset:+--preset "$preset"} "${common[@]}" \
+        || halt "free-floor $sub could not start (see BLOCKED lines above); no motion"
     # shellcheck disable=SC2046
     launch deadman $(deadman_cmd)
     launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
+    launch remote_trace python3 "$REPO_ROOT/scripts/free_floor_remote_trace.py" --out "$RUN/remote_trace.jsonl"
     sleep 1
-    require_alive deadman lowstate_bridge
+    require_alive deadman lowstate_bridge remote_trace
     # shellcheck disable=SC2046
     launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args FF "$telemetry") \
         --standup-s "$standup_s"
@@ -726,12 +772,13 @@ stage_free_floor() {
         "$first_msg" "bridge armed with the real deadman"
     wait_for_telemetry "$telemetry" 't.get("standup_done")' \
         "$(python3 -c "print($standup_s + $first_msg)")" "stand-up ramp complete, holding the training stance"
-    require_alive deadman lowstate_bridge lowcmd_bridge
+    require_alive deadman lowstate_bridge lowcmd_bridge remote_trace
     launch policy_node python3 -m phoenix.sim2real.ros2_policy_node --config "$DEPLOY_CFG" \
         --lock "$DEPLOY_LOCK" --authority-s "$authority" --max-runtime-s "$max_rt" \
         --log-parquet "$RUN/policy.parquet"
     wait_for_telemetry "$telemetry" 't.get("mode") == "policy"' "$first_msg" "policy in control"
-    require_alive deadman lowstate_bridge lowcmd_bridge policy_node
+    require_alive deadman lowstate_bridge lowcmd_bridge policy_node remote_trace
+    python3 "$ff" snapshot --label start --config "$DEPLOY_CFG" --run-dir "$RUN" || halt "could not re-hash the loaded artifacts"
     if [[ "$sub" == drill ]]; then
         c_red "[FREE_FLOOR drill] policy has the robot at a ZERO command. RELEASE the deadman about 2 s from NOW (announce it first)."
     else
@@ -753,17 +800,41 @@ stage_free_floor() {
         answer="$(operator_gate judgement "FF_${sub}" \
             "[FREE_FLOOR $label] Did the robot stay on its feet, do exactly the planned thing, stop, and sit, with no collapse, buzz, oscillation or drift toward anyone? [y/n]: ")"
         operator_gate release "FF_${sub}" \
-            "[FREE_FLOOR $label] Press Enter to end the attempt (the bridge sits the robot if it is not already sitting, folds the legs and exits): "
+            "[FREE_FLOOR $label] Press Enter to end the attempt (the bridge sits the robot if it is not already sitting, folds the legs and exits). Do NOT approach the robot to measure until it has folded: "
     fi
+    free_floor_alive_at_end
+    python3 "$ff" snapshot --label end --config "$DEPLOY_CFG" --run-dir "$RUN" || c_red "[FREE_FLOOR] could not re-hash the artifacts at the end (the analyzer will report it)"
     [[ -n "${PIDS[walk_cmd]:-}" ]] && stop_proc walk_cmd
     stop_proc policy_node
     stop_proc lowcmd_bridge
     stop_all
     printf '%s\n' "$answer" >"$RUN/operator_answer.txt"
-    local rc=0
-    python3 "$ff" "${sub}-eval" --run-dir "$RUN" --session "$SESSION" || rc=$?
     if [[ "$sub" == walk ]]; then
-        c_red "[FREE_FLOOR] STOP. Read the result and the logs; no further free-floor command is allowed until: $0 FREE_FLOOR review accept|reject --by NAME --note TEXT"
+        # The only displacement source: GO2 odometry is not valid in this pipeline. Entered AFTER
+        # the processes have stopped and the robot has folded, so nobody walks up to a live robot.
+        local fwd="" lat="0" hdg="" who=""
+        if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
+            fwd="${PHOENIX_REHEARSAL_FORWARD_CM:-}"; who="rehearsal"
+        else
+            echo "[FREE_FLOOR walk] MEASURE NOW with the tape: forward travel in cm of the rear feet, from their START floor marks to where they ended (average of both rear feet), and sideways drift (left +)."
+            read -r -p "Forward cm (Enter to skip, recorded as NOT measured): " fwd
+            if [[ -n "$fwd" ]]; then
+                read -r -p "Sideways cm, left + (Enter = 0): " lat; lat="${lat:-0}"
+                read -r -p "Heading change deg, CCW + (Enter to skip): " hdg
+                read -r -p "Your name: " who
+            fi
+        fi
+        if [[ -n "$fwd" ]]; then
+            python3 "$ff" measure --run-dir "$RUN" --forward-cm "$fwd" --lateral-cm "${lat:-0}" ${hdg:+--heading-deg "$hdg"} --by "${who:-unknown}" \
+                || c_red "[FREE_FLOOR walk] measurement not recorded (see above); enter it later with the measure subcommand"
+        else
+            c_red "[FREE_FLOOR walk] displacement NOT measured: the commissioning record will say so"
+        fi
+    fi
+    local rc=0
+    python3 "$ff" "${sub}-eval" --run-dir "$RUN" "${common[@]}" || rc=$?
+    if [[ "$sub" == walk ]]; then
+        c_red "[FREE_FLOOR] STOP. Read $SESSION/free_floor_result.json and the logs. This session is now CLOSED to further free-floor walks; every walking launch is refused until: $0 FREE_FLOOR review accept|reject --by NAME --note TEXT"
     fi
     return "$rc"
 }

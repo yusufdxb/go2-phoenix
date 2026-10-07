@@ -53,6 +53,10 @@ class CodeIdentity:
     dirty: bool
     manifest_verified: bool | None = None
     problems: list[str] = field(default_factory=list)
+    #: Digest of the file set that is running, not just of the commit string: the payload's
+    #: PAYLOAD_SYNC.txt + PAYLOAD_SHA256SUMS, or the git tree (plus the tracked diff when dirty).
+    #: A record that stores it can later prove the SAME files are running, not merely the same sha.
+    execution_set_sha256: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -106,6 +110,9 @@ def resolve_code_identity(repo_root: str | Path) -> CodeIdentity:
             ident.manifest_verified = False
             ident.problems.append(f"{PAYLOAD_SYNC_NAME} present but {PAYLOAD_SUMS_NAME} missing")
             return ident
+        ident.execution_set_sha256 = "payload:" + hashlib.sha256(
+            sync_path.read_bytes() + b"\0" + sums_path.read_bytes()
+        ).hexdigest()
         mismatched: list[str] = []
         checked = 0
         for line in sums_path.read_text().splitlines():
@@ -144,6 +151,12 @@ def resolve_code_identity(repo_root: str | Path) -> CodeIdentity:
     if status is None:
         ident.problems.append("git status failed")
         ident.dirty = True
+    tree = _git(root, "rev-parse", "HEAD^{tree}")
+    diff = _git(root, "diff", "HEAD") if ident.dirty else ""
+    if tree is not None and diff is not None:
+        ident.execution_set_sha256 = "git-tree:" + tree + (
+            ":dirty-" + hashlib.sha256(diff.encode()).hexdigest() if diff else ""
+        )
     return ident
 
 

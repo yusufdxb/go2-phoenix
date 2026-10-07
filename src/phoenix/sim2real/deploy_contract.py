@@ -246,12 +246,33 @@ def hw_sessions_override_problem() -> str | None:
     return None
 
 
-def default_session_dirs() -> list[Path]:
-    """Hardware session directories: ``<repo>/logs/hw_sessions`` (``$PHOENIX_HW_SESSIONS`` only
-    with ``PHOENIX_HW_SESSIONS_TEST_ONLY=1``)."""
+def live_environment_problems() -> list[str]:
+    """Environment a LIVE (motors-capable) process must not inherit.
+
+    The evidence-directory override and its test flag exist so that rehearsals can use synthetic
+    F/G records. Left exported in a lab shell they would let fake evidence satisfy the walking
+    contract, so a live process refuses them unless this is explicitly a rehearsal."""
+    if os.environ.get("PHOENIX_REHEARSAL") == "1":
+        return []
+    return [
+        f"{name} is set in the environment of a live process: a test-only evidence override "
+        "must not be inherited (unset it)"
+        for name in (HW_SESSIONS_ENV, HW_SESSIONS_TEST_FLAG)
+        if os.environ.get(name)
+    ]
+
+
+def session_root() -> Path:
+    """The directory whose children are hardware sessions: ``<repo>/logs/hw_sessions``
+    (``$PHOENIX_HW_SESSIONS`` only with ``PHOENIX_HW_SESSIONS_TEST_ONLY=1``)."""
     default_root = Path(__file__).resolve().parents[3] / "logs" / "hw_sessions"
     override = os.environ.get(HW_SESSIONS_ENV)
-    root = Path(override) if override and hw_sessions_override_problem() is None else default_root
+    return Path(override) if override and hw_sessions_override_problem() is None else default_root
+
+
+def default_session_dirs() -> list[Path]:
+    """Hardware session directories: the children of :func:`session_root`."""
+    root = session_root()
     return sorted(d for d in root.iterdir() if d.is_dir()) if root.is_dir() else []
 
 
