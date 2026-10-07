@@ -94,3 +94,11 @@ with the largest E1 + E2 is proposed (an engineering choice, labelled post hoc).
 
 All 10 runs train to 3750 unless the health guard aborts; an aborted run is reported as
 such and not replaced. No extra seeds are added after looking at results.
+
+## Amendment 1 (2026-10-07 13:20Z, after the first run finished, before any T/C outcome was computed)
+
+The final checkpoint of a 1000-iteration resume from 2750 is named `model_3749.pt`
+(rsl_rl names the last save by the last iteration index; `latest.pt` points to it); no
+`model_3750.pt` exists. "Evaluated checkpoint = model_3750" above means the FINAL
+checkpoint of every run, i.e. `model_3749.pt`. No other checkpoint is evaluated. Only the
+incumbent replay (P2) had been computed when this was found.

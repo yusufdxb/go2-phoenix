@@ -37,7 +37,7 @@ INCUMBENT = BASE / "2026-09-26_21-06-20" / "model_2750.pt"
 TEMPLATE = REPO / "configs/sim2real/proposed/deploy_walk_iter2750.yaml"
 RUNS = REPO / "checkpoints/friction_dr"
 OUT = REPO / "results/friction_dr"
-EVAL_ITER = 3750
+EVAL_ITER = 3749  # final checkpoint of a 1000-iteration resume from 2750 (amendment 1)
 CONDITIONS = "nominal;fmeas=1.0;fmeas=1.25;fmeas=1.5"
 SEEDS = (50, 51, 52, 53, 54)
 MIN_EFFECT = {"E1": 0.15, "E2": 0.10}
