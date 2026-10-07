@@ -1,0 +1,66 @@
+{
+  "rule": "nominal |T-C| <= 0.10 on vx03_4s fwd and yaw05_3s yaw; no falls; gate v3 PASS; no health abort",
+  "seeds": {
+    "50": {
+      "d_nominal_fwd": 0.10210404529779626,
+      "d_nominal_yaw": 0.20914729983030456,
+      "checks": {
+        "no_fall": true,
+        "nominal_fwd_within_0p10": false,
+        "nominal_yaw_within_0p10": false,
+        "gate_v3_pass": true,
+        "no_health_abort": true
+      },
+      "pass": false
+    },
+    "51": {
+      "d_nominal_fwd": 0.18369187938565135,
+      "d_nominal_yaw": 0.26634720224869546,
+      "checks": {
+        "no_fall": true,
+        "nominal_fwd_within_0p10": false,
+        "nominal_yaw_within_0p10": false,
+        "gate_v3_pass": true,
+        "no_health_abort": true
+      },
+      "pass": false
+    },
+    "52": {
+      "d_nominal_fwd": 0.14352299369683974,
+      "d_nominal_yaw": 0.07516128224633489,
+      "checks": {
+        "no_fall": true,
+        "nominal_fwd_within_0p10": false,
+        "nominal_yaw_within_0p10": true,
+        "gate_v3_pass": true,
+        "no_health_abort": true
+      },
+      "pass": false
+    },
+    "53": {
+      "d_nominal_fwd": 0.19700757518741796,
+      "d_nominal_yaw": 0.04459040728517827,
+      "checks": {
+        "no_fall": true,
+        "nominal_fwd_within_0p10": false,
+        "nominal_yaw_within_0p10": true,
+        "gate_v3_pass": true,
+        "no_health_abort": true
+      },
+      "pass": false
+    },
+    "54": {
+      "d_nominal_fwd": 0.19752014245209548,
+      "d_nominal_yaw": 0.09745216491563813,
+      "checks": {
+        "no_fall": true,
+        "nominal_fwd_within_0p10": false,
+        "nominal_yaw_within_0p10": true,
+        "gate_v3_pass": true,
+        "no_health_abort": true
+      },
+      "pass": false
+    }
+  },
+  "any_seed_passes": false
+}
