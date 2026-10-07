@@ -65,22 +65,29 @@ def _workstation_stage_a(sha: str) -> str | None:
     return None
 
 
+def import_origin() -> tuple[bool, str]:
+    """Is ``phoenix`` imported from THIS checkout? An editable install elsewhere (the main checkout,
+    in a worktree) silently wins over a missing PYTHONPATH, and the readiness answer is only about
+    this tree."""
+    import phoenix
+
+    where = Path(phoenix.__file__).resolve()
+    return where.is_relative_to(REPO), f"phoenix resolves to {where}, this checkout is {REPO}"
+
+
 def desk_checks() -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
 
     def add(name: str, ok: bool, detail: str = "") -> None:
         out.append({"check": name, "ok": bool(ok), "detail": detail})
 
-    import phoenix
     from phoenix.sim2real import walk_grant as wg
 
-    # An editable install elsewhere (the main checkout) must never be what the desk tests or what
-    # the lab code runs: the readiness answer is only about THIS tree.
-    phoenix_file = Path(phoenix.__file__).resolve()
+    ok, detail = import_origin()
     add(
         "phoenix is imported from THIS checkout (not another worktree or the main checkout)",
-        phoenix_file.is_relative_to(REPO),
-        f"phoenix resolves to {phoenix_file}, repo is {REPO}",
+        ok,
+        detail,
     )
     add(
         "walk grant: FREE_FLOOR is bound to the incumbent ONNX, GANTRY and FREE_FLOOR presets are "

@@ -586,3 +586,15 @@ def test_phoenix_is_imported_from_this_checkout() -> None:
 
 def test_pytest_is_configured_to_import_from_this_checkout() -> None:
     assert re.search(r'pythonpath\s*=\s*\["src"\]', (REPO / "pyproject.toml").read_text())
+
+
+def test_desk_ready_detects_another_checkout_instead_of_testing_it(monkeypatch) -> None:
+    import free_floor_desk as desk
+
+    import phoenix
+
+    ok, _ = desk.import_origin()
+    assert ok
+    monkeypatch.setattr(phoenix, "__file__", "/home/someone/other-checkout/src/phoenix/__init__.py")
+    ok, detail = desk.import_origin()
+    assert not ok and "other-checkout" in detail
