@@ -86,6 +86,7 @@ SAFETY_CORE_MODULES = (
     "src/phoenix/sim2real/preflight.py",
     "src/phoenix/sim2real/preflight_eval.py",
     "src/phoenix/sim2real/provenance.py",
+    "src/phoenix/sim2real/walk_grant.py",
 )
 SAFETY_CORE_FORMATTED = SAFETY_CORE_MODULES + (
     "src/phoenix/sim2real/lowcmd_bridge_node.py",
@@ -107,6 +108,7 @@ SAFETY_CORE_FORMATTED = SAFETY_CORE_MODULES + (
     "tests/test_preflight_eval.py",
     "tests/test_provenance.py",
     "tests/test_ros2_policy_node.py",
+    "tests/test_walk_grant.py",
 )
 
 

@@ -123,6 +123,11 @@ def _finite(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _num(value: Any) -> float | None:
+    """``value`` as a float if it is a finite real number, else None (never raises)."""
+    return float(value) if _finite(value) else None
+
+
 def read_grant(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
     """(grant, []) or (None, why). Never raises; a symlink or a malformed file is refused."""
     path = Path(path)
@@ -188,8 +193,8 @@ def grant_problems(
             else "a live grant is not valid in a rehearsal"
         )
 
-    issued, expires = grant.get("issued_unix"), grant.get("expires_unix")
-    if not (_finite(issued) and _finite(expires)):
+    issued, expires = _num(grant.get("issued_unix")), _num(grant.get("expires_unix"))
+    if issued is None or expires is None:
         problems.append("grant has no finite issue/expiry time")
     else:
         t = time.time() if now is None else now
@@ -214,27 +219,24 @@ def grant_problems(
             and all(abs(float(a) - b) <= ENVELOPE_TOL for a, b in zip(env, want_env, strict=True))
         ):
             problems.append(f"grant envelope {env!r} is not the preset's {list(want_env)}")
-        auth = grant.get("authority_s")
-        if not _finite(auth) or abs(float(auth) - want_auth) > 1e-6:
-            problems.append(f"grant authority_s {auth!r} is not the preset's {want_auth}")
-        first_msg = grant.get("first_message_timeout_s")
-        standup = grant.get("standup_s")
-        if not (_finite(first_msg) and _finite(standup) and first_msg > 0 and standup >= 0):
+        auth = _num(grant.get("authority_s"))
+        if auth is None or abs(auth - want_auth) > 1e-6:
+            problems.append(
+                f"grant authority_s {grant.get('authority_s')!r} is not the preset's {want_auth}"
+            )
+        first_msg = _num(grant.get("first_message_timeout_s"))
+        standup = _num(grant.get("standup_s"))
+        if first_msg is None or standup is None or first_msg <= 0 or standup < 0:
             problems.append("grant has no finite startup timing")
-        elif _finite(issued) and _finite(expires):
+        elif issued is not None and expires is not None:
             want_window = preset_window_s(first_msg, standup, want_auth)
             if abs((expires - issued) - want_window) > 1e-3:
                 problems.append(
                     f"grant window {expires - issued:.1f} s is not the {want_window:.1f} s the "
                     "preset allows"
                 )
-            if (
-                abs(
-                    float(grant.get("max_runtime_s", -1))
-                    - preset_max_runtime_s(first_msg, want_auth)
-                )
-                > 1e-6
-            ):
+            runtime = _num(grant.get("max_runtime_s"))
+            if runtime is None or abs(runtime - preset_max_runtime_s(first_msg, want_auth)) > 1e-6:
                 problems.append("grant max_runtime_s is not the preset's")
     return problems
 
@@ -258,7 +260,7 @@ def command_exceeds(
 def other_live_grants(root: Path, run_dir: Path, now: float) -> list[str]:
     """Grants under ``root/<session>/<run>/`` other than ``run_dir``'s that are still valid and
     not released. One walking authority at a time, whichever mode."""
-    out = []
+    out: list[str] = []
     if not root.is_dir():
         return out
     for grant_path in sorted(root.glob(f"*/*/{GRANT_FILE}")):

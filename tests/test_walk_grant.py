@@ -598,3 +598,19 @@ def test_desk_ready_detects_another_checkout_instead_of_testing_it(monkeypatch) 
     monkeypatch.setattr(phoenix, "__file__", "/home/someone/other-checkout/src/phoenix/__init__.py")
     ok, detail = desk.import_origin()
     assert not ok and "other-checkout" in detail
+
+
+@pytest.mark.parametrize("bad", ["never", None, [1], {"a": 1}, float("nan"), True])
+def test_non_numeric_grant_fields_are_problems_not_exceptions(tmp_path, files, bad) -> None:
+    (grant, _), run = issue(tmp_path, files)
+    for key in (
+        "max_runtime_s",
+        "authority_s",
+        "issued_unix",
+        "expires_unix",
+        "standup_s",
+        "first_message_timeout_s",
+    ):
+        edited = dict(grant, **{key: bad})
+        edited["body_sha256"] = wg._body_sha256(edited)
+        assert verify(edited, run), (key, bad)
