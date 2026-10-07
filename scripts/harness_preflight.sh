@@ -15,6 +15,7 @@
 #   scripts/harness_preflight.sh F | G | H    LIVE cmd=0 stand of the active config (DEPLOY_LABEL), 2 s / 5 s / 10 s x 3   motors LIVE
 #   scripts/harness_preflight.sh W <preset>   LIVE one walking attempt (presets: python3 -m phoenix.sim2real.walk_command --list)   motors LIVE
 #                                             needs a WALKING DEPLOY_CFG/LOCK (safety.stand_only: false). NOT a ledger stage: no evaluator, evidence never counted.
+#                                             GANTRY ONLY: presets vx03_2s, vx03_4s, yaw05_3s; runs inside a bounded GANTRY walk grant (src/phoenix/sim2real/walk_grant.py).
 #                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset> ON GANTRY', plus synthetic F/G records via
 #                                             PHOENIX_HW_SESSIONS=<dir> PHOENIX_HW_SESSIONS_TEST_ONLY=1 (deploy_contract.walking_evidence_problems), else walking is refused.
 #   scripts/harness_preflight.sh FREE_FLOOR gate [drill|walk]   software gates only for the incumbent-only free-floor path, no motion
@@ -662,7 +663,8 @@ WALK_SUMMARY_EOF
 }
 
 # FREE_FLOOR gate|drill|walk|review: the incumbent-only (model_2750) path for the FIRST walk with
-# NO gantry. It never goes through W, whose phrase says ON GANTRY and which stays as it was.
+# NO gantry. It never goes through W, whose phrase says ON GANTRY. Both W (registered gantry presets only) and
+# FREE_FLOOR run inside a bounded walking grant (issue_walk_grant); W's policies and typed phrase are unchanged.
 # All identity/evidence/analysis logic is in scripts/free_floor_gate.py and fails closed; this
 # function only runs the processes and asks the operator what software cannot see.
 #

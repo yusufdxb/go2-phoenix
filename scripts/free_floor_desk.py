@@ -213,6 +213,8 @@ def lab_commands(orin: str) -> str:
 # Values are resolved from this checkout. Payload paths come from the 2026-10-06 notes
 # (user unitree, repo {PAYLOAD_REPO}); step 3 proves them before anything is copied.
 # No passwords here. If scp/rsync asks for one, it is the Jetson login: export JETSON_PW yourself.
+# Walking authority: every drill/walk issues its own short, run-bound grant (walk_grant.json in the run
+# directory); a bridge or policy node started by hand has none and refuses to walk. Never launch them by hand.
 
 ## 0. WORKSTATION (mewtwo): verify the tree, then ask the desk checker
 cd {REPO}

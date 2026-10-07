@@ -70,18 +70,37 @@ class World:
         self.bundle = root / "bundle"
         self.n = 0
         self._ros_env: dict[str, str] | None = None
+        # The policy under rehearsal: model_2750 (the default) or, for the gantry-only scenario, seed 50.
+        self.walk_cfg, self.walk_lock = WALK_CFG, WALK_LOCK
+        self.stand_cfg, self.stand_lock = STAND_CFG, STAND_LOCK
+        self.export = ARCHIVE / "eval/iter2750_gate"
+        self.ckpt = ARCHIVE / "checkpoints/walk_vnext3c_seed47/2026-09-26_21-06-20/model_2750.pt"
+        self.label = "walk-iter2750-stand"
+
+    def use_seed50(self) -> None:
+        """Switch this world to seed 50 (model_3749): gantry-only, rebuilt from scratch."""
+        a7 = Path.home() / "Archive/phoenix-deploy-candidates-2026-10-07"
+        self.walk_cfg = REPO / "configs/sim2real/proposed/deploy_walk_fric_s50_3749.yaml"
+        self.walk_lock = REPO / "configs/sim2real/locks/deploy_walk_fric_s50_3749.lock.yaml"
+        self.stand_cfg = REPO / "configs/sim2real/deploy_walk_fric_s50_3749_stand.yaml"
+        self.stand_lock = REPO / "configs/sim2real/locks/deploy_walk_fric_s50_3749_stand.lock.yaml"
+        self.export = a7 / "eval/fric_s50_3749_gate"
+        self.ckpt = a7 / "checkpoints/fric_T_s50/2026-10-07_09-03-11/model_3749.pt"
+        self.label = "walk-fric-s50-3749-stand"
+        shutil.rmtree(self.bundle, ignore_errors=True)
+        shutil.rmtree(self.hw, ignore_errors=True)
+        self.n = 0
+        self.build_bundle()
+        self.prior_evidence()
 
     # -- bundle: the same layout stage_payload_bundle + derive_walk_bundle produce, pinned in place
     def build_bundle(self) -> None:
-        g = ARCHIVE / "eval/iter2750_gate"
+        g = self.export
         self.bundle.mkdir(parents=True)
         for name in ("policy.onnx", "policy.onnx.data", "policy.pt", "phoenix_manifest.json"):
             shutil.copyfile(g / name, self.bundle / name)
-        shutil.copyfile(
-            ARCHIVE / "checkpoints/walk_vnext3c_seed47/2026-09-26_21-06-20/model_2750.pt",
-            self.bundle / "model_2750.pt",
-        )
-        shutil.copyfile(WALK_CFG, self.bundle / WALK_CFG.name)
+        shutil.copyfile(self.ckpt, self.bundle / self.ckpt.name)
+        shutil.copyfile(self.walk_cfg, self.bundle / self.walk_cfg.name)
         shutil.copyfile(REPO / "src/phoenix/sim2real/activation.py", self.bundle / "activation.py")
         for f in self.bundle.iterdir():
             f.chmod(0o644)
@@ -123,12 +142,12 @@ class World:
         ctx = types.SimpleNamespace(
             identity=resolve_code_identity(REPO),
             id_problems=[],
-            cfg_path=STAND_CFG,
-            lock_path=STAND_LOCK,
-            lock=load_lock(STAND_LOCK),
-            lock_sha=preflight.file_sha256(STAND_LOCK),
+            cfg_path=self.stand_cfg,
+            lock_path=self.stand_lock,
+            lock=load_lock(self.stand_lock),
+            lock_sha=preflight.file_sha256(self.stand_lock),
             session=session,
-            label="walk-iter2750-stand",
+            label=self.label,
         )
         buf = sys.stdout
         sys.stdout = open(os.devnull, "w")
@@ -194,8 +213,8 @@ class World:
             PHOENIX_REHEARSAL_WALKED="y",
             PHOENIX_HW_SESSIONS=str(self.hw),
             PHOENIX_HW_SESSIONS_TEST_ONLY="1",
-            DEPLOY_CFG=str(self.bundle / WALK_CFG.name),
-            DEPLOY_LOCK=str(WALK_LOCK),
+            DEPLOY_CFG=str(self.bundle / self.walk_cfg.name),
+            DEPLOY_LOCK=str(self.walk_lock),
             PHOENIX_BUNDLE=str(self.bundle),
             PHOENIX_EXPECT_SHA=sha,
             PHOENIX_SESSION=str(session),
@@ -1164,6 +1183,43 @@ def sc_hand_launch_refused(w: World, c: Check) -> None:
     )
 
 
+def sc_gantry_w_seed50(w: World, c: Check) -> None:
+    """Seed 50 keeps its legitimate gantry path (W vx03_4s, GANTRY grant) and stays out of FREE_FLOOR."""
+    w.use_seed50()
+    s = w.new_session()
+    r = gantry_w(w, s, "vx03_4s")
+    run = r.run_dir()
+    c.ok("seed 50 W vx03_4s: harness rc 0", r.rc == 0, f"rc={r.rc} {r.events} {r.out[-300:]}")
+    g = rec(run, "walk_grant.json") if run else None
+    c.ok(
+        "seed 50: GANTRY grant for vx03_4s bound to seed 50's ONNX, not the incumbent's",
+        bool(g)
+        and g["mode"] == "GANTRY"
+        and g["preset"] == "vx03_4s"
+        and g["onnx_sha256"] != ff_module().INCUMBENT["policy.onnx"],
+        str(g),
+    )
+    summary = None
+    try:
+        lines = [json.loads(x) for x in (run / "walk_cmd.jsonl").read_text().splitlines()]
+        summary = next((x for x in lines if x.get("record") == "summary"), None)
+    except (OSError, ValueError, TypeError):
+        pass
+    c.ok(
+        "seed 50: walk_command completed the preset",
+        bool(summary) and summary["outcome"] == "complete",
+        str(summary),
+    )
+    refused(w, s, c, "FREE_FLOOR gate with seed 50", "gate", needle="SEED 50")
+    refused(w, s, c, "FREE_FLOOR drill with seed 50", "drill", needle="SEED 50")
+
+
+def ff_module():
+    import free_floor_gate
+
+    return free_floor_gate
+
+
 SCENARIOS: dict[str, Callable[[World, Check], None]] = {
     "happy_reject": sc_happy_reject,
     "happy_accept": sc_happy_accept,
@@ -1190,6 +1246,7 @@ SCENARIOS: dict[str, Callable[[World, Check], None]] = {
     "walk_harness_killed": sc_walk_harness_killed,
     "gantry_w_ok": sc_gantry_w_ok,
     "gantry_w_bad_preset": sc_gantry_w_bad_preset,
+    "gantry_w_seed50": sc_gantry_w_seed50,
     "grant_mutual_exclusion": sc_grant_mutual_exclusion,
     "hand_launch_refused": sc_hand_launch_refused,
 }

@@ -5,8 +5,11 @@ Why this exists. The gantry rule in ``harness_preflight.sh W`` is a typed phrase
 ("ON GANTRY") plus lab-card process; no code path inspects whether a rope exists.
 The F/G hardware-evidence gate in ``deploy_contract`` is what physically blocks
 walking, and it is bound to artifact hashes, not to a gantry. This script adds a
-SEPARATE, explicit, incumbent-only path for the first free-floor walk and leaves
-the gantry path (``W``, the A/B campaign) untouched.
+SEPARATE, explicit, incumbent-only path for the first free-floor walk. The gantry path
+(``W``, the A/B campaign) keeps its policies and its typed "ON GANTRY" confirmation; both
+paths now run only inside a bounded, run-bound walking grant (``walk_grant.py``): W is
+limited to the registered gantry presets, FREE_FLOOR to ``vx03_2s`` (and the zero-command
+drill) on the incumbent ONNX, and a hand-launched bridge or policy node has no grant.
 
 Authorisation is for ONE policy only: model_2750 (checkpoint e03013d1...). Seed 50
 (model_3749, fric_T_s50) is exploratory and stays gantry-only: its hashes are
