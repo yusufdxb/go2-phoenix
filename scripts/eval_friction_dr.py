@@ -37,6 +37,7 @@ INCUMBENT = BASE / "2026-09-26_21-06-20" / "model_2750.pt"
 TEMPLATE = REPO / "configs/sim2real/proposed/deploy_walk_iter2750.yaml"
 RUNS = REPO / "checkpoints/friction_dr"
 OUT = REPO / "results/friction_dr"
+TRAIN_COMMIT = "3e8df13"  # every T/C run launched from this commit on a clean tree
 EVAL_ITER = 3749  # final checkpoint of a 1000-iteration resume from 2750 (amendment 1)
 CONDITIONS = "nominal;fmeas=1.0;fmeas=1.25;fmeas=1.5"
 SEEDS = (50, 51, 52, 53, 54)
@@ -94,9 +95,24 @@ def evaluate(label: str, workers: int) -> None:
     ).stdout.strip()
     dirty = bool(
         subprocess.run(
-            ["git", "status", "--porcelain"], cwd=REPO, capture_output=True, text=True
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
-    )
+    )  # tracked files only: the study's own untracked outputs must not mark it dirty
+    code = [
+        "git",
+        "diff",
+        "--quiet",
+        TRAIN_COMMIT,
+        "HEAD",
+        "--",
+        "src",
+        "scripts/train_velocity.py",
+    ]
+    if label != "I" and subprocess.run(code, cwd=REPO).returncode != 0:
+        raise SystemExit(f"training code changed since {TRAIN_COMMIT}; manifest would misstate it")
     manifest = build_manifest(
         checkpoint_sha256=_sha256(ckpt),
         commands=CommandRanges.from_mapping(cur["widest_ranges_reached"]),
@@ -150,6 +166,7 @@ def evaluate(label: str, workers: int) -> None:
                 "replay_script_sha256": _sha256(REPO / "scripts/desk/sim_replay_walk.py"),
                 "git_sha": git_sha,
                 "git_dirty": dirty,
+                "train_commit": TRAIN_COMMIT,
             },
             indent=2,
         )
