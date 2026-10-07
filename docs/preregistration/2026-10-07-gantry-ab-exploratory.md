@@ -178,3 +178,22 @@ validity rule: the bridge manifest's `code_identity.source` must be `payload_syn
 rehearsal has `git`), the run's code sha must equal the campaign commit, and the runner
 records `rehearsal` on every run record (any rehearsal record is invalid). No metric,
 arm, order, threshold or decision rule changed.
+
+## Amendment 2 (2026-10-07, before any campaign data; independent pre-hardware audit)
+
+Three analysis gaps closed; no metric, arm, order, threshold or decision rule changed.
+1. Attempts are counted physically: the attempt index of a run is its position among ALL
+   records of its (block, slot) in the campaign file, and any physical attempt beyond the
+   second is invalid. The runner never re-runs a block that was started; an interrupted
+   block is closed with `gantry_ab_campaign.sh abandon <k> <reason>` and its missing slots
+   stay missing.
+2. The STOP drill is not exempt from fault checks: any fault other than the normal end
+   latch during the drill makes it invalid and counts as a safety event of that arm (only
+   the operator's deliberate deadman release is expected).
+3. Abnormal bridge faults or limit clips in live ladder stages (verified payload runs)
+   count as safety events of the arm whose artifacts ran. Campaign STOP conditions that are
+   computable from the logs (faults, limit clips, two aborted runs of one arm and preset)
+   are listed in the analysis summary.
+The 60 s rest between runs and the gantry rope remain operator responsibilities (not
+sensed); calling `scripts/harness_preflight.sh W` directly during the campaign is a
+protocol violation (the runner restricts presets; the harness alone does not).

@@ -267,9 +267,13 @@ case "$cmd" in
 import json, sys
 recs = [json.loads(l) for l in open(sys.argv[1])]
 done = {r["block"] for r in recs if r.get("kind") == "block_end"}
+started = {r["block"] for r in recs if r.get("kind") == "block_start"}
 stopped = any(r.get("kind") == "campaign_stop" for r in recs)
 k = int(sys.argv[2])
-sys.exit(0 if not stopped and k not in done and all(b in done for b in range(1, k)) else 1)
+if k in started and k not in done:
+    print(f"block {k} was started and never finished; a block is never re-run (prereg amendment 2). "
+          f"Close it with: gantry_ab_campaign.sh abandon {k} <reason>", file=sys.stderr)
+sys.exit(0 if not stopped and k not in started and all(b in done for b in range(1, k)) else 1)
 PY
         verify_arm "$arm"
         soc="$(battery_soc)" || halt "battery below ${MIN_BLOCK_SOC} % at block start (prereg: remaining blocks not run); record with: $0 stop battery"
@@ -292,6 +296,13 @@ PY
         append "$d/campaign.jsonl" "$(python3 -c 'import json,sys; print(json.dumps({"kind":"block_end","block":int(sys.argv[1]),"arm":sys.argv[2],"all_slots_clean":sys.argv[3]=="true"}))' "$k" "$arm" "$ok")"
         echo "[ab] block $k done. Wait at least 60 s before the next run."
         ;;
+    abandon)
+        k="${1:?block number}"; shift
+        [[ "$k" =~ ^[1-6]$ ]] || halt "block must be 1..6"
+        d="$(campaign_dir)"
+        append "$d/campaign.jsonl" "$(python3 -c 'import json,sys; print(json.dumps({"kind":"block_end","block":int(sys.argv[1]),"abandoned":True,"reason":" ".join(sys.argv[2:])}))' "$k" "$@")"
+        echo "[ab] block $k closed as abandoned; its missing slots stay missing"
+        ;;
     stop)
         d="$(campaign_dir)"
         append "$d/campaign.jsonl" "$(python3 -c 'import json,sys; print(json.dumps({"kind":"campaign_stop","reason":" ".join(sys.argv[1:])}))' "$@")"
@@ -312,5 +323,5 @@ nxt = next((b for b in range(1, 7) if b not in done), None)
 print("next block:", nxt, "(arm", h["order"][nxt - 1] + ")" if nxt else "none")
 PY
         ;;
-    *) halt "unknown command $cmd (init | verify | ladder | block | stop | status)" ;;
+    *) halt "unknown command $cmd (init | verify | ladder | block | abandon | stop | status)" ;;
 esac

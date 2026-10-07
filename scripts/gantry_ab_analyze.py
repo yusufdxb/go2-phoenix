@@ -335,7 +335,9 @@ def stand_metrics(ticks: list[dict]) -> dict:
 def analyze_run(rec: dict) -> dict:
     run_dir = Path(rec["run_dir"])
     slot = rec["slot"]
-    out: dict[str, Any] = {k: rec.get(k) for k in ("block", "arm", "slot", "attempt", "run_dir")}
+    out: dict[str, Any] = {
+        k: rec.get(k) for k in ("block", "arm", "slot", "attempt", "physical_attempt", "run_dir")
+    }
     try:
         manifest, ticks, end = load_bridge(run_dir)
     except (OSError, ValueError) as exc:
@@ -365,10 +367,16 @@ def analyze_run(rec: dict) -> dict:
         why.append("not exactly one policy episode")
     if not b["lowstate_fresh_all_policy"]:
         why.append("LowState not fresh on every policy tick")
-    if slot != "stop_drill" and b["abnormal_faults"]:
+    if b["abnormal_faults"]:  # Amendment 2: the STOP drill is not exempt
         why.append(f"faults {b['abnormal_faults']}")
-    if rec.get("rope_loaded") or rec.get("touched") or rec.get("aborted"):
+    if (
+        rec.get("rope_loaded")
+        or rec.get("touched")
+        or (rec.get("aborted") and slot != "stop_drill")
+    ):
         why.append("operator: rope loaded / touched / aborted")
+    if (rec.get("physical_attempt") or 1) > 2:
+        why.append(f"physical attempt {rec.get('physical_attempt')} of this slot (max 2)")
     if slot in PRESETS:
         summ = walk_summary(run_dir)
         if not summ or summ.get("outcome") != "complete":
@@ -385,28 +393,92 @@ def analyze_run(rec: dict) -> dict:
         out["stand"] = stand_metrics(ticks)
         if slot == "G" and not out["stand"].get("settle_window_ok"):
             why.append("E2 settle window refused")
-    out["safety_event"] = (
-        bool(b["abnormal_faults"] or b["limit_clip_ticks_policy"] or rec.get("aborted"))
-        and slot != "stop_drill"
+    out["safety_event"] = bool(
+        b["abnormal_faults"]
+        or b["limit_clip_ticks_policy"]
+        or (rec.get("aborted") and slot != "stop_drill")
     )
     out["valid"] = not why
     out["why"] = why
     return out
 
 
+def number_physical_attempts(run_recs: list[dict]) -> None:
+    """Amendment 2: the attempt index is the record's position among ALL records of its
+    (block, slot) in campaign-file order, so a re-run block cannot reset it."""
+    count: dict[tuple, int] = {}
+    for r in run_recs:
+        key = (r.get("block"), r.get("slot"))
+        count[key] = count.get(key, 0) + 1
+        r["physical_attempt"] = count[key]
+
+
 def first_valid(runs: list[dict]) -> list[dict]:
     """First valid attempt per (block, slot); attempts beyond the second are not allowed."""
     chosen, seen = [], set()
-    for r in sorted(runs, key=lambda r: (r["block"], r["slot"], r.get("attempt") or 1)):
+    for r in sorted(
+        runs,
+        key=lambda r: (r["block"], r["slot"], r.get("physical_attempt") or r.get("attempt") or 1),
+    ):
         key = (r["block"], r["slot"])
-        if key in seen or not r["valid"] or (r.get("attempt") or 1) > 2:
+        n = r.get("physical_attempt") or r.get("attempt") or 1
+        if key in seen or not r["valid"] or n > 2:
             continue
         seen.add(key)
         chosen.append(r)
     return chosen
 
 
-def decide(chosen: list[dict], all_runs: list[dict]) -> dict:
+def ladder_events(ladder_recs: list[dict], base: Path) -> list[dict]:
+    """Amendment 2: abnormal bridge faults in live ladder stages count as safety events of
+    the arm whose artifacts the bridge ran (from the manifest hashes)."""
+    out = []
+    for r in ladder_recs:
+        d = Path(r.get("run_dir") or "")
+        if not d.is_absolute():
+            d = (base / d) if (base / d).exists() else REPO / d
+        if not (d / "bridge.jsonl").is_file():
+            continue
+        try:
+            manifest, ticks, end = load_bridge(d)
+        except (OSError, ValueError):
+            continue
+        ident = manifest.get("code_identity") or {}
+        if not manifest.get("live") or ident.get("source") != "payload_sync":
+            continue
+        b = bridge_metrics(ticks, end)
+        if b["abnormal_faults"] or b["limit_clip_ticks_policy"]:
+            out.append(
+                {
+                    "stage": r.get("stage"),
+                    "arm": arm_of(manifest),
+                    "faults": b["abnormal_faults"],
+                    "limit_clip_ticks": b["limit_clip_ticks_policy"],
+                    "run_dir": str(d),
+                }
+            )
+    return out
+
+
+def stop_conditions(runs: list[dict]) -> list[str]:
+    """Campaign STOP conditions computable from the logs (reported; the operator stops live)."""
+    found = []
+    aborts: dict[tuple, int] = {}
+    for r in runs:
+        b = r.get("bridge") or {}
+        tag = f"block {r.get('block')} {r.get('slot')} arm {r.get('measured_arm')}"
+        if b.get("abnormal_faults"):
+            found.append(f"{tag}: faults {b['abnormal_faults']}")
+        if b.get("limit_clip_ticks_policy"):
+            found.append(f"{tag}: limit clip under the policy")
+        if r.get("slot") in PRESETS and any("aborted" in w for w in r.get("why") or []):
+            key = (r.get("arm"), r.get("slot"))
+            aborts[key] = aborts.get(key, 0) + 1
+    found += [f"arm {a} {p}: {n} aborted runs" for (a, p), n in aborts.items() if n >= 2]
+    return found
+
+
+def decide(chosen: list[dict], all_runs: list[dict], ladder: list[dict] | None = None) -> dict:
     vals = {arm: {p: [] for p in PRESETS} for arm in ARMS}
     for r in chosen:
         if r["slot"] == "yaw05_3s" and r["walk"].get("Y") is not None:
@@ -430,6 +502,7 @@ def decide(chosen: list[dict], all_runs: list[dict]) -> dict:
     out["per_preset"] = per
     ev = {
         arm: any(r["safety_event"] for r in all_runs if r.get("measured_arm") == arm)
+        or any(e["arm"] == arm for e in ladder or [])
         for arm in ARMS
     }
     out["safety_event"] = ev
@@ -524,8 +597,10 @@ def main(argv: list[str] | None = None) -> int:
                 if (base / r["run_dir"]).exists()
                 else str(REPO / r["run_dir"])
             )
+    number_physical_attempts(run_recs)
     runs = [analyze_run(r) for r in run_recs]
     chosen = first_valid(runs)
+    ladder = ladder_events([r for r in recs if r.get("kind") == "ladder"], base)
     summary = {
         "prereg": "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
         "n_attempts": len(runs),
@@ -535,7 +610,9 @@ def main(argv: list[str] | None = None) -> int:
             for r in runs
             if not r["valid"]
         ],
-        "decision": decide(chosen, runs),
+        "decision": decide(chosen, runs, ladder),
+        "ladder_safety_events": ladder,
+        "stop_conditions_detected": stop_conditions(runs),
         "model_identification": model_id(chosen),
         "stop": [
             {k: r.get(k) for k in ("block", "arm", "slot")}

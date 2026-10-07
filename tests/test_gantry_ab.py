@@ -200,3 +200,34 @@ def test_rehearsal_and_foreign_commit_runs_are_invalid(tmp_path):
         {"run_dir": str(d), "arm": "B", "slot": "stop_drill", "block": 1, "rehearsal": True}
     )
     assert any("PHOENIX_REHEARSAL" in w for w in flagged["why"])
+
+
+def test_physical_attempts_count_across_reruns_and_cap_at_two():
+    recs = [
+        {"block": 1, "slot": "G", "attempt": a} for a in (1, 2, 1)
+    ]  # block re-run resets attempt
+    ga.number_physical_attempts(recs)
+    assert [r["physical_attempt"] for r in recs] == [1, 2, 3]
+    runs = [dict(r, valid=(i == 2)) for i, r in enumerate(recs)]
+    assert ga.first_valid(runs) == []  # the only valid one is the 3rd physical attempt
+
+
+def test_stop_drill_faults_are_not_exempt(tmp_path):
+    d = _bridge(tmp_path, "payload_sync", True)
+    with (d / "bridge.jsonl").open("a") as f:
+        f.write(json.dumps({"record": "end", "faults": ["fall_detected"]}) + "\n")
+    r = ga.analyze_run(
+        {"run_dir": str(d), "arm": "B", "slot": "stop_drill", "block": 5, "aborted": True}
+    )
+    assert r["safety_event"] and any("faults" in w for w in r["why"])
+    assert not any("operator" in w for w in r["why"])  # the drill's deliberate release is expected
+
+
+def test_ladder_safety_event_makes_b_worse():
+    r = _chosen([0.2, 0.22, 0.21], [0.6, 0.58, 0.61], [0.5, 0.55, 0.6], [0.8, 0.82, 0.79])
+    assert ga.decide(r, r, [{"arm": "B", "stage": "E"}])["verdict"] == "B OBVIOUSLY WORSE"
+
+
+def test_runner_never_reruns_a_started_block():
+    src = RUNNER.read_text()
+    assert "k not in started" in src and "abandon)" in src
