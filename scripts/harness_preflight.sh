@@ -199,6 +199,20 @@ live_confirm() {
  moving after its segment ends, any node crash, Jetson reboot or brownout.
 ================================================================================
 EOF
+    elif [[ "$setup" == "gantry" ]]; then
+        cat <<EOF
+
+================================================================================
+ LIVE MOTOR STAGE $stage: $what
+ GANTRY WALK: feet on the ground UNDER THE GANTRY, safety rope ATTACHED to the
+ trunk and to the gantry, slack enough not to carry weight but short enough to
+ catch a fall before the trunk touches the floor. Never walk without the rope.
+ Low-level mode (sport service released; never SelectMode normal), a spotter at
+ the robot, a clear 2 m radius, the operator holding the physical deadman.
+ HALT (release the deadman) on: joint snap or motor buzz, base tipping or
+ divergent oscillation, the rope taking weight, any node crash, Jetson reboot or brownout.
+================================================================================
+EOF
     else
     cat <<EOF
 
@@ -503,7 +517,7 @@ stage_walk() {
         || halt "W needs a walking config: safety.stand_only must be explicitly false in $DEPLOY_CFG (set DEPLOY_CFG and DEPLOY_LOCK to the walking config)"
     echo "[W] walking config $DEPLOY_CFG (lock $DEPLOY_LOCK, ${DEPLOY_LABEL}). The bridge decides walking_allowed itself from the evidence-gated deploy contract (F and G hardware GO records for the stand-phase twin); this script does not."
     # The first walks are gantry-only (operator rule 2026-10-06): the phrase itself says so.
-    live_confirm "W $preset ON GANTRY" "${DEPLOY_LABEL} WALKING attempt '$preset' with the robot ON THE GANTRY, profile ${walk_dur} s, deadman must stay held, 1 attempt"
+    live_confirm "W $preset ON GANTRY" "${DEPLOY_LABEL} WALKING attempt '$preset' with the robot ON THE GANTRY, profile ${walk_dur} s, deadman must stay held, 1 attempt" gantry
     local first_msg max_rt telemetry standup_s="${PHOENIX_STANDUP_S:-2.0}"
     # Motion must never outlive the policy window (its end makes the bridge sit the robot).
     # Window end = profile_duration + margin = 5 + motion_s + margin after policy launch.
@@ -519,7 +533,7 @@ stage_walk() {
     telemetry="$RUN/bridge.jsonl"
     if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
         operator_gate arm "W_${preset}" \
-            "[W $preset] Robot folded on the mat, feet on the ground, spotter ready, clear 2 m radius, deadman HELD (keep holding it for the whole walk). Press Enter to start: "
+            "[W $preset] Robot folded on the mat UNDER THE GANTRY, safety rope ATTACHED (slack, catches a fall), feet on the ground, spotter ready, clear 2 m radius, deadman HELD (keep holding it for the whole walk). Press Enter to start: "
     fi
     # shellcheck disable=SC2046
     launch deadman $(deadman_cmd)

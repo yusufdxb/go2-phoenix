@@ -299,3 +299,14 @@ def test_launchers_pin_single_threaded_blas() -> None:
         text = script.read_text()
         for var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
             assert f'{var}="${{{var}:-1}}"' in text, (script.name, var)
+
+
+def test_walking_shows_the_gantry_banner_not_the_floor_banner() -> None:
+    # 2026-10-07 audit: W asked for "ON GANTRY" but printed the generic floor banner
+    # ("tethered or spotted"). Every W confirmation must print the gantry-rope banner.
+    src = HARNESS.read_text()
+    w_calls = [ln for ln in src.splitlines() if ln.strip().startswith('live_confirm "W ')]
+    assert w_calls, "stage W no longer confirms with live_confirm"
+    assert all(ln.rstrip().endswith(" gantry") for ln in w_calls), w_calls
+    assert 'elif [[ "$setup" == "gantry" ]]' in src
+    assert "safety rope ATTACHED" in src
