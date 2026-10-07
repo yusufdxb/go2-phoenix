@@ -279,3 +279,14 @@ abort (the one allowed repeat); validity is still decided only by the analysis s
 Regression test: `tests/test_gantry_ab.py`, built from the real tick sequence of
 `20261007_fa58780dd4f8/FP_20261007T005825Z` ticks 4765-4774 (bridge.jsonl sha256
 80befcf1d6ef164520a2d273584c39d5b99f0a79cd70f639799da5effbcd549c).
+
+### Disclosure to Amendment 4 (2026-10-07, before any campaign data; from the independent review)
+
+The decision thresholds are unchanged, but the inputs counted as a "safety event" (decision
+rule: "B had no safety event that A did not") now also include a policy exit that is not
+established from the log, a fault exit, and a STOP drill without `t_zero`. This is
+conservative, applies identically to both arms, and is fixed before any data. Known
+fail-closed limits: a release on the planned-end tick, or a policy abort notice reaching the
+bridge before the bridge's own estop message (not seen in the real logs), is classified
+ambiguous (invalid, safety event); the analyzer assumes the harness default walk margin of
+4.0 s, so setting `PHOENIX_WALK_AUTHORITY_MARGIN_S` during the campaign invalidates every W run.

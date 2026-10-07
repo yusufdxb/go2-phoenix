@@ -225,7 +225,7 @@ PY
     if [[ "$lc_ok" == true ]]; then
         echo "[ab] log check: expected exit for $slot confirmed from bridge.jsonl"
     else
-        echo "[ab] LOG CHECK: this run did NOT end as expected for $slot (from bridge.jsonl): ${lc: -400}"
+        echo "[ab] LOG CHECK: this run did NOT end as expected for $slot (from bridge.jsonl): $(tail -c 400 <<<"$lc")"
         [[ "$slot" != stop_drill && "$aborted" == false ]] \
             && echo "[ab] DISCREPANCY: operator answered 'not aborted'; the logs decide (prereg amendment 4)."
     fi

@@ -318,7 +318,7 @@ def test_case_b_release_visible_only_on_the_first_non_policy_tick_is_detected():
 
 def test_case_b_real_release_as_a_stop_drill_is_valid_and_not_a_safety_event(tmp_path):
     r = _an(tmp_path, "drill", _ticks(REL, 2.0), "stop_drill", aborted=True)
-    assert _not_exit_related(r["why"]) == [], r["why"]
+    assert r["valid"] and r["why"] == [], r["why"]
     assert not r["safety_event"]
     ex = r["policy_exit"]
     assert ex["exit"] == "deadman_release"
