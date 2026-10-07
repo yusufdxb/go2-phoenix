@@ -90,6 +90,13 @@ RESULT = "free_floor_result.json"
 REVIEW = "free_floor_review.json"
 
 
+def _rehearsal() -> bool:
+    """True only for a localhost rehearsal (PHOENIX_REHEARSAL=1). A rehearsal invocation accepts
+    only rehearsal records for the free-floor steps and a live one accepts only live records, so
+    neither can stand in for the other."""
+    return os.environ.get("PHOENIX_REHEARSAL") == "1"
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -278,8 +285,8 @@ def _stage_a_problems(session: Path, sha_now: str, require_payload: bool) -> lis
     problems = []
     if rec.get("schema") != STAGE_SCHEMA or rec.get("stage") != "A" or rec.get("verdict") != "GO":
         problems.append("stage A is not a GO record")
-    if rec.get("rehearsal"):
-        problems.append("stage A is a rehearsal record")
+    if bool(rec.get("rehearsal")) != _rehearsal():
+        problems.append("stage A rehearsal flag does not match this invocation (rehearsal evidence never counts live)")
     if ident.get("sha") != sha_now or rec.get("code_identity_problems") != []:
         problems.append("stage A is not for the code now running (or has code identity problems)")
     if require_payload and rec.get("mode") != "payload":
@@ -307,8 +314,8 @@ def drill_problems(session: Path, sha_now: str) -> list[str]:
     problems = []
     if rec.get("schema") != DRILL_SCHEMA or rec.get("verdict") != "GO":
         problems.append("drill record is not a GO record")
-    if rec.get("rehearsal") or rec.get("live") is not True:
-        problems.append("drill record is not a live run")
+    if bool(rec.get("rehearsal")) != _rehearsal() or rec.get("live") is not True:
+        problems.append("drill record is not a live run of this kind (rehearsal flag mismatch)")
     if rec.get("code_sha") != sha_now:
         problems.append("drill was run on different code than is running now")
     problems += hash_identity_problems(rec.get("artifact_sha256") or {}, "drill")
@@ -446,7 +453,7 @@ def _base_record(
         "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "code_sha": sha_now,
         "run_dir": run_dir.name,
-        "rehearsal": os.environ.get("PHOENIX_REHEARSAL") == "1",
+        "rehearsal": _rehearsal(),
     }
 
 
