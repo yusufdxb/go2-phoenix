@@ -579,6 +579,14 @@ class DomainRandSpec:
     # startup: joint armature added, kg m^2. ASSUMPTION: GO2 reflected rotor inertia
     # is O(0.005-0.01) kg m^2; the USD models none, so the range brackets [0, that].
     joint_armature_add: Range = (0.0, 0.01)
+    # startup: per-env, per-joint Coulomb joint friction, N m (PhysX >= 5 joint
+    # friction: static = dynamic = the sample, viscous 0). Off by default so every
+    # earlier spec.json rebuilds unchanged. Measured on the hung GO2 2026-10-07
+    # (docs/hardware/2026-10-07_friction_probe): hips 0.24-0.35, thighs 0.17-0.34,
+    # calves 0.42-0.96 N m; the MuJoCo replay matches the robot at 1.25-1.5x.
+    joint_friction_enabled: bool = False
+    joint_friction_hip_thigh_nm: Range = (0.0, 0.0)
+    joint_friction_calf_nm: Range = (0.0, 0.0)
     # every reset: per-env actuator command delay in PHYSICS steps (5 ms each).
     actuator_latency_physics_steps: tuple[int, int] = (1, 4)
     # reset: root pose / velocity perturbation.
@@ -875,6 +883,11 @@ class VelocityTaskSpec:
             lo_, hi_ = getattr(dr, name)
             if not (0.0 < lo_ <= hi_):
                 p.append(f"{name} must be a positive range")
+        if dr.joint_friction_enabled:
+            for name in ("joint_friction_hip_thigh_nm", "joint_friction_calf_nm"):
+                lo_, hi_ = getattr(dr, name)
+                if not (0.0 <= lo_ <= hi_ <= 5.0):
+                    p.append(f"{name} must satisfy 0 <= lo <= hi <= 5 N m")
         t = self.terminations
         if not (0.0 < t.tilt_limit_rad < math.pi):
             p.append("tilt limit must be in (0, pi): pi is unreachable (tautological)")
@@ -953,6 +966,24 @@ def vnext3_spec() -> VelocityTaskSpec:
     """
     base = vnext2_spec().with_reward_params("track_lin_vel_xy_exp", std=0.35)
     return base.replace(curriculum=dataclasses.replace(base.curriculum, gate_kernel_std=0.5))
+
+
+def vnext3f_spec() -> VelocityTaskSpec:
+    """vnext3_spec() with ONE change: joint Coulomb friction DR (N m, per env and joint).
+
+    Ranges preregistered in docs/preregistration/2026-10-07-joint-friction-dr.md:
+    hips/thighs U(0.1, 0.6), calves U(0.3, 1.5), which bracket the measured GO2
+    values (x0.5 to x1.5+ of the hung-robot probe).
+    """
+    base = vnext3_spec()
+    return base.replace(
+        domain_randomization=dataclasses.replace(
+            base.domain_randomization,
+            joint_friction_enabled=True,
+            joint_friction_hip_thigh_nm=(0.1, 0.6),
+            joint_friction_calf_nm=(0.3, 1.5),
+        )
+    )
 
 
 def _cold_start_from_dict(blob: Mapping[str, Any] | None) -> ColdStartSpec:
@@ -1073,5 +1104,6 @@ __all__ = [
     "spec_from_dict",
     "vnext2_spec",
     "vnext3_spec",
+    "vnext3f_spec",
     "vnext_spec",
 ]

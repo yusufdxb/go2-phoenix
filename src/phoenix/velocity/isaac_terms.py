@@ -261,6 +261,37 @@ __all__ = [
 # ----------------------------------------------------------------- cold start
 
 
+def randomize_joint_friction_nm(
+    env: Any,
+    env_ids: Any,
+    hip_thigh_range: tuple[float, float],
+    calf_range: tuple[float, float],
+    asset_name: str = "robot",
+) -> None:
+    """Per-env, per-joint Coulomb joint friction in N m (static = dynamic, viscous 0).
+
+    PhysX >= 5 joint friction is an effort bound, not the pre-5.0 unitless
+    coefficient (isaaclab_physx Articulation.write_joint_friction_coefficient_to_sim_index
+    docstring); the N m interpretation is checked by scripts/desk/isaac_friction_probe.py.
+    Static and dynamic are set to the SAME sample: the hung-robot probe measured
+    kinetic within about 20 % of static on every joint.
+    """
+    asset = env.scene[asset_name]
+    ids = _env_ids_tensor(env, env_ids)
+    names = list(asset.joint_names)
+    calf = torch.tensor(["_calf_" in n for n in names], device=env.device)
+    u = torch.rand((ids.numel(), len(names)), device=env.device)
+    lo = torch.where(calf, calf_range[0], hip_thigh_range[0]).to(u.dtype)
+    hi = torch.where(calf, calf_range[1], hip_thigh_range[1]).to(u.dtype)
+    fric = lo + (hi - lo) * u
+    asset.write_joint_friction_coefficient_to_sim_index(
+        joint_friction_coeff=fric,
+        joint_dynamic_friction_coeff=fric.clone(),
+        joint_viscous_friction_coeff=torch.zeros_like(fric),
+        env_ids=ids,
+    )
+
+
 def restore_curriculum_state(
     env: Any, manifest_state: dict[str, Any], command_name: str = "base_velocity"
 ) -> None:

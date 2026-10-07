@@ -343,6 +343,19 @@ def _build_events_cfg(spec: VelocityTaskSpec):
                 "operation": "add",
             },
         )
+        joint_friction = (
+            EventTerm(
+                func=pterms.randomize_joint_friction_nm,
+                mode="startup",
+                params={
+                    "hip_thigh_range": dr.joint_friction_hip_thigh_nm,
+                    "calf_range": dr.joint_friction_calf_nm,
+                    "asset_name": "robot",
+                },
+            )
+            if dr.joint_friction_enabled
+            else None
+        )
         motor_strength = EventTerm(
             func=None,  # bound below to phoenix.sim_env's explicit-actuator-safe scaler
             mode="reset",

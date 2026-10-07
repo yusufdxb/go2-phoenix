@@ -81,7 +81,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--smoke", action="store_true", help="Shrink the chosen --spec with spec.smoke_spec()")
     p.add_argument(
         "--spec",
-        choices=["default", "vnext", "vnext2", "vnext3"],
+        choices=["default", "vnext", "vnext2", "vnext3", "vnext3f"],
         default="default",
         help=(
             "default: default_spec() (walk_v1/v2 arms, obs v1, no health guard). "
@@ -161,12 +161,13 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         smoke_spec,
         vnext2_spec,
         vnext3_spec,
+        vnext3f_spec,
         vnext_spec,
     )
 
     pv_env_cfg.register()
 
-    spec: VelocityTaskSpec = {"vnext": vnext_spec, "vnext2": vnext2_spec, "vnext3": vnext3_spec}.get(args.spec, default_spec)()
+    spec: VelocityTaskSpec = {"vnext": vnext_spec, "vnext2": vnext2_spec, "vnext3": vnext3_spec, "vnext3f": vnext3f_spec}.get(args.spec, default_spec)()
     if args.smoke:
         spec = smoke_spec(spec)
     if args.health:
@@ -524,7 +525,23 @@ def _realized_dump(env) -> dict:
             "max_delay": getattr(getattr(act, "cfg", None), "max_delay", None),
         }
     dims = unwrapped.observation_manager.group_obs_dim
+    joint_friction = {}
+    try:
+        import warp as wp
+
+        fr = wp.to_torch(robot.data.joint_friction_coeff)
+        dfr = wp.to_torch(robot.data.joint_dynamic_friction_coeff)
+        for j, name in enumerate(robot.joint_names):
+            joint_friction[name] = {
+                "static_min": float(fr[:, j].min()),
+                "static_max": float(fr[:, j].max()),
+                "static_mean": float(fr[:, j].mean()),
+                "dynamic_mean": float(dfr[:, j].mean()),
+            }
+    except Exception as exc:  # noqa: BLE001
+        joint_friction = {"error": repr(exc)}
     return {
+        "joint_friction": joint_friction,
         "events": events,
         "actuators": actuators,
         "obs_dims": {k: list(v) if isinstance(v, tuple) else v for k, v in dims.items()},
