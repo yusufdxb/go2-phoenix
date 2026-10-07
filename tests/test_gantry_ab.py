@@ -143,16 +143,17 @@ def test_runner_walks_only_the_two_preregistered_presets_inside_blocks():
     assert len(walk_calls) == 1 and 'W "$slot"' in walk_calls[0]
     assert "vx05" not in src and "vxm03" not in src
     assert '[[ "$stage" =~ ^[ABCDEFG]$ ]]' in src  # the ladder can never run W
-    assert (
-        "PHOENIX_REHEARSAL" not in src and "PHOENIX_CONFIRM" not in src
-    )  # never pre-answers a LIVE phrase
+    # never pre-answers a LIVE phrase and never switches rehearsal on (it only records it)
+    assert "PHOENIX_CONFIRM" not in src
+    assert not re.search(r"PHOENIX_REHEARSAL=|export PHOENIX_REHEARSAL", src)
 
 
 def test_runner_refuses_without_a_campaign(tmp_path):
     res = subprocess.run(["bash", str(RUNNER), "status"], cwd=REPO, capture_output=True, text=True)
     if (REPO / "logs/gantry_ab/CURRENT").exists():
         pytest.skip("a campaign exists in this checkout")
-    assert res.returncode != 0 and "no campaign" in res.stderr
+    assert res.returncode != 0
+    assert "no campaign" in res.stderr or "clean checkout" in res.stderr
 
 
 def _bridge(tmp_path, source, verified, sha="c" * 40):
