@@ -205,7 +205,31 @@ print(json.dumps({"kind": "run", "block": int(a[0]), "arm": a[1], "slot": a[2], 
                   "rehearsal": os.environ.get("PHOENIX_REHEARSAL") == "1"}))
 PY
 )"
-    [[ "$aborted" == false && "$rope" == false && "$touched" == false && "$rc" == 0 ]]
+    # Prereg amendment 4: the operator's answer is not the only abort detector. The same
+    # policy-exit classification the analysis uses is read from this run's bridge log now;
+    # a run whose log does not show the expected exit is treated like a reported abort.
+    local lc lc_ok=true
+    lc="$(python3 scripts/gantry_ab_analyze.py --classify-run "$run" --slot "$slot" 2>&1)" || lc_ok=false
+    append "$d/campaign.jsonl" "$(python3 - "$block" "$slot" "$attempt" "$lc_ok" "$lc" <<'PY'
+import json, sys
+a = sys.argv[1:]
+try:
+    c = json.loads(a[4].strip().splitlines()[-1])
+except (ValueError, IndexError):
+    c = {"error": a[4][-500:]}
+print(json.dumps({"kind": "log_check", "block": int(a[0]), "slot": a[1], "attempt": int(a[2]),
+                  "clean": a[3] == "true", "exit": c.get("exit"), "problems": c.get("problems"),
+                  "stop_latency_s": c.get("stop_latency_s"), "error": c.get("error")}))
+PY
+)"
+    if [[ "$lc_ok" == true ]]; then
+        echo "[ab] log check: expected exit for $slot confirmed from bridge.jsonl"
+    else
+        echo "[ab] LOG CHECK: this run did NOT end as expected for $slot (from bridge.jsonl): ${lc: -400}"
+        [[ "$slot" != stop_drill && "$aborted" == false ]] \
+            && echo "[ab] DISCREPANCY: operator answered 'not aborted'; the logs decide (prereg amendment 4)."
+    fi
+    [[ "$aborted" == false && "$rope" == false && "$touched" == false && "$rc" == 0 && "$lc_ok" == true ]]
 }
 
 slot_run() {  # block arm slot -> runs one slot with at most one repeat

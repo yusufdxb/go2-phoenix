@@ -53,6 +53,13 @@ NORMAL_END_FAULTS = {
     "estop_asserted",
     "bridge_shutdown",
 }
+# Amendment 4: the bridge never logs estop true on a policy tick; a release (and a planned
+# end) is only observable on the FIRST tick after the policy episode, from these causes.
+AUTH_END = "policy_abort:authority_window_complete"
+RELEASE_CAUSES = {"policy_abort:external_estop", "estop_asserted"}
+PHASE_TOL_S = 0.1  # real planned ends: policy episode within 17 ms of --authority-s
+STAND_AUTHORITY_S = {"F": 2.0, "G": 5.0, "H": 10.0, "stop_drill": 5.0}  # harness_preflight.sh
+WALK_AUTHORITY_MARGIN_S = 4.0  # harness_preflight.sh PHOENIX_WALK_AUTHORITY_MARGIN_S default
 PRESETS = ("vx03_4s", "yaw05_3s")
 SETTLE_AFTER_CMD_S = 1.0
 YAW_SETTLE_RAD_S = 0.1
@@ -190,17 +197,159 @@ def bridge_metrics(ticks: list[dict], end: dict | None) -> dict:
         out[f"max_{k}"] = float(max(v)) if v else None
     modes = [t["mode"] for t in ticks]
     tt = _t(ticks)
-    # STOP: deadman released (estop asserted) while the policy had authority
-    est = [i for i in pol_i if ticks[i].get("estop_value")]
-    if est:
-        j = next((k for k in range(est[0], len(ticks)) if modes[k] != "policy"), None)
-        out["stop_latency_s"] = float(tt[j] - tt[est[0]]) if j is not None else None
-    else:
-        out["stop_latency_s"] = None
     if pol_i:
         k_sit = next((k for k in range(pol_i[-1], len(ticks)) if modes[k] == "sit"), None)
         out["window_end_to_sit_s"] = float(tt[k_sit] - tt[pol_i[-1]]) if k_sit is not None else None
     return out
+
+
+def expected_authority_s(slot: str | None) -> float | None:
+    """The --authority-s the harness passes for this slot or ladder stage (None if none)."""
+    if slot in PRESETS:
+        from phoenix.sim2real.walk_command import profile_duration
+
+        return float(profile_duration(slot)) + WALK_AUTHORITY_MARGIN_S
+    return STAND_AUTHORITY_S.get(slot or "")
+
+
+def _zero_command_tick(ticks: list[dict], k0: int) -> int | None:
+    """First tick k >= k0 of the hold that starts at k0 whose published command moves nothing:
+    no policy target, the target is the posture measured at hold entry (or limit-clipped),
+    and the next tick publishes the same target, also in hold. None if never shown."""
+    if k0 >= len(ticks) or ticks[k0].get("mode") != "hold":
+        return None
+    q_entry = ticks[k0].get("q_unitree")
+    clip = ticks[k0].get("limit_clip") or [False] * 12
+    k = k0
+    while k + 1 < len(ticks) and ticks[k].get("mode") == "hold":
+        a, b = ticks[k], ticks[k + 1]
+        ft = a.get("final_target_unitree")
+        if (
+            b.get("mode") == "hold"
+            and a.get("publish") is True
+            and b.get("publish") is True
+            and a.get("requested_target_unitree") is None
+            and b.get("requested_target_unitree") is None
+            and ft is not None
+            and q_entry is not None
+            and len(ft) == len(q_entry) == len(clip)
+            and ft == b.get("final_target_unitree")
+            and all(f == q or c for f, q, c in zip(ft, q_entry, clip, strict=True))
+        ):
+            return k
+        k += 1
+    return None
+
+
+def policy_exit(ticks: list[dict], authority_s: float | None) -> dict:
+    """Amendment 4: classify how the single policy episode ended, from the transition between
+    its last tick and the FIRST subsequent tick (the only place a release is observable).
+
+    exit: planned_end | deadman_release | fault_exit | no_policy_episode |
+    release_without_policy_episode | malformed. Any entry in ``problems`` means the timing or
+    the class is not established from the log (fail closed: the run is invalid)."""
+    probs: list[str] = []
+    out: dict[str, Any] = {"exit": None, "problems": probs, "authority_s": authority_s}
+    for k in ("k_policy_last", "t_policy_last_ns", "t_release_obs_ns", "t_release_rx_ns"):
+        out[k] = None
+    for k in ("t_zero_ns", "stop_latency_s", "release_window_s", "release_rx_to_zero_s"):
+        out[k] = None
+    ns = [t.get("t_mono_ns") for t in ticks]
+    if not all(isinstance(v, int) for v in ns):
+        probs.append("tick without an integer t_mono_ns")
+        out["exit"] = "malformed"
+        return out
+    if any(b <= a for a, b in zip(ns, ns[1:], strict=False)):
+        probs.append("t_mono_ns not strictly increasing (duplicate or reversed tick)")
+    tk = [t.get("tick") for t in ticks]
+    if not all(isinstance(v, int) for v in tk) or any(
+        b != a + 1 for a, b in zip(tk, tk[1:], strict=False)
+    ):
+        probs.append("tick counter missing or not consecutive (a record is missing)")
+    pol_i = [i for i, t in enumerate(ticks) if t.get("mode") == "policy"]
+    if not pol_i:
+        released = any(t.get("estop_value") is True for t in ticks)
+        out["exit"] = "release_without_policy_episode" if released else "no_policy_episode"
+        return out
+    k0, k1 = pol_i[0], pol_i[-1]
+    if k1 - k0 + 1 != len(pol_i):
+        probs.append("more than one policy episode")
+        out["exit"] = "malformed"
+        return out
+    out["k_policy_last"] = k1
+    out["t_policy_last_ns"] = ns[k1]
+    out["policy_episode_s"] = (ns[k1] - ns[k0]) / 1e9
+    not_held = [k for k in pol_i if ticks[k].get("estop_value") is not False]
+    if not_held:
+        probs.append(f"deadman not shown held (estop not false) on policy tick(s) {not_held[:3]}")
+    if any(ticks[k].get("estop_value") is True for k in range(k0)):
+        probs.append("deadman released before the policy episode")
+    if k1 + 1 >= len(ticks):
+        probs.append("first post-policy tick missing (log ends under policy)")
+        out["exit"] = "malformed"
+        return out
+    nxt = ticks[k1 + 1]
+    est, cause = nxt.get("estop_value"), nxt.get("hold_cause")
+    out["first_post_policy"] = {
+        k: nxt.get(k) for k in ("tick", "mode", "estop_value", "hold_cause", "estop_age_s")
+    }
+    if est is None:
+        probs.append("release signal missing: no estop_value on the first post-policy tick")
+        out["exit"] = "malformed"
+        return out
+    if est is True and cause in RELEASE_CAUSES:
+        out["exit"] = "deadman_release"
+    elif est is False and cause == AUTH_END:
+        out["exit"] = "planned_end"
+    elif est is True or cause in RELEASE_CAUSES or cause == AUTH_END:
+        probs.append(f"ambiguous transition: estop {est} with hold_cause {cause}")
+        out["exit"] = "malformed"
+        return out
+    else:
+        out["exit"] = "fault_exit"
+        out["fault_cause"] = cause
+    dur = out["policy_episode_s"]
+    if out["exit"] == "planned_end":
+        if authority_s is None:
+            probs.append("planned end cannot be checked: no expected authority window")
+        elif abs(dur - authority_s) > PHASE_TOL_S:
+            probs.append(
+                f"planned end after {dur:.3f} s of policy, authority window {authority_s:.3f} s"
+            )
+    if out["exit"] != "deadman_release":
+        return out
+    if authority_s is not None and dur >= authority_s + PHASE_TOL_S:
+        probs.append(f"release after {dur:.3f} s, past the {authority_s:.3f} s authority window")
+    t_obs = ns[k1 + 1]
+    out["t_release_obs_ns"] = t_obs
+    age = nxt.get("estop_age_s")
+    if not isinstance(age, (int, float)) or not math.isfinite(age):
+        probs.append("estop_age_s missing on the release tick")
+    else:
+        rx = t_obs - int(round(age * 1e9))
+        out["t_release_rx_ns"] = rx
+        if not ns[k1] < rx <= t_obs:
+            probs.append(
+                "release message receipt time is not between the last policy tick and t_release_obs"
+            )
+    if probs:
+        return out  # nothing is estimated from an inconsistent transition
+    out["release_window_s"] = (t_obs - ns[k1]) / 1e9
+    kz = _zero_command_tick(ticks, k1 + 1)
+    if kz is not None:
+        out["t_zero_ns"] = ns[kz]
+        out["stop_latency_s"] = (ns[kz] - t_obs) / 1e9
+        out["release_rx_to_zero_s"] = (ns[kz] - out["t_release_rx_ns"]) / 1e9
+    return out
+
+
+def exit_is_clean(ex: dict, slot: str | None) -> bool:
+    """The expected policy exit for the slot, fully established from the log."""
+    if ex["problems"]:
+        return False
+    if slot == "stop_drill":
+        return ex["exit"] == "deadman_release" and ex["t_zero_ns"] is not None
+    return ex["exit"] == "planned_end"
 
 
 def motion_window(pol: dict[str, np.ndarray]) -> tuple[int, int, int] | None:
@@ -383,11 +532,27 @@ def analyze_run(rec: dict) -> dict:
         or (rec.get("aborted") and slot != "stop_drill")
     ):
         why.append("operator: rope loaded / touched / aborted")
-    released_under_policy = b["stop_latency_s"] is not None
-    if slot == "stop_drill" and not released_under_policy:
-        why.append("STOP drill: the deadman was not released during policy authority")
-    if slot != "stop_drill" and released_under_policy:
-        why.append("deadman released during policy authority (aborted run, from the ticks)")
+    # Amendment 4: how the policy episode ended, from the transition to the first
+    # non-policy tick (the operator's answer is metadata, never the only detector).
+    ex = policy_exit(ticks, expected_authority_s(slot))
+    out["policy_exit"] = ex
+    if ex["problems"]:
+        why.append("policy exit not established from the log: " + "; ".join(ex["problems"]))
+    logs_abort = slot != "stop_drill" and ex["exit"] in (
+        "deadman_release",
+        "release_without_policy_episode",
+    )
+    stop_failed = False
+    if slot == "stop_drill":
+        if ex["exit"] != "deadman_release":
+            why.append("STOP drill: the deadman was not released during policy authority")
+        elif not ex["problems"] and ex["t_zero_ns"] is None:
+            why.append("STOP drill FAILED: no zero-command hold shown after the release")
+            stop_failed = True
+    elif logs_abort:
+        why.append(f"deadman released ({ex['exit']}): aborted run, from the logs")
+    elif ex["exit"] == "fault_exit":
+        why.append(f"policy episode ended by {ex.get('fault_cause')}, not the authority window")
     if (rec.get("physical_attempt") or 1) > 2:
         why.append(f"physical attempt {rec.get('physical_attempt')} of this slot (max 2)")
     if slot in PRESETS:
@@ -407,12 +572,21 @@ def analyze_run(rec: dict) -> dict:
         if slot == "G" and not out["stand"].get("settle_window_ok"):
             why.append("E2 settle window refused")
     out["operator_aborted"] = bool(rec.get("aborted"))
-    out["aborted_from_ticks"] = released_under_policy and slot != "stop_drill"
+    out["aborted_from_logs"] = logs_abort
+    # Logs win for detection; an operator-reported abort is never discarded.
+    out["operator_log_discrepancy"] = (
+        f"operator aborted={out['operator_aborted']}, logs show exit {ex['exit']}"
+        if slot != "stop_drill" and out["operator_aborted"] != logs_abort
+        else None
+    )
     out["safety_event"] = bool(
         b["abnormal_faults"]
         or b["limit_clip_ticks_policy"]
         or (rec.get("aborted") and slot != "stop_drill")
-        or out["aborted_from_ticks"]
+        or logs_abort
+        or ex["problems"]  # fail closed: an unestablished exit is treated as unsafe
+        or ex["exit"] == "fault_exit"
+        or stop_failed
     )
     out["valid"] = not why
     out["why"] = why
@@ -463,13 +637,20 @@ def ladder_events(ladder_recs: list[dict], base: Path) -> list[dict]:
         if not manifest.get("live") or ident.get("source") != "payload_sync":
             continue
         b = bridge_metrics(ticks, end)
-        if b["abnormal_faults"] or b["limit_clip_ticks_policy"]:
+        # Amendment 4: a live F/G policy episode that does not end as a planned end (a
+        # deadman release under policy, a fault exit, or an unestablished exit) also counts.
+        ex = policy_exit(ticks, expected_authority_s(r.get("stage")))
+        had_policy = ex["exit"] not in ("no_policy_episode", "release_without_policy_episode")
+        bad_exit = had_policy and not exit_is_clean(ex, r.get("stage"))
+        if b["abnormal_faults"] or b["limit_clip_ticks_policy"] or bad_exit:
             out.append(
                 {
                     "stage": r.get("stage"),
                     "arm": arm_of(manifest),
                     "faults": b["abnormal_faults"],
                     "limit_clip_ticks": b["limit_clip_ticks_policy"],
+                    "policy_exit": ex["exit"] if had_policy else None,
+                    "exit_problems": ex["problems"],
                     "run_dir": str(d),
                 }
             )
@@ -487,7 +668,7 @@ def stop_conditions(runs: list[dict]) -> list[str]:
             found.append(f"{tag}: faults {b['abnormal_faults']}")
         if b.get("limit_clip_ticks_policy"):
             found.append(f"{tag}: limit clip under the policy")
-        if r.get("slot") in PRESETS and (r.get("operator_aborted") or r.get("aborted_from_ticks")):
+        if r.get("slot") in PRESETS and (r.get("operator_aborted") or r.get("aborted_from_logs")):
             key = (r.get("arm"), r.get("slot"))
             aborts[key] = aborts.get(key, 0) + 1
     found += [f"arm {a} {p}: {n} aborted runs" for (a, p), n in aborts.items() if n >= 2]
@@ -597,9 +778,31 @@ def model_id(chosen: list[dict]) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--campaign", type=Path, required=True)
-    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--campaign", type=Path)
+    ap.add_argument("--out", type=Path)
+    ap.add_argument(
+        "--classify-run",
+        type=Path,
+        metavar="RUN_DIR",
+        help="print one run's policy-exit classification (Amendment 4); exit 0 only if it is "
+        "the expected clean exit for --slot (used by the campaign runner after each run)",
+    )
+    ap.add_argument("--slot", help="with --classify-run: G, stop_drill, vx03_4s or yaw05_3s")
     args = ap.parse_args(argv)
+    if args.classify_run is not None:
+        if args.slot not in ("G", "stop_drill", *PRESETS):
+            ap.error("--classify-run needs --slot G, stop_drill, vx03_4s or yaw05_3s")
+        try:
+            _, ticks, _ = load_bridge(args.classify_run)
+        except (OSError, ValueError) as exc:
+            print(json.dumps({"clean": False, "error": str(exc)}))
+            return 1
+        ex = policy_exit(ticks, expected_authority_s(args.slot))
+        clean = exit_is_clean(ex, args.slot)
+        print(json.dumps({"slot": args.slot, "clean": clean} | ex, default=str))
+        return 0 if clean else 1
+    if args.campaign is None or args.out is None:
+        ap.error("--campaign and --out are required (or use --classify-run)")
     recs = [json.loads(ln) for ln in args.campaign.read_text().splitlines() if ln.strip()]
     run_recs = [r for r in recs if r.get("kind") == "run"]
     header = next((r for r in recs if r.get("kind") == "header"), {})
@@ -630,14 +833,30 @@ def main(argv: list[str] | None = None) -> int:
         "ladder_safety_events": ladder,
         "stop_conditions_detected": stop_conditions(runs),
         "model_identification": model_id(chosen),
+        "operator_log_discrepancies": [
+            {k: r.get(k) for k in ("block", "arm", "slot", "run_dir", "operator_log_discrepancy")}
+            for r in runs
+            if r.get("operator_log_discrepancy")
+        ],
         "stop": [
             {k: r.get(k) for k in ("block", "arm", "slot")}
             | {
-                "stop_latency_s": r["bridge"]["stop_latency_s"],
-                "window_end_to_sit_s": r["bridge"]["window_end_to_sit_s"],
+                k: r["policy_exit"][k]
+                for k in (
+                    "exit",
+                    "t_policy_last_ns",
+                    "t_release_obs_ns",
+                    "t_release_rx_ns",
+                    "t_zero_ns",
+                    "stop_latency_s",
+                    "release_window_s",
+                    "release_rx_to_zero_s",
+                    "problems",
+                )
             }
+            | {"window_end_to_sit_s": r["bridge"]["window_end_to_sit_s"]}
             for r in runs
-            if "bridge" in r
+            if "policy_exit" in r
         ],
     }
     args.out.mkdir(parents=True, exist_ok=True)
