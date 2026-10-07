@@ -223,3 +223,44 @@ def test_fp_refuses_without_expected_sha(tmp_path) -> None:
 def test_the_existing_live_banner_is_unchanged_for_ground_stages() -> None:
     src = _harness()
     assert "FEET ON THE GROUND on the fall mat" in src  # default banner kept for E..H, W
+
+
+def test_q0_is_not_captured_while_a_leg_is_still_moving() -> None:
+    """Safety review of 09cce76: a sagging leg must not be captured as q0 (it would be
+    tugged back on the first command). Capture waits for stillness, then refuses."""
+    from phoenix.sim2real.friction_probe_node import CAPTURE_STILL_RAD, CAPTURE_TIMEOUT_S
+
+    s = ProbeSession(["FL_hip_joint"], LIM, settle_s=2.0)
+    t, out = 0.0, None
+    while t < 2.0 + CAPTURE_TIMEOUT_S + 1.0:
+        q = Q_STAND.copy()
+        q[4] += 0.02 * t  # FL_thigh drifting at 0.02 rad/s, well above the stillness bar
+        r = s.step(t, snap(q=q), int(t * 1e9))
+        assert r.target is None, "no command may be sent while the legs are moving"
+        if r.phase == "abort":
+            out = r
+            break
+        t += 1.0 / fp.TICK_HZ
+    assert out is not None and out.reason.startswith("not_still_at_capture")
+    assert s.q0 is None
+    assert 0.02 * 0.5 > CAPTURE_STILL_RAD
+
+
+def test_q0_captured_once_the_leg_settles() -> None:
+    s = ProbeSession(["FL_hip_joint"], LIM, settle_s=2.0)
+    t, first = 0.0, None
+    while t < 8.0:
+        q = Q_STAND.copy()
+        q[4] += 0.02 * min(t, 3.0)  # drifts until 3 s, then still
+        r = s.step(t, snap(q=q), int(t * 1e9))
+        if r.target is not None:
+            first = (t, r)
+            break
+        t += 1.0 / fp.TICK_HZ
+    from phoenix.sim2real.friction_probe_node import CAPTURE_STILL_RAD
+
+    assert first is not None and first[0] > 3.0  # not while it was still drifting fast
+    # the safety property: the first command targets within the stillness bar of the leg
+    q_now = Q_STAND[4] + 0.02 * min(first[0], 3.0)
+    assert abs(s.q0[4] - q_now) <= CAPTURE_STILL_RAD
+    assert np.allclose(first[1].target, s.q0)

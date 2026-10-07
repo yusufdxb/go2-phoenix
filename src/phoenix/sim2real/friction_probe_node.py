@@ -98,6 +98,12 @@ class AbortLimits:
     wall_cap_s: float = 120.0
 
 
+#: q0 is captured only when every joint moved less than this over the last 0.5 s.
+CAPTURE_STILL_RAD = 0.005
+#: Seconds past the settle period to wait for stillness before refusing to probe.
+CAPTURE_TIMEOUT_S = 10.0
+
+
 def check_abort(
     snap: Snapshot,
     q0: np.ndarray | None,
@@ -193,7 +199,16 @@ class ProbeSession:
             self._samples.append((t_s, snap.q.copy()))
             if t_s < self.settle_s:
                 return StepResult("settle", None)
-            recent = [q for ts, q in self._samples if ts >= self.settle_s - 0.5]
+            # Capture q0 only once the legs are still: before the first command the
+            # bridge re-targets the measured position every tick, so a sagging leg
+            # would leave q0 lagging and get tugged back on the first command
+            # (safety review of 09cce76). Wait up to CAPTURE_TIMEOUT_S, then refuse.
+            recent = [q for ts, q in self._samples if ts >= t_s - 0.5]
+            spread = float(np.max(np.ptp(np.stack(recent), axis=0))) if len(recent) > 1 else 1.0
+            if spread > CAPTURE_STILL_RAD:
+                if t_s >= self.settle_s + CAPTURE_TIMEOUT_S:
+                    return StepResult("abort", None, f"not_still_at_capture:spread_{spread:.4f}rad")
+                return StepResult("settle", None)
             self.q0 = np.median(np.stack(recent), axis=0)
             self._seq = self._start_seq()
         assert self._seq is not None and self.q0 is not None
