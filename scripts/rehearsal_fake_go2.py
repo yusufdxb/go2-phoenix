@@ -13,7 +13,10 @@ refuses to publish if any other node already publishes /lowstate or
 Publishes:
 * ``/lowstate`` (unitree_go/LowState) at 500 Hz: joints at a fixed pose
   (``--pose folded`` is Unitree's own folded pose, ``stand`` the training pose),
-  zero velocity, a level IMU quaternion. The joints do not respond to /lowcmd.
+  zero velocity, a level IMU quaternion. By default the joints do not respond to
+  /lowcmd; with ``--follow-lowcmd`` each joint follows the commanded position
+  through a first-order lag (time constant 40 ms) with finite-difference velocity,
+  which is all the free-floor rehearsal needs from a plant (no dynamics, no floor).
 * ``/wirelesscontroller`` (unitree_go/WirelessController) at 50 Hz while the
   deadman (L1, keys 0x02) is held, and NOTHING while released, mirroring the real
   remote, which publishes only while a button is pressed. ``--deadman`` is a
@@ -68,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--deadman-file", type=Path, default=None, help="file holding hold or release")
     p.add_argument("--no-lowstate", action="store_true")
+    p.add_argument("--follow-lowcmd", action="store_true", help="joints follow /lowcmd (first-order lag)")
     p.add_argument("--soc", type=int, default=80, help="battery state of charge to report (%%)")
     args = p.parse_args(argv)
 
@@ -82,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     import rclpy
     from rclpy.node import Node
     from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-    from unitree_go.msg import LowState, WirelessController
+    from unitree_go.msg import LowCmd, LowState, WirelessController
 
     if args.pose == "folded":
         q = list(UNITREE_EXAMPLE_FOLDED_POSE)
@@ -112,11 +116,27 @@ def main(argv: list[str] | None = None) -> int:
     remote_pub = node.create_publisher(WirelessController, "/wirelesscontroller", qos)
     started = time.monotonic()
 
+    target = list(q)
+    dq_now = [0.0] * 12
+    tau_s, dt_s = 0.04, 1.0 / 500.0
+
+    def on_lowcmd(msg) -> None:
+        for i in range(12):
+            target[i] = float(msg.motor_cmd[i].q)
+
+    if args.follow_lowcmd:
+        node.create_subscription(LowCmd, "/lowcmd", on_lowcmd, qos)
+
     def publish_lowstate() -> None:
         msg = LowState()
+        if args.follow_lowcmd:
+            for i in range(12):
+                new = q[i] + (target[i] - q[i]) * (dt_s / tau_s)
+                dq_now[i] = (new - q[i]) / dt_s
+                q[i] = new
         for i in range(12):
             msg.motor_state[i].q = float(q[i])
-            msg.motor_state[i].dq = 0.0
+            msg.motor_state[i].dq = float(dq_now[i])
         msg.imu_state.quaternion = [1.0, 0.0, 0.0, 0.0]  # Unitree order w, x, y, z
         msg.bms_state.soc = int(args.soc)
         lowstate_pub.publish(msg)
