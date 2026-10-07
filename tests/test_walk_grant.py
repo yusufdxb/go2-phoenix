@@ -614,3 +614,125 @@ def test_non_numeric_grant_fields_are_problems_not_exceptions(tmp_path, files, b
         edited = dict(grant, **{key: bad})
         edited["body_sha256"] = wg._body_sha256(edited)
         assert verify(edited, run), (key, bad)
+
+
+# ------------------------------------------------- atomic issuance across processes
+_ISSUER = """
+import json, sys, time
+from pathlib import Path
+from phoenix.sim2real import walk_grant as wg
+mode, preset, run_dir, root, cfg, onnx, start = sys.argv[1:8]
+wg.FREE_FLOOR_ONNX_SHA256 = wg.file_sha256(Path(onnx))
+while time.time() < float(start):
+    pass
+grant, why = wg.issue_grant(
+    mode=mode, preset=preset, run_dir=Path(run_dir), code_sha="a" * 40, config_path=Path(cfg),
+    onnx_path=Path(onnx), first_message_timeout_s=15.0, standup_s=2.0, session_root=Path(root),
+)
+print(json.dumps({"ok": grant is not None, "why": why}))
+"""
+
+
+def _race(tmp_path, files, specs):
+    """Start one issuer process per (mode, preset, run) at the same wall-clock instant."""
+    import os
+    import subprocess
+    import time
+
+    cfg, onnx = files
+    root = tmp_path / "hw"
+    env = {**os.environ, "PYTHONPATH": str(REPO / "src")}
+    start = time.time() + 1.0
+    procs = []
+    for mode, preset, run in specs:
+        run_dir = root / "sess" / run
+        run_dir.mkdir(parents=True, exist_ok=True)
+        procs.append(
+            subprocess.Popen(
+                [sys.executable, "-c", _ISSUER, mode, preset, str(run_dir), str(root)]
+                + [str(cfg), str(onnx), str(start)],
+                stdout=subprocess.PIPE,
+                text=True,
+                env=env,
+            )
+        )
+    results = [json.loads(p.communicate(timeout=60)[0]) for p in procs]
+    return results, sorted(root.glob("*/*/" + wg.GRANT_FILE))
+
+
+@pytest.mark.parametrize(
+    "specs",
+    [
+        (("FREE_FLOOR", "vx03_2s", "FF_walk_1"), ("FREE_FLOOR", "vx03_2s", "FF_walk_2")),
+        (("GANTRY", "vx03_4s", "W_a"), ("GANTRY", "yaw05_3s", "W_b")),
+        (("GANTRY", "vx03_2s", "W_a"), ("FREE_FLOOR", "vx03_2s", "FF_walk_1")),
+        (("FREE_FLOOR", "stand_zero", "FF_drill_1"), ("GANTRY", "vx03_2s", "W_a")),
+        (("GANTRY", "vx03_2s", "W_a"), ("GANTRY", "vx03_4s", "W_b"), ("GANTRY", "yaw05_3s", "W_c")),
+    ],
+)
+def test_simultaneous_issuers_exactly_one_wins(tmp_path_factory, files, specs) -> None:
+    for i in range(12):
+        tmp = tmp_path_factory.mktemp(f"race{i}")
+        results, grants = _race(tmp, files, specs)
+        assert sum(r["ok"] for r in results) == 1, results
+        assert len(grants) == 1
+        losers = [r for r in results if not r["ok"]]
+        assert len(losers) == len(specs) - 1
+        assert all(r["why"] and any("another walking grant" in w for w in r["why"]) for r in losers)
+        winner = json.loads(grants[0].read_text())
+        assert winner["run_id"] == grants[0].parent.name
+
+
+def test_a_process_that_dies_holding_the_issue_lock_leaves_no_authority_and_no_block(
+    tmp_path, files
+) -> None:
+    import subprocess
+
+    root = tmp_path / "hw"
+    code = (
+        "import os, sys; from pathlib import Path; from phoenix.sim2real import walk_grant as wg;"
+        "cm = wg._issue_lock(Path(sys.argv[1])); assert cm.__enter__() is None; os._exit(1)"
+    )
+    subprocess.run(
+        [sys.executable, "-c", code, str(root)],
+        env={"PYTHONPATH": str(REPO / "src"), "PATH": "/usr/bin"},
+        check=False,
+    )
+    assert not list(root.glob("*/*/" + wg.GRANT_FILE))
+    (g, why), _ = issue(tmp_path, files, session_root=root)
+    assert why == [] and g is not None
+
+
+def test_a_grant_half_written_by_a_dead_issuer_blocks_only_for_one_grant_lifetime(
+    tmp_path, files
+) -> None:
+    root = tmp_path / "hw"
+    dead = root / "sess" / "W_dead"
+    dead.mkdir(parents=True)
+    (dead / wg.GRANT_FILE).write_text('{"schema": "phoenix-walk')  # truncated
+    import os
+
+    os.utime(dead / wg.GRANT_FILE, (T0, T0))
+    (g, why), _ = issue(tmp_path, files, run="W_new", session_root=root, now=T0 + 10)
+    assert g is None and any("unreadable" in w for w in why)
+    (g, why), _ = issue(
+        tmp_path, files, run="W_new", session_root=root, now=T0 + wg.MAX_WINDOW_S + 1
+    )
+    assert why == [] and g is not None
+
+
+def test_stale_grant_is_ignored_and_a_released_one_frees_the_next_launch_at_once(
+    tmp_path, files
+) -> None:
+    root = tmp_path / "hw"
+    (g1, why), r1 = issue(tmp_path, files, run="W_1", session_root=root)
+    assert why == []
+    # live: refused; expired: the next issue succeeds with no cleanup step
+    (g, why), _ = issue(tmp_path, files, run="W_2", session_root=root, now=T0 + 1)
+    assert g is None
+    (g, why), _ = issue(tmp_path, files, run="W_3", session_root=root, now=g1["expires_unix"] + 1)
+    assert why == [] and g is not None
+    # released: immediately free, well inside the expiry
+    wg.release(tmp_path / "hw" / "sess" / "W_3")
+    (g, why), _ = issue(tmp_path, files, run="W_4", session_root=root, now=g["issued_unix"] + 1)
+    assert why == [] and g is not None

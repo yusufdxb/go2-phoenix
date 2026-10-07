@@ -24,13 +24,15 @@ not read the grant at all.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import math
 import os
 import sys
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -40,6 +42,9 @@ from phoenix.sim2real.walk_command import PRESETS, profile_duration
 SCHEMA = "phoenix-walk-grant/v1"
 GRANT_FILE = "walk_grant.json"
 RELEASED_FILE = "walk_grant.released"
+LOCK_FILE = ".walk_issue.lock"
+#: How long an issuer waits for another issuer's check-and-write before refusing.
+LOCK_WAIT_S = 5.0
 
 MODE_GANTRY = "GANTRY"
 MODE_FREE_FLOOR = "FREE_FLOOR"
@@ -270,13 +275,51 @@ def other_live_grants(root: Path, run_dir: Path, now: float) -> list[str]:
             continue
         g, err = read_grant(grant_path)
         if err or g is None:
-            out.append(f"{grant_path.parent.name}: unreadable grant (treated as live): {err}")
+            # an unreadable grant (e.g. an issuer died mid-write) blocks conservatively, but only
+            # as long as a grant could have lived: MAX_WINDOW_S after the file was last written.
+            try:
+                written = grant_path.lstat().st_mtime
+            except OSError:
+                written = now
+            if now < written + MAX_WINDOW_S:
+                out.append(
+                    f"{grant_path.parent.name}: unreadable grant (treated as live for "
+                    f"{written + MAX_WINDOW_S - now:.0f} s): {err}"
+                )
         elif _finite(g.get("expires_unix")) and now < float(g["expires_unix"]):
             out.append(
                 f"{grant_path.parent.name}: a {g.get('mode')} {g.get('preset')} grant is live "
                 f"for another {float(g['expires_unix']) - now:.0f} s"
             )
     return out
+
+
+@contextlib.contextmanager
+def _issue_lock(root: Path) -> Iterator[str | None]:
+    """Serialize the check-and-write of issuing across processes (``flock`` on a file in the
+    session root). Yields None when held, else why it could not be taken. The kernel drops the
+    lock when the holder exits or dies, so a crash cannot leave a stale lock or any authority."""
+    fd = -1
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        fd = os.open(root / LOCK_FILE, os.O_RDWR | os.O_CREAT, 0o644)
+    except OSError as exc:
+        yield f"cannot open the issue lock in {root}: {exc}"
+        return
+    try:
+        deadline = time.monotonic() + LOCK_WAIT_S
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    yield f"another walking grant is being issued (lock busy {LOCK_WAIT_S:.0f} s)"
+                    return
+                time.sleep(0.02)
+        yield None
+    finally:
+        os.close(fd)  # closing releases the flock
 
 
 def issue_grant(
@@ -316,10 +359,6 @@ def issue_grant(
     if mode == MODE_GANTRY and unreviewed:
         problems.extend(f"unreviewed free-floor walk blocks GANTRY: {u}" for u in unreviewed)
     t = time.time() if now is None else now
-    if session_root is not None:
-        problems.extend(
-            f"another walking grant: {p}" for p in other_live_grants(session_root, run_dir, t)
-        )
     try:
         onnx_sha = file_sha256(onnx_path)
         config_sha = file_sha256(config_path)
@@ -353,15 +392,25 @@ def issue_grant(
     }
     grant["body_sha256"] = _body_sha256(grant)
     target = run_dir / GRANT_FILE
-    try:
-        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    except FileExistsError:
-        return None, [f"{target} already exists: one grant per run, never reused"]
-    except OSError as exc:
-        return None, [f"cannot write {target}: {exc}"]
-    with os.fdopen(fd, "w") as handle:
-        json.dump(grant, handle, indent=2, sort_keys=True)
-        handle.write("\n")
+    with contextlib.ExitStack() as stack:
+        if session_root is not None:
+            # one walking authority at a time: the check for another live grant and this write
+            # happen under the same lock, so two simultaneous issuers cannot both pass the check.
+            busy = stack.enter_context(_issue_lock(Path(session_root)))
+            if busy is not None:
+                return None, [busy]
+            others = other_live_grants(Path(session_root), run_dir, t)
+            if others:
+                return None, [f"another walking grant: {p}" for p in others]
+        try:
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        except FileExistsError:
+            return None, [f"{target} already exists: one grant per run, never reused"]
+        except OSError as exc:
+            return None, [f"cannot write {target}: {exc}"]
+        with os.fdopen(fd, "w") as handle:
+            json.dump(grant, handle, indent=2, sort_keys=True)
+            handle.write("\n")
     return grant, []
 
 
