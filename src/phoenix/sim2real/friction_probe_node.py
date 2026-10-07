@@ -111,11 +111,16 @@ def check_abort(
     limits: AbortLimits,
     elapsed_s: float,
     names: Sequence[str] = fp.PROBE_JOINT_ORDER,
+    ref: np.ndarray | None = None,
 ) -> str | None:
     """First abort reason, or None. Pure. Reasons start with a wire abort name.
 
     ``exempt`` are the joints allowed to move (the active one and the one probed just
     before it, which may sit off q0 by stiction). ``q0`` is None before it is measured.
+    The excursion cap is measured from ``q0`` (the commanded hold pose) at all times. The
+    other-joint check is measured from ``ref``, the pose the legs settled to under the
+    probe's own gains; it is skipped while ``ref`` is None (the first settle, when a
+    hanging leg sags until kp * error balances its weight).
     """
     if snap.estop is None:
         return "estop_publisher_missing"
@@ -134,9 +139,11 @@ def check_abort(
         bad = np.flatnonzero(dev > limits.max_offset + limits.excursion_margin)
         if bad.size:
             return f"other:excursion:{names[int(bad[0])]}:{dev[bad[0]]:.3f}rad"
-        for i in range(len(dev)):
-            if i not in exempt and dev[i] > limits.other_joint_tol:
-                return f"other:other_joint_moved:{names[i]}:{dev[i]:.3f}rad"
+    if q0 is not None and ref is not None:
+        dev_ref = np.abs(snap.q - ref)
+        for i in range(len(dev_ref)):
+            if i not in exempt and dev_ref[i] > limits.other_joint_tol:
+                return f"other:other_joint_moved:{names[i]}:{dev_ref[i]:.3f}rad"
     return None
 
 
@@ -176,6 +183,10 @@ class ProbeSession:
         self._seq: SingleJointSequencer | None = None
         self._samples: list[tuple[float, np.ndarray]] = []
         self._prev_idx: int | None = None
+        # Pose the legs settle to under the probe's gains; reference for other-joint motion.
+        self.ref: np.ndarray | None = None
+        self._t_cmd0: float | None = None
+        self._post: list[tuple[float, np.ndarray]] = []
 
     @property
     def total_s(self) -> float:
@@ -192,7 +203,15 @@ class ProbeSession:
             exempt = {self._seq.joint_index}
             if self._prev_idx is not None:
                 exempt.add(self._prev_idx)
-        reason = check_abort(snap, self.q0, exempt, self.limits, t_s, self.order)
+        if self.q0 is not None and self.ref is None and self._t_cmd0 is not None:
+            # First settle under the probe's own gains: hanging legs sag until kp * error
+            # balances their weight (10-07 hung run: FR_calf 0.058 rad). Take the
+            # other-joint reference only after that, from the last 0.5 s of it.
+            self._post.append((t_s, snap.q.copy()))
+            if t_s >= self._t_cmd0 + fp.SETTLE_S - 0.05:
+                tail = [q for ts, q in self._post if ts >= t_s - 0.5]
+                self.ref = np.median(np.stack(tail), axis=0)
+        reason = check_abort(snap, self.q0, exempt, self.limits, t_s, self.order, ref=self.ref)
         if reason is not None:
             return StepResult("abort", None, reason)
         if self.q0 is None:
@@ -210,6 +229,7 @@ class ProbeSession:
                     return StepResult("abort", None, f"not_still_at_capture:spread_{spread:.4f}rad")
                 return StepResult("settle", None)
             self.q0 = np.median(np.stack(recent), axis=0)
+            self._t_cmd0 = t_s
             self._seq = self._start_seq()
         assert self._seq is not None and self.q0 is not None
         target = self._seq.step(t_s, snap.q)

@@ -63,11 +63,13 @@ def test_stale_lowstate_and_nan_abort() -> None:
 def test_other_joint_motion_aborts_but_active_and_previous_are_exempt() -> None:
     q = Q_STAND.copy()
     q[5] += 0.06
-    assert "other_joint_moved:" in check_abort(snap(q=q), Q_STAND, {0}, LIM, 1.0)
-    assert check_abort(snap(q=q), Q_STAND, {0, 5}, LIM, 1.0) is None  # previous joint stiction
+    assert "other_joint_moved:" in check_abort(snap(q=q), Q_STAND, {0}, LIM, 1.0, ref=Q_STAND)
+    assert check_abort(snap(q=q), Q_STAND, {0, 5}, LIM, 1.0, ref=Q_STAND) is None  # stiction
     q2 = Q_STAND.copy()
     q2[5] += 0.04
-    assert check_abort(snap(q=q2), Q_STAND, {0}, LIM, 1.0) is None  # under 0.05
+    assert check_abort(snap(q=q2), Q_STAND, {0}, LIM, 1.0, ref=Q_STAND) is None  # under 0.05
+    # before the settled reference exists the other-joint check is off, the cap is not
+    assert check_abort(snap(q=q), Q_STAND, {0}, LIM, 1.0) is None
 
 
 def test_excursion_cap_applies_even_to_exempt_joints() -> None:
@@ -264,3 +266,40 @@ def test_q0_captured_once_the_leg_settles() -> None:
     q_now = Q_STAND[4] + 0.02 * min(first[0], 3.0)
     assert abs(s.q0[4] - q_now) <= CAPTURE_STILL_RAD
     assert np.allclose(first[1].target, s.q0)
+
+
+def test_gravity_sag_during_the_first_settle_does_not_abort_but_later_motion_does() -> None:
+    """10-07 hung run: FR_calf sagged 0.058 rad when the probe's gains took over and the
+    other-joint check aborted 5 ticks in. The sag is now absorbed; motion after it is not."""
+    s = ProbeSession(["FL_hip_joint"], LIM, settle_s=2.0)
+    i_calf = ORDER.index("FR_calf_joint")
+    t, phases, reason = 0.0, [], None
+    while t < 12.0:
+        q = Q_STAND.copy()
+        if s.q0 is not None:
+            q[i_calf] = Q_STAND[i_calf] - min(0.058, 0.5 * (t - s._t_cmd0))  # sags 0.058 fast
+        if t > 6.0:
+            q[i_calf] -= 0.06  # a real other-joint motion after the reference is taken
+        r = s.step(t, snap(q=q), int(t * 1e9))
+        phases.append(r.phase)
+        if r.phase == "abort":
+            reason = r.reason
+            break
+        t += 1.0 / fp.TICK_HZ
+    assert s.ref is not None and abs(s.ref[i_calf] - (Q_STAND[i_calf] - 0.058)) < 1e-6
+    assert reason is not None and "other_joint_moved:FR_calf_joint" in reason and t > 6.0
+
+
+def test_excursion_cap_is_active_during_the_first_settle() -> None:
+    s = ProbeSession(["FL_hip_joint"], LIM, settle_s=2.0)
+    t, reason = 0.0, None
+    while t < 6.0:
+        q = Q_STAND.copy()
+        if s.q0 is not None:
+            q[ORDER.index("RR_thigh_joint")] += 0.40  # far past MAX_OFFSET + margin
+        r = s.step(t, snap(q=q), int(t * 1e9))
+        if r.phase == "abort":
+            reason = r.reason
+            break
+        t += 1.0 / fp.TICK_HZ
+    assert reason is not None and "excursion:RR_thigh_joint" in reason and s.ref is None
