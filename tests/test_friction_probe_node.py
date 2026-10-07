@@ -183,7 +183,7 @@ def _harness() -> str:
     return HARNESS.read_text()
 
 
-def test_fp_stage_is_wired_with_every_interlock_and_no_standup() -> None:
+def test_fp_stage_is_wired_with_every_interlock_and_standup_only_on_request() -> None:
     src = _harness()
     fp_body = src.split("stage_fp() {", 1)[1].split("\n}\n", 1)[0]
     assert "    FP) stage_fp" in src
@@ -200,7 +200,14 @@ def test_fp_stage_is_wired_with_every_interlock_and_no_standup() -> None:
         "stop_all",
     ):
         assert need in fp_body, need
-    assert "--standup-s" not in fp_body.replace("# No --standup-s", "")
+    # stand-up is opt-in only (calves at mid-range): the flag must come from the env var
+    standup_lines = [
+        ln for ln in fp_body.splitlines() if "--standup-s" in ln and not ln.strip().startswith("#")
+    ]
+    assert standup_lines and all(
+        "PHOENIX_FP_STANDUP_S" in ln for ln in standup_lines
+    ), standup_lines
+    assert '[[ -n "${PHOENIX_FP_STANDUP_S:-}" ]]' in fp_body
     assert "pf evaluate" not in fp_body and "pf require" not in fp_body  # not a ledger stage
     assert "friction_probe" in src.split("stop_all() {", 1)[1].split("}", 1)[0]
 

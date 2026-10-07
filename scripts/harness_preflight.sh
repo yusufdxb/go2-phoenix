@@ -647,10 +647,19 @@ stage_fp() {
     require_alive deadman lowstate_bridge
     # No --standup-s: the bridge holds measured posture, like stage E.
     # shellcheck disable=SC2046
+    # PHOENIX_FP_STANDUP_S=<s>: the bridge first ramps the hanging legs to the training
+    # stance (its stage-F stand-up), so calves are mid-range instead of at the folded
+    # limit; the probe then captures q0 there once the legs are still.
+    local standup=()
+    [[ -n "${PHOENIX_FP_STANDUP_S:-}" ]] && standup=(--standup-s "$PHOENIX_FP_STANDUP_S")
     launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args FP "$telemetry") \
-        --kp "$kp" --kd "$kd"
-    wait_for_telemetry "$telemetry" 't.get("mode") == "hold" and t.get("deadman_source_ok")' \
-        "$first_msg" "bridge holding with the real deadman armed"
+        --kp "$kp" --kd "$kd" "${standup[@]}"
+    wait_for_telemetry "$telemetry" 't.get("mode") in ("hold", "standup") and t.get("deadman_source_ok")' \
+        "$first_msg" "bridge armed with the real deadman"
+    if [[ ${#standup[@]} -gt 0 ]]; then
+        wait_for_telemetry "$telemetry" 't.get("standup_done")' \
+            "$(python3 -c "print(${PHOENIX_FP_STANDUP_S} + $first_msg)")" "stand-up ramp complete (legs in the air)"
+    fi
     require_alive deadman lowstate_bridge lowcmd_bridge
     local node_args=(--config "$DEPLOY_CFG" --out "$trace")
     [[ ${#joints[@]} -gt 0 ]] && node_args+=(--joints "${joints[@]}")
