@@ -223,3 +223,59 @@ stand would not be detected from the ticks. STATUS: the analyzer's STOP-drill / 
 detection is KNOWN DEFECTIVE and the campaign must not start until it is fixed under a new
 amendment, with a test built from this real tick sequence. Two fixes to this mechanism
 (Amendment 2 item 2, Amendment 3) failed; the next fix waits for explicit instruction.
+
+## Amendment 4 (2026-10-07, before any campaign data; analysis correction only)
+
+Scope: a measurement/analysis correction of deadman-release detection. It does NOT change
+the hypotheses, arms or policy identities, commands or presets, safety limits, decision
+thresholds, number of runs or blocks, or promotion status. Seed 50 remains exploratory and
+not promoted. Amendments 1-3 and the Correction to Amendment 3 stand as written.
+
+Event semantics, established from all 16 real bridge logs of 2026-10-06/07 before this
+amendment: the bridge never logs estop true on a policy-mode tick; the tick counter never
+skips; every planned end shows, on the FIRST non-policy tick, `hold` with `hold_cause
+policy_abort:authority_window_complete` and estop false (11 runs; policy episode within
+17 ms of the authority window); both real deadman releases under policy show, on that same
+first non-policy tick, `hold` with `hold_cause policy_abort:external_estop`, estop true and
+`estop_age_s` 0.36-0.38 ms. A release can therefore only be observed on the transition out
+of policy control.
+
+Correction. Deadman-release detection considers the transition from the final
+policy-controlled tick to the first subsequent recorded tick, because the release event may
+only become observable after policy mode has ended. Per run, from `bridge.jsonl` only:
+- `t_policy_last`: `t_mono_ns` of the last tick of the single policy episode.
+- `t_release_obs`: `t_mono_ns` of the first subsequent tick; it is a release iff that tick has
+  estop true and `hold_cause` in {`policy_abort:external_estop`, `estop_asserted`}. A planned
+  end iff estop false and `hold_cause policy_abort:authority_window_complete` with the policy
+  episode within 0.1 s of the authority window the harness passed (`--authority-s`: G and
+  STOP drill 5 s, W profile duration + 4.0 s; ladder F 2 s, G 5 s). Any other cause is a
+  fault exit. A release must also lie inside the authority window, and the bridge's receipt
+  time of the release message `t_release_rx = t_release_obs - estop_age_s` must satisfy
+  `t_policy_last < t_release_rx <= t_release_obs`.
+- `t_zero`: the first tick from `t_release_obs` on whose published command demonstrably moves
+  nothing: mode `hold`, no requested (policy) target, the published target equal to the
+  measured q at hold entry (or limit-clipped), and the same target published on the next
+  tick, also in `hold`. (A constant target alone is not evidence: policy targets also repeat
+  between 50 Hz policy steps.)
+- STOP latency = `t_zero - t_release_obs`. The origin is unchanged from the registered metric
+  (the first tick with the deadman released); the end point additionally requires the
+  zero-command evidence above (with the current bridge the first non-policy tick is the hold
+  entry, so both coincide). Also reported, not gated: `t_release_obs - t_policy_last` (bound
+  on when the release reached the bridge) and `t_zero - t_release_rx`. The physical L1-to-bridge
+  delay is not observable in bridge logs and is not claimed.
+Classification: G and W runs must end as a planned end; a release (or a release with no
+policy episode) is an aborted run from the logs, invalid and a safety event of that arm,
+whatever the operator answered; operator/log disagreement is reported as a discrepancy and
+an operator-reported abort is never discarded. A STOP drill is valid only as a release with
+`t_zero` found; a release without `t_zero` fails the drill and is a safety event. Live ladder
+F/G runs whose policy episode does not end as a planned end are ladder safety events
+(Amendment 2 item 3). Fail closed: missing estop field or first post-policy tick,
+non-increasing timestamps, a skipped tick counter, estop not false on a policy tick, an
+estop/cause combination other than the two above, a planned end outside the window, or
+`t_release_rx` outside its bound make the run INVALID and, for G/W/STOP drill, a safety
+event; nothing is estimated or interpolated. The runner prints the same per-run log
+classification after each run and treats a non-clean classification like an operator-reported
+abort (the one allowed repeat); validity is still decided only by the analysis script.
+Regression test: `tests/test_gantry_ab.py`, built from the real tick sequence of
+`20261007_fa58780dd4f8/FP_20261007T005825Z` ticks 4765-4774 (bridge.jsonl sha256
+80befcf1d6ef164520a2d273584c39d5b99f0a79cd70f639799da5effbcd549c).
