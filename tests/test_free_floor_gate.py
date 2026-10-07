@@ -447,6 +447,16 @@ def test_a_review_copied_from_another_session_does_not_count(session, tmp_path):
     assert "different run" in ff.unreviewed_runs([other])[0]
 
 
+def test_a_deleted_started_record_does_not_hide_a_walk_that_ran(session):
+    (session / "FF_walk_1").mkdir()
+    assert (
+        st.unreviewed_runs([session]) == []
+    )  # a refused start leaves an empty directory: harmless
+    (session / "FF_walk_1" / "bridge.jsonl").write_text("{}\n")
+    assert "deleted" in st.unreviewed_runs([session])[0]
+    assert st.unreviewed_runs([session], current_run=session / "FF_walk_1") == []
+
+
 def test_the_walk_that_is_starting_is_not_blocked_by_its_own_record(session):
     ff._write_record(session, ff.STARTED, {"schema": st.STARTED_SCHEMA, "run_dir": "FF_walk_1"})
     assert st.unreviewed_runs([session])

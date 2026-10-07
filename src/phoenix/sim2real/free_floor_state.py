@@ -78,6 +78,15 @@ def unreviewed_runs(dirs: Sequence[Path], *, current_run: Path | None = None) ->
     the walk that is starting right now has, by design, a started record and no review yet."""
     out = []
     for d in dirs:
+        # A walk run that produced bridge telemetry but has no started record: the record was
+        # deleted (or never written). Motors may have moved, so it latches like an unreviewed walk.
+        for run in sorted(d.glob("FF_walk_*")):
+            if (run / "bridge.jsonl").exists() and not (d / STARTED).exists():
+                if current_run is None or run.resolve() != current_run.resolve():
+                    out.append(
+                        f"{d.name}: {run.name} has bridge telemetry but the session has no "
+                        f"{STARTED} (deleted?); treat it as an unreviewed walk"
+                    )
         if not (d / STARTED).exists():
             continue
         if current_run is not None:
