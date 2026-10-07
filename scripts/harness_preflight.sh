@@ -17,6 +17,9 @@
 #                                             needs a WALKING DEPLOY_CFG/LOCK (safety.stand_only: false). NOT a ledger stage: no evaluator, evidence never counted.
 #                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset> ON GANTRY', plus synthetic F/G records via
 #                                             PHOENIX_HW_SESSIONS=<dir> PHOENIX_HW_SESSIONS_TEST_ONLY=1 (deploy_contract.walking_evidence_problems), else walking is refused.
+#   scripts/harness_preflight.sh FP [joint ...]   LIVE active joint-friction probe, robot HUNG feet off the ground, released (no sport mode)   motors LIVE
+#                                             needs a STAND-ONLY DEPLOY_CFG/LOCK; the bridge holds, then friction_probe_node is the command source. NOT a ledger stage (no pf evaluate).
+#                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE FP HUNG FEET OFF GROUND'.
 #
 # Stages never chain. Each live stage is its own invocation, refuses unless every
 # earlier stage counts, and refuses without an operator typing the stage phrase at
@@ -135,7 +138,7 @@ stop_proc() {
 
 stop_all() {
     local name
-    for name in walk_cmd policy_node lowcmd_bridge lowstate_bridge deadman; do
+    for name in friction_probe walk_cmd policy_node lowcmd_bridge lowstate_bridge deadman; do
         [[ -n "${PIDS[$name]:-}" ]] && stop_proc "$name"
     done
     return 0
@@ -183,7 +186,20 @@ PY
 }
 
 live_confirm() {
-    local stage="$1" what="$2"
+    local stage="$1" what="$2" setup="${3:-ground}"
+    if [[ "$setup" == "hung" ]]; then
+        cat <<EOF
+
+================================================================================
+ LIVE MOTOR STAGE $stage: $what
+ The robot must be HUNG on the gantry, FEET OFF THE GROUND, in low-level mode
+ (sport service released; never SelectMode normal), a spotter at the robot, a
+ clear 2 m radius, and the operator holding the physical deadman.
+ HALT (release the deadman) on: joint snap or motor buzz, any joint that keeps
+ moving after its segment ends, any node crash, Jetson reboot or brownout.
+================================================================================
+EOF
+    else
     cat <<EOF
 
 ================================================================================
@@ -195,6 +211,7 @@ live_confirm() {
  divergent oscillation, any node crash, Jetson reboot or brownout.
 ================================================================================
 EOF
+    fi
     local want="LIVE $stage"
     if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
         [[ "${ROS_LOCALHOST_ONLY:-0}" == "1" ]] || halt "rehearsal requires ROS_LOCALHOST_ONLY=1"
@@ -594,6 +611,125 @@ sys.exit(0 if summary is not None and summary["outcome"] == "complete" else 1)
 WALK_SUMMARY_EOF
 }
 
+# FP [joint ...]: active joint-friction probe on a HUNG robot (feet off the ground, released).
+# NOT a ledger stage: no evaluator, evidence never counted. The bridge holds measured posture
+# (stand-only config, no --standup-s, so there is no kp 60 -> 25 handover blend: its gains step
+# from the hold gains to --kp/--kd at the first command) and friction_probe_node becomes the
+# command source in place of the policy node, on the same topic and wire. Every bridge gate applies.
+stage_fp() {
+    local joints=("$@") fp_module="phoenix.sim2real.friction_probe"
+    need_sha; ros_env
+    assert_no_contention FP
+    assert_battery FP
+    local stand_only=""
+    stand_only="$(cfg_get safety.stand_only 2>/dev/null)" || stand_only="unreadable"
+    [[ "$stand_only" == "True" ]] \
+        || halt "FP needs a STAND-ONLY config: safety.stand_only must be true in $DEPLOY_CFG (set DEPLOY_CFG and DEPLOY_LOCK to the walk-stand bundle)"
+    local kp kd
+    kp="$(python3 -c 'import importlib, sys; print(importlib.import_module(sys.argv[1]).KP)' "$fp_module" 2>/dev/null)" \
+        || halt "cannot import KP from $fp_module (friction_probe protocol module missing?)"
+    kd="$(python3 -c 'import importlib, sys; print(importlib.import_module(sys.argv[1]).KD)' "$fp_module" 2>/dev/null)" \
+        || halt "cannot import KD from $fp_module"
+    live_confirm "FP HUNG FEET OFF GROUND" \
+        "friction probe on ${DEPLOY_LABEL}, joints: ${joints[*]:-all 12}, bridge kp=$kp kd=$kd, 1 attempt" hung
+    local first_msg
+    first_msg="$(cfg_get safety.first_message_timeout_s)"
+    new_run FP
+    local telemetry="$RUN/bridge.jsonl" trace="$RUN/fp_trace.jsonl" est_rc=0 sum_rc=0 node_rc=0
+    if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
+        operator_gate arm FP \
+            "[FP] Robot HUNG, feet off the ground, released, spotter ready, deadman HELD (keep holding it for the whole probe). Press Enter to start: "
+    fi
+    # shellcheck disable=SC2046
+    launch deadman $(deadman_cmd)
+    launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
+    sleep 1
+    require_alive deadman lowstate_bridge
+    # No --standup-s: the bridge holds measured posture, like stage E.
+    # shellcheck disable=SC2046
+    launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args FP "$telemetry") \
+        --kp "$kp" --kd "$kd"
+    wait_for_telemetry "$telemetry" 't.get("mode") == "hold" and t.get("deadman_source_ok")' \
+        "$first_msg" "bridge holding with the real deadman armed"
+    require_alive deadman lowstate_bridge lowcmd_bridge
+    local node_args=(--config "$DEPLOY_CFG" --out "$trace")
+    [[ ${#joints[@]} -gt 0 ]] && node_args+=(--joints "${joints[@]}")
+    launch friction_probe python3 -m phoenix.sim2real.friction_probe_node "${node_args[@]}"
+    local deadline=$((SECONDS + ${PHOENIX_FP_MAX_WAIT_S:-600}))
+    while is_alive "${PIDS[friction_probe]}"; do
+        require_alive deadman lowstate_bridge lowcmd_bridge
+        sleep 0.5
+        [[ $SECONDS -lt $deadline ]] || { c_red "[FP] probe node still running at the harness cap; stopping it"; break; }
+    done
+    if is_alive "${PIDS[friction_probe]}"; then
+        stop_proc friction_probe
+        node_rc=124
+    else
+        wait "${PIDS[friction_probe]}" 2>/dev/null || node_rc=$?
+        unset "PIDS[friction_probe]"
+    fi
+    echo "[FP] probe node exit code $node_rc (0 complete, 2 aborted, 3 refused, 124 harness cap)"
+    echo "[FP] the bridge latches the node's end-of-run notice, holds, then sits the robot down on its own."
+    if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
+        operator_gate release FP \
+            "[FP] Press Enter to end the run (the bridge sits the robot if it is not already sitting, folds the legs and exits): "
+    fi
+    stop_proc lowcmd_bridge
+    stop_all
+    python3 - "$trace" "$telemetry" <<'FP_SUMMARY_EOF' || sum_rc=$?
+import json
+import sys
+
+summary = None
+try:
+    with open(sys.argv[1]) as fh:
+        for line in fh:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("record") == "summary":
+                summary = rec
+except FileNotFoundError:
+    pass
+faults = []
+modes = []
+try:
+    with open(sys.argv[2]) as fh:
+        for line in fh:
+            try:
+                tick = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if tick.get("record") != "tick":
+                continue
+            if tick.get("mode") not in modes:
+                modes.append(tick.get("mode"))
+            fault = tick.get("fault")
+            if fault is not None and fault not in faults:
+                faults.append(fault)
+except FileNotFoundError:
+    pass
+if summary is None:
+    print("[FP] node: NO summary record (it did not finish cleanly or never ran)")
+else:
+    print(
+        f"[FP] node: outcome={summary['outcome']} reason={summary['reason']} "
+        f"ticks={summary['n_ticks']}"
+    )
+print(f"[FP] bridge modes seen: {modes}; faults: {faults if faults else 'none'}")
+sys.exit(0 if summary is not None and summary["outcome"] == "complete" else 1)
+FP_SUMMARY_EOF
+    if [[ -f "${trace%.jsonl}.npz" ]]; then
+        python3 -m phoenix.sim2real.friction_probe_node estimate --trace "${trace%.jsonl}.npz" --out "$RUN/fp_estimate.json" || est_rc=$?
+        [[ $est_rc -eq 0 ]] || c_red "[FP] estimator exited $est_rc (trace kept at $trace)"
+    else
+        c_red "[FP] no .npz trace written (node never published?); nothing to estimate"
+    fi
+    echo "[FP] NOT a ledger stage: no evaluator ran and this evidence is never counted."
+    return "$sum_rc"
+}
+
 # ----------------------------------------------------------------------- main
 cmd="${1:-ready}"
 [[ $# -gt 0 ]] && shift
@@ -612,6 +748,7 @@ case "$cmd" in
     E) stage_E "$@" ;;
     F|G|H) stage_stand "$cmd" ;;
     W) stage_walk "$@" ;;
-    -h|--help) sed -n '2,37p' "$0" ;;
+    FP) stage_fp "$@" ;;
+    -h|--help) sed -n '2,40p' "$0" ;;
     *) halt "unknown command '$cmd' (see --help)" ;;
 esac
