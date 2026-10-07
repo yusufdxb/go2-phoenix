@@ -6,8 +6,8 @@ deadman node, passive STOP-path recorder, walk_command, analyzers and state file
 ``scripts/rehearsal_fake_go2.py`` (a synthetic /lowstate and a GO2 remote) and the archived
 model_2750 bundle. Everything it records is flagged ``rehearsal`` and never counts as evidence.
 
-What it can and cannot show. The fake robot's joints follow /lowcmd with a first-order lag and a
-level IMU, so the process lifecycle, logs, state transitions, analyzers, latches and failure
+What it can and cannot show. The fake robot is a STATIC plant (a fixed standing pose, zero velocity, a level IMU; the
+policy loop is open because no simulated physics sits behind it), so the process lifecycle, logs, state transitions, analyzers, latches and failure
 handling are exercised for real; the gait, the floor and the people are not. A pass here says the
 software choreography works, not that the robot is safe to walk.
 
@@ -195,12 +195,14 @@ class Run:
         release_after_s: float | None = None,
         fault: Callable[["Run"], None] | None = None,
         no_fake: bool = False,
+        follow: bool = False,
         extra_env: dict[str, str] | None = None,
         confirm: str | None = None,
         timeout_s: float = HARNESS_TIMEOUT_S,
     ) -> None:
         self.world, self.session, self.args = world, session, args
         self.release_after_s, self.fault, self.no_fake = release_after_s, fault, no_fake
+        self.follow = follow
         self.extra_env, self.timeout_s = extra_env, timeout_s
         self.confirm = confirm or "LIVE FREE_FLOOR " + " ".join(args) + " NO GANTRY"
         self.deadman_file = world.root / "deadman.txt"
@@ -266,7 +268,7 @@ class Run:
         self.deadman_file.write_text("hold")
         if not self.no_fake:
             self.fake = subprocess.Popen(
-                [sys.executable, str(FAKE), "--pose", "stand", "--deadman-file", str(self.deadman_file), "--follow-lowcmd"],
+                [sys.executable, str(FAKE), "--pose", "stand", "--deadman-file", str(self.deadman_file), *(["--follow-lowcmd"] if self.follow else [])],
                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
             time.sleep(3.0)  # the fake refuses a graph with other publishers after a 2 s discovery wait
@@ -713,6 +715,9 @@ def main(argv: list[str] | None = None) -> int:
     if why:
         print(f"SKIP: rehearsal needs ROS 2, the unitree messages and the model_2750 archive ({why})")
         return 77
+    if subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True).stdout.strip():
+        print("REFUSING: the tracked tree is dirty. The bridge refuses to go live on a dirty tree (as it must); commit first.")
+        return 2
     names = args.scenarios or list(SCENARIOS)
     bad = [n for n in names if n not in SCENARIOS]
     if bad:
