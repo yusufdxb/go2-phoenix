@@ -1042,6 +1042,9 @@ def sc_hand_launch_refused(w: World, c: Check) -> None:
     run = s / "HAND_1"
     run.mkdir()
     env = w.env(s, "x")
+    env["PYTHONPATH"] = str(REPO / "src") + (
+        ":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+    )
     cfg = str(w.bundle / WALK_CFG.name)
     sha = env["PHOENIX_EXPECT_SHA"]
 
