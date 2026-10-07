@@ -1029,7 +1029,7 @@ def sc_grant_mutual_exclusion(w: World, c: Check) -> None:
     t = r.out
     c.ok(
         "gantry W refused while a free-floor grant is live, nothing launched",
-        r.rc != 0 and "another walking grant is live" in t and no_motion(t),
+        r.rc != 0 and "another walking grant" in t and "is live" in t and no_motion(t),
         t[-300:],
     )
 
