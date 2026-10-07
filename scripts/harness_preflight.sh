@@ -17,6 +17,11 @@
 #                                             needs a WALKING DEPLOY_CFG/LOCK (safety.stand_only: false). NOT a ledger stage: no evaluator, evidence never counted.
 #                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset> ON GANTRY', plus synthetic F/G records via
 #                                             PHOENIX_HW_SESSIONS=<dir> PHOENIX_HW_SESSIONS_TEST_ONLY=1 (deploy_contract.walking_evidence_problems), else walking is refused.
+#   scripts/harness_preflight.sh FREE_FLOOR gate [drill|walk]   software gates only for the incumbent-only free-floor path, no motion
+#   scripts/harness_preflight.sh FREE_FLOOR drill              LIVE zero-command stand + STOP/deadman drill on the FLOOR, model_2750 ONLY  motors LIVE
+#   scripts/harness_preflight.sh FREE_FLOOR walk vx03_2s       LIVE the ONE free-floor walk (0.3 m/s, 2 s, no yaw), model_2750 ONLY        motors LIVE
+#   scripts/harness_preflight.sh FREE_FLOOR review accept|reject --by NAME --note TEXT   the human review that unblocks any later free-floor command
+#                                             Not reachable through W. Seed 50 and every other policy are refused. See scripts/free_floor_gate.py.
 #   scripts/harness_preflight.sh FP [joint ...]   LIVE active joint-friction probe, robot HUNG feet off the ground, released (no sport mode)   motors LIVE
 #                                             needs a STAND-ONLY DEPLOY_CFG/LOCK; the bridge holds, then friction_probe_node is the command source. NOT a ledger stage (no pf evaluate).
 #                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE FP HUNG FEET OFF GROUND'.
@@ -625,6 +630,144 @@ sys.exit(0 if summary is not None and summary["outcome"] == "complete" else 1)
 WALK_SUMMARY_EOF
 }
 
+# FREE_FLOOR gate|drill|walk|review: the incumbent-only (model_2750) path for the FIRST walk with
+# NO gantry. It never goes through W, whose phrase says ON GANTRY and which stays as it was.
+# All identity/evidence/analysis logic is in scripts/free_floor_gate.py and fails closed; this
+# function only runs the processes and asks the operator what software cannot see.
+free_floor_confirm() {
+    local what="$1" want="LIVE FREE_FLOOR $1 NO GANTRY"
+    cat <<EOF
+
+================================================================================
+ LIVE FREE-FLOOR $what: model_2750 ONLY, NO GANTRY, NO ROPE SUPPORT
+ Software cannot see the floor, the rope or the people. YOU are confirming:
+   1. the robot is on LEVEL FLOOR (friction checked, mu >= 0.4)
+   2. NO gantry, rope or harness is supporting it
+   3. the FALL AREA is clear
+   4. the SPOTTER(S) stand OUTSIDE the fall envelope
+   5. the DEADMAN control is in your hand and READY
+ Low-level mode (sport service released; never SelectMode normal).
+ HALT (release the deadman) on: joint snap or buzz, tipping or oscillation,
+ drift toward a person, any node crash, Jetson reboot or brownout.
+================================================================================
+EOF
+    if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
+        [[ "${ROS_LOCALHOST_ONLY:-0}" == "1" ]] || halt "rehearsal requires ROS_LOCALHOST_ONLY=1"
+        [[ "${PHOENIX_CONFIRM:-}" == "$want" ]] || halt "rehearsal needs PHOENIX_CONFIRM='$want'"
+        c_red "REHEARSAL (localhost only, no robot): evidence is recorded as rehearsal and never counts"
+        return 0
+    fi
+    [[ -t 0 ]] || halt "free-floor $what requires an operator at an interactive terminal"
+    local item answer n=0
+    for item in "the robot is on LEVEL FLOOR" "NO gantry/rope/harness is supporting it" \
+        "the FALL AREA is clear" "the SPOTTER(S) are OUTSIDE the fall envelope" "the DEADMAN control is READY in your hand"; do
+        n=$((n + 1))
+        read -r -p "[$n/5] Type YES if ${item}: " answer
+        [[ "$answer" == "YES" ]] || halt "operator did not confirm item $n (${item})"
+    done
+    read -r -p "Type '$want' to proceed, anything else aborts: " answer
+    [[ "$answer" == "$want" ]] || halt "operator did not confirm free-floor $what"
+}
+
+stage_free_floor() {
+    local sub="${1:-}" ff="$REPO_ROOT/scripts/free_floor_gate.py" preset="" phase authority
+    [[ $# -gt 0 ]] && shift
+    case "$sub" in
+        review) python3 "$ff" review "${1:-}" --session "$SESSION" "${@:2}"; return ;;
+        gate)   phase="${1:-walk}"; preset="vx03_2s" ;;
+        drill)  phase=drill ;;
+        walk)   phase=walk; preset="${1:-}"
+                [[ -n "$preset" ]] || halt "usage: harness_preflight.sh FREE_FLOOR walk vx03_2s (the preset is typed explicitly)" ;;
+        *)      halt "usage: harness_preflight.sh FREE_FLOOR gate|drill|walk|review (see --help)" ;;
+    esac
+    local bundle_args=()
+    [[ -n "${PHOENIX_BUNDLE:-}" ]] && bundle_args=(--bundle "$PHOENIX_BUNDLE")
+    need_sha
+    python3 "$ff" check --phase "$phase" --config "$DEPLOY_CFG" --lock "$DEPLOY_LOCK" --session "$SESSION" \
+        ${preset:+--preset "$preset"} "${bundle_args[@]}" \
+        || halt "free-floor $phase gates failed (see BLOCKED lines above); no motion"
+    [[ "$sub" == gate ]] && { c_green "[FREE_FLOOR] $phase software gates pass; this is not permission to move (no operator confirmation yet)"; return 0; }
+    [[ ${#bundle_args[@]} -gt 0 ]] || halt "live free-floor needs PHOENIX_BUNDLE (the activated model_2750 walking bundle)"
+    ros_env
+    assert_no_contention FF
+    assert_battery FF
+    [[ "$(cfg_get safety.stand_only 2>/dev/null)" == "False" ]] || halt "free-floor needs the incumbent WALKING config (safety.stand_only: false)"
+    local label="$sub"
+    [[ "$sub" == walk ]] && label="walk $preset"
+    free_floor_confirm "$label"
+    local first_msg max_rt standup_s="${PHOENIX_STANDUP_S:-2.0}" walk_dur=0
+    if [[ "$sub" == drill ]]; then
+        authority=5.0
+    else
+        walk_dur="$(python3 -c 'import sys; from phoenix.sim2real.walk_command import PRESETS, profile_duration; print(profile_duration(PRESETS[sys.argv[1]]))' "$preset")"
+        # Fixed margin (the gantry W default): the analyzer checks the same 4.0 s, never the env override.
+        authority="$(python3 -c "print($walk_dur + 4.0)")"
+    fi
+    first_msg="$(cfg_get safety.first_message_timeout_s)"
+    max_rt="$(python3 -c "print(float('$first_msg') + $authority)")"
+    new_run "FF_${sub}"
+    local telemetry="$RUN/bridge.jsonl"
+    printf '{"phrase": "LIVE FREE_FLOOR %s NO GANTRY", "utc": "%s"}\n' "$label" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$RUN/operator_confirmation.json"
+    # One attempt per session and per review: the marker is written BEFORE any motor can move,
+    # so a crash, an analyzer failure or an interrupted run still blocks until a human reviews.
+    [[ "$sub" == walk ]] && { python3 "$ff" mark-started --session "$SESSION" --run-dir "$RUN" || halt "a free-floor walk was already started in this session"; }
+    if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
+        operator_gate arm "FF_${sub}" "[FREE_FLOOR $label] Robot folded on the LEVEL FLOOR, NO gantry/rope support, fall area clear, spotters outside it, deadman HELD (keep holding it). Press Enter to start: "
+    fi
+    # shellcheck disable=SC2046
+    launch deadman $(deadman_cmd)
+    launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
+    sleep 1
+    require_alive deadman lowstate_bridge
+    # shellcheck disable=SC2046
+    launch lowcmd_bridge python3 -m phoenix.sim2real.lowcmd_bridge_node --live $(bridge_args FF "$telemetry") \
+        --standup-s "$standup_s"
+    wait_for_telemetry "$telemetry" 't.get("mode") in ("hold", "standup") and t.get("deadman_source_ok")' \
+        "$first_msg" "bridge armed with the real deadman"
+    wait_for_telemetry "$telemetry" 't.get("standup_done")' \
+        "$(python3 -c "print($standup_s + $first_msg)")" "stand-up ramp complete, holding the training stance"
+    require_alive deadman lowstate_bridge lowcmd_bridge
+    launch policy_node python3 -m phoenix.sim2real.ros2_policy_node --config "$DEPLOY_CFG" \
+        --lock "$DEPLOY_LOCK" --authority-s "$authority" --max-runtime-s "$max_rt" \
+        --log-parquet "$RUN/policy.parquet"
+    wait_for_telemetry "$telemetry" 't.get("mode") == "policy"' "$first_msg" "policy in control"
+    require_alive deadman lowstate_bridge lowcmd_bridge policy_node
+    if [[ "$sub" == drill ]]; then
+        c_red "[FREE_FLOOR drill] policy has the robot at a ZERO command. RELEASE the deadman about 2 s from NOW (announce it first)."
+    else
+        launch walk_cmd python3 -m phoenix.sim2real.walk_command --preset "$preset" --start-deadline-s 3.0 \
+            --out "$RUN/walk_cmd.jsonl"
+    fi
+    local wait_rc=0
+    (wait_for_telemetry "$telemetry" 't.get("fault") is not None' \
+        "$(python3 -c "print($max_rt + 2)")" "policy window end or a fault") || wait_rc=$?
+    [[ $wait_rc -eq 0 ]] || c_red "[FREE_FLOOR $label] no end-of-window or fault seen in time; ending the attempt"
+    if [[ -n "${PIDS[walk_cmd]:-}" ]]; then
+        for _ in $(seq 60); do is_alive "${PIDS[walk_cmd]}" || break; sleep 0.1; done
+    fi
+    echo "[FREE_FLOOR $label] policy authority ended; the bridge holds for up to 1 s, then sits the robot down on its own."
+    local answer="n"
+    if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
+        answer="${PHOENIX_REHEARSAL_WALKED:-n}"
+    else
+        answer="$(operator_gate judgement "FF_${sub}" \
+            "[FREE_FLOOR $label] Did the robot stay on its feet, do exactly the planned thing, stop, and sit, with no collapse, buzz, oscillation or drift toward anyone? [y/n]: ")"
+        operator_gate release "FF_${sub}" \
+            "[FREE_FLOOR $label] Press Enter to end the attempt (the bridge sits the robot if it is not already sitting, folds the legs and exits): "
+    fi
+    [[ -n "${PIDS[walk_cmd]:-}" ]] && stop_proc walk_cmd
+    stop_proc policy_node
+    stop_proc lowcmd_bridge
+    stop_all
+    printf '%s\n' "$answer" >"$RUN/operator_answer.txt"
+    local rc=0
+    python3 "$ff" "${sub}-eval" --run-dir "$RUN" --session "$SESSION" || rc=$?
+    if [[ "$sub" == walk ]]; then
+        c_red "[FREE_FLOOR] STOP. Read the result and the logs; no further free-floor command is allowed until: $0 FREE_FLOOR review accept|reject --by NAME --note TEXT"
+    fi
+    return "$rc"
+}
+
 # FP [joint ...]: active joint-friction probe on a HUNG robot (feet off the ground, released).
 # NOT a ledger stage: no evaluator, evidence never counted. The bridge holds measured posture
 # (stand-only config, no --standup-s, so there is no kp 60 -> 25 handover blend: its gains step
@@ -771,7 +914,8 @@ case "$cmd" in
     E) stage_E "$@" ;;
     F|G|H) stage_stand "$cmd" ;;
     W) stage_walk "$@" ;;
+    FREE_FLOOR) stage_free_floor "$@" ;;
     FP) stage_fp "$@" ;;
-    -h|--help) sed -n '2,40p' "$0" ;;
+    -h|--help) sed -n '2,46p' "$0" ;;
     *) halt "unknown command '$cmd' (see --help)" ;;
 esac

@@ -26,6 +26,20 @@ Claims with a reproducible artifact in this repo or a captured log.
   at about 273 Hz against its 500 Hz target; firmware behaviour on a bridge
   SIGKILL was not measured. The raw telemetry for E-H is not in the repo.
 
+- **Hardware locomotion demonstrated under a slack-rope gantry; free-floor walking not yet
+  demonstrated (2026-10-06/07)**: code `34104ff`, model_2750 (checkpoint
+  `e03013d1`, ONNX `6d36796f`), stage ledger A-G GO at that commit. The robot walked
+  with the safety rope reported slack and no falls or safety events: `vx=0.3 m/s` for
+  4 s covered about 0.71 m by tape (about 60 % of the commanded distance); `wz=0.5 rad/s`
+  turned about 17 deg of 86 deg (about 20 %). A `vx03_2s` run was also complete with
+  operator confirmation; its distance was not measured. Limits: the rope was a safety
+  catch, not shown to carry zero load; tracking is well below simulation (cause
+  attributed to joint friction in the hung-robot probe, not yet closed); no walking
+  command has been sent without the gantry. `scripts/free_floor_gate.py` is the
+  incumbent-only gate for the first free-floor attempt; it authorises nothing by itself.
+  Seed 50 (model_3749) has no hardware walking evidence and stays gantry-only. Raw
+  telemetry is local (`logs/` is not in the repo).
+
 - **235 unit tests green in CI**: `pytest tests -m "not sim and not ros"`. Coverage
   listed in [README §Tests](README.md#tests). CI configured to lazy-import torch
   (commit `f235171`).
