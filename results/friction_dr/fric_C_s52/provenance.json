@@ -1,0 +1,10 @@
+{
+  "label": "fric_C_s52",
+  "checkpoint": "/home/yusuf/workspace/wt/phoenix-walk-v1-hw/checkpoints/friction_dr/fric_C_s52/2026-10-07_10-08-02/model_3749.pt",
+  "checkpoint_sha256": "0d0b88ab4dbf4c95eecd0a652f1410f60214752c8d636d642ae699d441f4ef08",
+  "onnx_sha256": "c77bb565bae80fa7925e11aaf2cfbfaf206b4953c88829b450f67dc96752466a",
+  "replay_script_sha256": "0a95d9d2e65bf5cd2bef3ca51d9e67efb68402aa909b81b0a921f01f9bb85765",
+  "git_sha": "e3df68d15b4facfc982462ff959229f924bd955e",
+  "git_dirty": false,
+  "train_commit": "3e8df13"
+}

@@ -1,0 +1,2434 @@
+{
+  "schema": "phoenix-sim2sim-gate-report/v2",
+  "gate": {
+    "config": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/configs/sim2sim/gate_v3.yaml",
+    "config_sha256": "edde53e1f20ff57684ff83b92bb9d9b5dbf02eba06d62b79dade594ac4192d32",
+    "config_commit": "65485bd036ce5f6cea42ce8037c591a14da44508",
+    "name": "gate_v3",
+    "version": 3
+  },
+  "policy": {
+    "onnx": "/home/yusuf/workspace/wt/phoenix-walk-v1-hw/results/friction_dr/fric_T_s51/policy.onnx",
+    "onnx_sha256": "7086b5ee7addd985e28d5038a4af97d2ee3ba95b87902fd6f37b7f4d5f347b65",
+    "manifest": "/home/yusuf/workspace/wt/phoenix-walk-v1-hw/results/friction_dr/fric_T_s51/phoenix_manifest.json",
+    "manifest_sha256": "bd5e8a695155566c2393745df6b0ee7911f0d13d32f7db99ee37ba5101b86ddd"
+  },
+  "spec": {
+    "name": "fric_T_s51",
+    "kind": "phoenix-checkpoint-manifest/v1",
+    "obs_builder": "phoenix_velocity_45",
+    "obs_schema": "phoenix-velocity-obs/v2",
+    "obs_dim": 45,
+    "history_length": 1,
+    "joint_order": [
+      "FL_hip_joint",
+      "FR_hip_joint",
+      "RL_hip_joint",
+      "RR_hip_joint",
+      "FL_thigh_joint",
+      "FR_thigh_joint",
+      "RL_thigh_joint",
+      "RR_thigh_joint",
+      "FL_calf_joint",
+      "FR_calf_joint",
+      "RL_calf_joint",
+      "RR_calf_joint"
+    ],
+    "sdk_joint_ids_map": [
+      3,
+      0,
+      9,
+      6,
+      4,
+      1,
+      10,
+      7,
+      5,
+      2,
+      11,
+      8
+    ],
+    "default_joint_pos": [
+      0.1,
+      -0.1,
+      0.1,
+      -0.1,
+      0.8,
+      0.8,
+      1.0,
+      1.0,
+      -1.5,
+      -1.5,
+      -1.5,
+      -1.5
+    ],
+    "action_scale": [
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25
+    ],
+    "action_clip": 100.0,
+    "kp": [
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0,
+      25.0
+    ],
+    "kd": [
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5
+    ],
+    "control_hz": 50,
+    "trained_commands": {
+      "lin_vel_x": [
+        -0.8,
+        1.0
+      ],
+      "lin_vel_y": [
+        -0.5,
+        0.5
+      ],
+      "ang_vel_z": [
+        -1.0,
+        1.0
+      ]
+    },
+    "obs_terms": [],
+    "clip_obs": null,
+    "manifest_problems": [],
+    "assumptions": [],
+    "provenance": {
+      "provenance": {
+        "git_sha": "e3df68d15b4facfc982462ff959229f924bd955e",
+        "git_dirty": false,
+        "seed": 51,
+        "task": "phoenix-velocity-flat-go2",
+        "simulator": "isaac-lab-physx"
+      },
+      "checkpoint_sha256": "b634c302b9d1fa21d56dd2d79e823241af012544996f0bdca55aae3b8964b837"
+    }
+  },
+  "run": {
+    "latency_ms": 0.0,
+    "physics_hz": 1000,
+    "profile": "real_go2",
+    "actuator": {
+      "hip": {
+        "effort_limit": 23.5,
+        "velocity_limit": 30.1
+      },
+      "thigh": {
+        "effort_limit": 23.5,
+        "velocity_limit": 30.1
+      },
+      "calf": {
+        "effort_limit": 45.43,
+        "velocity_limit": 15.7
+      }
+    },
+    "mujoco_gl": "egl"
+  },
+  "spec_checks": [
+    {
+      "check": "manifest_valid",
+      "value": [],
+      "op": "==",
+      "threshold": [],
+      "pass": true,
+      "tier": "safety"
+    },
+    {
+      "check": "envelope.lin_vel_x",
+      "value": 0.8,
+      "op": ">=",
+      "threshold": 0.5,
+      "pass": true,
+      "tier": "safety"
+    },
+    {
+      "check": "envelope.lin_vel_y",
+      "value": 0.5,
+      "op": ">=",
+      "threshold": 0.3,
+      "pass": true,
+      "tier": "safety"
+    },
+    {
+      "check": "envelope.ang_vel_z",
+      "value": 1.0,
+      "op": ">=",
+      "threshold": 0.8,
+      "pass": true,
+      "tier": "safety"
+    },
+    {
+      "check": "joint_sign_audit",
+      "value": [],
+      "op": "==",
+      "threshold": [],
+      "pass": true,
+      "tier": "safety"
+    }
+  ],
+  "joint_audit": {
+    "pass": true,
+    "joints": [
+      {
+        "policy_index": 0,
+        "joint": "FL_hip_joint",
+        "sdk_index": 3,
+        "joint_moved_rad": 0.103989386206776,
+        "largest_other_rad": 0.0016487040568715638,
+        "moved_joint": "FL_hip_joint",
+        "foot_delta_m": [
+          -0.0004687242864324648,
+          0.03060110601020946,
+          0.014797387773547221
+        ],
+        "reach_delta_m": -4.097996803986703e-05,
+        "largest_other_foot_move_m": 0.0007384319404083409,
+        "expected": "foot +y",
+        "pass": true
+      },
+      {
+        "policy_index": 1,
+        "joint": "FR_hip_joint",
+        "sdk_index": 0,
+        "joint_moved_rad": 0.10414518263625051,
+        "largest_other_rad": 0.0017228697229163537,
+        "moved_joint": "FR_hip_joint",
+        "foot_delta_m": [
+          0.000499142183654766,
+          0.032027508974415586,
+          -0.011550675709534497
+        ],
+        "reach_delta_m": 3.4750218816159695e-05,
+        "largest_other_foot_move_m": 0.0007334634716836219,
+        "expected": "foot +y",
+        "pass": true
+      },
+      {
+        "policy_index": 2,
+        "joint": "RL_hip_joint",
+        "sdk_index": 9,
+        "joint_moved_rad": 0.10198378500736036,
+        "largest_other_rad": 0.001418905866447398,
+        "moved_joint": "RL_hip_joint",
+        "foot_delta_m": [
+          -0.00032776191064864957,
+          0.02904593183266771,
+          0.014381328677640859
+        ],
+        "reach_delta_m": -2.7137735980620192e-05,
+        "largest_other_foot_move_m": 0.0005587094591719341,
+        "expected": "foot +y",
+        "pass": true
+      },
+      {
+        "policy_index": 3,
+        "joint": "RR_hip_joint",
+        "sdk_index": 6,
+        "joint_moved_rad": 0.10218319819577062,
+        "largest_other_rad": 0.001390950291889112,
+        "moved_joint": "RR_hip_joint",
+        "foot_delta_m": [
+          0.00036363735081906823,
+          0.03043118204386097,
+          -0.011371775222488667
+        ],
+        "reach_delta_m": 2.119988595417066e-05,
+        "largest_other_foot_move_m": 0.000554977727934728,
+        "expected": "foot +y",
+        "pass": true
+      },
+      {
+        "policy_index": 4,
+        "joint": "FL_thigh_joint",
+        "sdk_index": 4,
+        "joint_moved_rad": 0.10453532155028322,
+        "largest_other_rad": 0.0027890896444289215,
+        "moved_joint": "FL_thigh_joint",
+        "foot_delta_m": [
+          -0.033020110852603674,
+          0.00027356637475300927,
+          0.003397301639805894
+        ],
+        "reach_delta_m": 0.00040260448231843604,
+        "largest_other_foot_move_m": 0.0005929890606712901,
+        "expected": "foot -x",
+        "pass": true
+      },
+      {
+        "policy_index": 5,
+        "joint": "FR_thigh_joint",
+        "sdk_index": 1,
+        "joint_moved_rad": 0.10453522442437535,
+        "largest_other_rad": 0.0027888949034164945,
+        "moved_joint": "FR_thigh_joint",
+        "foot_delta_m": [
+          -0.03302004617551327,
+          -0.00027369505139429595,
+          0.0033973749065323577
+        ],
+        "reach_delta_m": 0.0004025763927678061,
+        "largest_other_foot_move_m": 0.0005930761960868046,
+        "expected": "foot -x",
+        "pass": true
+      },
+      {
+        "policy_index": 6,
+        "joint": "RL_thigh_joint",
+        "sdk_index": 10,
+        "joint_moved_rad": 0.1032535574365554,
+        "largest_other_rad": 0.002302964254154105,
+        "moved_joint": "RL_thigh_joint",
+        "foot_delta_m": [
+          -0.03126136369649246,
+          -0.0005569567970651057,
+          0.009685488469902581
+        ],
+        "reach_delta_m": 0.0003324762333193898,
+        "largest_other_foot_move_m": 0.0006449935768574749,
+        "expected": "foot -x",
+        "pass": true
+      },
+      {
+        "policy_index": 7,
+        "joint": "RR_thigh_joint",
+        "sdk_index": 7,
+        "joint_moved_rad": 0.10325294579169508,
+        "largest_other_rad": 0.0023026252058262475,
+        "moved_joint": "RR_thigh_joint",
+        "foot_delta_m": [
+          -0.03126111730123804,
+          0.000557021232240662,
+          0.009685418169584237
+        ],
+        "reach_delta_m": 0.0003324273158852864,
+        "largest_other_foot_move_m": 0.0006450777829368149,
+        "expected": "foot -x",
+        "pass": true
+      },
+      {
+        "policy_index": 8,
+        "joint": "FL_calf_joint",
+        "sdk_index": 5,
+        "joint_moved_rad": 0.10090478564259509,
+        "largest_other_rad": 0.0031623770323411238,
+        "moved_joint": "FL_calf_joint",
+        "foot_delta_m": [
+          -0.018259599676245658,
+          0.001189106623980224,
+          -0.012692310496138504
+        ],
+        "reach_delta_m": 0.014172057049733233,
+        "largest_other_foot_move_m": 0.00032944241484401737,
+        "expected": "leg extends",
+        "pass": true
+      },
+      {
+        "policy_index": 9,
+        "joint": "FR_calf_joint",
+        "sdk_index": 2,
+        "joint_moved_rad": 0.10090476351417332,
+        "largest_other_rad": 0.0031622177916780236,
+        "moved_joint": "FR_calf_joint",
+        "foot_delta_m": [
+          -0.01825954394612969,
+          -0.0011890961138626976,
+          -0.01269231788859937
+        ],
+        "reach_delta_m": 0.014172054031835968,
+        "largest_other_foot_move_m": 0.00032942601013834233,
+        "expected": "leg extends",
+        "pass": true
+      },
+      {
+        "policy_index": 10,
+        "joint": "RL_calf_joint",
+        "sdk_index": 11,
+        "joint_moved_rad": 0.10105859656866767,
+        "largest_other_rad": 0.0027463271469807538,
+        "moved_joint": "RL_calf_joint",
+        "foot_delta_m": [
+          -0.020323894175975243,
+          0.0008403620673568812,
+          -0.008870954156225741
+        ],
+        "reach_delta_m": 0.014193032975998332,
+        "largest_other_foot_move_m": 0.00018930465604993896,
+        "expected": "leg extends",
+        "pass": true
+      },
+      {
+        "policy_index": 11,
+        "joint": "RR_calf_joint",
+        "sdk_index": 8,
+        "joint_moved_rad": 0.10105868617027225,
+        "largest_other_rad": 0.0027460530656837623,
+        "moved_joint": "RR_calf_joint",
+        "foot_delta_m": [
+          -0.02032382637584429,
+          -0.0008402529566013117,
+          -0.008871035554926077
+        ],
+        "reach_delta_m": 0.0141930451948305,
+        "largest_other_foot_move_m": 0.0001893253098637381,
+        "expected": "leg extends",
+        "pass": true
+      }
+    ]
+  },
+  "scenarios": {
+    "stand_20s": {
+      "scenario": {
+        "name": "stand_20s",
+        "tier": "nominal",
+        "duration_s": 20.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": null,
+        "payload_kg": 0.0,
+        "stand_checks": true
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 20.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.0006335935464677377,
+        "yaw_rate_rmse_radps": 0.0001364792975759612,
+        "tracking_samples": 926,
+        "tracked_mean_vx": 3.3210276919101963e-05,
+        "tracked_mean_vy": 1.0964223046705869e-06,
+        "tracked_mean_wz": -6.813278941365302e-05,
+        "mean_base_height_m": 0.30647190226083865,
+        "min_base_height_m": 0.3047531515699069,
+        "planar_displacement_m": 0.0006446255418108912,
+        "max_abs_roll_pitch_rad": 0.028161458028699845,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.02,
+        "max_abs_raw_action": 1.2084228992462158,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.09680497712092702,
+          "thigh": 0.12011497895768349,
+          "calf": 0.16419430287530815
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.09680497712092702,
+          "thigh": 0.12011497895768349,
+          "calf": 0.16419430287530815
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.8977695672924332,
+          "thigh": 1.4521093510153285,
+          "calf": 0.5172564216542502
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 0.8,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.0006335935464677377,
+          "op": "<=",
+          "threshold": 0.15,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.0001364792975759612,
+          "op": "<=",
+          "threshold": 0.2,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "mean_base_height_m",
+          "value": 0.30647190226083865,
+          "op": ">=",
+          "threshold": 0.24,
+          "pass": true,
+          "tier": "safety"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "forward_0p3": {
+      "scenario": {
+        "name": "forward_0p3",
+        "tier": "nominal",
+        "duration_s": 12.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            1.0,
+            [
+              0.3,
+              0.0,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": null,
+        "payload_kg": 0.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 12.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.030940160858160638,
+        "yaw_rate_rmse_radps": 0.023696450399348278,
+        "tracking_samples": 476,
+        "tracked_mean_vx": 0.3265962564388899,
+        "tracked_mean_vy": 0.012624522338188011,
+        "tracked_mean_wz": 0.014209250127720497,
+        "mean_base_height_m": 0.3249211766792637,
+        "min_base_height_m": 0.3047580658002097,
+        "planar_displacement_m": 3.4943725951209603,
+        "max_abs_roll_pitch_rad": 0.041249572810026405,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.1825,
+        "max_abs_raw_action": 1.950913906097412,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.22355676089469786,
+          "thigh": 0.2873316501749396,
+          "calf": 0.22765301596884213
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.22355676089469786,
+          "thigh": 0.2873316501749396,
+          "calf": 0.22765301596884213
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.9241226802559198,
+          "thigh": 1.211304637292738,
+          "calf": 0.386166772236746
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 0.8,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.030940160858160638,
+          "op": "<=",
+          "threshold": 0.15,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.023696450399348278,
+          "op": "<=",
+          "threshold": 0.2,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "responsiveness.lin_vel_x",
+          "value": 1.088654188129633,
+          "op": ">=",
+          "threshold": 0.5,
+          "pass": true,
+          "achieved_mean": 0.3265962564388899,
+          "command": 0.3,
+          "tier": "safety"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "forward_0p5": {
+      "scenario": {
+        "name": "forward_0p5",
+        "tier": "nominal",
+        "duration_s": 12.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            1.0,
+            [
+              0.5,
+              0.0,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": null,
+        "payload_kg": 0.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 12.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.033622699559991476,
+        "yaw_rate_rmse_radps": 0.02297287080186463,
+        "tracking_samples": 476,
+        "tracked_mean_vx": 0.5274648002179861,
+        "tracked_mean_vy": 0.017501641026743453,
+        "tracked_mean_wz": 0.01855134645937953,
+        "mean_base_height_m": 0.32862017379839326,
+        "min_base_height_m": 0.3047580658002097,
+        "planar_displacement_m": 5.684995536429967,
+        "max_abs_roll_pitch_rad": 0.04870306787988005,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.2588888888888889,
+        "max_abs_raw_action": 2.443995475769043,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.278999876642619,
+          "thigh": 0.3322735262503922,
+          "calf": 0.2681967461682554
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.278999876642619,
+          "thigh": 0.3322735262503922,
+          "calf": 0.2681967461682554
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.8962935028053994,
+          "thigh": 1.101043536008175,
+          "calf": 0.22456093950727685
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 0.8,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.033622699559991476,
+          "op": "<=",
+          "threshold": 0.15,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.02297287080186463,
+          "op": "<=",
+          "threshold": 0.2,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "responsiveness.lin_vel_x",
+          "value": 1.0549296004359723,
+          "op": ">=",
+          "threshold": 0.5,
+          "pass": true,
+          "achieved_mean": 0.5274648002179861,
+          "command": 0.5,
+          "tier": "safety"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "lateral_0p2": {
+      "scenario": {
+        "name": "lateral_0p2",
+        "tier": "nominal",
+        "duration_s": 12.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            1.0,
+            [
+              0.0,
+              0.2,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": null,
+        "payload_kg": 0.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 12.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.04308506230813864,
+        "yaw_rate_rmse_radps": 0.024559922276648712,
+        "tracking_samples": 476,
+        "tracked_mean_vx": 0.018839644371560552,
+        "tracked_mean_vy": 0.23847077740552883,
+        "tracked_mean_wz": -0.015266613726579389,
+        "mean_base_height_m": 0.3216996185562967,
+        "min_base_height_m": 0.3047580658002097,
+        "planar_displacement_m": 2.5433144406713026,
+        "max_abs_roll_pitch_rad": 0.05462666547593919,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.16166666666666665,
+        "max_abs_raw_action": 1.908278226852417,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.2806114258085169,
+          "thigh": 0.22255327706040012,
+          "calf": 0.23744462016666737
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.2806114258085169,
+          "thigh": 0.22255327706040012,
+          "calf": 0.23744462016666737
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.7323155277027704,
+          "thigh": 1.396965515609329,
+          "calf": 0.3719064771748356
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 0.8,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.04308506230813864,
+          "op": "<=",
+          "threshold": 0.15,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.024559922276648712,
+          "op": "<=",
+          "threshold": 0.2,
+          "pass": true,
+          "tier": "performance"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "yaw_0p6": {
+      "scenario": {
+        "name": "yaw_0p6",
+        "tier": "nominal",
+        "duration_s": 12.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            1.0,
+            [
+              0.0,
+              0.0,
+              0.6
+            ]
+          ]
+        ],
+        "foot_friction": null,
+        "payload_kg": 0.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 12.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.029480041749348075,
+        "yaw_rate_rmse_radps": 0.030964042318840247,
+        "tracking_samples": 476,
+        "tracked_mean_vx": -0.0007410804729510469,
+        "tracked_mean_vy": 0.0024340769518732823,
+        "tracked_mean_wz": 0.6185527230862657,
+        "mean_base_height_m": 0.32224385412253714,
+        "min_base_height_m": 0.3047580658002097,
+        "planar_displacement_m": 0.07809969803845818,
+        "max_abs_roll_pitch_rad": 0.0552402283003703,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.17541666666666667,
+        "max_abs_raw_action": 2.487128734588623,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.32789094745084557,
+          "thigh": 0.254141812645281,
+          "calf": 0.29131977771948814
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.32789094745084557,
+          "thigh": 0.254141812645281,
+          "calf": 0.29131977771948814
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.6163628603083369,
+          "thigh": 1.1360031991449386,
+          "calf": 0.2904357991062735
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 0.8,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.029480041749348075,
+          "op": "<=",
+          "threshold": 0.15,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.030964042318840247,
+          "op": "<=",
+          "threshold": 0.2,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "responsiveness.ang_vel_z",
+          "value": 1.0309212051437764,
+          "op": ">=",
+          "threshold": 0.5,
+          "pass": true,
+          "achieved_mean": 0.6185527230862657,
+          "command": 0.6,
+          "tier": "safety"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "lateral_step": {
+      "scenario": {
+        "name": "lateral_step",
+        "tier": "stress",
+        "duration_s": 14.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            2.0,
+            [
+              0.3,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            5.0,
+            [
+              0.0,
+              0.3,
+              0.0
+            ]
+          ],
+          [
+            8.0,
+            [
+              0.0,
+              -0.3,
+              0.0
+            ]
+          ],
+          [
+            11.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": null,
+        "payload_kg": 0.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 14.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.03226274698247217,
+        "yaw_rate_rmse_radps": 0.022925594259376913,
+        "tracking_samples": 326,
+        "tracked_mean_vx": 0.08183544559284844,
+        "tracked_mean_vy": 0.012141756615334188,
+        "tracked_mean_wz": 0.007216077897540644,
+        "mean_base_height_m": 0.3225896463758099,
+        "min_base_height_m": 0.3047580658002097,
+        "planar_displacement_m": 1.1457792528221553,
+        "max_abs_roll_pitch_rad": 0.05014336567122656,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.14583333333333334,
+        "max_abs_raw_action": 1.9518804550170898,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.3569345246244683,
+          "thigh": 0.46071826783438147,
+          "calf": 0.2294368022380451
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.3569345246244683,
+          "thigh": 0.46071826783438147,
+          "calf": 0.2294368022380451
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.6809884821199852,
+          "thigh": 1.2105810724301342,
+          "calf": 0.3698537230119555
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 0.8,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.03226274698247217,
+          "op": "<=",
+          "threshold": 0.25,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.022925594259376913,
+          "op": "<=",
+          "threshold": 0.3,
+          "pass": true,
+          "tier": "performance"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "friction_0p4": {
+      "scenario": {
+        "name": "friction_0p4",
+        "tier": "stress",
+        "duration_s": 12.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            1.0,
+            [
+              0.3,
+              0.0,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": 0.4,
+        "payload_kg": 0.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 12.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.03816366945020435,
+        "yaw_rate_rmse_radps": 0.018640537414268257,
+        "tracking_samples": 476,
+        "tracked_mean_vx": 0.33464919657444436,
+        "tracked_mean_vy": 0.013376768751146616,
+        "tracked_mean_wz": 0.011183691419121565,
+        "mean_base_height_m": 0.32496798625019074,
+        "min_base_height_m": 0.3047181888390006,
+        "planar_displacement_m": 3.5957767007491777,
+        "max_abs_roll_pitch_rad": 0.04125259271513081,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.18569444444444444,
+        "max_abs_raw_action": 1.912929892539978,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.22310790441203535,
+          "thigh": 0.284493874532666,
+          "calf": 0.22367247156509007
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.22310790441203535,
+          "thigh": 0.284493874532666,
+          "calf": 0.22367247156509007
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.9236413951185098,
+          "thigh": 1.2129656785497198,
+          "calf": 0.37424243733037754
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 0.4,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.03816366945020435,
+          "op": "<=",
+          "threshold": 0.25,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.018640537414268257,
+          "op": "<=",
+          "threshold": 0.3,
+          "pass": true,
+          "tier": "performance"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "friction_1p0": {
+      "scenario": {
+        "name": "friction_1p0",
+        "tier": "nominal",
+        "duration_s": 12.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            1.0,
+            [
+              0.3,
+              0.0,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": 1.0,
+        "payload_kg": 0.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 12.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.028689911033697228,
+        "yaw_rate_rmse_radps": 0.02533401670864346,
+        "tracking_samples": 476,
+        "tracked_mean_vx": 0.3236217714341234,
+        "tracked_mean_vy": 0.012845918539425596,
+        "tracked_mean_wz": 0.015546507259057554,
+        "mean_base_height_m": 0.3248345623568782,
+        "min_base_height_m": 0.30476725053713505,
+        "planar_displacement_m": 3.459921586808239,
+        "max_abs_roll_pitch_rad": 0.04124728612949727,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.18180555555555555,
+        "max_abs_raw_action": 1.9594004154205322,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.2328584132172911,
+          "thigh": 0.29262877966943396,
+          "calf": 0.23183067756548906
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.2328584132172911,
+          "thigh": 0.29262877966943396,
+          "calf": 0.23183067756548906
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.9242521277108409,
+          "thigh": 1.1989226910612176,
+          "calf": 0.3872971260806043
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 0.0,
+        "foot_friction": 1.0,
+        "total_mass_kg": 15.206408000000003,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.028689911033697228,
+          "op": "<=",
+          "threshold": 0.15,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.02533401670864346,
+          "op": "<=",
+          "threshold": 0.2,
+          "pass": true,
+          "tier": "performance"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    },
+    "payload_2kg": {
+      "scenario": {
+        "name": "payload_2kg",
+        "tier": "stress",
+        "duration_s": 13.0,
+        "segments": [
+          [
+            0.0,
+            [
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            3.0,
+            [
+              0.3,
+              0.0,
+              0.0
+            ]
+          ]
+        ],
+        "foot_friction": null,
+        "payload_kg": 2.0,
+        "stand_checks": false
+      },
+      "metrics": {
+        "fell": false,
+        "fall_reason": null,
+        "time_to_fall_s": null,
+        "nonfinite_action": false,
+        "simulated_s": 13.0,
+        "init_base_height_m": 0.3285025693745002,
+        "lin_vel_rmse_mps": 0.02683825911003631,
+        "yaw_rate_rmse_radps": 0.023688320347668636,
+        "tracking_samples": 501,
+        "tracked_mean_vx": 0.27556937121694247,
+        "tracked_mean_vy": 0.010753199320563038,
+        "tracked_mean_wz": 0.01481136307133966,
+        "mean_base_height_m": 0.3155783256608886,
+        "min_base_height_m": 0.29954623719091233,
+        "planar_displacement_m": 3.15430906625476,
+        "max_abs_roll_pitch_rad": 0.03866482534611224,
+        "pre_clip_saturation_rate": 0.0,
+        "pre_clip_saturation_definition": "|raw| >= deploy clip 100.0",
+        "abs_raw_action_gt1_rate": 0.17525641025641026,
+        "max_abs_raw_action": 1.9988516569137573,
+        "torque_saturation_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "peak_applied_torque_over_limit": {
+          "hip": 0.25540181062130224,
+          "thigh": 0.33506816473201156,
+          "calf": 0.24676621489603057
+        },
+        "peak_demanded_torque_over_limit": {
+          "hip": 0.25540181062130224,
+          "thigh": 0.33506816473201156,
+          "calf": 0.24676621489603057
+        },
+        "joint_vel_over_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        },
+        "hard_limit_violation_steps": 0,
+        "min_limit_margin_rad": {
+          "hip": 0.9215261650804532,
+          "thigh": 1.2014966635009818,
+          "calf": 0.4078662909942644
+        },
+        "near_limit_fraction": {
+          "hip": 0.0,
+          "thigh": 0.0,
+          "calf": 0.0
+        }
+      },
+      "latency_physics_steps": 0,
+      "model": {
+        "profile": "real_go2",
+        "scene_xml": "/home/yusuf/workspace/go2-phoenix/.claude/worktrees/agent-a6f2a9725e191de1f/assets/mujoco/unitree_go2/scene.xml",
+        "timestep": 0.001,
+        "joint_damping": 0.0,
+        "joint_frictionloss": 0.0,
+        "joint_armature": {
+          "hip": 0.01,
+          "thigh": 0.01,
+          "calf": 0.02
+        },
+        "collision_condim": 3,
+        "payload_kg": 2.0,
+        "foot_friction": 0.8,
+        "total_mass_kg": 17.206408,
+        "integrator": 0,
+        "cone": 1,
+        "impratio": 100.0
+      },
+      "checks": [
+        {
+          "check": "no_fall",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "finite_actions",
+          "value": false,
+          "op": "==",
+          "threshold": false,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "pre_clip_saturation_rate",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "hard_limit_violation_steps",
+          "value": 0,
+          "op": "<=",
+          "threshold": 0,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.hip",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.thigh",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "torque_saturation_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.05,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "near_limit_fraction.calf",
+          "value": 0.0,
+          "op": "<=",
+          "threshold": 0.02,
+          "pass": true,
+          "tier": "safety"
+        },
+        {
+          "check": "lin_vel_rmse_mps",
+          "value": 0.02683825911003631,
+          "op": "<=",
+          "threshold": 0.25,
+          "pass": true,
+          "tier": "performance"
+        },
+        {
+          "check": "yaw_rate_rmse_radps",
+          "value": 0.023688320347668636,
+          "op": "<=",
+          "threshold": 0.3,
+          "pass": true,
+          "tier": "performance"
+        }
+      ],
+      "pass": true,
+      "performance_pass": true
+    }
+  },
+  "would_be_verdict": "PASS",
+  "failures": [],
+  "performance_failures": [],
+  "tiers": {
+    "safety": {
+      "blocking": true,
+      "verdict": "PASS",
+      "failures": []
+    },
+    "performance": {
+      "blocking": false,
+      "rows": [
+        {
+          "scenario": "stand_20s",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.0006335935464677377,
+          "threshold": 0.15,
+          "pass": true
+        },
+        {
+          "scenario": "stand_20s",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.0001364792975759612,
+          "threshold": 0.2,
+          "pass": true
+        },
+        {
+          "scenario": "forward_0p3",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.030940160858160638,
+          "threshold": 0.15,
+          "pass": true
+        },
+        {
+          "scenario": "forward_0p3",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.023696450399348278,
+          "threshold": 0.2,
+          "pass": true
+        },
+        {
+          "scenario": "forward_0p5",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.033622699559991476,
+          "threshold": 0.15,
+          "pass": true
+        },
+        {
+          "scenario": "forward_0p5",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.02297287080186463,
+          "threshold": 0.2,
+          "pass": true
+        },
+        {
+          "scenario": "lateral_0p2",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.04308506230813864,
+          "threshold": 0.15,
+          "pass": true
+        },
+        {
+          "scenario": "lateral_0p2",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.024559922276648712,
+          "threshold": 0.2,
+          "pass": true
+        },
+        {
+          "scenario": "yaw_0p6",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.029480041749348075,
+          "threshold": 0.15,
+          "pass": true
+        },
+        {
+          "scenario": "yaw_0p6",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.030964042318840247,
+          "threshold": 0.2,
+          "pass": true
+        },
+        {
+          "scenario": "lateral_step",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.03226274698247217,
+          "threshold": 0.25,
+          "pass": true
+        },
+        {
+          "scenario": "lateral_step",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.022925594259376913,
+          "threshold": 0.3,
+          "pass": true
+        },
+        {
+          "scenario": "friction_0p4",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.03816366945020435,
+          "threshold": 0.25,
+          "pass": true
+        },
+        {
+          "scenario": "friction_0p4",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.018640537414268257,
+          "threshold": 0.3,
+          "pass": true
+        },
+        {
+          "scenario": "friction_1p0",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.028689911033697228,
+          "threshold": 0.15,
+          "pass": true
+        },
+        {
+          "scenario": "friction_1p0",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.02533401670864346,
+          "threshold": 0.2,
+          "pass": true
+        },
+        {
+          "scenario": "payload_2kg",
+          "metric": "lin_vel_rmse_mps",
+          "value": 0.02683825911003631,
+          "threshold": 0.25,
+          "pass": true
+        },
+        {
+          "scenario": "payload_2kg",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.023688320347668636,
+          "threshold": 0.3,
+          "pass": true
+        }
+      ],
+      "named": {
+        "stand_yaw_drift": {
+          "scenario": "stand_20s",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.0001364792975759612,
+          "threshold": 0.2,
+          "pass": true
+        },
+        "turn_in_place": {
+          "scenario": "yaw_0p6",
+          "metric": "yaw_rate_rmse_radps",
+          "value": 0.030964042318840247,
+          "threshold": 0.2,
+          "pass": true
+        }
+      },
+      "verdict": "PASS"
+    }
+  },
+  "diagnostic_reasons": [],
+  "verdict": "PASS"
+}
