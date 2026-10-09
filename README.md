@@ -27,13 +27,15 @@ configuration, and (where possible) unit tests.
 
 ## Demo
 
-A 60-second walkthrough: thousands of robots training in parallel in Isaac
-Sim, the trained policy tracking velocity commands with a live telemetry
-overlay, and where the project stands.
+A 25-second cut: a policy trained on 8,192 simulated GO2s in Isaac Lab, then
+the same policy on the real robot. It gets up from lying flat, turns, sits, and
+takes its first untethered steps on a free floor. The turn panel shows the gap
+still open: in simulation the policy reaches 87% of a commanded turn, on the
+real robot in a gantry test 20% (17 of 86 degrees).
 
 <p align="center">
-  <a href="https://youtu.be/Nu0oWyJJbEM">
-    <img src="https://img.youtube.com/vi/Nu0oWyJJbEM/sddefault.jpg" alt="Watch the Phoenix demo on YouTube" width="640">
+  <a href="https://youtu.be/eCzeuW2WKgY">
+    <img src="https://img.youtube.com/vi/eCzeuW2WKgY/maxresdefault.jpg" alt="Watch the Phoenix demo on YouTube" width="640">
   </a>
 </p>
 
