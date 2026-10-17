@@ -402,7 +402,11 @@ def walk_metrics(pol: dict[str, np.ndarray], preset: str, tape: dict) -> dict:
     if has_yaw:
         out["Y"] = (yaw[ie] - yaw[i0]) / cmd_yaw if abs(cmd_yaw) > 1e-6 else None
         meas = tape.get("meas_yaw_deg")  # the operator's own reading, kept apart from the IMU Y
-        out["Y_op"] = math.radians(float(meas)) / cmd_yaw if meas is not None and abs(cmd_yaw) > 1e-6 else None
+        out["Y_op"] = (
+            math.radians(float(meas)) / cmd_yaw
+            if meas is not None and abs(cmd_yaw) > 1e-6
+            else None
+        )
         k = max(1, int(round(0.1 / max(np.median(np.diff(t)), 1e-3))))
         ma = np.convolve(gz, np.ones(k) / k, mode="same")
         wz_cmd = float(np.max(np.abs(cmd[i0 + 1 : i1 + 1, 2])))
@@ -683,7 +687,9 @@ def stop_conditions(runs: list[dict]) -> list[str]:
             found.append(f"{tag}: faults {b['abnormal_faults']}")
         if b.get("limit_clip_ticks_policy"):
             found.append(f"{tag}: limit clip under the policy")
-        if r.get("slot") in WALK_SLOTS and (r.get("operator_aborted") or r.get("aborted_from_logs")):
+        if r.get("slot") in WALK_SLOTS and (
+            r.get("operator_aborted") or r.get("aborted_from_logs")
+        ):
             key = (r.get("arm"), r.get("slot"))
             aborts[key] = aborts.get(key, 0) + 1
     found += [f"arm {a} {p}: {n} aborted runs" for (a, p), n in aborts.items() if n >= 2]
@@ -775,7 +781,9 @@ def tracking_table(chosen: list[dict]) -> dict:
         for m in TRACK_METRICS:
             v = r["walk"].get(m)
             if v is not None:
-                out.setdefault(r["arm"], {}).setdefault(r["slot"], {}).setdefault(m, []).append(float(v))
+                out.setdefault(r["arm"], {}).setdefault(r["slot"], {}).setdefault(m, []).append(
+                    float(v)
+                )
     return {
         arm: {slot: {m: _spread(v) for m, v in ms.items()} for slot, ms in slots.items()}
         for arm, slots in out.items()
@@ -789,7 +797,9 @@ def stop_table(runs: list[dict]) -> dict:
         arm = r.get("measured_arm")
         if arm is None:
             continue
-        d = out.setdefault(arm, {"stop_latency_s": [], "release_rx_to_zero_s": [], "window_end_to_sit_s": []})
+        d = out.setdefault(
+            arm, {"stop_latency_s": [], "release_rx_to_zero_s": [], "window_end_to_sit_s": []}
+        )
         ex = r.get("policy_exit") or {}
         if r.get("slot") == "stop_drill" and r.get("valid"):
             for k in ("stop_latency_s", "release_rx_to_zero_s"):
@@ -877,7 +887,12 @@ def main(argv: list[str] | None = None) -> int:
     header = next((r for r in recs if r.get("kind") == "header"), {})
     if header.get("arms"):  # the campaign pinned its own arms (hw_campaign.sh init)
         ARMS.clear()
-        ARMS.update({a: {k: v for k, v in spec.items() if k != "label"} for a, spec in header["arms"].items()})
+        ARMS.update(
+            {
+                a: {k: v for k, v in spec.items() if k != "label"}
+                for a, spec in header["arms"].items()
+            }
+        )
     for r in run_recs:
         r.setdefault("campaign_commit", header.get("commit"))
     base = args.campaign.parent
@@ -958,8 +973,16 @@ def main(argv: list[str] | None = None) -> int:
     for arm, slots in sorted(summary["tracking"].items()):
         for slot, ms in slots.items():
             for m, sp in ms.items():
-                lines.append(f"| {arm} | {slot} | {m} | {sp['mean']:.3f} | {sp['std']:.3f} | {sp['n']} |")
-    lines += ["", "## Stop (seconds, from the ticks)", "", "| arm | measure | mean | max | n |", "|---|---|---|---|---|"]
+                lines.append(
+                    f"| {arm} | {slot} | {m} | {sp['mean']:.3f} | {sp['std']:.3f} | {sp['n']} |"
+                )
+    lines += [
+        "",
+        "## Stop (seconds, from the ticks)",
+        "",
+        "| arm | measure | mean | max | n |",
+        "|---|---|---|---|---|",
+    ]
     for arm, d in sorted(summary["stop_summary"].items()):
         for k, sp in d.items():
             if sp:

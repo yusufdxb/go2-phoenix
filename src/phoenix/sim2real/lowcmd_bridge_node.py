@@ -253,9 +253,6 @@ class LowCmdBridge(Node):
         self._telemetry = telemetry
         self._gate = ActuatorGate(cfg.gate_params(), time.monotonic_ns())
         self._last_mode: str | None = None
-        #: Latest raw LowState sensor channels the gate does not use, copied into every
-        #: telemetry tick (motor order). Telemetry only: never read by the control path.
-        self._sensors: dict[str, Any] | None = None
         self._last_fault: str | None = None
         self._init_guard()
 
@@ -298,9 +295,13 @@ class LowCmdBridge(Node):
             "publish_failures": 0,
             "lowcmd_substituted": 0,
             "spin_failures": 0,
+            "sensor_cache_failures": 0,
         }
         self._telemetry_consecutive = 0
         self._last_log_s: dict[str, float] = {}
+        #: Latest raw LowState sensor channels the gate does not use, copied into every
+        #: telemetry tick (motor order). Telemetry only: never read by the control path.
+        self._sensors: dict[str, Any] | None = None
         self._last_sent: list[float] | None = None
         self._fallback: FallbackSit | None = None
 
@@ -356,7 +357,7 @@ class LowCmdBridge(Node):
             s["power_v"] = float(getattr(msg, "power_v", 0.0))
             self._sensors = s
         except Exception:  # noqa: BLE001 - telemetry must never interrupt control
-            self.guard_counts["telemetry_failures"] += 1
+            self.guard_counts["sensor_cache_failures"] += 1
 
     def _on_estop(self, msg: Bool) -> None:
         self._gate.on_estop(time.monotonic_ns(), bool(msg.data))
@@ -441,7 +442,9 @@ class LowCmdBridge(Node):
             sensors = self._sensors
             if sensors is not None:
                 rec = dict(rec)
-                rec["sensors"] = dict(sensors, age_s=(time.monotonic_ns() - sensors["t_mono_ns"]) / 1e9)
+                rec["sensors"] = dict(
+                    sensors, age_s=(time.monotonic_ns() - sensors["t_mono_ns"]) / 1e9
+                )
             self._telemetry.write_tick(rec)
 
     def _spin_for_shutdown(self) -> None:

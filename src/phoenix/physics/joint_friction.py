@@ -156,26 +156,26 @@ class FrictionDistribution:
         ``np.random.default_rng(s).random`` (MuJoCo, tests). Only elementwise arithmetic is
         used, so the same code serves both.
         """
-        J = len(order)
+        n_joints = len(order)
         lo = [self.viscous_range(joint_group(nm))[0] for nm in order]
         hi = [self.viscous_range(joint_group(nm))[1] for nm in order]
-        uv = uniform((n, J))
+        uv = uniform((n, n_joints))
         viscous = uv * 0.0
-        for j in range(J):
+        for j in range(n_joints):
             viscous[:, j] = lo[j] + (hi[j] - lo[j]) * uv[:, j]
         ul = uniform((n,))
         load = self.load[0] + (self.load[1] - self.load[0]) * ul
         if self.kind == "broad":
-            uc = uniform((n, J))
+            uc = uniform((n, n_joints))
             coulomb = self.broad_coulomb[0] + (self.broad_coulomb[1] - self.broad_coulomb[0]) * uc
             return coulomb, viscous, load
         meas = measured or load_measured()
         base = [float(meas[nm]["static"]) for nm in order]
         us = uniform((n,))
         s = self.scale[0] + (self.scale[1] - self.scale[0]) * us
-        uj = uniform((n, J))
+        uj = uniform((n, n_joints))
         coulomb = uj * 0.0
-        for j in range(J):
+        for j in range(n_joints):
             coulomb[:, j] = base[j] * s * (1.0 - self.jitter + 2.0 * self.jitter * uj[:, j])
         return coulomb, viscous, load
 

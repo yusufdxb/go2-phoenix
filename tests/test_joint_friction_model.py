@@ -5,7 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from phoenix.physics.joint_friction import FrictionDistribution, FrictionModel, joint_group, load_measured
+from phoenix.physics.joint_friction import (
+    FrictionDistribution,
+    FrictionModel,
+    joint_group,
+    load_measured,
+)
 from phoenix.velocity.contract import JOINT_ORDER
 from phoenix.velocity.spec import (
     BROAD_FRICTION,
