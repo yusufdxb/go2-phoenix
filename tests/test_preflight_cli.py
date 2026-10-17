@@ -20,6 +20,7 @@ SHA = "1234567" + "0" * 33
 
 @pytest.fixture
 def clean_identity(monkeypatch):
+    monkeypatch.delenv("PHOENIX_EXPECT_BRANCH", raising=False)  # the identity is on the default branch
     ident = CodeIdentity(sha=SHA, source="git", branch=EXPECTED_BRANCH, dirty=False)
     monkeypatch.setattr(preflight, "resolve_code_identity", lambda root: ident)
     return ident
