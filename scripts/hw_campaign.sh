@@ -35,7 +35,7 @@ export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONDONTWRITEBYTECODE=1
 HARNESS="$REPO_ROOT/scripts/harness_preflight.sh"
 DEFAULT_ARMS="configs/sim2real/campaigns/ab_2026-10-07.arms.json"
-MIN_BLOCK_SOC=30
+MIN_BLOCK_SOC="${PHOENIX_MIN_BLOCK_SOC:-30}"  # operator override for a session, recorded in campaign.jsonl
 
 halt() { printf '\033[31mHALT: %s\033[0m\n' "$*" >&2; exit 1; }
 # Same identity the harness uses: a git checkout, or a payload copy (PAYLOAD_SYNC.txt, verified).
@@ -341,7 +341,7 @@ PY
         stop_block=false
         for b in "${STOP_DRILL_BLOCKS[@]}"; do [[ "$k" == "$b" ]] && stop_block=true; done
         echo "[ab] BLOCK $k = arm $arm, battery ${soc:-?} %. Sequence: ${SLOTS[*]}$( [[ $stop_block == true ]] && echo ', STOP drill')."
-        append "$d/campaign.jsonl" "$(python3 -c 'import json,sys; print(json.dumps({"kind":"block_start","block":int(sys.argv[1]),"arm":sys.argv[2],"battery_soc":sys.argv[3]}))' "$k" "$arm" "$soc")"
+        append "$d/campaign.jsonl" "$(python3 -c 'import json,sys; print(json.dumps({"kind":"block_start","block":int(sys.argv[1]),"arm":sys.argv[2],"battery_soc":sys.argv[3],"min_block_soc":sys.argv[4]}))' "$k" "$arm" "$soc" "$MIN_BLOCK_SOC")"
         ok=true
         for slot in "${SLOTS[@]}"; do
             if ! slot_run "$k" "$arm" "$slot"; then
