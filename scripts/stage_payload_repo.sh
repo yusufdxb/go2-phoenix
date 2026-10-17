@@ -109,9 +109,15 @@ fi
 # ------------------------------------------------------------------ remote push
 HOST="${REMOTE%%:*}"
 RPATH="${REMOTE#*:}"
-export SSHPASS="${JETSON_PW:?export JETSON_PW (Jetson password)}"
-SSH=(sshpass -e ssh "$HOST")
-export RSYNC_RSH="sshpass -e ssh"
+# PAYLOAD_RSH: a key-based ssh command (e.g. LabLink's pinned host key) instead of the password.
+if [[ -n "${PAYLOAD_RSH:-}" ]]; then
+  read -r -a SSH <<< "$PAYLOAD_RSH"; SSH+=("$HOST")
+  export RSYNC_RSH="$PAYLOAD_RSH"
+else
+  export SSHPASS="${JETSON_PW:?export JETSON_PW (Jetson password) or PAYLOAD_RSH}"
+  SSH=(sshpass -e ssh "$HOST")
+  export RSYNC_RSH="sshpass -e ssh"
+fi
 
 echo "[repo] pushing $N_FILES tracked files @ ${COMMIT:0:7} (dirty=$DIRTY) -> $HOST:$RPATH"
 "${SSH[@]}" "mkdir -p '$RPATH'"

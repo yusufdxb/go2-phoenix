@@ -206,13 +206,20 @@ fi
 # ------------------------------------------------------------------ remote push
 HOST="${REMOTE%%:*}"
 RPATH="${REMOTE#*:}"
-export SSHPASS="${JETSON_PW:?export JETSON_PW (Jetson password)}"
-SSH=(sshpass -e ssh "$HOST")
+# PAYLOAD_RSH: a key-based ssh command (e.g. LabLink's pinned host key) instead of the password.
+if [[ -n "${PAYLOAD_RSH:-}" ]]; then
+  read -r -a SSH <<< "$PAYLOAD_RSH"; SSH+=("$HOST")
+  RSH="$PAYLOAD_RSH"; RSYNC=(rsync)
+else
+  export SSHPASS="${JETSON_PW:?export JETSON_PW (Jetson password) or PAYLOAD_RSH}"
+  SSH=(sshpass -e ssh "$HOST")
+  RSH="sshpass -e ssh"; RSYNC=(sshpass -e rsync)
+fi
 
 echo
 echo "[stage] pushing to $HOST:$RPATH"
 "${SSH[@]}" "mkdir -p '$RPATH'"
-sshpass -e rsync -a --delete -e "sshpass -e ssh" "$DEST"/ "$HOST:$RPATH"/
+"${RSYNC[@]}" -a --delete -e "$RSH" "$DEST"/ "$HOST:$RPATH"/
 
 # The local sha256sum -c above only proves the local copy. This one proves the
 # bytes that actually reached the payload.
