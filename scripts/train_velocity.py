@@ -81,7 +81,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--smoke", action="store_true", help="Shrink the chosen --spec with spec.smoke_spec()")
     p.add_argument(
         "--spec",
-        choices=["default", "vnext", "vnext2", "vnext3", "vnext3f"],
+        choices=["default", "vnext", "vnext2", "vnext3", "vnext3f", "vnext3hw", "vnext3broad"],
         default="default",
         help=(
             "default: default_spec() (walk_v1/v2 arms, obs v1, no health guard). "
@@ -161,13 +161,22 @@ def _run(args: argparse.Namespace, simulation_app) -> int:  # noqa: ANN001
         smoke_spec,
         vnext2_spec,
         vnext3_spec,
+        vnext3broad_spec,
         vnext3f_spec,
+        vnext3hw_spec,
         vnext_spec,
     )
 
     pv_env_cfg.register()
 
-    spec: VelocityTaskSpec = {"vnext": vnext_spec, "vnext2": vnext2_spec, "vnext3": vnext3_spec, "vnext3f": vnext3f_spec}.get(args.spec, default_spec)()
+    spec: VelocityTaskSpec = {
+        "vnext": vnext_spec,
+        "vnext2": vnext2_spec,
+        "vnext3": vnext3_spec,
+        "vnext3f": vnext3f_spec,
+        "vnext3hw": vnext3hw_spec,
+        "vnext3broad": vnext3broad_spec,
+    }.get(args.spec, default_spec)()
     if args.smoke:
         spec = smoke_spec(spec)
     if args.health:
@@ -531,12 +540,24 @@ def _realized_dump(env) -> dict:
 
         fr = wp.to_torch(robot.data.joint_friction_coeff)
         dfr = wp.to_torch(robot.data.joint_dynamic_friction_coeff)
+        vfr = wp.to_torch(robot.data.joint_viscous_friction_coeff)
         for j, name in enumerate(robot.joint_names):
             joint_friction[name] = {
                 "static_min": float(fr[:, j].min()),
                 "static_max": float(fr[:, j].max()),
                 "static_mean": float(fr[:, j].mean()),
                 "dynamic_mean": float(dfr[:, j].mean()),
+                "viscous_mean": float(vfr[:, j].mean()),
+                "viscous_max": float(vfr[:, j].max()),
+            }
+        from phoenix.velocity.isaac_terms import FRICTION_STATE_ATTR
+
+        st = getattr(unwrapped, FRICTION_STATE_ATTR, None)
+        if st is not None:
+            joint_friction["_model"] = {
+                "load_coeff_min": float(st["k"].min()),
+                "load_coeff_max": float(st["k"].max()),
+                "base_coulomb_mean": {n: float(st["base"][:, j].mean()) for j, n in enumerate(robot.joint_names)},
             }
     except Exception as exc:  # noqa: BLE001
         joint_friction = {"error": repr(exc)}
