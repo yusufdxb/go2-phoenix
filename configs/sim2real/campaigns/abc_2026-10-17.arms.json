@@ -1,0 +1,53 @@
+{
+  "name": "abc_2026-10-17",
+  "prereg": "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
+  "order": [
+    "A",
+    "B",
+    "C",
+    "C",
+    "B",
+    "A"
+  ],
+  "slots": [
+    "G",
+    "vx03_4s",
+    "yaw05_3s",
+    "yawm05_3s",
+    "vx05_3s",
+    "yaw08_3s",
+    "vx02_yaw03_3s"
+  ],
+  "arms": {
+    "A": {
+      "label": "incumbent_model_2750",
+      "onnx_sha256": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+      "data_sha256": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+      "ckpt_sha256": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+      "stand_lock": "configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml",
+      "walk_lock": "configs/sim2real/locks/deploy_walk_iter2750.lock.yaml",
+      "stand_bundle": null,
+      "walk_bundle": null
+    },
+    "B": {
+      "label": "friction_hw_B_s62_3749",
+      "onnx_sha256": "b7427fb8406a4faf55df71db52c1a009608c07df74f201dd6578f6bff2c2b303",
+      "data_sha256": "1352e081e456c63d6039799a4727020480331676d647ae488dd6c5db787f88bb",
+      "ckpt_sha256": "a3bcbc3555dce9826c63032d44a1b70a21182bc1e10131782045fba22fa55ed0",
+      "stand_lock": "configs/sim2real/locks/deploy_walk_fm_b62_3749_stand.lock.yaml",
+      "walk_lock": "configs/sim2real/locks/deploy_walk_fm_b62_3749.lock.yaml",
+      "stand_bundle": null,
+      "walk_bundle": null
+    },
+    "C": {
+      "label": "friction_broad_C_s60_3749",
+      "onnx_sha256": "c71f9c1ba58736ef659d0d2286ca36676461c17e2af9c05db7951cadec2fda4c",
+      "data_sha256": "5564d415799eb106c17284394889cce0d07a5ef7002452f167e3085aafe65a93",
+      "ckpt_sha256": "2cb90346dfaa8badb56ec7a1c00e2105bb52f1df6b32f4d13949c8942963fb0e",
+      "stand_lock": "configs/sim2real/locks/deploy_walk_fm_c60_3749_stand.lock.yaml",
+      "walk_lock": "configs/sim2real/locks/deploy_walk_fm_c60_3749.lock.yaml",
+      "stand_bundle": null,
+      "walk_bundle": null
+    }
+  }
+}
