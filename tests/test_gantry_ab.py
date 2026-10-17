@@ -13,7 +13,9 @@ import numpy as np
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-RUNNER = REPO / "scripts/gantry_ab_campaign.sh"
+RUNNER = REPO / "scripts/hw_campaign.sh"
+OLD_RUNNER = REPO / "scripts/gantry_ab_campaign.sh"
+AB_ARMS = REPO / "configs/sim2real/campaigns/ab_2026-10-07.arms.json"
 PREREG = REPO / "docs/preregistration/2026-10-07-gantry-ab-exploratory.md"
 
 
@@ -123,22 +125,30 @@ def test_quat_yaw_xyzw():
 
 
 def test_runner_hashes_match_analysis_and_prereg():
-    src, pre = RUNNER.read_text(), PREREG.read_text()
+    # the runner no longer hard-codes hashes: the default arms file holds them
+    doc, pre = json.loads(AB_ARMS.read_text()), PREREG.read_text()
+    assert set(doc["arms"]) == set(ga.ARMS)
+    assert "ONNX_SHA=(" not in RUNNER.read_text()
     for arm, want in ga.ARMS.items():
-        for key, table in (
-            ("policy.onnx", "ONNX_SHA"),
-            ("policy.onnx.data", "DATA_SHA"),
-            ("checkpoint", "CKPT_SHA"),
+        for key, field in (
+            ("policy.onnx", "onnx_sha256"),
+            ("policy.onnx.data", "data_sha256"),
+            ("checkpoint", "ckpt_sha256"),
         ):
-            block = src[src.index(f"declare -A {table}") :].split(")", 1)[0]
-            assert f"[{arm}]={want[key]}" in block
+            assert doc["arms"][arm][field] == want[key]
             assert want[key] in pre
+    assert doc["order"] == ["A", "B", "B", "A", "B", "A"]
+    assert doc["slots"] == ["G", "vx03_4s", "yaw05_3s"]
 
 
-def test_runner_walks_only_the_two_preregistered_presets_inside_blocks():
+def test_old_runner_name_is_a_thin_wrapper():
+    assert "hw_campaign.sh" in OLD_RUNNER.read_text() and len(OLD_RUNNER.read_text().splitlines()) < 6
+
+
+def test_runner_walks_only_the_arms_file_slots_inside_blocks():
     src = RUNNER.read_text()
-    assert "ORDER=(A B B A B A)" in src
-    assert re.search(r"for slot in G vx03_4s yaw05_3s; do", src)
+    assert "ORDER=(A B B A B A)" not in src  # order and slots come from the arms file
+    assert re.search(r'for slot in "\$\{SLOTS\[@\]\}"; do', src)
     walk_calls = re.findall(r'run_harness "\$arm" walk [^\n]*', src)
     assert len(walk_calls) == 1 and 'W "$slot"' in walk_calls[0]
     assert "vx05" not in src and "vxm03" not in src
@@ -485,3 +495,152 @@ def test_classify_run_cli_exit_codes(tmp_path):
 def test_runner_checks_the_logs_after_every_run():
     src = RUNNER.read_text()
     assert "--classify-run" in src and "log_check" in src
+
+
+# ------------------------------------------------------------ N arms, arms file, new presets
+mca = importlib.util.spec_from_file_location("mca", REPO / "scripts/make_campaign_arms.py")
+mca_mod = importlib.util.module_from_spec(mca)
+sys.modules["mca"] = mca_mod
+mca.loader.exec_module(mca_mod)
+
+
+def _bundle(root: Path, name: str, seed: bytes) -> Path:
+    import hashlib
+
+    b = root / name
+    b.mkdir()
+    files = {
+        "policy.onnx": seed + b"onnx",
+        "policy.onnx.data": seed + b"data",
+        "model_100.pt": seed + b"ckpt",
+        "policy.pt": b"jit",
+        "phoenix_manifest.json": b"{}",
+    }
+    for n, data in files.items():
+        (b / n).write_bytes(data)
+    (b / "SHA256SUMS").write_text(
+        "".join(f"{hashlib.sha256(d).hexdigest()}  {n}\n" for n, d in files.items())
+    )
+    return b
+
+
+def test_make_campaign_arms_computes_hashes_and_emits_shell(tmp_path, capsys):
+    import hashlib
+
+    bundles = [_bundle(tmp_path, f"s{a}", a.encode()) for a in "ABC"]
+    out = tmp_path / "abc.arms.json"
+    argv = ["--name", "abc_test", "--out", str(out)]
+    for a, b in zip("ABC", bundles, strict=True):
+        argv += ["--arm", f"{a}:arm {a}:{b}:locks/{a}_stand.yaml:locks/{a}_walk.yaml"]
+    assert mca_mod.main(argv) == 0
+    doc = json.loads(out.read_text())
+    assert doc["order"] == "A B C C B A B C A".split()
+    assert doc["slots"][0] == "G" and "vx05_3s" in doc["slots"] and "yaw08_3s" in doc["slots"]
+    assert doc["arms"]["B"]["onnx_sha256"] == hashlib.sha256(b"Bonnx").hexdigest()
+    assert doc["arms"]["C"]["ckpt_sha256"] == hashlib.sha256(b"Cckpt").hexdigest()  # not policy.pt
+    capsys.readouterr()
+    assert mca_mod.main(["--emit-shell", str(out)]) == 0
+    sh = capsys.readouterr().out
+    assert "ARM_IDS=(A B C)" in sh and "STOP_DRILL_BLOCKS=(7 8 9)" in sh
+    assert f"ONNX_SHA[C]={doc['arms']['C']['onnx_sha256']}" in sh
+    # a tampered bundle, a duplicated arm and an unapproved slot are refused
+    (bundles[0] / "policy.onnx").write_bytes(b"tampered")
+    assert mca_mod.main(argv) == 2
+    bad = json.loads(out.read_text())
+    bad["slots"] = ["G", "vxm03_2s"]
+    with pytest.raises(ValueError, match="may authorize"):
+        mca_mod.validate(bad)
+    bad = json.loads(out.read_text())
+    bad["arms"]["C"].update({k: bad["arms"]["A"][k] for k in ("onnx_sha256", "data_sha256", "ckpt_sha256")})
+    with pytest.raises(ValueError, match="share"):
+        mca_mod.validate(bad)
+
+
+def _synthetic_policy(preset, track_fwd=1.0, track_yaw=0.9):
+    from phoenix.sim2real.walk_command import command_at
+
+    t = np.arange(0.0, 9.0, 0.02)
+    cmd = np.array([command_at(preset, float(x))[:3] for x in t])
+    wz = cmd[:, 2] * track_yaw
+    yaw = np.cumsum(wz) * 0.02
+    quat = np.stack([np.zeros_like(yaw), np.zeros_like(yaw), np.sin(yaw / 2), np.cos(yaw / 2)], 1)
+    gyro = np.stack([np.zeros_like(wz), np.zeros_like(wz), wz], 1)
+    return {
+        "t": t,
+        "cmd": cmd,
+        "gyro": gyro,
+        "quat": quat,
+        "odom_valid": np.zeros(len(t), bool),
+        "base_pos": np.zeros((len(t), 3)),
+    }
+
+
+def test_walk_metrics_combined_preset_reports_both_tracking_ratios():
+    pol = _synthetic_policy("vx02_yaw03_3s")
+    w = ga.walk_metrics(pol, "vx02_yaw03_3s", {"tape_fwd_m": 0.45, "meas_yaw_deg": 45.0})
+    assert w["commanded_fwd_m"] == pytest.approx(0.2 * 3.0, abs=0.12)
+    assert w["F"] == pytest.approx(0.45 / w["commanded_fwd_m"])
+    assert w["Y"] == pytest.approx(0.9, abs=0.02)
+    assert w["Y_op"] == pytest.approx(np.radians(45.0) / np.radians(w["commanded_yaw_deg"]))
+    neg = ga.walk_metrics(_synthetic_policy("yawm05_3s"), "yawm05_3s", {})
+    assert neg["Y"] == pytest.approx(0.9, abs=0.02) and neg["commanded_yaw_deg"] < 0
+    assert "F" not in neg and "Y_op" in neg and neg["Y_op"] is None
+    fwd = ga.walk_metrics(_synthetic_policy("vx05_3s"), "vx05_3s", {"tape_fwd_m": 1.2})
+    assert "Y" not in fwd and fwd["F"] == pytest.approx(1.2 / fwd["commanded_fwd_m"])
+
+
+def test_three_arm_tracking_table_and_stop_summary():
+    def run(arm, slot, **walk):
+        return {"arm": arm, "measured_arm": arm, "block": 1, "slot": slot, "walk": walk}
+
+    chosen = [
+        run("A", "vx05_3s", F=0.8),
+        run("A", "vx05_3s", F=1.0),
+        run("C", "vx05_3s", F=0.9),
+        run("C", "yaw08_3s", Y=0.7, Y_op=0.6, yaw_settling_s=0.4),
+        {"arm": "C", "slot": "G", "stand": {}},
+    ]
+    tt = ga.tracking_table(chosen)
+    assert tt["A"]["vx05_3s"]["F"]["mean"] == pytest.approx(0.9)
+    assert tt["A"]["vx05_3s"]["F"]["std"] == pytest.approx(np.std([0.8, 1.0], ddof=1))
+    assert tt["C"]["vx05_3s"]["F"]["n"] == 1 and tt["C"]["vx05_3s"]["F"]["std"] == 0.0
+    assert set(tt["C"]["yaw08_3s"]) == {"Y", "Y_op", "yaw_settling_s"} and "B" not in tt
+    drill = {
+        "measured_arm": "C",
+        "slot": "stop_drill",
+        "valid": True,
+        "policy_exit": {"stop_latency_s": 0.2, "release_rx_to_zero_s": 0.05},
+        "bridge": {"window_end_to_sit_s": 1.5},
+    }
+    st = ga.stop_table([drill])
+    assert st["C"]["stop_latency_s"]["mean"] == pytest.approx(0.2)
+    assert st["C"]["window_end_to_sit_s"]["n"] == 1
+
+
+def test_campaign_header_arms_replace_the_hard_coded_ones(tmp_path):
+    saved = dict(ga.ARMS)
+    try:
+        hdr = {
+            "kind": "header",
+            "commit": "c" * 40,
+            "arms": {
+                a: {"checkpoint": a * 64, "policy.onnx": a * 64, "policy.onnx.data": a * 64, "label": a}
+                for a in "xyz"
+            },
+        }
+        camp = tmp_path / "campaign.jsonl"
+        camp.write_text(json.dumps(hdr) + "\n")
+        assert ga.main(["--campaign", str(camp), "--out", str(tmp_path / "out")]) == 0
+        assert set(ga.ARMS) == {"x", "y", "z"}
+        summ = json.loads((tmp_path / "out/summary.json").read_text())
+        assert summ["decision"]["verdict"] == "INSUFFICIENT" and summ["tracking"] == {}
+    finally:
+        ga.ARMS.clear()
+        ga.ARMS.update(saved)
+
+
+def test_every_walking_slot_is_a_known_walk_preset_and_aborts_are_counted():
+    assert set(ga.PRESETS) <= set(ga.WALK_SLOTS)
+    assert ga.expected_authority_s("yaw08_3s") == ga.expected_authority_s("yaw05_3s")
+    runs = [{"arm": "C", "slot": "vx05_3s", "aborted_from_logs": True, "measured_arm": "C"}] * 2
+    assert ga.stop_conditions(runs) == ["arm C vx05_3s: 2 aborted runs"]

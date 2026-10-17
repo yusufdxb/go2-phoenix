@@ -79,8 +79,12 @@ def test_the_registered_presets_exist_and_free_floor_is_exactly_vx03_2s() -> Non
     assert wg.GANTRY_PRESETS == (
         "vx03_2s",
         "vx03_4s",
+        "vx05_3s",
         "yaw05_3s",
-    )  # the campaign's two + first walk
+        "yawm05_3s",
+        "yaw08_3s",
+        "vx02_yaw03_3s",
+    )  # the first walk + the 3-arm campaign set
     assert wg.ALLOWED_PRESETS[wg.MODE_FREE_FLOOR] == (wg.STAND_ZERO, ff.FREE_FLOOR_PRESET)
     assert ff.FREE_FLOOR_PRESET == "vx03_2s" and ff.FREE_FLOOR_PRESETS == ("vx03_2s",)
 
@@ -117,8 +121,7 @@ def test_every_registered_pair_is_issued_and_verifies(tmp_path, files, mode, pre
 @pytest.mark.parametrize(
     "mode,preset",
     [
-        ("GANTRY", "vx05_3s"),  # a real walk_command preset that the gantry campaign never uses
-        ("GANTRY", "vxm03_2s"),
+        ("GANTRY", "vxm03_2s"),  # a real walk_command preset that no campaign uses
         ("GANTRY", "vx03_2s_fast"),
         ("GANTRY", "../vx03_2s"),
         ("GANTRY", ""),
@@ -190,7 +193,7 @@ def test_wrong_mode_run_preset_code_config_policy_block_walking(tmp_path, files)
     assert any("different code" in p for p in verify(grant, run, code_sha=None))
     assert any("deploy config" in p for p in verify(grant, run, config_sha256="0" * 64))
     assert any("policy ONNX" in p for p in verify(grant, run, onnx_sha256="0" * 64))
-    forged = dict(grant, preset="vx05_3s")  # a preset no launcher may authorize
+    forged = dict(grant, preset="vxm03_2s")  # a preset no launcher may authorize
     forged["body_sha256"] = wg._body_sha256(forged)
     assert any("not approved" in p for p in verify(forged, run))
 
@@ -562,14 +565,36 @@ def test_every_walking_launch_issues_a_grant_before_any_motor_process() -> None:
 
 def test_w_is_gantry_only_with_a_closed_preset_list_and_the_unreviewed_latch() -> None:
     walk = _function_body("stage_walk")
-    assert "vx03_2s|vx03_4s|yaw05_3s) ;;" in walk
-    assert walk.index("vx03_2s|vx03_4s|yaw05_3s") < walk.index("live_confirm")
+    assert "vx03_2s|vx03_4s|vx05_3s|yaw05_3s|yawm05_3s|yaw08_3s|vx02_yaw03_3s) ;;" in walk
+    assert walk.index("vx03_2s|vx03_4s") < walk.index("live_confirm")
     assert "ON GANTRY" in walk and "NO GANTRY" not in walk
     assert 'free_floor_gate.py" unreviewed' in walk
     assert "walking grant" not in walk.split("live_confirm")[0] or True
     # the list in the shell is the list in the module
     listed = set(re.search(r"\n\s*(vx03_2s\|[a-z0-9_|]+)\) ;;", walk).group(1).split("|"))
     assert listed == set(wg.GANTRY_PRESETS)
+
+
+def test_w_accepts_gantry_or_floor_and_records_which(tmp_path, files) -> None:
+    walk = _function_body("stage_walk")
+    assert 'live_confirm "W $preset ON GANTRY"' in walk and '"W $preset ON FLOOR"' in walk
+    assert 'issue_walk_grant GANTRY "$preset" "$standup_s" "$w_setup"' in walk
+    (grant, why), run = issue(tmp_path, files, preset="yaw08_3s", run="W_a")
+    assert why == [] and grant["setup"] == "gantry"  # the default
+    (grant, why), run = issue(tmp_path, files, preset="yawm05_3s", run="W_b", setup="floor")
+    assert why == [] and grant["setup"] == "floor" and verify(grant, run, mode="GANTRY") == []
+    forged = dict(grant, setup="boat")
+    forged["body_sha256"] = wg._body_sha256(forged)
+    assert any("setup" in p for p in verify(forged, run))
+    (g_bad, why), _ = issue(tmp_path, files, preset="vx05_3s", run="W_c", setup="boat")
+    assert g_bad is None and any("setup" in p for p in why)
+    # FREE_FLOOR grants carry no setup field and refuse one
+    (g_ff, why), _ = issue(tmp_path, files, mode="FREE_FLOOR", preset="vx03_2s", run="FF_a")
+    assert why == [] and "setup" not in g_ff
+    (g_ff, why), _ = issue(
+        tmp_path, files, mode="FREE_FLOOR", preset="vx03_2s", run="FF_b", setup="floor"
+    )
+    assert g_ff is None and any("setup" in p for p in why)
 
 
 def test_the_grant_is_released_on_exit() -> None:

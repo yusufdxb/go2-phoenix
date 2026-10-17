@@ -301,12 +301,13 @@ def test_launchers_pin_single_threaded_blas() -> None:
             assert f'{var}="${{{var}:-1}}"' in text, (script.name, var)
 
 
-def test_walking_shows_the_gantry_banner_not_the_floor_banner() -> None:
+def test_walking_shows_the_walk_banner_not_the_generic_floor_banner() -> None:
     # 2026-10-07 audit: W asked for "ON GANTRY" but printed the generic floor banner
-    # ("tethered or spotted"). Every W confirmation must print the gantry-rope banner.
+    # ("tethered or spotted"). Every W confirmation must print the walk banner, which names
+    # both setups (ON GANTRY with the rope, ON FLOOR without) so the typed phrase is honest.
     src = HARNESS.read_text()
     w_calls = [ln for ln in src.splitlines() if ln.strip().startswith('live_confirm "W ')]
     assert w_calls, "stage W no longer confirms with live_confirm"
-    assert all(ln.rstrip().endswith(" gantry") for ln in w_calls), w_calls
-    assert 'elif [[ "$setup" == "gantry" ]]' in src
-    assert "safety rope ATTACHED" in src
+    assert all(' walk "W $preset ON FLOOR"' in ln for ln in w_calls), w_calls
+    assert 'elif [[ "$setup" == "walk" ]]' in src
+    assert "safety rope ATTACHED" in src and "NO gantry or rope support" in src

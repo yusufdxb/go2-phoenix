@@ -1,6 +1,6 @@
 """Bounded walking authority: one finite, run-bound grant per walking launch (stdlib only).
 
-Every walking launch (``scripts/harness_preflight.sh W`` for the gantry, ``FREE_FLOOR drill|walk``)
+Every walking launch (``scripts/harness_preflight.sh W`` on the gantry or the floor, ``FREE_FLOOR drill|walk``)
 issues ONE ``walk_grant.json`` in its run directory. The LowCmd bridge and the policy node both
 refuse a walking config without a grant that is valid for exactly this process, so a bridge and a
 policy node started by hand can no longer open an unbounded walking window: the old behaviour was
@@ -14,7 +14,8 @@ preset by the verifier, never trusted from the file, so a hand-edited grant cann
 This is accident-proofing, not tamper-proofing: the file is plain JSON and nothing here is a
 secret. It closes the ways to walk by launching the wrong thing or an old thing; it cannot stop
 someone who forges a grant on purpose. It says nothing about the rope: ``GANTRY`` still rests on
-the operator's typed confirmation.
+the operator's typed confirmation. A ``GANTRY`` grant records the setup that confirmation named
+(``gantry`` or ``floor``) for provenance only; nothing here checks it.
 
 STOP never depends on this file. Expiry or a bad grant removes walking capability (the node
 latches, the bridge gate latches into its existing hold-then-sit); the deadman and STOP paths do
@@ -52,9 +53,19 @@ MODES = (MODE_GANTRY, MODE_FREE_FLOOR)
 
 #: FREE_FLOOR drill: the walking config at a ZERO command (the STOP/deadman drill).
 STAND_ZERO = "stand_zero"
-#: The gantry presets the A/B campaign and the first gantry walks use. vx05_3s and vxm03_2s stay in
-#: walk_command.PRESETS (listing, analyzer) but no launcher may authorize them.
-GANTRY_PRESETS = ("vx03_2s", "vx03_4s", "yaw05_3s")
+#: The presets W (mode GANTRY) may authorize: the A/B campaign set and the first gantry walks.
+#: vxm03_2s stays in walk_command.PRESETS (listing, analyzer) but no launcher may authorize it.
+GANTRY_PRESETS = (
+    "vx03_2s",
+    "vx03_4s",
+    "vx05_3s",
+    "yaw05_3s",
+    "yawm05_3s",
+    "yaw08_3s",
+    "vx02_yaw03_3s",
+)
+#: What the operator's W confirmation phrase named (ON GANTRY | ON FLOOR); recorded, not verified.
+SETUPS = ("gantry", "floor")
 FREE_FLOOR_WALK_PRESET = "vx03_2s"
 ALLOWED_PRESETS: dict[str, tuple[str, ...]] = {
     MODE_GANTRY: GANTRY_PRESETS,
@@ -181,6 +192,8 @@ def grant_problems(
         )
     if mode is not None and g_mode != mode:
         problems.append(f"grant is for mode {g_mode!r}, this launch is {mode!r}")
+    if "setup" in grant and (g_mode != MODE_GANTRY or grant["setup"] not in SETUPS):
+        problems.append(f"grant setup {grant['setup']!r} is not valid for mode {g_mode!r}")
     if g_mode == MODE_FREE_FLOOR and grant.get("onnx_sha256") != FREE_FLOOR_ONNX_SHA256:
         problems.append("a FREE_FLOOR grant is for the incumbent model_2750 ONNX only")
     if run_id is None or grant.get("run_id") != run_id:
@@ -336,11 +349,13 @@ def issue_grant(
     unreviewed: Sequence[str] = (),
     rehearsal: bool = False,
     now: float | None = None,
+    setup: str | None = None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Write ``run_dir/walk_grant.json`` or return why not. One grant per run directory.
 
     ``unreviewed`` is the list of unreviewed free-floor walks (from ``free_floor_state``); a
-    GANTRY grant is refused while any exists. ``session_root`` enables the one-live-grant check."""
+    GANTRY grant is refused while any exists. ``session_root`` enables the one-live-grant check.
+    ``setup`` (GANTRY only, default ``gantry``) records which setup the operator confirmed."""
     run_dir = Path(run_dir)
     problems: list[str] = []
     if mode not in MODES:
@@ -350,6 +365,10 @@ def issue_grant(
             f"preset {preset!r} is not approved for {mode} "
             f"(approved: {', '.join(ALLOWED_PRESETS[mode])})"
         ]
+    if mode == MODE_GANTRY and setup is None:
+        setup = "gantry"
+    if setup is not None and (mode != MODE_GANTRY or setup not in SETUPS):
+        problems.append(f"setup {setup!r} is not valid for mode {mode!r} (GANTRY: {SETUPS})")
     if not code_sha:
         problems.append("no code sha to bind the grant to")
     if not (_finite(first_message_timeout_s) and first_message_timeout_s > 0):
@@ -390,6 +409,8 @@ def issue_grant(
         "issued_utc": _utc(t),
         "rehearsal": bool(rehearsal),
     }
+    if setup is not None:
+        grant["setup"] = setup
     grant["body_sha256"] = _body_sha256(grant)
     target = run_dir / GRANT_FILE
     with contextlib.ExitStack() as stack:
@@ -438,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
     iss.add_argument("--config", type=Path, required=True)
     iss.add_argument("--expect-sha", required=True)
     iss.add_argument("--standup-s", type=float, required=True)
+    iss.add_argument("--setup", choices=SETUPS, help="GANTRY only; default gantry")
     rel = sub.add_parser("release")
     rel.add_argument("--run-dir", type=Path, required=True)
     args = ap.parse_args(argv)
@@ -470,13 +492,15 @@ def main(argv: list[str] | None = None) -> int:
         session_root=root,
         unreviewed=unreviewed_runs(dc.default_session_dirs()),
         rehearsal=os.environ.get("PHOENIX_REHEARSAL") == "1",
+        setup=args.setup,
     )
     if grant is None:
         for p in problems:
             print(f"BLOCKED: walk grant: {p}", file=sys.stderr)
         return 2
     print(
-        f"[grant] {grant['mode']} {grant['preset']} run {grant['run_id']}: authority "
+        f"[grant] {grant['mode']}{' ' + grant['setup'] if 'setup' in grant else ''} "
+        f"{grant['preset']} run {grant['run_id']}: authority "
         f"{grant['authority_s']:.1f} s, valid until {_utc(grant['expires_unix'])}"
     )
     return 0

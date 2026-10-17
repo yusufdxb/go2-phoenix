@@ -39,7 +39,19 @@ ESTOP_EVERY = 2  # estop at 10 Hz
 
 
 def test_expected_presets_exist() -> None:
-    assert set(PRESETS) == {"vx03_2s", "vx03_4s", "vx05_3s", "yaw05_3s", "vxm03_2s"}
+    assert set(PRESETS) == {
+        "vx03_2s",
+        "vx03_4s",
+        "vx05_3s",
+        "yaw05_3s",
+        "vxm03_2s",
+        "yawm05_3s",
+        "yaw08_3s",
+        "vx02_yaw03_3s",
+    }
+    assert PRESETS["yawm05_3s"].target == (0.0, 0.0, -0.5)
+    assert PRESETS["yaw08_3s"].target == (0.0, 0.0, 0.8)
+    assert PRESETS["vx02_yaw03_3s"].target == (0.2, 0.0, 0.3)
     assert (PRESETS["vx03_2s"].vx, PRESETS["vx03_2s"].motion_s) == (0.3, 2.0)
     assert (PRESETS["vx05_3s"].vx, PRESETS["vx05_3s"].motion_s) == (0.5, 3.0)
     assert (PRESETS["yaw05_3s"].wz, PRESETS["yaw05_3s"].motion_s) == (0.5, 3.0)

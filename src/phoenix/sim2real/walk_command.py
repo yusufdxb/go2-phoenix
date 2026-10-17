@@ -129,6 +129,9 @@ def _build_presets() -> dict[str, WalkPreset]:
             WalkPreset("vx03_4s", 0.3, 0.0, 0.0, 4.0),
             WalkPreset("vx05_3s", 0.5, 0.0, 0.0, 3.0),
             WalkPreset("yaw05_3s", 0.0, 0.0, 0.5, 3.0),  # counter-clockwise
+            WalkPreset("yawm05_3s", 0.0, 0.0, -0.5, 3.0),  # clockwise
+            WalkPreset("yaw08_3s", 0.0, 0.0, 0.8, 3.0),  # envelope edge
+            WalkPreset("vx02_yaw03_3s", 0.2, 0.0, 0.3, 3.0),  # combined forward + yaw
             WalkPreset("vxm03_2s", -0.3, 0.0, 0.0, 2.0),
         )
     }

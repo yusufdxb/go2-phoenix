@@ -15,8 +15,8 @@
 #   scripts/harness_preflight.sh F | G | H    LIVE cmd=0 stand of the active config (DEPLOY_LABEL), 2 s / 5 s / 10 s x 3   motors LIVE
 #   scripts/harness_preflight.sh W <preset>   LIVE one walking attempt (presets: python3 -m phoenix.sim2real.walk_command --list)   motors LIVE
 #                                             needs a WALKING DEPLOY_CFG/LOCK (safety.stand_only: false). NOT a ledger stage: no evaluator, evidence never counted.
-#                                             GANTRY ONLY: presets vx03_2s, vx03_4s, yaw05_3s; runs inside a bounded GANTRY walk grant (src/phoenix/sim2real/walk_grant.py).
-#                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset> ON GANTRY', plus synthetic F/G records via
+#                                             GANTRY or FLOOR: presets vx03_2s, vx03_4s, vx05_3s, yaw05_3s, yawm05_3s, yaw08_3s, vx02_yaw03_3s; runs inside a bounded GANTRY walk grant (src/phoenix/sim2real/walk_grant.py).
+#                                             rehearsal: PHOENIX_REHEARSAL=1 ROS_LOCALHOST_ONLY=1 PHOENIX_CONFIRM='LIVE W <preset> ON GANTRY' (or ON FLOOR), plus synthetic F/G records via
 #                                             PHOENIX_HW_SESSIONS=<dir> PHOENIX_HW_SESSIONS_TEST_ONLY=1 (deploy_contract.walking_evidence_problems), else walking is refused.
 #   scripts/harness_preflight.sh FREE_FLOOR gate [drill|walk]   software gates only for the incumbent-only free-floor path, no motion
 #   scripts/harness_preflight.sh FREE_FLOOR drill              LIVE zero-command stand + STOP/deadman drill on the FLOOR, model_2750 ONLY  motors LIVE
@@ -194,7 +194,7 @@ PY
 }
 
 live_confirm() {
-    local stage="$1" what="$2" setup="${3:-ground}"
+    local stage="$1" what="$2" setup="${3:-ground}" alt="${4:-}"
     if [[ "$setup" == "hung" ]]; then
         cat <<EOF
 
@@ -207,18 +207,22 @@ live_confirm() {
  moving after its segment ends, any node crash, Jetson reboot or brownout.
 ================================================================================
 EOF
-    elif [[ "$setup" == "gantry" ]]; then
+    elif [[ "$setup" == "walk" ]]; then
         cat <<EOF
 
 ================================================================================
  LIVE MOTOR STAGE $stage: $what
- GANTRY WALK: feet on the ground UNDER THE GANTRY, safety rope ATTACHED to the
- trunk and to the gantry, slack enough not to carry weight but short enough to
- catch a fall before the trunk touches the floor. Never walk without the rope.
+ WALK, feet on the ground. Type the phrase for the setup you ACTUALLY have:
+   ON GANTRY: UNDER THE GANTRY, safety rope ATTACHED to the trunk and to the
+     gantry, slack enough not to carry weight but short enough to catch a fall
+     before the trunk touches the floor. Never type GANTRY without the rope.
+   ON FLOOR: level floor, NO gantry or rope support, fall area clear, spotters
+     outside it.
  Low-level mode (sport service released; never SelectMode normal), a spotter at
  the robot, a clear 2 m radius, the operator holding the physical deadman.
  HALT (release the deadman) on: joint snap or motor buzz, base tipping or
- divergent oscillation, the rope taking weight, any node crash, Jetson reboot or brownout.
+ divergent oscillation, the rope taking weight (gantry), any node crash, Jetson
+ reboot or brownout.
 ================================================================================
 EOF
     else
@@ -234,17 +238,28 @@ EOF
 ================================================================================
 EOF
     fi
-    local want="LIVE $stage"
+    # alt (optional): a second accepted stage name (W: ON FLOOR); CONFIRMED_PHRASE says which one was typed.
+    local want="LIVE $stage" want_alt=""
+    [[ -z "$alt" ]] || want_alt="LIVE $alt"
+    CONFIRMED_PHRASE="$want"
     if [[ "${PHOENIX_REHEARSAL:-0}" == "1" ]]; then
         [[ "${ROS_LOCALHOST_ONLY:-0}" == "1" ]] || halt "rehearsal requires ROS_LOCALHOST_ONLY=1"
-        [[ "${PHOENIX_CONFIRM:-}" == "$want" ]] || halt "rehearsal needs PHOENIX_CONFIRM='$want'"
+        if [[ -n "$want_alt" && "${PHOENIX_CONFIRM:-}" == "$want_alt" ]]; then
+            CONFIRMED_PHRASE="$want_alt"
+        else
+            [[ "${PHOENIX_CONFIRM:-}" == "$want" ]] || halt "rehearsal needs PHOENIX_CONFIRM='$want'${want_alt:+ or '$want_alt'}"
+        fi
         c_red "REHEARSAL (localhost only, no robot): evidence is recorded as rehearsal and never counts"
         return 0
     fi
     [[ -t 0 ]] || halt "live stage $stage requires an operator at an interactive terminal"
     local answer
-    read -r -p "Type '$want' to proceed, anything else aborts: " answer
-    [[ "$answer" == "$want" ]] || halt "operator did not confirm stage $stage"
+    read -r -p "Type '$want'${want_alt:+ or '$want_alt'} to proceed, anything else aborts: " answer
+    if [[ -n "$want_alt" && "$answer" == "$want_alt" ]]; then
+        CONFIRMED_PHRASE="$want_alt"
+    else
+        [[ "$answer" == "$want" ]] || halt "operator did not confirm stage $stage"
+    fi
 }
 
 bridge_args() {
@@ -258,9 +273,9 @@ bridge_args() {
 # A hand-launched bridge + policy node has no grant, so it cannot walk. The grant is released
 # (marked finished) when this script exits so the next launch is not held back until it expires.
 issue_walk_grant() {
-    local mode="$1" preset="$2" standup_s="$3"
+    local mode="$1" preset="$2" standup_s="$3" setup="${4:-}"
     python3 -m phoenix.sim2real.walk_grant issue --mode "$mode" --preset "$preset" --run-dir "$RUN" \
-        --config "$DEPLOY_CFG" --expect-sha "$EXPECT" --standup-s "$standup_s" \
+        --config "$DEPLOY_CFG" --expect-sha "$EXPECT" --standup-s "$standup_s" ${setup:+--setup "$setup"} \
         || halt "no walking grant could be issued (see BLOCKED lines above); no motion"
     GRANT_RUN="$RUN"
 }
@@ -535,8 +550,8 @@ stage_walk() {
     walk_dur="$(python3 -c 'import sys; from phoenix.sim2real.walk_command import PRESETS, profile_duration; print(profile_duration(PRESETS[sys.argv[1]]))' "$preset" 2>/dev/null)" \
         || halt "unknown walk preset '$preset' (python3 -m phoenix.sim2real.walk_command --list)"
     case "$preset" in
-        vx03_2s|vx03_4s|yaw05_3s) ;;
-        *) halt "W is gantry-only and authorizes only the registered gantry presets (vx03_2s, vx03_4s, yaw05_3s), not '$preset'" ;;
+        vx03_2s|vx03_4s|vx05_3s|yaw05_3s|yawm05_3s|yaw08_3s|vx02_yaw03_3s) ;;
+        *) halt "W authorizes only the registered walking presets (vx03_2s, vx03_4s, vx05_3s, yaw05_3s, yawm05_3s, yaw08_3s, vx02_yaw03_3s), not '$preset'" ;;
     esac
     need_sha; ros_env
     # A free-floor walk nobody has reviewed latches every later walking launch (the bridge refuses too).
@@ -548,8 +563,15 @@ stage_walk() {
     [[ "$stand_only" == "False" ]] \
         || halt "W needs a walking config: safety.stand_only must be explicitly false in $DEPLOY_CFG (set DEPLOY_CFG and DEPLOY_LOCK to the walking config)"
     echo "[W] walking config $DEPLOY_CFG (lock $DEPLOY_LOCK, ${DEPLOY_LABEL}). The bridge decides walking_allowed itself from the evidence-gated deploy contract (F and G hardware GO records for the stand-phase twin); this script does not."
-    # The first walks are gantry-only (operator rule 2026-10-06): the phrase itself says so.
-    live_confirm "W $preset ON GANTRY" "${DEPLOY_LABEL} WALKING attempt '$preset' with the robot ON THE GANTRY, profile ${walk_dur} s, deadman must stay held, 1 attempt" gantry
+    # The phrase names the setup the operator actually has (ON GANTRY with the rope, or ON FLOOR
+    # without); it is recorded in the grant for provenance. Nothing here can check it.
+    live_confirm "W $preset ON GANTRY" "${DEPLOY_LABEL} WALKING attempt '$preset' (ON GANTRY or ON FLOOR as typed), profile ${walk_dur} s, deadman must stay held, 1 attempt" walk "W $preset ON FLOOR"
+    local w_setup=gantry w_where="UNDER THE GANTRY, safety rope ATTACHED (slack, catches a fall)"
+    if [[ "$CONFIRMED_PHRASE" == *" ON FLOOR" ]]; then
+        w_setup=floor
+        w_where="on the LEVEL FLOOR, NO gantry or rope support, fall area clear"
+    fi
+    echo "[W $preset] setup: $w_setup"
     local first_msg max_rt telemetry standup_s="${PHOENIX_STANDUP_S:-2.0}"
     # Motion must never outlive the policy window (its end makes the bridge sit the robot).
     # Window end = profile_duration + margin = 5 + motion_s + margin after policy launch.
@@ -568,10 +590,10 @@ stage_walk() {
     telemetry="$RUN/bridge.jsonl"
     if [[ "${PHOENIX_REHEARSAL:-0}" != "1" ]]; then
         operator_gate arm "W_${preset}" \
-            "[W $preset] Robot folded on the mat UNDER THE GANTRY, safety rope ATTACHED (slack, catches a fall), feet on the ground, spotter ready, clear 2 m radius, deadman HELD (keep holding it for the whole walk). Press Enter to start: "
+            "[W $preset] Robot folded on the mat ${w_where}, feet on the ground, spotter ready, clear 2 m radius, deadman HELD (keep holding it for the whole walk). Press Enter to start: "
     fi
     # The bounded GANTRY grant: refused while a free-floor walk is unreviewed or another grant is live.
-    issue_walk_grant GANTRY "$preset" "$standup_s"
+    issue_walk_grant GANTRY "$preset" "$standup_s" "$w_setup"
     # shellcheck disable=SC2046
     launch deadman $(deadman_cmd)
     launch lowstate_bridge python3 -m phoenix.sim2real.lowstate_bridge_node
@@ -619,7 +641,7 @@ stage_walk() {
     stop_proc lowcmd_bridge
     stop_all
     printf '%s\n' "$answer" >"$RUN/operator_answer.txt"
-    echo "[W $preset] NOT a ledger stage: no evaluator ran and this evidence is never counted. Operator answer: $answer"
+    echo "[W $preset] NOT a ledger stage: no evaluator ran and this evidence is never counted. Setup: $w_setup. Operator answer: $answer"
     python3 - "$RUN/walk_cmd.jsonl" "$telemetry" <<'WALK_SUMMARY_EOF'
 import json
 import sys

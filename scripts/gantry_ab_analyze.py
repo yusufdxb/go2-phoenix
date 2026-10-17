@@ -8,6 +8,11 @@ preregistered ones; nothing is excluded by hand.
 
     python3 scripts/gantry_ab_analyze.py --campaign logs/gantry_ab/<id>/campaign.jsonl --out <dir>
 
+Arms: the hard-coded A and B below unless the campaign header pins its own (``arms``, written by
+scripts/hw_campaign.sh init from the campaign's arms file), so a 3-arm campaign needs no edit here.
+The preregistered A-vs-B verdict is computed for arms A and B only; every arm gets the per-preset
+tracking table (measured / commanded, mean and spread over the valid repeats) and the stop summary.
+
 Writes <dir>/runs.json (every attempt, every metric), <dir>/summary.json and <dir>/report.md.
 Exit 0 always when the analysis ran; the verdict is in the files.
 """
@@ -27,6 +32,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from phoenix.sim2real import actuator_check as ac  # noqa: E402
+from phoenix.sim2real.walk_command import PRESETS as WALK_PRESETS  # noqa: E402
 
 ARMS = {
     "A": {
@@ -60,7 +66,9 @@ RELEASE_CAUSES = {"policy_abort:external_estop", "estop_asserted"}
 PHASE_TOL_S = 0.1  # real planned ends: policy episode within 17 ms of --authority-s
 STAND_AUTHORITY_S = {"F": 2.0, "G": 5.0, "H": 10.0, "stop_drill": 5.0}  # harness_preflight.sh
 WALK_AUTHORITY_MARGIN_S = 4.0  # harness_preflight.sh PHOENIX_WALK_AUTHORITY_MARGIN_S default
-PRESETS = ("vx03_4s", "yaw05_3s")
+PRESETS = ("vx03_4s", "yaw05_3s")  # the preregistered A/B decision presets
+WALK_SLOTS = tuple(WALK_PRESETS)  # every slot that walks (metrics, tape, abort handling)
+DECISION_ARMS = ("A", "B")
 SETTLE_AFTER_CMD_S = 1.0
 YAW_SETTLE_RAD_S = 0.1
 YAW_SETTLE_HOLD_S = 0.5
@@ -205,7 +213,7 @@ def bridge_metrics(ticks: list[dict], end: dict | None) -> dict:
 
 def expected_authority_s(slot: str | None) -> float | None:
     """The --authority-s the harness passes for this slot or ladder stage (None if none)."""
-    if slot in PRESETS:
+    if slot in WALK_SLOTS:
         from phoenix.sim2real.walk_command import profile_duration
 
         return float(profile_duration(slot)) + WALK_AUTHORITY_MARGIN_S
@@ -388,8 +396,13 @@ def walk_metrics(pol: dict[str, np.ndarray], preset: str, tape: dict) -> dict:
         "max": float(np.diff(t).max()),
         "n_gt_30ms": int((np.diff(t) > POLICY_GAP_S).sum()),
     }
-    if preset.startswith("yaw"):
+    p = WALK_PRESETS.get(preset)
+    has_yaw = (p.wz != 0) if p else preset.startswith("yaw")
+    has_fwd = (p.vx != 0) if p else not has_yaw
+    if has_yaw:
         out["Y"] = (yaw[ie] - yaw[i0]) / cmd_yaw if abs(cmd_yaw) > 1e-6 else None
+        meas = tape.get("meas_yaw_deg")  # the operator's own reading, kept apart from the IMU Y
+        out["Y_op"] = math.radians(float(meas)) / cmd_yaw if meas is not None and abs(cmd_yaw) > 1e-6 else None
         k = max(1, int(round(0.1 / max(np.median(np.diff(t)), 1e-3))))
         ma = np.convolve(gz, np.ones(k) / k, mode="same")
         wz_cmd = float(np.max(np.abs(cmd[i0 + 1 : i1 + 1, 2])))
@@ -405,10 +418,11 @@ def walk_metrics(pol: dict[str, np.ndarray], preset: str, tape: dict) -> dict:
                 settle = float(t[j] - t[i1])
                 break
         out["yaw_settling_s"] = settle
-    else:
-        out["yaw_drift_deg"] = out["imu_yaw_deg"]
+    if has_fwd:
+        if not has_yaw:
+            out["yaw_drift_deg"] = out["imu_yaw_deg"]
         tf = tape.get("tape_fwd_m")
-        out["F"] = (float(tf) / cmd_fwd) if tf is not None and cmd_fwd > 1e-6 else None
+        out["F"] = (float(tf) / cmd_fwd) if tf is not None and abs(cmd_fwd) > 1e-6 else None
         out["tape_lat_m"] = tape.get("tape_lat_m")
         if pol["odom_valid"][i0] and pol["odom_valid"][ie]:
             out["odom_fwd_m"] = float(
@@ -555,7 +569,7 @@ def analyze_run(rec: dict) -> dict:
         why.append(f"policy episode ended by {ex.get('fault_cause')}, not the authority window")
     if (rec.get("physical_attempt") or 1) > 2:
         why.append(f"physical attempt {rec.get('physical_attempt')} of this slot (max 2)")
-    if slot in PRESETS:
+    if slot in WALK_SLOTS:
         summ = walk_summary(run_dir)
         if not summ or summ.get("outcome") != "complete":
             why.append(f"walk_cmd outcome {None if not summ else summ.get('outcome')}")
@@ -564,13 +578,14 @@ def analyze_run(rec: dict) -> dict:
             why.append("no policy.parquet")
         else:
             out["walk"] = walk_metrics(pol, slot, rec)
-            if slot == "vx03_4s" and rec.get("tape_fwd_m") is None:
+            if WALK_PRESETS[slot].vx != 0 and rec.get("tape_fwd_m") is None:
                 why.append("no tape reading")
         out["tracking"] = joint_tracking(ticks)
     elif slot in ("G", "stop_drill"):
         out["stand"] = stand_metrics(ticks)
         if slot == "G" and not out["stand"].get("settle_window_ok"):
             why.append("E2 settle window refused")
+    out["setup"] = rec.get("setup")  # gantry | floor as typed for W (None: older campaigns)
     out["operator_aborted"] = bool(rec.get("aborted"))
     out["aborted_from_logs"] = logs_abort
     # Logs win for detection; an operator-reported abort is never discarded.
@@ -668,7 +683,7 @@ def stop_conditions(runs: list[dict]) -> list[str]:
             found.append(f"{tag}: faults {b['abnormal_faults']}")
         if b.get("limit_clip_ticks_policy"):
             found.append(f"{tag}: limit clip under the policy")
-        if r.get("slot") in PRESETS and (r.get("operator_aborted") or r.get("aborted_from_logs")):
+        if r.get("slot") in WALK_SLOTS and (r.get("operator_aborted") or r.get("aborted_from_logs")):
             key = (r.get("arm"), r.get("slot"))
             aborts[key] = aborts.get(key, 0) + 1
     found += [f"arm {a} {p}: {n} aborted runs" for (a, p), n in aborts.items() if n >= 2]
@@ -683,7 +698,9 @@ def decide(chosen: list[dict], all_runs: list[dict], ladder: list[dict] | None =
         if r["slot"] == "vx03_4s" and r["walk"].get("F") is not None:
             vals[r["arm"]]["vx03_4s"].append(float(r["walk"]["F"]))
     out: dict[str, Any] = {"values": vals}
-    if any(len(vals[a][p]) < MIN_VALID for a in ARMS for p in PRESETS):
+    if not all(a in ARMS for a in DECISION_ARMS) or any(
+        len(vals[a][p]) < MIN_VALID for a in DECISION_ARMS for p in PRESETS
+    ):
         out["verdict"] = "INSUFFICIENT"
         return out
     per = {}
@@ -734,9 +751,61 @@ def decide(chosen: list[dict], all_runs: list[dict], ladder: list[dict] | None =
     return out
 
 
+def _spread(x: list[float]) -> dict:
+    a = np.array(x, dtype=float)
+    return {
+        "n": int(a.size),
+        "mean": float(a.mean()),
+        "std": float(a.std(ddof=1)) if a.size > 1 else 0.0,
+        "min": float(a.min()),
+        "max": float(a.max()),
+    }
+
+
+TRACK_METRICS = ("F", "Y", "Y_op", "yaw_settling_s")
+
+
+def tracking_table(chosen: list[dict]) -> dict:
+    """arm -> slot -> metric -> mean/spread over the valid repeats. F is tape forward / commanded
+    forward, Y is IMU yaw / commanded yaw, Y_op the operator's yaw / commanded (1.0 = tracked)."""
+    out: dict[str, dict] = {}
+    for r in chosen:
+        if r["slot"] not in WALK_SLOTS or not r.get("walk"):
+            continue
+        for m in TRACK_METRICS:
+            v = r["walk"].get(m)
+            if v is not None:
+                out.setdefault(r["arm"], {}).setdefault(r["slot"], {}).setdefault(m, []).append(float(v))
+    return {
+        arm: {slot: {m: _spread(v) for m, v in ms.items()} for slot, ms in slots.items()}
+        for arm, slots in out.items()
+    }
+
+
+def stop_table(runs: list[dict]) -> dict:
+    """arm -> STOP drill latencies (from the ticks) and window-end-to-sit times of every run."""
+    out: dict[str, dict] = {}
+    for r in runs:
+        arm = r.get("measured_arm")
+        if arm is None:
+            continue
+        d = out.setdefault(arm, {"stop_latency_s": [], "release_rx_to_zero_s": [], "window_end_to_sit_s": []})
+        ex = r.get("policy_exit") or {}
+        if r.get("slot") == "stop_drill" and r.get("valid"):
+            for k in ("stop_latency_s", "release_rx_to_zero_s"):
+                if ex.get(k) is not None:
+                    d[k].append(float(ex[k]))
+        sit = (r.get("bridge") or {}).get("window_end_to_sit_s")
+        if sit is not None:
+            d["window_end_to_sit_s"].append(float(sit))
+    return {a: {k: (_spread(v) if v else None) for k, v in d.items()} for a, d in out.items()}
+
+
 def model_id(chosen: list[dict]) -> dict:
     out: dict[str, Any] = {}
     for arm, spec in ARMS.items():
+        if "sim_label" not in spec:  # arms pinned by a campaign header carry no sim replay
+            continue
         rows = {}
         p = REPO / "results/friction_dr" / spec["sim_label"] / "replay" / "fric_results.json"
         if p.is_file():
@@ -787,11 +856,11 @@ def main(argv: list[str] | None = None) -> int:
         help="print one run's policy-exit classification (Amendment 4); exit 0 only if it is "
         "the expected clean exit for --slot (used by the campaign runner after each run)",
     )
-    ap.add_argument("--slot", help="with --classify-run: G, stop_drill, vx03_4s or yaw05_3s")
+    ap.add_argument("--slot", help="with --classify-run: G, stop_drill or a walking preset")
     args = ap.parse_args(argv)
     if args.classify_run is not None:
-        if args.slot not in ("G", "stop_drill", *PRESETS):
-            ap.error("--classify-run needs --slot G, stop_drill, vx03_4s or yaw05_3s")
+        if args.slot not in ("G", "stop_drill", *WALK_SLOTS):
+            ap.error("--classify-run needs --slot G, stop_drill or a walking preset")
         try:
             _, ticks, _ = load_bridge(args.classify_run)
         except (OSError, ValueError) as exc:
@@ -806,6 +875,9 @@ def main(argv: list[str] | None = None) -> int:
     recs = [json.loads(ln) for ln in args.campaign.read_text().splitlines() if ln.strip()]
     run_recs = [r for r in recs if r.get("kind") == "run"]
     header = next((r for r in recs if r.get("kind") == "header"), {})
+    if header.get("arms"):  # the campaign pinned its own arms (hw_campaign.sh init)
+        ARMS.clear()
+        ARMS.update({a: {k: v for k, v in spec.items() if k != "label"} for a, spec in header["arms"].items()})
     for r in run_recs:
         r.setdefault("campaign_commit", header.get("commit"))
     base = args.campaign.parent
@@ -830,6 +902,8 @@ def main(argv: list[str] | None = None) -> int:
             if not r["valid"]
         ],
         "decision": decide(chosen, runs, ladder),
+        "tracking": tracking_table(chosen),
+        "stop_summary": stop_table(runs),
         "ladder_safety_events": ladder,
         "stop_conditions_detected": stop_conditions(runs),
         "model_identification": model_id(chosen),
@@ -879,6 +953,17 @@ def main(argv: list[str] | None = None) -> int:
             f"| {r.get('block')} | {r.get('measured_arm')} | {r.get('slot')} | {r.get('attempt')} | {r['valid']} | {f(w.get('Y'))} | {f(w.get('F'))} | "
             f"{f(w.get('yaw_rate_overshoot'))} | {f(s.get('calf_sag_median'))} | {f(s.get('max_tilt_deg'))} | {'; '.join(r.get('why') or [])} |"
         )
+    lines += ["", "## Tracking (measured / commanded; mean +- std over valid repeats, n)", ""]
+    lines += ["| arm | slot | metric | mean | std | n |", "|---|---|---|---|---|---|"]
+    for arm, slots in sorted(summary["tracking"].items()):
+        for slot, ms in slots.items():
+            for m, sp in ms.items():
+                lines.append(f"| {arm} | {slot} | {m} | {sp['mean']:.3f} | {sp['std']:.3f} | {sp['n']} |")
+    lines += ["", "## Stop (seconds, from the ticks)", "", "| arm | measure | mean | max | n |", "|---|---|---|---|---|"]
+    for arm, d in sorted(summary["stop_summary"].items()):
+        for k, sp in d.items():
+            if sp:
+                lines.append(f"| {arm} | {k} | {sp['mean']:.3f} | {sp['max']:.3f} | {sp['n']} |")
     (args.out / "report.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     print(json.dumps(summary["decision"], indent=1, default=str))

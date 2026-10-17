@@ -1,0 +1,28 @@
+{
+  "name": "ab_2026-10-07",
+  "prereg": "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
+  "order": ["A", "B", "B", "A", "B", "A"],
+  "slots": ["G", "vx03_4s", "yaw05_3s"],
+  "arms": {
+    "A": {
+      "label": "incumbent model_2750",
+      "onnx_sha256": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+      "data_sha256": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+      "ckpt_sha256": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+      "stand_lock": "configs/sim2real/locks/deploy_walk_iter2750_stand.lock.yaml",
+      "walk_lock": "configs/sim2real/locks/deploy_walk_iter2750.lock.yaml",
+      "stand_bundle": null,
+      "walk_bundle": null
+    },
+    "B": {
+      "label": "friction seed 50 model_3749",
+      "onnx_sha256": "4b7063b47bac0b36d4696258da613da08a14cebe57c05f026d88aca73872034f",
+      "data_sha256": "13946b354f0dc7cfb92951164f4e88ccfa01b4ed13ccaa6bce243f65f394e00a",
+      "ckpt_sha256": "9948900b4568cb09bd0119b58c395f8aa0309179cf5467ac43bae0cd4945ba9a",
+      "stand_lock": "configs/sim2real/locks/deploy_walk_fric_s50_3749_stand.lock.yaml",
+      "walk_lock": "configs/sim2real/locks/deploy_walk_fric_s50_3749.lock.yaml",
+      "stand_bundle": null,
+      "walk_bundle": null
+    }
+  }
+}
