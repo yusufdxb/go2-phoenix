@@ -113,7 +113,9 @@ RUN=""
 
 is_alive() {
     local pid="$1"
-    [[ -r "/proc/$pid/status" ]] && ! grep -q '^State:[[:space:]]*Z' "/proc/$pid/status"
+    local st   # one read: the process may exit between a separate existence check and the grep
+    st="$(grep -s '^State:' "/proc/$pid/status")" || return 1
+    [[ "$st" != *Z* ]]
 }
 
 launch() {
@@ -136,7 +138,7 @@ stop_proc() {
     if is_alive "$pid"; then
         kill -INT "$pid" 2>/dev/null || true   # already exiting is fine; liveness was checked before
         for _ in $(seq 50); do is_alive "$pid" || break; sleep 0.1; done
-        is_alive "$pid" && kill -TERM "$pid" 2>/dev/null
+        is_alive "$pid" && { kill -TERM "$pid" 2>/dev/null || true; }   # it may exit between the two calls
     fi
     wait "$pid" 2>/dev/null || true             # reap; its exit status is not the verdict
     unset "PIDS[$name]"

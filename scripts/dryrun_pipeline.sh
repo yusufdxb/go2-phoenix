@@ -57,7 +57,11 @@ FIRST_MSG="$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]
 (( $(python3 -c "print(int($DURATION > $PROBE_S))") )) || halt "--duration must exceed --probe-s"
 
 declare -A PIDS=()
-is_alive() { [[ -r "/proc/$1/status" ]] && ! grep -q '^State:[[:space:]]*Z' "/proc/$1/status"; }
+is_alive() {  # one read: the process may exit between a separate existence check and the grep
+    local st
+    st="$(grep -s '^State:' "/proc/$1/status")" || return 1
+    [[ "$st" != *Z* ]]
+}
 
 launch() {
     local name="$1"; shift
@@ -96,7 +100,7 @@ teardown() {
         if is_alive "$pid"; then
             kill -INT "$pid" 2>/dev/null || true
             for _ in $(seq 50); do is_alive "$pid" || break; sleep 0.1; done
-            is_alive "$pid" && kill -TERM "$pid" 2>/dev/null
+            is_alive "$pid" && { kill -TERM "$pid" 2>/dev/null || true; }   # it may exit between the two calls
         fi
         wait "$pid" 2>/dev/null || true   # reap only; liveness was already recorded
     done

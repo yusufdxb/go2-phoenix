@@ -71,7 +71,7 @@ def test_no_false_green_patterns() -> None:
                 # Only allowed on signal delivery to an already-exiting process and on
                 # reaping, both of which follow an explicit liveness check.
                 assert re.search(
-                    r"kill -INT|wait \"\$pid\"", line
+                    r"kill -(INT|TERM)|wait \"\$pid\"", line
                 ), f"{script.name}: {line.strip()}"
         joined = "\n".join(code)
         assert "/tmp/" not in joined, f"{script.name} writes to /tmp"
