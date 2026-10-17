@@ -38,8 +38,10 @@ DEFAULT_ARMS="configs/sim2real/campaigns/ab_2026-10-07.arms.json"
 MIN_BLOCK_SOC=30
 
 halt() { printf '\033[31mHALT: %s\033[0m\n' "$*" >&2; exit 1; }
-SHA="$(git rev-parse HEAD)"
-[[ -z "$(git status --porcelain --untracked-files=no)" ]] || halt "tracked files modified; the campaign runs only on a clean checkout"
+# Same identity the harness uses: a git checkout, or a payload copy (PAYLOAD_SYNC.txt, verified).
+read -r SHA DIRTY NPROB < <(python3 -c 'from phoenix.sim2real.provenance import resolve_code_identity as r; i = r("."); print(i.sha or "-", int(bool(i.dirty)), len(i.problems))')
+[[ "$SHA" != - ]] || halt "cannot resolve the running code's commit (not a git work tree, and no PAYLOAD_SYNC.txt)"
+[[ "$DIRTY" == 0 && "$NPROB" == 0 ]] || halt "code identity is dirty or does not verify; the campaign runs only on a clean checkout"
 ROOT="${PHOENIX_CAMPAIGN_ROOT:-logs/gantry_ab}"
 CAMPAIGN_FILE_PTR="$ROOT/CURRENT"
 
