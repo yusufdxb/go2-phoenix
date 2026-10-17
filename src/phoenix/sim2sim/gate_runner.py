@@ -183,21 +183,10 @@ class GateSim:
 
         self._friction = MujocoFriction(fm, self.model, self.idx.dof_adr, JOINT_ORDER, stiff=stiff)
 
-    def set_rope_yaw_damping(self, k: float) -> None:
-        """Trunk yaw damping torque -k * wz_world (N m s/rad): the gantry-rope confound."""
-        self._rope_k = float(k)
-
     def step(self, tau_sim: np.ndarray) -> None:
         fr = getattr(self, "_friction", None)
         if fr is not None:
             fr.update(tau_sim)
-        k = getattr(self, "_rope_k", 0.0)
-        if k:
-            w, x, y, z = self.quat() / np.linalg.norm(self.quat())
-            # world-frame z component of the body-frame angular velocity: last row of R @ omega
-            om = self.data.qvel[3:6]
-            wz_world = 2 * (x * z - w * y) * om[0] + 2 * (y * z + w * x) * om[1] + (1 - 2 * (x * x + y * y)) * om[2]
-            self.data.xfrc_applied[int(self.idx.base_body_id), 5] = -k * wz_world
         self.data.ctrl[self.idx.actuator_id] = tau_sim
         self._mj.mj_step(self.model, self.data)
 
@@ -247,8 +236,6 @@ class RunOptions:
     friction: Any = None
     #: Stiff (Coulomb-like) MuJoCo friction constraint; False = MuJoCo's default soft solref.
     friction_stiff: bool = True
-    #: Trunk yaw damping (N m s/rad) standing in for a gantry rope; 0 = free floor.
-    rope_yaw_damping: float = 0.0
 
 
 def run_gate_scenario(
@@ -267,8 +254,6 @@ def run_gate_scenario(
     sim = GateSim(cfg, scenario, scene_xml=opts.scene_xml)
     if opts.friction is not None:
         sim.set_friction(opts.friction, stiff=opts.friction_stiff)
-    if opts.rope_yaw_damping:
-        sim.set_rope_yaw_damping(opts.rope_yaw_damping)
     motor = real_motor_params(cfg)
     perm = spec_permutation(spec)
     kp_sim = np.empty(12)

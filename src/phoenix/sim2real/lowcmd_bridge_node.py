@@ -253,6 +253,9 @@ class LowCmdBridge(Node):
         self._telemetry = telemetry
         self._gate = ActuatorGate(cfg.gate_params(), time.monotonic_ns())
         self._last_mode: str | None = None
+        #: Latest raw LowState sensor channels the gate does not use, copied into every
+        #: telemetry tick (motor order). Telemetry only: never read by the control path.
+        self._sensors: dict[str, Any] | None = None
         self._last_fault: str | None = None
         self._init_guard()
 
@@ -322,6 +325,7 @@ class LowCmdBridge(Node):
         dq = [float(msg.motor_state[i].dq) for i in range(12)]
         now = time.monotonic_ns()
         self._gate.on_lowstate(now, q, dq)
+        self._cache_sensors(now, msg)
         quat = getattr(getattr(msg, "imu_state", None), "quaternion", None)
         if quat is not None:
             # (w, x, y, z): unitree_ros2 example/src/src/read_low_state.cpp prints
@@ -332,6 +336,27 @@ class LowCmdBridge(Node):
             except (TypeError, ValueError):
                 rpy_f = None
             self._gate.on_imu(now, [float(v) for v in quat], rpy_f)
+
+    def _cache_sensors(self, now_ns: int, msg: LowState) -> None:
+        """Copy the LowState channels telemetry needs; a malformed field is skipped, never raised."""
+        try:
+            imu = getattr(msg, "imu_state", None)
+            s: dict[str, Any] = {"t_mono_ns": now_ns}
+            s["tau_est"] = [float(msg.motor_state[i].tau_est) for i in range(12)]
+            s["motor_temp_c"] = [int(msg.motor_state[i].temperature) for i in range(12)]
+            if imu is not None:
+                s["gyroscope"] = [float(v) for v in imu.gyroscope]
+                s["accelerometer"] = [float(v) for v in imu.accelerometer]
+                s["rpy"] = [float(v) for v in imu.rpy]
+                s["quaternion"] = [float(v) for v in imu.quaternion]
+            ff = getattr(msg, "foot_force", None)
+            if ff is not None:
+                s["foot_force"] = [float(v) for v in ff]
+            s["lowstate_tick"] = int(getattr(msg, "tick", 0))
+            s["power_v"] = float(getattr(msg, "power_v", 0.0))
+            self._sensors = s
+        except Exception:  # noqa: BLE001 - telemetry must never interrupt control
+            self.guard_counts["telemetry_failures"] += 1
 
     def _on_estop(self, msg: Bool) -> None:
         self._gate.on_estop(time.monotonic_ns(), bool(msg.data))
@@ -413,6 +438,10 @@ class LowCmdBridge(Node):
             self.get_logger().error(f"LATCHED FAULT: {rec['fault']} (all: {rec['faults']})")
             self._last_fault = rec["fault"]
         if self._telemetry is not None:
+            sensors = self._sensors
+            if sensors is not None:
+                rec = dict(rec)
+                rec["sensors"] = dict(sensors, age_s=(time.monotonic_ns() - sensors["t_mono_ns"]) / 1e9)
             self._telemetry.write_tick(rec)
 
     def _spin_for_shutdown(self) -> None:

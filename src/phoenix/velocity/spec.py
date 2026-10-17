@@ -1022,11 +1022,11 @@ def friction_distribution(dr: DomainRandSpec):
     )
 
 
-#: Identified on the incumbent (results/friction_physics/ident_I, fit = yaw05_3s hardware
-#: runs, held-out = vx03_4s tape distance): the hypotheses that reproduce the robot's yaw
-#: within its run-to-run spread span measured Coulomb x0.75..1.5 with k_load 0..0.1 and
-#: viscous 0..0.05; they predict the held-out forward distance 0.62-0.69 m (robot 0.71 m,
-#: frictionless 1.06 m). The two training arms share every other setting and budget.
+#: Identified on the incumbent (results/friction_physics/ident_I, fit = yaw05_3s free-floor
+#: hardware runs, held-out = vx03_4s tape distance): the 6 hypotheses that reproduce the
+#: robot's yaw within its run-to-run spread span measured Coulomb x0.75..1.5 with k_load
+#: 0..0.1 and viscous 0..0.05; they predict the held-out forward distance 0.62-0.68 m (robot
+#: 0.71 m, frictionless 1.06 m). The two training arms share every other setting and budget.
 HW_FRICTION = {
     "joint_friction_model": "hardware",
     "joint_friction_scale": (0.75, 1.6),

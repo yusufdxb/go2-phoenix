@@ -17,8 +17,9 @@ trajectory is not mistaken for one that predicts another.
 
 Hypothesis grammar (``;``-separated): ``name:key=val,key=val`` with keys
 ``scale`` (x measured Coulomb), ``vh``/``vt``/``vc`` (viscous hip/thigh/calf N m s/rad),
-``load`` (k_load), ``soft`` (1 = MuJoCo default soft friction), ``rope`` (trunk yaw damping,
-N m s/rad), ``ff`` (foot friction), ``lat`` (actuator latency ms). ``none`` = frictionless.
+``load`` (k_load), ``soft`` (1 = MuJoCo default soft friction), ``ff`` (foot friction),
+``lat`` (actuator latency ms). ``none`` = frictionless. The 2026-10-07 walks were free floor
+(no gantry, no rope), so no trunk tether term exists.
 
     ~/Sim/isaac-sim-venv/bin/python scripts/eval_physics_hypotheses.py \\
         --deploy-config results/friction_physics/I/deploy.yaml --grid ident --out-dir OUT \\
@@ -58,7 +59,7 @@ PROFILES = {
     "vx07_3s": ("custom", (0.7, 0.0, 0.0, 3.0)),
 }
 HW_PROFILES = ("vx03_4s", "yaw05_3s", "vx03_2s")
-KEYS = {"scale", "vh", "vt", "vc", "load", "soft", "rope", "ff", "lat"}
+KEYS = {"scale", "vh", "vt", "vc", "load", "soft", "ff", "lat"}
 
 
 def parse_hypothesis(text: str) -> tuple[str, dict[str, float]]:
@@ -92,10 +93,9 @@ def friction_model(h: dict[str, float]):
 def grid(name: str) -> list[str]:
     if name == "ident":
         out = ["none"]
-        for s, v, k, rope in itertools.product((0.75, 1.0, 1.25, 1.5, 2.0), (0.0, 0.02, 0.05), (0.0, 0.05, 0.1), (0.0, 1.0)):
-            out.append(f"s{s}_v{v}_k{k}_r{rope}:scale={s},vh={v},vt={v},vc={v},load={k},rope={rope}")
+        for s, v, k in itertools.product((0.75, 1.0, 1.25, 1.5, 2.0), (0.0, 0.02, 0.05), (0.0, 0.05, 0.1)):
+            out.append(f"s{s}_v{v}_k{k}:scale={s},vh={v},vt={v},vc={v},load={k}")
         out += [f"soft{s}:scale={s},soft=1" for s in (1.0, 1.25, 1.5)]
-        out += [f"rope{r}:rope={r}" for r in (0.5, 1.0, 2.0, 4.0)]
         return out
     if name == "eval":
         return [
@@ -169,7 +169,6 @@ def run_one(task: tuple[str, str, str]) -> dict:
         trace=trace,
         friction=friction_model(h),
         friction_stiff=not bool(h.get("soft", 0.0)),
-        rope_yaw_damping=float(h.get("rope", 0.0)),
     )
     res = run_gate_scenario(spec, policy, scn, cfg, opts)
     m = res["metrics"]
