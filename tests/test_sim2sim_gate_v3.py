@@ -94,5 +94,7 @@ def test_trace_hook_records_every_control_step_without_changing_metrics():
     tr = []
     a = run_gate_scenario(spec, lambda o: np.zeros(12), s, cfg, RunOptions(latency_ms=0.0, trace=tr))["metrics"]
     b = run_gate_scenario(spec, lambda o: np.zeros(12), s, cfg, RunOptions(latency_ms=0.0))["metrics"]
-    assert len(tr) == 50 and set(tr[0]) == {"t", "cmd", "q", "target", "raw", "base_height", "wz"}
+    assert len(tr) == 50 and set(tr[0]) == {
+        "t", "cmd", "q", "target", "raw", "base_height", "wz", "base_xy", "quat_wxyz", "qd", "roll", "pitch",
+    }
     assert a == b

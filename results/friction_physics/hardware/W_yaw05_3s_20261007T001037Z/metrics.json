@@ -1,0 +1,303 @@
+{
+  "schema": "phoenix-walk-run-metrics/v1",
+  "joint_order_motor": [
+    "FR_hip_joint",
+    "FR_thigh_joint",
+    "FR_calf_joint",
+    "FL_hip_joint",
+    "FL_thigh_joint",
+    "FL_calf_joint",
+    "RR_hip_joint",
+    "RR_thigh_joint",
+    "RR_calf_joint",
+    "RL_hip_joint",
+    "RL_thigh_joint",
+    "RL_calf_joint"
+  ],
+  "provenance": {
+    "code_sha": "34104ff860c85706cba3c82f6d8507805036a791",
+    "deploy_config": {
+      "path": "/home/unitree/phoenix/walk2750-34104ff/deploy_walk_iter2750.yaml",
+      "sha256": "a4d397c4d774ab9bf3d1ad495377c84deed0d8697acd81a15d37d1a9e3d9a725",
+      "semantic_sha256": "b3b61046aa5b5b6752b45707f9c2a341b93b45d7c40b8abb15a335082aa65e80"
+    },
+    "artifacts": {
+      "checkpoint": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+      "policy.manifest": "c6d4a32021ea064e7079ce08f21af5d16d1161b58095d2b271a3e7ac649d209a",
+      "policy.onnx": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+      "policy.onnx.data": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+      "policy.pt": "371f5a442d5afeab56c40c58d7da23cbb37a0dc37acad030425ff731bce0f110"
+    },
+    "stage": "W",
+    "start_utc": "2026-10-07T00:11:01.876046Z",
+    "live": true
+  },
+  "command": {
+    "motion_start_s": 7.470267904,
+    "motion_end_s": 10.870276864,
+    "peak": [
+      0.0,
+      0.0,
+      0.5
+    ],
+    "integral_vx_m": 0.0,
+    "integral_vy_m": 0.0,
+    "integral_yaw_deg": 85.94363718794624
+  },
+  "policy_window_s": [
+    3.813511936,
+    15.829870464
+  ],
+  "motion_ticks": 1306,
+  "body_tracking": {
+    "yaw_commanded_deg": 85.94385217247562,
+    "yaw_imu_quat_deg": 19.07755675756623,
+    "yaw_gyro_integral_deg": 18.382601785123697,
+    "yaw_tracking_frac": 0.22197698003204017,
+    "yaw_rate_rmse_radps": 0.355163037776947,
+    "yaw_quat_vs_gyro_deg": 0.6949549724425346,
+    "forward_commanded_m": 0.0,
+    "forward_measured_m": null,
+    "forward_note": "UNAVAILABLE: no independent displacement measurement passed in; robot odometry is not used as ground truth"
+  },
+  "attitude": {
+    "roll_deg_motion": {
+      "n": 1306,
+      "mean": 0.2744072660278316,
+      "p50": 0.2698895303665177,
+      "p95": 0.49708304432296224,
+      "max": 1.3504000012602213
+    },
+    "pitch_deg_motion": {
+      "n": 1306,
+      "mean": -2.1988165789834744,
+      "p50": -2.196761769796413,
+      "p95": -1.3148260028399847,
+      "max": -1.0601658068574549
+    }
+  },
+  "motor_tracking": {
+    "joints": {
+      "FR_hip_joint": {
+        "target_swing_rad": 0.1156153753399849,
+        "q_swing_rad": 0.09083259105682373,
+        "swing_ratio": 0.7856445631882131,
+        "rms_target_minus_q_rad": 0.034452927019209524,
+        "lag_s": 0.10713855999995303
+      },
+      "FR_thigh_joint": {
+        "target_swing_rad": 0.12785786390304565,
+        "q_swing_rad": 0.05611938238143921,
+        "swing_ratio": 0.4389200684910114,
+        "rms_target_minus_q_rad": 0.11499750002661355,
+        "lag_s": 0.0
+      },
+      "FR_calf_joint": {
+        "target_swing_rad": 0.1562964916229248,
+        "q_swing_rad": 0.09757786989212036,
+        "swing_ratio": 0.6243126053496656,
+        "rms_target_minus_q_rad": 0.23963841561244892,
+        "lag_s": 0.12053087999994716
+      },
+      "FL_hip_joint": {
+        "target_swing_rad": 0.2571505680680275,
+        "q_swing_rad": 0.08333128690719604,
+        "swing_ratio": 0.3240563982932805,
+        "rms_target_minus_q_rad": 0.07172470521184739,
+        "lag_s": 0.11785241599994833
+      },
+      "FL_thigh_joint": {
+        "target_swing_rad": 0.22273766994476318,
+        "q_swing_rad": 0.08047765493392944,
+        "swing_ratio": 0.36131138012661773,
+        "rms_target_minus_q_rad": 0.10694967955800665,
+        "lag_s": 0.1339231999999413
+      },
+      "FL_calf_joint": {
+        "target_swing_rad": 0.17870879173278809,
+        "q_swing_rad": 0.08732569217681885,
+        "swing_ratio": 0.4886479916857779,
+        "rms_target_minus_q_rad": 0.1743877122436764,
+        "lag_s": 0.010713855999995303
+      },
+      "RR_hip_joint": {
+        "target_swing_rad": 0.2191426381468773,
+        "q_swing_rad": 0.18071901239454746,
+        "swing_ratio": 0.8246638532909468,
+        "rms_target_minus_q_rad": 0.07429904293953979,
+        "lag_s": 0.1339231999999413
+      },
+      "RR_thigh_joint": {
+        "target_swing_rad": 0.0771564245223999,
+        "q_swing_rad": 0.11046761274337769,
+        "swing_ratio": 1.4317357683067202,
+        "rms_target_minus_q_rad": 0.025136399589003836,
+        "lag_s": 0.005356927999997652
+      },
+      "RR_calf_joint": {
+        "target_swing_rad": 0.3784908056259155,
+        "q_swing_rad": 0.11006534099578857,
+        "swing_ratio": 0.29080056730512116,
+        "rms_target_minus_q_rad": 0.1413272013353914,
+        "lag_s": 0.12053087999994716
+      },
+      "RL_hip_joint": {
+        "target_swing_rad": 0.13120611757040024,
+        "q_swing_rad": 0.17287707328796387,
+        "swing_ratio": 1.317599182791188,
+        "rms_target_minus_q_rad": 0.02172586270947685,
+        "lag_s": 0.03749849599998356
+      },
+      "RL_thigh_joint": {
+        "target_swing_rad": 0.12085551023483276,
+        "q_swing_rad": 0.09408743679523468,
+        "swing_ratio": 0.7785117667569696,
+        "rms_target_minus_q_rad": 0.034494688095808496,
+        "lag_s": 0.07499699199996712
+      },
+      "RL_calf_joint": {
+        "target_swing_rad": 0.3119601011276245,
+        "q_swing_rad": 0.05605947971343994,
+        "swing_ratio": 0.17970079991256868,
+        "rms_target_minus_q_rad": 0.1930250956782332,
+        "lag_s": 0.0937462399999589
+      }
+    },
+    "pd_torque_demand_abs_nm": {
+      "FR_hip_joint": {
+        "n": 1306,
+        "mean": 0.6849634045946082,
+        "p50": 0.5959764048457146,
+        "p95": 1.4617599919438362,
+        "max": 2.4833153262734413
+      },
+      "FR_thigh_joint": {
+        "n": 1306,
+        "mean": 2.7108962183367535,
+        "p50": 2.5263883769512177,
+        "p95": 4.620008077472448,
+        "max": 5.099983647465706
+      },
+      "FR_calf_joint": {
+        "n": 1306,
+        "mean": 5.762048965081099,
+        "p50": 5.861017837363761,
+        "p95": 7.685256629483774,
+        "max": 8.203977346420288
+      },
+      "FL_hip_joint": {
+        "n": 1306,
+        "mean": 1.464788317861489,
+        "p50": 1.1171381771564484,
+        "p95": 3.635543316602707,
+        "max": 5.642731070518494
+      },
+      "FL_thigh_joint": {
+        "n": 1306,
+        "mean": 2.1092086350260044,
+        "p50": 1.2542121326550841,
+        "p95": 5.029506757855415,
+        "max": 6.531585797667503
+      },
+      "FL_calf_joint": {
+        "n": 1306,
+        "mean": 4.189834272701548,
+        "p50": 4.258853722829372,
+        "p95": 5.721045660786331,
+        "max": 7.381779061630368
+      },
+      "RR_hip_joint": {
+        "n": 1306,
+        "mean": 1.5951528969858337,
+        "p50": 1.4008927457034588,
+        "p95": 3.117779051885009,
+        "max": 4.980296343564987
+      },
+      "RR_thigh_joint": {
+        "n": 1306,
+        "mean": 0.5395532920072355,
+        "p50": 0.5542381480336189,
+        "p95": 1.0377859622240067,
+        "max": 1.1655154004693031
+      },
+      "RR_calf_joint": {
+        "n": 1306,
+        "mean": 2.92555568589564,
+        "p50": 2.955747915431857,
+        "p95": 6.731804546318017,
+        "max": 8.959064294584095
+      },
+      "RL_hip_joint": {
+        "n": 1306,
+        "mean": 0.37913626101678083,
+        "p50": 0.32479700818657875,
+        "p95": 1.0101349540054798,
+        "max": 1.973506085574627
+      },
+      "RL_thigh_joint": {
+        "n": 1306,
+        "mean": 0.6332186071778353,
+        "p50": 0.6390483230352402,
+        "p95": 1.297520961612463,
+        "max": 2.900387078523636
+      },
+      "RL_calf_joint": {
+        "n": 1306,
+        "mean": 4.450396788975076,
+        "p50": 3.980144043220207,
+        "p95": 7.672355436719954,
+        "max": 7.920696880668402
+      }
+    },
+    "tau_est_minus_pd_demand_nm": "UNAVAILABLE: bridge did not record tau_est in this run"
+  },
+  "saturation": {
+    "target_altered_tick_frac": 0.0,
+    "slew_clip_tick_frac": 0.0,
+    "limit_clip_tick_frac": 0.0,
+    "pd_demand_over_effort_limit_frac": 0.0,
+    "raw_action_abs_p99": 1.369987254142758
+  },
+  "state_estimation": {
+    "base_lin_vel_fed_all_zero": true,
+    "yaw_quat_minus_gyro_integral_deg": 0.6949549724425346
+  },
+  "timing": {
+    "bridge_tick_dt_s": {
+      "n": 4038,
+      "mean": 0.0029758193481921745,
+      "p50": 0.0029063680000005476,
+      "p95": 0.003396998400000761,
+      "max": 0.00878492799999897
+    },
+    "bridge_rate_hz": 344.07205144008316,
+    "policy_update_dt_s": {
+      "n": 598,
+      "mean": 0.020031878849498325,
+      "p50": 0.01986089600000085,
+      "p95": 0.022366518399999834,
+      "max": 0.041345343999999784
+    },
+    "lowstate_age_s": {
+      "n": 4039,
+      "mean": 0.0005784816122802673,
+      "p50": 0.000568224,
+      "p95": 0.0006993472,
+      "max": 0.002165216
+    },
+    "policy_cmd_age_s": {
+      "n": 4039,
+      "mean": 0.009842345134934389,
+      "p50": 0.009930016,
+      "p95": 0.0186514752,
+      "max": 0.039332928
+    }
+  },
+  "run_dir": "/home/yusuf/workspace/wt/phoenix-walk-v1-hw/logs/hw_sessions/20261007_34104ff860c8/W_yaw05_3s_20261007T001037Z",
+  "ticks_parquet": "/tmp/claude-1000/-home-yusuf/80d8b973-651d-4da8-8cf7-3c9626f4c42c/scratchpad/hwfp/W_yaw05_3s_20261007T001037Z/ticks.parquet",
+  "plots": [
+    "/tmp/claude-1000/-home-yusuf/80d8b973-651d-4da8-8cf7-3c9626f4c42c/scratchpad/hwfp/W_yaw05_3s_20261007T001037Z/body.png",
+    "/tmp/claude-1000/-home-yusuf/80d8b973-651d-4da8-8cf7-3c9626f4c42c/scratchpad/hwfp/W_yaw05_3s_20261007T001037Z/joints.png",
+    "/tmp/claude-1000/-home-yusuf/80d8b973-651d-4da8-8cf7-3c9626f4c42c/scratchpad/hwfp/W_yaw05_3s_20261007T001037Z/saturation.png"
+  ]
+}

@@ -292,6 +292,67 @@ def randomize_joint_friction_nm(
     )
 
 
+#: env attribute holding the per-env friction model the load term refreshes from.
+FRICTION_STATE_ATTR = "_phoenix_joint_friction"
+
+
+def randomize_joint_friction_model(
+    env: Any, env_ids: Any, distribution: dict[str, Any], asset_name: str = "robot"
+) -> None:
+    """Startup: sample the joint friction model per env (phoenix.physics FrictionDistribution).
+
+    Writes Coulomb (static = dynamic) and viscous to PhysX and keeps the per-env base
+    Coulomb and k_load on the env so :func:`update_load_dependent_friction` can refresh
+    the Coulomb bound from the applied torque every control step.
+    """
+    from phoenix.physics.joint_friction import FrictionDistribution
+
+    asset = env.scene[asset_name]
+    ids = _env_ids_tensor(env, env_ids)
+    names = list(asset.joint_names)
+    fd = FrictionDistribution(**{k: (tuple(v) if isinstance(v, list) else v) for k, v in distribution.items()})
+    coulomb, viscous, load = fd.sample(
+        ids.numel(), names, lambda shape: torch.rand(shape, device=env.device)
+    )
+    asset.write_joint_friction_coefficient_to_sim_index(
+        joint_friction_coeff=coulomb,
+        joint_dynamic_friction_coeff=coulomb.clone(),
+        joint_viscous_friction_coeff=viscous,
+        env_ids=ids,
+    )
+    st = getattr(env, FRICTION_STATE_ATTR, None)
+    if st is None:
+        st = {
+            "base": torch.zeros((env.num_envs, len(names)), device=env.device),
+            "viscous": torch.zeros((env.num_envs, len(names)), device=env.device),
+            "k": torch.zeros((env.num_envs, 1), device=env.device),
+        }
+        setattr(env, FRICTION_STATE_ATTR, st)
+    st["base"][ids] = coulomb
+    st["viscous"][ids] = viscous
+    st["k"][ids] = load.reshape(-1, 1)
+
+
+def update_load_dependent_friction(env: Any, env_ids: Any, asset_name: str = "robot") -> None:
+    """Every control step: Coulomb_j = base_j + k_load * |applied torque_j| (all envs).
+
+    The torque is the explicit actuator's applied (clipped) effort from the last physics
+    step, so the friction bound lags its load by one control step. No-op when every
+    env has k_load == 0.
+    """
+    import warp as wp
+
+    st = getattr(env, FRICTION_STATE_ATTR, None)
+    if st is None or not bool((st["k"] > 0).any()):
+        return
+    asset = env.scene[asset_name]
+    tau = wp.to_torch(asset.data.applied_torque)
+    coulomb = st["base"] + st["k"] * tau.abs()
+    asset.write_joint_friction_coefficient_to_sim_index(
+        joint_friction_coeff=coulomb, joint_dynamic_friction_coeff=coulomb
+    )
+
+
 def restore_curriculum_state(
     env: Any, manifest_state: dict[str, Any], command_name: str = "base_velocity"
 ) -> None:

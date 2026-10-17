@@ -1,0 +1,91 @@
+{
+  "verdict": "PASS",
+  "physics_dt": 0.005,
+  "control_decimation": 4,
+  "rows": [
+    {
+      "joint": "FR_hip_joint",
+      "readback_static_e0": 0.3529999852180481,
+      "readback_viscous_e1": 0.05000000074505806,
+      "coulomb_set": 0.353,
+      "coulomb_est": 0.36695942282676697,
+      "coulomb_ok": true,
+      "viscous_set": 0.05,
+      "viscous_est": 0.05504652432032994,
+      "viscous_intercept": -0.002873241901397727,
+      "viscous_f_hat_diff": [
+        0.024657905101776123,
+        0.052161455154418945,
+        0.1072237491607666
+      ],
+      "viscous_ok": true,
+      "load_set": 0.4633450059890747,
+      "load_est": 0.4745772182941437,
+      "load_mean_abs_tau": 1.103450059890747,
+      "load_ok": true
+    },
+    {
+      "joint": "FR_thigh_joint",
+      "readback_static_e0": 0.24899999797344208,
+      "readback_viscous_e1": 0.07999999821186066,
+      "coulomb_set": 0.249,
+      "coulomb_est": 0.2671610414981842,
+      "coulomb_ok": true,
+      "viscous_set": 0.08,
+      "viscous_est": 0.08840342078890119,
+      "viscous_intercept": -0.004990369081497215,
+      "viscous_f_hat_diff": [
+        0.03824257850646973,
+        0.08486619591712952,
+        0.17133209109306335
+      ],
+      "viscous_ok": true,
+      "load_set": 0.2922020425796509,
+      "load_est": 0.30920541286468506,
+      "load_mean_abs_tau": 0.4320204257965088,
+      "load_ok": true
+    },
+    {
+      "joint": "FR_calf_joint",
+      "readback_static_e0": 0.421999990940094,
+      "readback_viscous_e1": 0.10000000149011612,
+      "coulomb_set": 0.422,
+      "coulomb_est": 0.4273219108581543,
+      "coulomb_ok": true,
+      "viscous_set": 0.1,
+      "viscous_est": 0.09302321076393127,
+      "viscous_intercept": 0.009510114789009075,
+      "viscous_f_hat_diff": [
+        0.05397844314575195,
+        0.10559824109077454,
+        0.19453489780426025
+      ],
+      "viscous_ok": true,
+      "load_set": 0.46947039079666136,
+      "load_est": 0.47470390796661377,
+      "load_mean_abs_tau": 0.47470390796661377,
+      "load_ok": true
+    },
+    {
+      "joint": "RL_calf_joint",
+      "readback_static_e0": 0.6069999933242798,
+      "readback_viscous_e1": 0.10000000149011612,
+      "coulomb_set": 0.607,
+      "coulomb_est": 0.6123151183128357,
+      "coulomb_ok": true,
+      "viscous_set": 0.1,
+      "viscous_est": 0.08573496341705321,
+      "viscous_intercept": 0.015649080276489216,
+      "viscous_f_hat_diff": [
+        0.05550950765609741,
+        0.10589462518692017,
+        0.18561547994613647
+      ],
+      "viscous_ok": true,
+      "load_set": 0.6750176615715027,
+      "load_est": 0.6801766157150269,
+      "load_mean_abs_tau": 0.6801766157150269,
+      "load_ok": true
+    }
+  ]
+}

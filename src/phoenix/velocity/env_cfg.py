@@ -294,6 +294,9 @@ def _build_events_cfg(spec: VelocityTaskSpec):
     from . import isaac_terms as pterms
 
     dr = spec.domain_randomization
+    from .spec import friction_distribution
+
+    friction_dist = friction_distribution(dr)
 
     @configclass
     class EventsCfg:
@@ -354,6 +357,27 @@ def _build_events_cfg(spec: VelocityTaskSpec):
                 },
             )
             if dr.joint_friction_enabled
+            else None
+        )
+        joint_friction_model = (
+            EventTerm(
+                func=pterms.randomize_joint_friction_model,
+                mode="startup",
+                params={"distribution": friction_dist.to_dict(), "asset_name": "robot"},
+            )
+            if friction_dist is not None
+            else None
+        )
+        # Refreshes Coulomb from the applied torque every control step (k_load > 0 only).
+        joint_friction_load = (
+            EventTerm(
+                func=pterms.update_load_dependent_friction,
+                mode="interval",
+                interval_range_s=(0.0, 0.0),
+                is_global_time=True,
+                params={"asset_name": "robot"},
+            )
+            if friction_dist is not None and friction_dist.load[1] > 0.0
             else None
         )
         motor_strength = EventTerm(

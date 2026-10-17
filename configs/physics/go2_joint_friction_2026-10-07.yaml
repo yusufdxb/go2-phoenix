@@ -1,0 +1,24 @@
+# GO2 joint friction measured on the robot, 2026-10-07 (FP probe, robot hung, feet off the floor).
+# Source: docs/hardware/2026-10-07_friction_probe/ (README + run JSONs). Units N m.
+# static  = (tau_plus - tau_minus) / 2 at breakaway, ramp 0.05 rad/s, bridge PD kp 25 / kd 0.5.
+# kinetic = slow-motion segment of the same ramp (one speed only: viscous NOT identified here).
+# Direction dependence is NOT identifiable from these runs: the (tau_plus + tau_minus) / 2 offset
+# mixes gravity with any asymmetry, so the model is symmetric.
+# Load: unloaded legs only. Run 5 (front feet touched the floor) read 1.9-2.3 N m on the front
+# calves, but that includes ground contact, so it is not a clean loaded-friction measurement.
+source: docs/hardware/2026-10-07_friction_probe
+measured_utc: "2026-10-07"
+condition: hung_unloaded
+joints:
+  FR_hip_joint:   {static: 0.353, kinetic: 0.410, run: run2}
+  FR_thigh_joint: {static: 0.249, kinetic: 0.220, run: run3}
+  FR_calf_joint:  {static: 0.422, kinetic: 0.445, run: run6}
+  FL_hip_joint:   {static: 0.338, kinetic: 0.336, run: run4}
+  FL_thigh_joint: {static: 0.171, kinetic: 0.214, run: run4}
+  FL_calf_joint:  {static: 0.622, kinetic: 0.776, run: run6}
+  RR_hip_joint:   {static: 0.261, kinetic: 0.364, run: run4}
+  RR_thigh_joint: {static: 0.339, kinetic: 0.298, run: run4}
+  RR_calf_joint:  {static: 0.962, kinetic: 0.980, run: run6}
+  RL_hip_joint:   {static: 0.241, kinetic: 0.195, run: run6}
+  RL_thigh_joint: {static: 0.331, kinetic: 0.263, run: run4}
+  RL_calf_joint:  {static: 0.607, kinetic: 0.707, run: run6}

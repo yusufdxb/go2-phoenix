@@ -1,0 +1,582 @@
+{
+  "stiff": {
+    "stiff": true,
+    "coulomb": {
+      "rows": [
+        {
+          "joint": "FL_hip_joint",
+          "set": 0.338,
+          "est": 0.3544928402443139,
+          "ok": true
+        },
+        {
+          "joint": "FR_hip_joint",
+          "set": 0.353,
+          "est": 0.3698938829503241,
+          "ok": true
+        },
+        {
+          "joint": "RL_hip_joint",
+          "set": 0.241,
+          "est": 0.2578879857786781,
+          "ok": true
+        },
+        {
+          "joint": "RR_hip_joint",
+          "set": 0.261,
+          "est": 0.27870707465753924,
+          "ok": true
+        },
+        {
+          "joint": "FL_thigh_joint",
+          "set": 0.171,
+          "est": 0.1968076417249907,
+          "ok": true
+        },
+        {
+          "joint": "FR_thigh_joint",
+          "set": 0.249,
+          "est": 0.2751714689354613,
+          "ok": true
+        },
+        {
+          "joint": "RL_thigh_joint",
+          "set": 0.331,
+          "est": 0.34984838318330364,
+          "ok": true
+        },
+        {
+          "joint": "RR_thigh_joint",
+          "set": 0.339,
+          "est": 0.35543102869194015,
+          "ok": true
+        },
+        {
+          "joint": "FL_calf_joint",
+          "set": 0.622,
+          "est": 0.6318759628815834,
+          "ok": true
+        },
+        {
+          "joint": "FR_calf_joint",
+          "set": 0.422,
+          "est": 0.4324963545313969,
+          "ok": true
+        },
+        {
+          "joint": "RL_calf_joint",
+          "set": 0.607,
+          "est": 0.6168326668793737,
+          "ok": true
+        },
+        {
+          "joint": "RR_calf_joint",
+          "set": 0.962,
+          "est": 0.9676848094276647,
+          "ok": true
+        }
+      ],
+      "pass": true
+    },
+    "viscous": {
+      "speeds": [
+        0.5,
+        1.0,
+        2.0
+      ],
+      "rows": [
+        {
+          "joint": "FL_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.059382454471409274,
+          "intercept": 0.337439631868735,
+          "coulomb_set": 0.338,
+          "ok": true
+        },
+        {
+          "joint": "FR_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.037157048462755526,
+          "intercept": 0.37328945827401416,
+          "coulomb_set": 0.353,
+          "ok": true
+        },
+        {
+          "joint": "RL_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.05807346846648576,
+          "intercept": 0.23940132343763523,
+          "coulomb_set": 0.241,
+          "ok": true
+        },
+        {
+          "joint": "RR_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.02958558326005539,
+          "intercept": 0.2880037044199719,
+          "coulomb_set": 0.261,
+          "ok": true
+        },
+        {
+          "joint": "FL_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.08705564486839226,
+          "intercept": 0.17928111253144632,
+          "coulomb_set": 0.171,
+          "ok": true
+        },
+        {
+          "joint": "FR_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.06884571010653097,
+          "intercept": 0.2775665167556829,
+          "coulomb_set": 0.249,
+          "ok": true
+        },
+        {
+          "joint": "RL_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.09719787734195885,
+          "intercept": 0.32799937220327996,
+          "coulomb_set": 0.331,
+          "ok": true
+        },
+        {
+          "joint": "RR_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.07408395708174798,
+          "intercept": 0.3611477994834908,
+          "coulomb_set": 0.339,
+          "ok": true
+        },
+        {
+          "joint": "FL_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.09603123046843245,
+          "intercept": 0.6321181798799163,
+          "coulomb_set": 0.622,
+          "ok": true
+        },
+        {
+          "joint": "FR_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.09643333388911991,
+          "intercept": 0.42997648266837185,
+          "coulomb_set": 0.422,
+          "ok": true
+        },
+        {
+          "joint": "RL_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.09865621695011477,
+          "intercept": 0.6162564579358935,
+          "coulomb_set": 0.607,
+          "ok": true
+        },
+        {
+          "joint": "RR_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.10126657366376561,
+          "intercept": 0.9671370920572652,
+          "coulomb_set": 0.962,
+          "ok": true
+        }
+      ],
+      "pass": true
+    },
+    "load": {
+      "k": 0.1,
+      "external_nm": 4.0,
+      "rows": [
+        {
+          "joint": "FL_hip_joint",
+          "set": 0.6240194672844774,
+          "mean_abs_tau": 2.8601946728447745,
+          "est": 0.627963110931901,
+          "est_without_load_term": 0.34686175185733337,
+          "ok": true
+        },
+        {
+          "joint": "FR_hip_joint",
+          "set": 0.8594924113270049,
+          "mean_abs_tau": 5.064924113270049,
+          "est": 0.8605058484544963,
+          "est_without_load_term": 0.37077695057869064,
+          "ok": true
+        },
+        {
+          "joint": "RL_hip_joint",
+          "set": 0.5288760459913602,
+          "mean_abs_tau": 2.878760459913602,
+          "est": 0.533450911494892,
+          "est_without_load_term": 0.24860177865788868,
+          "ok": true
+        },
+        {
+          "joint": "RR_hip_joint",
+          "set": 0.7679887448783698,
+          "mean_abs_tau": 5.069887448783698,
+          "est": 0.7714218444321839,
+          "est_without_load_term": 0.2784823796738114,
+          "ok": true
+        },
+        {
+          "joint": "FL_thigh_joint",
+          "set": 0.5190020285628137,
+          "mean_abs_tau": 3.480020285628137,
+          "est": 0.5277271667665231,
+          "est_without_load_term": 0.19335851301614926,
+          "ok": true
+        },
+        {
+          "joint": "FR_thigh_joint",
+          "set": 0.5967192704777549,
+          "mean_abs_tau": 3.477192704777548,
+          "est": 0.6068573839303155,
+          "est_without_load_term": 0.27323838988453675,
+          "ok": true
+        },
+        {
+          "joint": "RL_thigh_joint",
+          "set": 0.6667944882534653,
+          "mean_abs_tau": 3.3579448825346523,
+          "est": 0.6691791187219931,
+          "est_without_load_term": 0.3450273345781727,
+          "ok": true
+        },
+        {
+          "joint": "RR_thigh_joint",
+          "set": 0.6735139920731461,
+          "mean_abs_tau": 3.3451399207314614,
+          "est": 0.673683158358257,
+          "est_without_load_term": 0.3510219153824343,
+          "ok": true
+        },
+        {
+          "joint": "FL_calf_joint",
+          "set": 1.046397787009913,
+          "mean_abs_tau": 4.243977870099131,
+          "est": 1.0511189356063528,
+          "est_without_load_term": 0.6343091435537114,
+          "ok": true
+        },
+        {
+          "joint": "FR_calf_joint",
+          "set": 0.8444721886848817,
+          "mean_abs_tau": 4.224721886848817,
+          "est": 0.8489208335385414,
+          "est_without_load_term": 0.4355723800893039,
+          "ok": true
+        },
+        {
+          "joint": "RL_calf_joint",
+          "set": 1.0252650828369265,
+          "mean_abs_tau": 4.182650828369265,
+          "est": 1.0283430952704573,
+          "est_without_load_term": 0.6182163605009037,
+          "ok": true
+        },
+        {
+          "joint": "RR_calf_joint",
+          "set": 1.3844132540514154,
+          "mean_abs_tau": 4.224132540514153,
+          "est": 1.3874766422757732,
+          "est_without_load_term": 0.9690066372937318,
+          "ok": true
+        }
+      ],
+      "pass": true
+    },
+    "pass": true
+  },
+  "soft": {
+    "stiff": false,
+    "coulomb": {
+      "rows": [
+        {
+          "joint": "FL_hip_joint",
+          "set": 0.338,
+          "est": 0.35449182637807414,
+          "ok": true
+        },
+        {
+          "joint": "FR_hip_joint",
+          "set": 0.353,
+          "est": 0.36989448155772314,
+          "ok": true
+        },
+        {
+          "joint": "RL_hip_joint",
+          "set": 0.241,
+          "est": 0.25788652313766997,
+          "ok": true
+        },
+        {
+          "joint": "RR_hip_joint",
+          "set": 0.261,
+          "est": 0.2787027742805556,
+          "ok": true
+        },
+        {
+          "joint": "FL_thigh_joint",
+          "set": 0.171,
+          "est": 0.19680658020488845,
+          "ok": true
+        },
+        {
+          "joint": "FR_thigh_joint",
+          "set": 0.249,
+          "est": 0.2751709985497066,
+          "ok": true
+        },
+        {
+          "joint": "RL_thigh_joint",
+          "set": 0.331,
+          "est": 0.3498481533791672,
+          "ok": true
+        },
+        {
+          "joint": "RR_thigh_joint",
+          "set": 0.339,
+          "est": 0.35554168871467684,
+          "ok": true
+        },
+        {
+          "joint": "FL_calf_joint",
+          "set": 0.622,
+          "est": 0.631875496972555,
+          "ok": true
+        },
+        {
+          "joint": "FR_calf_joint",
+          "set": 0.422,
+          "est": 0.43249624437000833,
+          "ok": true
+        },
+        {
+          "joint": "RL_calf_joint",
+          "set": 0.607,
+          "est": 0.6168329255360735,
+          "ok": true
+        },
+        {
+          "joint": "RR_calf_joint",
+          "set": 0.962,
+          "est": 0.9568400657709086,
+          "ok": true
+        }
+      ],
+      "pass": true
+    },
+    "viscous": {
+      "speeds": [
+        0.5,
+        1.0,
+        2.0
+      ],
+      "rows": [
+        {
+          "joint": "FL_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.05560420473432589,
+          "intercept": 0.3400928637384872,
+          "coulomb_set": 0.338,
+          "ok": true
+        },
+        {
+          "joint": "FR_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.04258483204713075,
+          "intercept": 0.36885943187848563,
+          "coulomb_set": 0.353,
+          "ok": true
+        },
+        {
+          "joint": "RL_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.05486457174509716,
+          "intercept": 0.24166884357735213,
+          "coulomb_set": 0.241,
+          "ok": true
+        },
+        {
+          "joint": "RR_hip_joint",
+          "b_set": 0.05,
+          "b_est": 0.032199747488262216,
+          "intercept": 0.28594597188816084,
+          "coulomb_set": 0.261,
+          "ok": true
+        },
+        {
+          "joint": "FL_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.08683428748407328,
+          "intercept": 0.17944129518565047,
+          "coulomb_set": 0.171,
+          "ok": true
+        },
+        {
+          "joint": "FR_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.0680718811979229,
+          "intercept": 0.2780039757015777,
+          "coulomb_set": 0.249,
+          "ok": true
+        },
+        {
+          "joint": "RL_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.095905293783678,
+          "intercept": 0.32885790662047154,
+          "coulomb_set": 0.331,
+          "ok": true
+        },
+        {
+          "joint": "RR_thigh_joint",
+          "b_set": 0.08,
+          "b_est": 0.07596609361375625,
+          "intercept": 0.3598184480007213,
+          "coulomb_set": 0.339,
+          "ok": true
+        },
+        {
+          "joint": "FL_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.10063616270069244,
+          "intercept": 0.6287965779679769,
+          "coulomb_set": 0.622,
+          "ok": true
+        },
+        {
+          "joint": "FR_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.09976021536453056,
+          "intercept": 0.4272981068166987,
+          "coulomb_set": 0.422,
+          "ok": true
+        },
+        {
+          "joint": "RL_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.10256199060886546,
+          "intercept": 0.6134038019795972,
+          "coulomb_set": 0.607,
+          "ok": true
+        },
+        {
+          "joint": "RR_calf_joint",
+          "b_set": 0.1,
+          "b_est": 0.10720825923372024,
+          "intercept": 0.9628817911561821,
+          "coulomb_set": 0.962,
+          "ok": true
+        }
+      ],
+      "pass": true
+    },
+    "load": {
+      "k": 0.1,
+      "external_nm": 4.0,
+      "rows": [
+        {
+          "joint": "FL_hip_joint",
+          "set": 0.6240292476799724,
+          "mean_abs_tau": 2.860292476799723,
+          "est": 0.6280621256949925,
+          "est_without_load_term": 0.3468588576697069,
+          "ok": true
+        },
+        {
+          "joint": "FR_hip_joint",
+          "set": 0.8595067981254014,
+          "mean_abs_tau": 5.065067981254014,
+          "est": 0.8606514588842402,
+          "est_without_load_term": 0.3707776524314803,
+          "ok": true
+        },
+        {
+          "joint": "RL_hip_joint",
+          "set": 0.5288800605358893,
+          "mean_abs_tau": 2.8788006053588933,
+          "est": 0.5334956545420324,
+          "est_without_load_term": 0.24859996529803063,
+          "ok": true
+        },
+        {
+          "joint": "RR_hip_joint",
+          "set": 0.76799143270834,
+          "mean_abs_tau": 5.0699143270834,
+          "est": 0.7715151999046546,
+          "est_without_load_term": 0.2784856954754238,
+          "ok": true
+        },
+        {
+          "joint": "FL_thigh_joint",
+          "set": 0.5190941930974741,
+          "mean_abs_tau": 3.48094193097474,
+          "est": 0.5287327556297643,
+          "est_without_load_term": 0.19335880066501465,
+          "ok": true
+        },
+        {
+          "joint": "FR_thigh_joint",
+          "set": 0.5967234272689289,
+          "mean_abs_tau": 3.477234272689289,
+          "est": 0.6069074544495658,
+          "est_without_load_term": 0.2732374713122312,
+          "ok": true
+        },
+        {
+          "joint": "RL_thigh_joint",
+          "set": 0.6668798594329957,
+          "mean_abs_tau": 3.3587985943299565,
+          "est": 0.6701036477466951,
+          "est_without_load_term": 0.34502785136542746,
+          "ok": true
+        },
+        {
+          "joint": "RR_thigh_joint",
+          "set": 0.6737000072527519,
+          "mean_abs_tau": 3.3470000725275186,
+          "est": 0.6782517179620642,
+          "est_without_load_term": 0.35119928108236453,
+          "ok": true
+        },
+        {
+          "joint": "FL_calf_joint",
+          "set": 1.0386802119604135,
+          "mean_abs_tau": 4.166802119604135,
+          "est": 0.9664676478484351,
+          "est_without_load_term": 0.6343099006003936,
+          "ok": true
+        },
+        {
+          "joint": "FR_calf_joint",
+          "set": 0.8440759011670547,
+          "mean_abs_tau": 4.2207590116705465,
+          "est": 0.8449682610629092,
+          "est_without_load_term": 0.4355720479040093,
+          "ok": true
+        },
+        {
+          "joint": "RL_calf_joint",
+          "set": 1.0186136352312933,
+          "mean_abs_tau": 4.116136352312933,
+          "est": 0.9569028671384157,
+          "est_without_load_term": 0.6182172472237069,
+          "ok": true
+        },
+        {
+          "joint": "RR_calf_joint",
+          "set": 1.3693006327920592,
+          "mean_abs_tau": 4.0730063279205915,
+          "est": 0.9988217583794039,
+          "est_without_load_term": 0.9527283607051598,
+          "ok": false
+        }
+      ],
+      "pass": false
+    },
+    "pass": false
+  }
+}

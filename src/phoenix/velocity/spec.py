@@ -587,6 +587,19 @@ class DomainRandSpec:
     joint_friction_enabled: bool = False
     joint_friction_hip_thigh_nm: Range = (0.0, 0.0)
     joint_friction_calf_nm: Range = (0.0, 0.0)
+    # startup + every control step: joint friction MODEL (phoenix.physics.joint_friction
+    # FrictionDistribution): Coulomb (static = dynamic) + viscous + load-dependent Coulomb
+    # k_load * |applied torque|, refreshed every control step. "off" keeps the legacy
+    # joint_friction_* fields above in charge; "hardware" = measured per joint x a shared
+    # scale with per-joint jitter (identity kept); "broad" = every joint U(broad), no identity.
+    joint_friction_model: str = "off"
+    joint_friction_scale: Range = (1.0, 1.0)
+    joint_friction_jitter: float = 0.0
+    joint_friction_broad_nm: Range = (0.0, 0.0)
+    joint_viscous_hip: Range = (0.0, 0.0)
+    joint_viscous_thigh: Range = (0.0, 0.0)
+    joint_viscous_calf: Range = (0.0, 0.0)
+    joint_friction_load: Range = (0.0, 0.0)
     # every reset: per-env actuator command delay in PHYSICS steps (5 ms each).
     actuator_latency_physics_steps: tuple[int, int] = (1, 4)
     # reset: root pose / velocity perturbation.
@@ -888,6 +901,11 @@ class VelocityTaskSpec:
                 lo_, hi_ = getattr(dr, name)
                 if not (0.0 <= lo_ <= hi_ <= 5.0):
                     p.append(f"{name} must satisfy 0 <= lo <= hi <= 5 N m")
+        if dr.joint_friction_model != "off":
+            if dr.joint_friction_enabled:
+                p.append("joint_friction_model and the legacy joint_friction_enabled are exclusive")
+            fd = friction_distribution(dr)
+            p.extend(fd.validate() if fd is not None else [])
         t = self.terminations
         if not (0.0 < t.tilt_limit_rad < math.pi):
             p.append("tilt limit must be in (0, pi): pi is unreachable (tautological)")
@@ -984,6 +1002,62 @@ def vnext3f_spec() -> VelocityTaskSpec:
             joint_friction_calf_nm=(0.3, 1.5),
         )
     )
+
+
+def friction_distribution(dr: DomainRandSpec):
+    """The joint-friction FrictionDistribution a DR spec asks for, or None when off."""
+    if dr.joint_friction_model == "off":
+        return None
+    from phoenix.physics.joint_friction import FrictionDistribution
+
+    return FrictionDistribution(
+        kind=dr.joint_friction_model,
+        scale=tuple(dr.joint_friction_scale),
+        jitter=float(dr.joint_friction_jitter),
+        broad_coulomb=tuple(dr.joint_friction_broad_nm),
+        viscous_hip=tuple(dr.joint_viscous_hip),
+        viscous_thigh=tuple(dr.joint_viscous_thigh),
+        viscous_calf=tuple(dr.joint_viscous_calf),
+        load=tuple(dr.joint_friction_load),
+    )
+
+
+#: Identified on the incumbent (results/friction_physics/ident_I, fit = yaw05_3s hardware
+#: runs, held-out = vx03_4s tape distance): the hypotheses that reproduce the robot's yaw
+#: within its run-to-run spread span measured Coulomb x0.75..1.5 with k_load 0..0.1 and
+#: viscous 0..0.05; they predict the held-out forward distance 0.62-0.69 m (robot 0.71 m,
+#: frictionless 1.06 m). The two training arms share every other setting and budget.
+HW_FRICTION = {
+    "joint_friction_model": "hardware",
+    "joint_friction_scale": (0.75, 1.6),
+    "joint_friction_jitter": 0.15,
+    "joint_viscous_hip": (0.0, 0.05),
+    "joint_viscous_thigh": (0.0, 0.05),
+    "joint_viscous_calf": (0.0, 0.05),
+    "joint_friction_load": (0.0, 0.1),
+}
+BROAD_FRICTION = {
+    "joint_friction_model": "broad",
+    "joint_friction_broad_nm": (0.0, 1.6),
+    "joint_viscous_hip": (0.0, 0.1),
+    "joint_viscous_thigh": (0.0, 0.1),
+    "joint_viscous_calf": (0.0, 0.1),
+    "joint_friction_load": (0.0, 0.1),
+}
+
+
+def vnext3hw_spec() -> VelocityTaskSpec:
+    """Arm B: vnext3_spec() + the hardware-identified joint friction model (HW_FRICTION)."""
+    base = vnext3_spec()
+    return base.replace(domain_randomization=dataclasses.replace(base.domain_randomization, **HW_FRICTION))
+
+
+def vnext3broad_spec() -> VelocityTaskSpec:
+    """Arm C: vnext3_spec() + conventional broad friction DR (BROAD_FRICTION): every joint
+    U(0, 1.6) N m with no joint identity (covers B's support: max measured 0.96 x 1.6),
+    wider viscous, same load range."""
+    base = vnext3_spec()
+    return base.replace(domain_randomization=dataclasses.replace(base.domain_randomization, **BROAD_FRICTION))
 
 
 def _cold_start_from_dict(blob: Mapping[str, Any] | None) -> ColdStartSpec:
@@ -1105,5 +1179,8 @@ __all__ = [
     "vnext2_spec",
     "vnext3_spec",
     "vnext3f_spec",
+    "vnext3hw_spec",
+    "vnext3broad_spec",
+    "friction_distribution",
     "vnext_spec",
 ]
