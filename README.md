@@ -28,10 +28,11 @@ configuration, and (where possible) unit tests.
 ## Demo
 
 A 25-second cut: a policy trained on 8,192 simulated GO2s in Isaac Lab, then
-the same policy on the real robot. It gets up from lying flat, turns, sits, and
-takes its first untethered steps on a free floor. The turn panel shows the gap
-still open: in simulation the policy reaches 87% of a commanded turn, on the
-real robot in a gantry test 20% (17 of 86 degrees).
+the same policy on the real robot, on a free floor: it holds the stand, walks
+forward and makes a partial turn. Getting up from lying flat and sitting down are
+scripted joint motions, not the learned policy, which was trained from near the
+standing pose. The turn panel shows the gap still open: in simulation the policy
+reaches 87% of a commanded turn, on the real robot 20% (17 of 86 degrees).
 
 <p align="center">
   <a href="https://youtu.be/eCzeuW2WKgY">
@@ -45,7 +46,9 @@ real robot in a gantry test 20% (17 of 86 degrees).
 A newer walking policy (trained in Isaac Lab, on a development branch that is not yet
 published) passed every live stand gate on the robot at zero command: 2 s, 5 s and three
 10 s windows of policy control, body tilt under 0.09 rad, no safety-layer interventions.
-It then executed its first walking commands with the robot in a safety harness. It walks,
+Each live start was a scripted stand-up from the folded pose; the policy took over once the
+robot was standing. It then executed its first walking commands on a free floor (no gantry
+or rope). It walks,
 but it under-tracks: about 60 % of the commanded forward distance and about 20 % of the
 commanded turn, against 89 % and 76 % for the same policy and command profile replayed
 in MuJoCo.
@@ -56,7 +59,7 @@ measured static friction of 0.24-0.35 N m at the hips, 0.17-0.34 N m at the thig
 0.42-0.96 N m at the calves; the training simulator modelled none. Replaying the walk
 profiles in MuJoCo with the measured values drops tracking to 66 % / 34-47 %, and about
 1.25-1.5x the measured values (friction rising under load is the leading, untested
-explanation) matches the robot. Floor friction, control latency and harness drag do not
+explanation) matches the robot. Floor friction and control latency do not
 reproduce the gap in simulation. Next: retrain with joint-friction randomization around
 the measured values. The paragraphs below describe the earlier stand-v3 track.
 
@@ -93,7 +96,7 @@ ledger for every claim below.
 | Failure detector and Parquet trajectory logging | Done | rule-based attitude / collapse / slip |
 | Replay and failure-curriculum fine-tune | Wired | wired and unit-tested; not yet run on real hardware failure data |
 | Live on-robot stand (Gate 7) | Done (newer policy) | 2026-10-06: a newer walking policy at zero command passed 2 s, 5 s and 3 x 10 s live stands. The stand-v3-h25 policy itself was not re-run; its 2026-04-21 saturation cause is still pending the ablation |
-| Live velocity tracking (Gate 8) | In progress | 2026-10-07: first walking commands, in a harness; under-tracks (about 60 % forward, 20 % yaw); cause measured as joint friction (see above) |
+| Live velocity tracking (Gate 8) | In progress | 2026-10-07: first walking commands, on a free floor; under-tracks (about 60 % forward, 20 % yaw); cause measured as joint friction (see above) |
 | Posture-offset fix (floating-base DR or floor test) | ⬜ Planned | decision follows the Gate 7 retry |
 
 Full milestone trail: [`docs/changelog.md`](docs/changelog.md).
