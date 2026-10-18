@@ -1,0 +1,45 @@
+{
+  "checkpoint": "<incumbent-archive>/checkpoints/walk_vnext3c_seed47/2026-09-26_21-06-20/model_2750.pt",
+  "onnx": "results/friction_model/candidates/A_2750/export/policy.onnx",
+  "deploy_cfg": "results/friction_model/candidates/A_2750/deploy_walk.yaml",
+  "obs_dim": 45,
+  "action_dim": 12,
+  "tol_max_abs": 1e-05,
+  "tol_cos": 0.9999,
+  "shipped_manifest": {
+    "<incumbent-archive>/checkpoints/walk_vnext3c_seed47/2026-09-26_21-06-20/model_2750.pt": {
+      "sha256": "e03013d19ccc5df92a58762f8b76566a745c131534e8949ff1275739378198e4",
+      "bytes": 4623221
+    },
+    "results/friction_model/candidates/A_2750/export/policy.onnx": {
+      "sha256": "6d36796f857a490b3d446492581aa1952fa9afdb689bef88b09410db10512c32",
+      "bytes": 1930
+    },
+    "results/friction_model/candidates/A_2750/export/policy.onnx.data": {
+      "sha256": "b6ec50ed6e295aecc0bb3b6d801d3a089c890af491956b1f4f1358c25079797b",
+      "bytes": 757248
+    },
+    "results/friction_model/candidates/A_2750/export/policy.pt": {
+      "sha256": "b463f51bdaab768e9e302a4cd22ecf0f4b3ee900ecf4561f9c3925cdc4816320",
+      "bytes": 771480
+    }
+  },
+  "passed": true,
+  "batches": [
+    {
+      "source": "npz:configs/sim2real/parity/walk_iter2750_v2_synthetic_obs.npz[obs]",
+      "n_samples": 2000,
+      "outputs": [
+        {
+          "name": "action",
+          "max_abs": 1.1920928955078125e-06,
+          "mean_abs": 1.434506654428939e-07,
+          "cos_global": 0.9999999999999626,
+          "cos_worst_sample": 0.9999999999991519,
+          "max_abs_tol": 1e-05,
+          "cos_tol": 0.9999
+        }
+      ]
+    }
+  ]
+}
