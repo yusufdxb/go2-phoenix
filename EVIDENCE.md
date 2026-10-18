@@ -21,6 +21,14 @@ Claims with a reproducible artifact in this repo or a captured log.
   0.03 N m): hips 0.24-0.35, thighs 0.17-0.34, calves 0.42-0.96 N m. A MuJoCo replay of
   the hardware command profiles with these values gives 66 % forward / 34-47 % yaw
   tracking, against 89 % / 76 % without friction.
+- **Friction-aware walking retrain, simulation only (2026-10-17)**: two policies retrained
+  from the incumbent with a joint-friction actuator model (B: around the measured values;
+  C: broad 0-1.6 N m). In MuJoCo replay over the identified friction family, tracking error
+  falls from 0.585 (incumbent) to 0.258 (B) and 0.128 (C) on the hardware command presets;
+  both pass ONNX parity and the sim2sim gate. In the frictionless environment B and C
+  overshoot the command. Not reproducible from this repository yet: the training
+  implementation and the model binaries are not public. Evidence and limits:
+  [docs/evidence/2026-10-17_friction_model/](docs/evidence/2026-10-17_friction_model/README.md).
 
 - **236 unit tests green in CI**: `pytest tests -m "not sim and not ros"`
   (re-measured 2026-09-30 on `main` with the CI command in a clean Python 3.10
@@ -126,7 +134,9 @@ true**.
   cause of the 2026-04-21 saturation is pending an ablation, so the sim-side
   blocker is not shown to be resolved. Live hardware retry still owed (the dev workstation now goes to the lab; no T7 staging).
 - **Gate 8**: walking that tracks the command on the real GO2. First walking commands ran
-  (2026-10-07) and under-track; a friction-aware retrain and its hardware re-test are owed.
+  (2026-10-07) and under-track. The friction-aware retrain exists in simulation (see Verified);
+  the preregistered hardware comparison of the incumbent and the two retrained policies has
+  not been performed.
 - **Friction under load**: the 1.25-1.5x factor that makes the replay match is a
   hypothesis (friction measured unloaded, legs hanging); not measured.
 - **Failure-curriculum adaptation against real-robot parquets.**
