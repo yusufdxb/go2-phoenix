@@ -15,6 +15,17 @@ tracking table (measured / commanded, mean and spread over the valid repeats) an
 
 Writes <dir>/runs.json (every attempt, every metric), <dir>/summary.json and <dir>/report.md.
 Exit 0 always when the analysis ran; the verdict is in the files.
+
+Who typed the operator answers: run records carry ``answers_entered_by`` (operator |
+agent_relaying_operator | agent_unconfirmed; hw_campaign.sh asks it after every run). Older
+records do not; ``--corrections FILE`` sets it (and any other field) after the fact, keyed by
+the record's harness_log, and every correction is listed in runs.json. A tape or yaw reading
+entered as agent_unconfirmed is not a measurement and is dropped; touched / rope / aborted
+answers entered that way are reported as unconfirmed, and such a walk counts only if the
+operator's own remote judgement (A = yes) is on file.
+
+Forward displacement is the tape. ``odom_leg_fwd_m`` is a separate ESTIMATE from kinematic
+leg odometry (phoenix.sim2real.leg_odometry), reported beside the tape and never in its place.
 """
 
 from __future__ import annotations
@@ -32,6 +43,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from phoenix.sim2real import actuator_check as ac  # noqa: E402
+from phoenix.sim2real import leg_odometry as lo  # noqa: E402
 from phoenix.sim2real.walk_command import PRESETS as WALK_PRESETS  # noqa: E402
 
 ARMS = {
@@ -135,6 +147,7 @@ def load_policy(run_dir: Path) -> dict[str, np.ndarray] | None:
         "cmd": np.stack(df["command_vel"].to_numpy()).astype(float),
         "odom_valid": df["odom_valid"].to_numpy(dtype=bool),
         "base_pos": np.stack(df["base_pos"].to_numpy()).astype(float),
+        "q": np.stack(df["joint_pos"].to_numpy()).astype(float),
     }
 
 
@@ -434,7 +447,40 @@ def walk_metrics(pol: dict[str, np.ndarray], preset: str, tape: dict) -> dict:
             )
         else:
             out["odom_fwd_m"] = None  # not valid on this run; never substituted for tape
+        out.update(leg_odometry_metrics(pol, i0, i1, cmd_fwd))
     return out
+
+
+def leg_odometry_metrics(pol: dict[str, np.ndarray], i0: int, i1: int, cmd_fwd: float) -> dict:
+    """ESTIMATE (no-slip kinematic leg odometry), over the whole policy log like the tape
+    (start mark -> end mark, rear feet), plus the forward-speed error while commanded."""
+    if "q" not in pol:
+        return {"odom_leg_fwd_m": None, "odom_leg_note": "no joint positions in the policy log"}
+    ok = np.all(np.isfinite(pol["q"]), axis=1) & np.all(np.isfinite(pol["quat"]), axis=1)
+    if ok.sum() < 10 or not ok[i0 : i1 + 1].all():
+        return {"odom_leg_fwd_m": None, "odom_leg_note": "joint or IMU samples missing"}
+    t, q, quat = pol["t"][ok], pol["q"][ok], pol["quat"][ok]
+    tr = lo.integrate(t, q, quat)
+    yaw0 = math.atan2(tr["R"][0, 1, 0], tr["R"][0, 0, 0])
+    fwd = np.array([math.cos(yaw0), math.sin(yaw0), 0.0])
+    left = np.array([-math.sin(yaw0), math.cos(yaw0), 0.0])
+    rear = tr["feet"][:, [lo.LEGS.index("RL"), lo.LEGS.index("RR")], :].mean(axis=1)
+    d = rear[-1] - rear[0]
+    # forward speed along the initial heading, 0.2 s central difference, inside the command window
+    j0, j1 = int(np.searchsorted(t, pol["t"][i0])), int(np.searchsorted(t, pol["t"][i1]))
+    k = max(1, int(round(0.1 / max(float(np.median(np.diff(t))), 1e-3))))
+    x = tr["base"] @ fwd
+    v = (x[2 * k :] - x[: -2 * k]) / (t[2 * k :] - t[: -2 * k])
+    vc = v[max(j0 - k, 0) : max(j1 - k, 0)]
+    cc = pol["cmd"][ok][j0 + k : j1 + k, 0][: len(vc)]
+    return {
+        "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+        "odom_leg_fwd_m": float(d @ fwd),
+        "odom_leg_lat_m": float(d @ left),
+        "F_odom": float(d @ fwd) / cmd_fwd if abs(cmd_fwd) > 1e-6 else None,
+        "odom_leg_speed_rmse_mps": float(np.sqrt(np.mean((vc - cc) ** 2))) if len(vc) else None,
+        "odom_leg_speed_mean_mps": float(np.mean(vc)) if len(vc) else None,
+    }
 
 
 def joint_tracking(ticks: list[dict]) -> dict:
@@ -507,12 +553,71 @@ def stand_metrics(ticks: list[dict]) -> dict:
 # ------------------------------------------------------------------ campaign
 
 
+def remote_judgement(run_dir: Path, slot: str | None) -> str | None:
+    """The operator's own button answer on the physical remote (A yes / B no), if recorded."""
+    for p in sorted(run_dir.glob("remote_*_judgement.json")):
+        try:
+            return json.loads(p.read_text()).get("result")
+        except (OSError, ValueError):
+            return None
+    return None
+
+
+def battery_record(rec: dict, run_dir: Path) -> dict:
+    """State of charge the harness measured just before this run (its log), and the pack
+    voltage the bridge logged on the policy ticks."""
+    out: dict[str, Any] = {"soc_pre_pct": None, "power_v_median": None}
+    log = Path(rec["harness_log"]) if rec.get("harness_log") else None
+    if log is not None and log.is_file():
+        for line in log.read_text(errors="replace").splitlines():
+            if line.startswith("[battery]") and " battery " in line:
+                try:
+                    out["soc_pre_pct"] = float(line.split(" battery ", 1)[1].split("%")[0])
+                except ValueError:
+                    pass
+    try:
+        _, ticks, _ = load_bridge(run_dir)
+    except (OSError, ValueError):
+        return out
+    v = [
+        t["sensors"]["power_v"]
+        for t in ticks
+        if t.get("mode") == "policy" and isinstance(t.get("sensors"), dict) and t["sensors"].get("power_v")
+    ]
+    if v:
+        out["power_v_median"] = float(np.median(v))
+    return out
+
+
+def apply_corrections(recs: list[dict], corrections: list[dict]) -> None:
+    """Set fields on records after the fact, matched by harness_log; each change is kept."""
+    for c in corrections:
+        hit = [r for r in recs if r.get("kind") == c.get("kind", "run") and r.get("harness_log") == c["harness_log"]]
+        if len(hit) != 1:
+            raise ValueError(f"correction {c['harness_log']!r} matches {len(hit)} records, not 1")
+        r = hit[0]
+        r.setdefault("corrections", []).append(
+            {"set": c["set"], "was": {k: r.get(k) for k in c["set"]}, "reason": c["reason"]}
+        )
+        r.update(c["set"])
+
+
 def analyze_run(rec: dict) -> dict:
     run_dir = Path(rec["run_dir"])
     slot = rec["slot"]
     out: dict[str, Any] = {
         k: rec.get(k) for k in ("block", "arm", "slot", "attempt", "physical_attempt", "run_dir")
     }
+    by = rec.get("answers_entered_by") or "unrecorded"
+    out["answers_entered_by"] = by
+    out["corrections"] = rec.get("corrections", [])
+    out["operator_remote_judgement"] = remote_judgement(run_dir, slot)
+    out["battery"] = battery_record(rec, run_dir)
+    if by == "agent_unconfirmed":
+        dropped = [k for k in ("tape_fwd_m", "tape_lat_m", "meas_yaw_deg") if rec.get(k) is not None]
+        rec = {k: v for k, v in rec.items() if k not in dropped}
+        out["unconfirmed_fields"] = ["touched", "aborted"] + ([] if rec.get("rope_loaded") is None else ["rope_loaded"])
+        out["dropped_unobserved_measurements"] = dropped
     try:
         manifest, ticks, end = load_bridge(run_dir)
     except (OSError, ValueError) as exc:
@@ -550,6 +655,8 @@ def analyze_run(rec: dict) -> dict:
         or (rec.get("aborted") and slot != "stop_drill")
     ):
         why.append("operator: rope loaded / touched / aborted")
+    if by == "agent_unconfirmed" and slot in WALK_SLOTS and out["operator_remote_judgement"] != "yes":
+        why.append("answers typed by the agent without the operator, and no operator remote judgement 'yes'")
     # Amendment 4: how the policy episode ended, from the transition to the first
     # non-policy tick (the operator's answer is metadata, never the only detector).
     ex = policy_exit(ticks, expected_authority_s(slot))
@@ -867,6 +974,20 @@ def main(argv: list[str] | None = None) -> int:
         "the expected clean exit for --slot (used by the campaign runner after each run)",
     )
     ap.add_argument("--slot", help="with --classify-run: G, stop_drill or a walking preset")
+    ap.add_argument(
+        "--corrections",
+        type=Path,
+        help="JSON list of {harness_log, set: {field: value}, reason}: metadata corrections "
+        "applied to the campaign's run records before analysis (kept in runs.json)",
+    )
+    ap.add_argument(
+        "--remap",
+        action="append",
+        default=[],
+        metavar="FROM=TO",
+        help="rewrite a payload path prefix in run_dir / harness_log, e.g. "
+        "logs/hw_sessions=logs/hw_sessions_orin for logs copied back from the payload",
+    )
     args = ap.parse_args(argv)
     if args.classify_run is not None:
         if args.slot not in ("G", "stop_drill", *WALK_SLOTS):
@@ -883,6 +1004,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.campaign is None or args.out is None:
         ap.error("--campaign and --out are required (or use --classify-run)")
     recs = [json.loads(ln) for ln in args.campaign.read_text().splitlines() if ln.strip()]
+    if args.corrections is not None:
+        apply_corrections(recs, json.loads(args.corrections.read_text()))
     run_recs = [r for r in recs if r.get("kind") == "run"]
     header = next((r for r in recs if r.get("kind") == "header"), {})
     if header.get("arms"):  # the campaign pinned its own arms (hw_campaign.sh init)
@@ -896,6 +1019,18 @@ def main(argv: list[str] | None = None) -> int:
     for r in run_recs:
         r.setdefault("campaign_commit", header.get("commit"))
     base = args.campaign.parent
+    remaps = [tuple(m.split("=", 1)) for m in args.remap]
+    for r in recs:
+        for key in ("run_dir", "harness_log"):
+            for a, b in remaps:
+                if isinstance(r.get(key), str) and r[key].startswith(a + "/"):
+                    r[key] = b + r[key][len(a) :]
+                    break
+    for r in recs:
+        log = r.get("harness_log")
+        if isinstance(log, str) and not Path(log).is_absolute() and not Path(log).exists():
+            if (base / Path(log).name).exists():
+                r["harness_log"] = str(base / Path(log).name)
     for r in run_recs:
         if not Path(r["run_dir"]).is_absolute():
             r["run_dir"] = (
@@ -908,7 +1043,7 @@ def main(argv: list[str] | None = None) -> int:
     chosen = first_valid(runs)
     ladder = ladder_events([r for r in recs if r.get("kind") == "ladder"], base)
     summary = {
-        "prereg": "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
+        "prereg": header.get("prereg") or "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
         "n_attempts": len(runs),
         "n_valid": sum(r["valid"] for r in runs),
         "invalid": [
