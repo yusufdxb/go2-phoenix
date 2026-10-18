@@ -13,8 +13,8 @@ Claims with a reproducible artifact in this repo or a captured log.
 - **Live stand gates and first walking commands on the GO2 (2026-10-06/07)**: a newer
   walking policy (development branch, not yet published) passed the staged hardware
   gates at zero command (2 s, 5 s, 3 x 10 s of policy control; max tilt 0.082 rad; no
-  target altered by the safety layer), then ran three short walking commands in a
-  harness: 0.71 m measured for a 0.3 m/s, 4 s command (about 60 %), 17-19 deg for a
+  target altered by the safety layer), then ran three short walking commands on a
+  free floor (no gantry or rope): 0.71 m measured for a 0.3 m/s, 4 s command (about 60 %), 17-19 deg for a
   0.5 rad/s, 3 s turn (about 20 %). Captured logs are held with the development branch.
 - **Measured joint static friction (2026-10-07)**: active breakaway probe on the hung
   robot, estimator validated in MuJoCo against set friction (0-1.5 N m recovered within
