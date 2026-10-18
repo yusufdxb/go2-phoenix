@@ -2,6 +2,13 @@
 
 **Simulation only. The hardware A/B/C comparison on the GO2 has not been performed.**
 
+**Reproduction status: not currently possible from this repository.** The training
+implementation (the joint-friction actuator model, the training and evaluation drivers) is on
+an unpublished development branch, and the model binaries (training checkpoints and ONNX
+exports) are not publicly available. This directory documents the configurations, seeds,
+hashes and results so the claims can be checked against those artifacts once they are
+released; it does not let a reader retrain or re-run the evaluation.
+
 The first walking commands on the GO2 under-tracked (about 60 % of the forward distance and
 20 % of the commanded turn). An active breakaway probe on the robot measured joint static
 friction that the training simulator did not model (see `EVIDENCE.md`). This directory
@@ -74,8 +81,10 @@ pass the sim-to-sim gate v3 (`candidates/*/export/sim2sim_gate/gate_report.json`
 ## Artifacts and hashes
 
 `SHA256SUMS` lists the B and C training checkpoints and all three ONNX exports. The binaries
-are not in this repository; they are kept by the author and match these hashes (also
-recorded in each `phoenix_manifest.json`).
+are not in this repository and not publicly available; they are archived by the author and
+match these hashes (also recorded in each `phoenix_manifest.json`). A release of the ONNX
+exports is pending a review of the redistribution terms of the simulation assets used in
+training.
 
 ## Provenance
 
