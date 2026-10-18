@@ -1,0 +1,118 @@
+# PROPOSED, NOT SHIPPED: walking is refused by deploy_contract until a reviewed walk contract + lock exist (lab card blocker 1).
+# DRAFT, UNCOMMITTED: deployment config for the walk_vnext3c_seed47 model_2750 velocity policy.
+# Derived from configs/sim2real/deploy.yaml. Every control-contract field is checked
+# against the manifest by cfg_manifest_mismatches (0 mismatches at drafting time).
+# Walking is refused by phoenix.sim2real.deploy_contract until stages F and G have
+# PASSED on hardware for this policy's stand-phase twin
+# (configs/sim2real/deploy_walk_iter2750_stand.yaml, same artifacts); this file does
+# not bypass that guard. It stays in proposed/ until then.
+
+policy:
+  # Path to exported ONNX (produced by sim2real/export.py)
+  onnx_path: "results/friction_model/candidates/A_2750/export/policy.onnx"
+  # Checkpoint manifest; the loader reads this path literally (no env expansion),
+  # so it is an absolute path into the read-only archive. deploy.action_clip, kp, kd
+  # come from its deploy block (100.0, 25.0, 0.5).
+  manifest_path: "results/friction_model/candidates/A_2750/export/phoenix_manifest.json"
+  # Fallback TorchScript policy if onnxruntime missing.
+  torchscript_path: "results/friction_model/candidates/A_2750/export/policy.pt"
+  # Source training checkpoint stage A hashes and parity-checks against (no latest.pt exists in the archive).
+  checkpoint_path: "<incumbent-archive>/checkpoints/walk_vnext3c_seed47/2026-09-26_21-06-20/model_2750.pt"
+  device: "cpu"                  # Jetson/on-robot inference
+  # Velocity obs v2 is 45-dim (no height scanner, no base_lin_vel term): no padding.
+  obs_pad_zeros: 0
+
+  # Two-policy mode switch (stand-v2 @ cmd=0 / v3b @ walking). When
+  # enabled, the node loads both ONNX sessions each tick and picks a
+  # target via the state machine in phoenix.sim2real.mode_switch. When
+  # disabled (default), only ``onnx_path`` is used: identical behaviour
+  # to pre-mode-switch bringups.
+  mode_switch:
+    enabled: false
+    stand_onnx_path: "checkpoints/phoenix-flat/policy.onnx"        # stand-v2 (Gate 7)
+    walk_onnx_path:  "checkpoints/phoenix-flat/v3b/policy.onnx"    # v3b (re-exported 2026-04-19)
+    enter_walk_thresh: 0.15    # m/s-equivalent; enter TRANS_TO_WALK above this
+    enter_stand_thresh: 0.05   # m/s-equivalent; enter TRANS_TO_STAND below this (hysteresis band = 0.10)
+    yaw_scale: 0.3             # rad/s → m/s equivalent for combined magnitude
+    transition_ticks: 25       # 0.5 s @ 50 Hz linear blend
+
+control:
+  rate_hz: 50                    # matches sim decimation
+  action_scale: 0.25             # policy output → joint delta
+  # The hips are +0.1 (L) / -0.1 (R), not 0.0. These twelve numbers are the
+  # training pose, IsaacLab UNITREE_GO2_CFG.init_state in
+  # isaaclab_assets/robots/unitree.py, and that file is the authority. The
+  # action term sets use_default_offset=True, which makes this block the
+  # action offset AND the joint-position observation reference at the same
+  # time, so a value that disagrees with training costs both at once.
+  default_joint_pos:
+    FL_hip_joint: 0.1
+    FR_hip_joint: -0.1
+    RL_hip_joint: 0.1
+    RR_hip_joint: -0.1
+    FL_thigh_joint: 0.8
+    FR_thigh_joint: 0.8
+    RL_thigh_joint: 1.0
+    RR_thigh_joint: 1.0
+    FL_calf_joint: -1.5
+    FR_calf_joint: -1.5
+    RL_calf_joint: -1.5
+    RR_calf_joint: -1.5
+
+joint_order:
+  # Must match the order used at training time.
+  - "FL_hip_joint"
+  - "FR_hip_joint"
+  - "RL_hip_joint"
+  - "RR_hip_joint"
+  - "FL_thigh_joint"
+  - "FR_thigh_joint"
+  - "RL_thigh_joint"
+  - "RR_thigh_joint"
+  - "FL_calf_joint"
+  - "FR_calf_joint"
+  - "RL_calf_joint"
+  - "RR_calf_joint"
+
+topics:
+  imu: "/imu/data"
+  joint_states: "/joint_states"
+  cmd_vel: "/cmd_vel"
+  joint_command: "/joint_group_position_controller/command"
+
+safety:
+  # Walking policy. deploy_contract refuses stand_only: false in code until its
+  # prerequisites exist, so this draft is expected to be blocked there.
+  stand_only: false
+  emergency_stop_topic: "/phoenix/estop"
+  dead_mans_switch: true
+  max_runtime_s: 120             # auto-stop after N seconds
+  # Fail-closed timeouts. Stricter than the previous ad-hoc behaviour:
+  # a stale estop heartbeat is treated as an asserted estop. Sensor
+  # silence aborts the policy.
+  # 0.5s was tight enough to fail-closed on every BT hiccup observed in the
+  # 2026-04-16 lab session. 0.8s still well inside human reaction time but
+  # tolerates typical deadman radio jitter.
+  estop_timeout_s: 0.8
+  sensor_timeout_s: 0.2
+  # Maximum time the node will wait for the first message on each required
+  # topic (estop, imu, joint_state) before latching abort. Replaces the
+  # old startup_grace_s wallclock gate. DDS discovery on the Jetson can
+  # take >3s; 15s gives a generous margin without masking real publisher
+  # failures.
+  first_message_timeout_s: 15.0
+
+# Which source supplies the body linear velocity the POLICY consumes. There is
+# deliberately no default: base_lin_vel is a TRAINED observation term, and a
+# silent zero for a trained feature is the defect this key exists to prevent.
+#   zeros : feed zeros, as every run before 2026-09-11 did. Reproduces historical
+#           behaviour exactly and is the calibration the shield artifact was fit in.
+#   odom  : use validated /utlidar/robot_odom body twist. HARDWARE-UNVERIFIED and
+#           NOT the input distribution any shipped checkpoint was trained against.
+#
+# schema_version: the manifest declares phoenix-velocity-obs/v2 (45-D, NO base_lin_vel
+# term), so for this policy base_lin_vel_source is an inert placeholder (the node requires
+# the key) and must stay 'zeros'; deploy_contract holds the pair consistent.
+observation:
+  schema_version: phoenix-velocity-obs/v2
+  base_lin_vel_source: zeros

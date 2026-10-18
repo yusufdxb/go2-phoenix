@@ -1,0 +1,477 @@
+{
+  "action": {
+    "clip": null,
+    "clip_actions": 100.0,
+    "rate_limit_enabled": false,
+    "scale": 0.25,
+    "use_default_offset": true
+  },
+  "cold_start": {
+    "enabled": true,
+    "families": [
+      [
+        0,
+        0.15,
+        0.4,
+        1.0
+      ],
+      [
+        0,
+        -0.3,
+        -0.15,
+        2.0
+      ],
+      [
+        1,
+        0.15,
+        0.3,
+        1.0
+      ],
+      [
+        1,
+        -0.3,
+        -0.15,
+        1.0
+      ],
+      [
+        2,
+        0.3,
+        0.8,
+        1.0
+      ],
+      [
+        2,
+        -0.8,
+        -0.3,
+        1.0
+      ]
+    ],
+    "fraction": 0.15,
+    "settle_s": [
+      0.5,
+      1.5
+    ]
+  },
+  "commands": {
+    "final_ang_vel_z": [
+      -1.0,
+      1.0
+    ],
+    "final_lin_vel_x": [
+      -0.8,
+      1.0
+    ],
+    "final_lin_vel_y": [
+      -0.5,
+      0.5
+    ],
+    "heading_command": false,
+    "initial_ang_vel_z": [
+      -1.0,
+      1.0
+    ],
+    "initial_lin_vel_x": [
+      -0.3,
+      0.6
+    ],
+    "initial_lin_vel_y": [
+      -0.3,
+      0.3
+    ],
+    "rel_standing_envs": 0.1,
+    "required_envelope": [
+      0.5,
+      0.3,
+      0.8
+    ],
+    "resampling_time_range_s": [
+      5.0,
+      10.0
+    ],
+    "small_lin_cmd": 0.1,
+    "small_yaw_cmd": 0.1
+  },
+  "curriculum": {
+    "enabled": true,
+    "gate": "unitree_lin_kernel",
+    "gate_kernel_std": 0.5,
+    "lin_kernel_threshold": 0.8,
+    "lin_score_threshold": 0.6,
+    "max_termination_rate": 0.1,
+    "min_window_episodes": 64,
+    "num_levels": 8,
+    "window_episodes_per_env": 1.0,
+    "yaw_score_threshold": 0.5
+  },
+  "derived": {
+    "actor_obs_dim": 45,
+    "control_hz": 50.0,
+    "critic_extra_terms": [
+      [
+        "base_lin_vel",
+        3,
+        "m/s body"
+      ],
+      [
+        "base_height",
+        1,
+        "m world z (flat plane)"
+      ],
+      [
+        "feet_contact",
+        4,
+        "0/1 per foot"
+      ],
+      [
+        "feet_contact_force",
+        4,
+        "N per foot (norm)"
+      ]
+    ],
+    "critic_obs_dim": 57,
+    "curriculum_window_episodes": 8192,
+    "default_joint_pos": {
+      "FL_calf_joint": -1.5,
+      "FL_hip_joint": 0.1,
+      "FL_thigh_joint": 0.8,
+      "FR_calf_joint": -1.5,
+      "FR_hip_joint": -0.1,
+      "FR_thigh_joint": 0.8,
+      "RL_calf_joint": -1.5,
+      "RL_hip_joint": 0.1,
+      "RL_thigh_joint": 1.0,
+      "RR_calf_joint": -1.5,
+      "RR_hip_joint": -0.1,
+      "RR_thigh_joint": 1.0
+    },
+    "final_command_ranges": {
+      "ang_vel_z": [
+        -1.0,
+        1.0
+      ],
+      "lin_vel_x": [
+        -0.8,
+        1.0
+      ],
+      "lin_vel_y": [
+        -0.5,
+        0.5
+      ],
+      "rel_standing_envs": 0.1
+    },
+    "initial_command_ranges": {
+      "ang_vel_z": [
+        -1.0,
+        1.0
+      ],
+      "lin_vel_x": [
+        -0.3,
+        0.6
+      ],
+      "lin_vel_y": [
+        -0.3,
+        0.3
+      ],
+      "rel_standing_envs": 0.1
+    },
+    "joint_order": [
+      "FL_hip_joint",
+      "FR_hip_joint",
+      "RL_hip_joint",
+      "RR_hip_joint",
+      "FL_thigh_joint",
+      "FR_thigh_joint",
+      "RL_thigh_joint",
+      "RR_thigh_joint",
+      "FL_calf_joint",
+      "FR_calf_joint",
+      "RL_calf_joint",
+      "RR_calf_joint"
+    ],
+    "max_episode_steps": 1000,
+    "step_dt": 0.02
+  },
+  "domain_randomization": {
+    "actuator_latency_physics_steps": [
+      1,
+      4
+    ],
+    "base_com_enabled": true,
+    "base_com_x": [
+      -0.03,
+      0.03
+    ],
+    "base_com_y": [
+      -0.03,
+      0.03
+    ],
+    "base_com_z": [
+      -0.02,
+      0.02
+    ],
+    "base_mass_add_kg": [
+      -1.0,
+      3.0
+    ],
+    "dynamic_friction": [
+      0.4,
+      1.0
+    ],
+    "joint_armature_add": [
+      0.0,
+      0.01
+    ],
+    "material_buckets": 64,
+    "motor_damping_scale": [
+      0.85,
+      1.15
+    ],
+    "motor_stiffness_scale": [
+      0.85,
+      1.15
+    ],
+    "push_enabled": true,
+    "push_interval_s": [
+      6.0,
+      12.0
+    ],
+    "push_velocity_xy": [
+      -0.5,
+      0.5
+    ],
+    "reset_ang_vel": [
+      -0.2,
+      0.2
+    ],
+    "reset_joint_pos_offset": [
+      -0.1,
+      0.1
+    ],
+    "reset_lin_vel": [
+      -0.2,
+      0.2
+    ],
+    "reset_xy_m": [
+      -0.5,
+      0.5
+    ],
+    "reset_yaw_rad": [
+      -3.141592653589793,
+      3.141592653589793
+    ],
+    "restitution": [
+      0.0,
+      0.1
+    ],
+    "static_friction": [
+      0.4,
+      1.2
+    ]
+  },
+  "health": {
+    "action_p99_abort": 3.5,
+    "action_p99_hard": false,
+    "action_p99_warn": 3.2,
+    "curriculum_stall_warn_iteration": 1500,
+    "enabled": true,
+    "episode_length_abort": 800.0,
+    "episode_length_warn": 900.0,
+    "kl_abort_factor": 5.0,
+    "kl_hard": false,
+    "kl_sustain_iterations": 10,
+    "lr_abort": 0.0001,
+    "lr_hard": false,
+    "lr_sustain_iterations": 10,
+    "std_abort": 0.3,
+    "std_warn": 0.28,
+    "sustain_iterations": 50,
+    "warmup_iterations": 250
+  },
+  "obs_noise": {
+    "base_ang_vel": 0.2,
+    "joint_pos_rel": 0.01,
+    "joint_vel": 1.5,
+    "last_action": 0.0,
+    "projected_gravity": 0.05,
+    "velocity_command": 0.0
+  },
+  "obs_schema": "phoenix-velocity-obs/v2",
+  "ppo": {
+    "activation": "elu",
+    "actor_hidden_dims": [
+      512,
+      256,
+      128
+    ],
+    "actor_obs_normalization": false,
+    "clip_param": 0.2,
+    "critic_hidden_dims": [
+      512,
+      256,
+      128
+    ],
+    "critic_obs_normalization": true,
+    "desired_kl": 0.01,
+    "entropy_coef": 0.01,
+    "experiment_name": "walk_vnext3c_seed47",
+    "gamma": 0.99,
+    "init_noise_std": 1.0,
+    "lam": 0.95,
+    "learning_rate": 0.001,
+    "max_grad_norm": 1.0,
+    "max_iterations": 3001,
+    "num_learning_epochs": 5,
+    "num_mini_batches": 4,
+    "num_steps_per_env": 24,
+    "save_interval": 250,
+    "schedule": "adaptive",
+    "use_clipped_value_loss": true,
+    "value_loss_coef": 1.0
+  },
+  "rewards": [
+    {
+      "func": "isaac:track_lin_vel_xy_exp",
+      "name": "track_lin_vel_xy_exp",
+      "params": {
+        "std": 0.35
+      },
+      "prevents": "the task itself: not following the planar velocity command",
+      "unit": "exp kernel in [0,1] of body-frame (vx,vy) error",
+      "weight": 1.5
+    },
+    {
+      "func": "isaac:track_ang_vel_z_exp",
+      "name": "track_ang_vel_z_exp",
+      "params": {
+        "std": 0.5
+      },
+      "prevents": "the task itself: not following the yaw-rate command",
+      "unit": "exp kernel in [0,1] of body-frame wz error",
+      "weight": 0.75
+    },
+    {
+      "func": "isaac:lin_vel_z_l2",
+      "name": "lin_vel_z_l2",
+      "params": {},
+      "prevents": "bouncing / hopping gaits that pump the trunk vertically",
+      "unit": "(m/s)^2 body vz",
+      "weight": -2.0
+    },
+    {
+      "func": "isaac:ang_vel_xy_l2",
+      "name": "ang_vel_xy_l2",
+      "params": {},
+      "prevents": "trunk wobble; the IMU and any payload see it",
+      "unit": "(rad/s)^2 body roll+pitch rate",
+      "weight": -0.05
+    },
+    {
+      "func": "isaac:flat_orientation_l2",
+      "name": "flat_orientation_l2",
+      "params": {},
+      "prevents": "walking with a steady lean (static tilt is not caught by ang_vel_xy)",
+      "unit": "projected gravity xy squared (~tilt^2)",
+      "weight": -2.5
+    },
+    {
+      "func": "isaac:joint_torques_l2",
+      "name": "joint_torques_l2",
+      "params": {},
+      "prevents": "high-torque gaits that heat motors and saturate the DC-motor curve",
+      "unit": "(N m)^2 summed over 12 joints",
+      "weight": -0.0002
+    },
+    {
+      "func": "isaac:joint_acc_l2",
+      "name": "joint_acc_l2",
+      "params": {},
+      "prevents": "jerky, vibrating joint motion that the real gearbox will not follow",
+      "unit": "(rad/s^2)^2 summed",
+      "weight": -2.5e-07
+    },
+    {
+      "func": "isaac:action_rate_l2",
+      "name": "action_rate_l2",
+      "params": {},
+      "prevents": "high-frequency action chatter across ALL motors (L2 smoothness)",
+      "unit": "(dimensionless action delta)^2 summed",
+      "weight": -0.01
+    },
+    {
+      "func": "isaac:action_l2",
+      "name": "action_l2",
+      "params": {},
+      "prevents": "unbounded drift of the actor's mean output. 2026-09-25 bug: the Gaussian actor has no output activation on its mean (rsl_rl GaussianDistribution.update: mean = mlp_output, no tanh/clip) and action_rate_l2/slew_sat_hinge_l2 only penalize CHANGE between steps, not magnitude, so a policy can drift its mean action to arbitrarily large values as long as it does so slowly (small per-step delta). Measured: seed 43's action_abs_p99 grew smoothly 4.09 (iter 2000) -> 9.70 (iter 5000) -> 15.49 (iter 8500) while action std stayed roughly flat (0.19 -> 0.20 -> 0.25), and episode length collapsed from 946 to 60 over the same span. Same weight as action_rate_l2 (-0.01): both are action-processing penalties at the same order of magnitude, not tuned against each other.",
+      "unit": "(dimensionless RAW action, post rsl_rl clip)^2 summed",
+      "weight": -0.01
+    },
+    {
+      "func": "phoenix:slew_sat_hinge_l2",
+      "name": "slew_sat_hinge_l2",
+      "params": {
+        "threshold": 0.15
+      },
+      "prevents": "any SINGLE motor approaching the 0.175 rad/step deploy slew clip (action_rate_l2 can stay small while one motor saturates)",
+      "unit": "rad^2: sum over motors of max(0, scale*|a_t - a_{t-1}| - 0.15)^2",
+      "weight": -10.0
+    },
+    {
+      "func": "phoenix:feet_air_time_gated",
+      "name": "feet_air_time",
+      "params": {
+        "threshold": 0.5
+      },
+      "prevents": "shuffling / foot dragging; zero when the command is a stand command",
+      "unit": "s: sum over touchdowns of (air_time - 0.5 s), only when commanded to move",
+      "weight": 0.25
+    },
+    {
+      "func": "isaac:feet_slide",
+      "name": "feet_slide",
+      "params": {},
+      "prevents": "stance feet skating on the ground (slip that the real floor punishes)",
+      "unit": "m/s: sum of planar foot speed while that foot is in contact",
+      "weight": -0.1
+    },
+    {
+      "func": "isaac:undesired_contacts",
+      "name": "undesired_contacts",
+      "params": {},
+      "prevents": "knee / thigh / hip touching the ground (kneeling, crawling gaits)",
+      "unit": "count of hip/thigh bodies with contact force > 1 N",
+      "weight": -1.0
+    },
+    {
+      "func": "isaac:joint_pos_limits",
+      "name": "joint_pos_limits",
+      "params": {},
+      "prevents": "gaits that ride the mechanical joint stops",
+      "unit": "rad beyond the soft joint limits (0.9 x hard range), summed",
+      "weight": -10.0
+    },
+    {
+      "func": "phoenix:stand_still_joint_deviation_l1",
+      "name": "stand_still",
+      "params": {},
+      "prevents": "fidgeting / marching in place or a crouched pose when told to stand",
+      "unit": "rad: sum |q - q_default| when |v_cmd| < 0.1 m/s and |wz_cmd| < 0.1 rad/s",
+      "weight": -0.5
+    }
+  ],
+  "schema": "phoenix-velocity-spec/v1",
+  "seed": 47,
+  "sim": {
+    "decimation": 4,
+    "env_spacing": 2.5,
+    "episode_length_s": 20.0,
+    "num_envs": 8192,
+    "physics_dt": 0.005
+  },
+  "task_id": "Phoenix-Velocity-Flat-Go2-v0",
+  "terminations": {
+    "max_joint_vel": 100.0,
+    "max_root_lin_vel": 50.0,
+    "tilt_limit_rad": 1.0,
+    "trunk_contact_threshold_n": 1.0
+  }
+}
