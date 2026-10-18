@@ -1,0 +1,264 @@
+[
+  {
+    "block": 1,
+    "arm": "A",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "/home/yusuf/workspace/wt/phoenix-friction-deploy/logs/hw_sessions_orin/20261017_003c527ccb6d_abc_2026-10-17_abA/G1_20261017T234242Z",
+    "answers_entered_by": "agent_unconfirmed",
+    "corrections": [
+      {
+        "set": {
+          "answers_entered_by": "agent_unconfirmed"
+        },
+        "was": {
+          "answers_entered_by": null
+        },
+        "reason": "2026-10-18 correction: the terminal answers (rope n, touched n, aborted n) were typed by Claude while the operator was at the robot; the operator did not answer them. Operator-confirmed for this run: the remote judgement 'yes' (button A, remote_G1_judgement.json)."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 8.0,
+      "power_v_median": 27.038440704345703
+    },
+    "unconfirmed_fields": [
+      "touched",
+      "aborted",
+      "rope_loaded"
+    ],
+    "dropped_unobserved_measurements": [],
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 5996,
+      "n_policy_ticks": 1593,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.912008320790815,
+      "max_tilt_deg_policy": 4.48959840698043,
+      "bridge_dt_s": {
+        "p50": 0.0027454240002953156,
+        "p99": 0.005695619839179926,
+        "max": 0.0068096959994363715,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.00081136,
+      "max_cmd_age_s": 0.02141168,
+      "max_imu_age_s": 0.00081136,
+      "window_end_to_sit_s": 1.0038301759996102
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 3354,
+      "t_policy_last_ns": 7945689424416,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 4.996986144,
+      "first_post_policy": {
+        "tick": 3356,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.006852
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 2.994386144,
+      "calf_sag_median": 0.12863346934318542,
+      "calf_sag_mean": 0.12859776500389683,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.15107715129852295,
+        "FR_calf_joint": 0.1404963731765747,
+        "RL_calf_joint": 0.10240697860717773,
+        "RR_calf_joint": 0.12055337429046631
+      },
+      "dq_rms_max_calf": 0.0217288300210243,
+      "dq_rms_max_all": 0.04435117934274367,
+      "max_tilt_deg": 2.2481355180659093,
+      "osc_frac_4_15hz": 0.14140474900784014
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 1,
+    "arm": "A",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "/home/yusuf/workspace/wt/phoenix-friction-deploy/none",
+    "answers_entered_by": "agent_unconfirmed",
+    "corrections": [
+      {
+        "set": {
+          "answers_entered_by": "agent_unconfirmed",
+          "no_motion": true
+        },
+        "was": {
+          "answers_entered_by": null,
+          "no_motion": null
+        },
+        "reason": "2026-10-18 correction: answers typed by Claude. aborted=true was taken from the harness exit code; the harness log shows HALT at the LIVE phrase prompt ('operator did not confirm stage W vx03_4s'): no bridge was launched and the robot did not move, so this is not an aborted walk. Who typed the phrase is not recorded."
+      }
+    ],
+    "operator_remote_judgement": null,
+    "battery": {
+      "soc_pre_pct": 8.0,
+      "power_v_median": null
+    },
+    "unconfirmed_fields": [
+      "touched",
+      "aborted",
+      "rope_loaded"
+    ],
+    "dropped_unobserved_measurements": [],
+    "valid": false,
+    "why": [
+      "unreadable: [Errno 2] No such file or directory: '/home/yusuf/workspace/wt/phoenix-friction-deploy/none/bridge.jsonl'"
+    ]
+  },
+  {
+    "block": 1,
+    "arm": "A",
+    "slot": "vx03_4s",
+    "attempt": 2,
+    "physical_attempt": 2,
+    "run_dir": "/home/yusuf/workspace/wt/phoenix-friction-deploy/logs/hw_sessions_orin/20261017_003c527ccb6d_abc_2026-10-17_abA/W_vx03_4s_20261017T234547Z",
+    "answers_entered_by": "agent_unconfirmed",
+    "corrections": [
+      {
+        "set": {
+          "answers_entered_by": "agent_unconfirmed"
+        },
+        "was": {
+          "answers_entered_by": null
+        },
+        "reason": "2026-10-18 correction: the terminal answers (touched n, aborted n, tape empty) were typed by Claude, not the operator. Operator-confirmed for this run: the remote judgement 'yes' (button A, remote_W_vx03_4s_judgement.json). Forward displacement was never measured (no tape, no video on file)."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 7.0,
+      "power_v_median": 26.93219757080078
+    },
+    "unconfirmed_fields": [
+      "touched",
+      "aborted"
+    ],
+    "dropped_unobserved_measurements": [],
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 9028,
+      "n_policy_ticks": 4241,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 14.921639680862427,
+      "max_tilt_deg_policy": 4.605603658500089,
+      "bridge_dt_s": {
+        "p50": 0.0028471999999055697,
+        "p99": 0.004524896000248191,
+        "max": 0.007074015999933181,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001404704,
+      "max_cmd_age_s": 0.046938944,
+      "max_imu_age_s": 0.001404704,
+      "window_end_to_sit_s": 1.003669183999591
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5877,
+      "t_policy_last_ns": 8138551840672,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.995931072,
+      "first_post_policy": {
+        "tick": 5879,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.0129392
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999865597661,
+        1.0000002222357722
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.199995009149745,
+      "imu_yaw_deg": 0.8532741104932252,
+      "gyro_yaw_deg": 0.02885628110979559,
+      "policy_dt_s": {
+        "p99": 0.02238832191958863,
+        "max": 0.04679139200015925,
+        "n_gt_30ms": 1
+      },
+      "yaw_drift_deg": 0.8532741104932252,
+      "F": null,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 0.6627031984968598,
+      "odom_leg_lat_m": 0.039986746454961405,
+      "F_odom": 0.5522549622655658,
+      "odom_leg_speed_rmse_mps": 0.12905691416192067,
+      "odom_leg_speed_mean_mps": 0.14788374163786602
+    },
+    "tracking": {
+      "n": 1547,
+      "rms_err_hip": 0.07321209710096459,
+      "swing_ratio_hip": 0.563226371433121,
+      "rms_err_thigh": 0.09103651306945112,
+      "swing_ratio_thigh": 1.50775201594995,
+      "rms_err_calf": 0.2508303443142019,
+      "swing_ratio_calf": 0.46766623000441176
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": false,
+    "why": [
+      "no tape reading"
+    ]
+  }
+]

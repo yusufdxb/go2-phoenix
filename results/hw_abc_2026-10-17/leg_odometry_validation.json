@@ -1,0 +1,65 @@
+{
+  "schema": "phoenix-leg-odometry-validation/v1",
+  "estimator": "phoenix.sim2real.leg_odometry (diagonal-pair stance, no slip, IMU attitude)",
+  "runs": [
+    {
+      "run_dir": "/home/yusuf/Lab/phm-phoenix-2026-10-17/hw/s4/session/FF_walk_20261017T220016Z",
+      "tape_fwd_m": 0.34,
+      "tape_lat_m": -0.006,
+      "tape_source": "operator_measurement.json (Yusuf Guenena)",
+      "odom_rear_fwd_m": 0.2874071716197816,
+      "odom_rear_lat_m": -0.0016372196901746957,
+      "odom_yaw_deg": -0.1709724423846771,
+      "ratio": 0.8453152106464163,
+      "loo_scale": 0.8552276823623228,
+      "loo_pred_fwd_m": 0.33605924778522267,
+      "loo_err_m": -0.003940752214777354,
+      "loo_err_frac": -0.01159044769052163
+    },
+    {
+      "run_dir": "/home/yusuf/Lab/phm-phoenix-2026-10-17/hw/s5/session/FF_walk_20261017T220703Z",
+      "tape_fwd_m": 0.27399999999999997,
+      "tape_lat_m": 0.044000000000000004,
+      "tape_source": "operator_measurement.json (Yusuf Guenena)",
+      "odom_rear_fwd_m": 0.23714607487494824,
+      "odom_rear_lat_m": 0.02278991226786609,
+      "odom_yaw_deg": 1.4721646271819155,
+      "ratio": 0.8654966236311981,
+      "loo_scale": 0.8485005447007289,
+      "loo_pred_fwd_m": 0.27948841795804746,
+      "loo_err_m": 0.005488417958047498,
+      "loo_err_frac": 0.02003072247462591
+    },
+    {
+      "run_dir": "/home/yusuf/Lab/phm-phoenix-2026-10-17/hw/s6/session/FF_walk_20261017T221336Z",
+      "tape_fwd_m": 0.368,
+      "tape_lat_m": 0.0,
+      "tape_source": "operator_measurement.json (Yusuf Guenena)",
+      "odom_rear_fwd_m": 0.3039296635880952,
+      "odom_rear_lat_m": 0.012527775963803637,
+      "odom_yaw_deg": 2.786632860304656,
+      "ratio": 0.82589582496765,
+      "loo_scale": 0.8617008109219116,
+      "loo_pred_fwd_m": 0.3527090374476132,
+      "loo_err_m": -0.015290962552386766,
+      "loo_err_frac": -0.04155152867496404
+    },
+    {
+      "run_dir": "/home/yusuf/workspace/wt/phoenix-walk-v1-hw/logs/hw_sessions/20261007_34104ff860c8/W_vx03_4s_20261007T000103Z",
+      "tape_fwd_m": 0.71,
+      "tape_lat_m": null,
+      "tape_source": "command line",
+      "odom_rear_fwd_m": 0.6207463249265653,
+      "odom_rear_lat_m": -0.010043229048311618,
+      "odom_yaw_deg": 0.5697979098852549,
+      "ratio": 0.8742905984881203,
+      "loo_scale": 0.8455692197484215,
+      "loo_pred_fwd_m": 0.7341165104274412,
+      "loo_err_m": 0.02411651042744123,
+      "loo_err_frac": 0.03396691609498765
+    }
+  ],
+  "ratio_mean": 0.8527495644333462,
+  "ratio_std": 0.021624805246623642,
+  "loo_abs_err_frac_max": 0.04155152867496404
+}

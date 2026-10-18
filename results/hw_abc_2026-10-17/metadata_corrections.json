@@ -1,0 +1,17 @@
+[
+  {
+    "harness_log": "logs/gantry_ab/20261017_003c527ccb6d_abc_2026-10-17/harness_b1_G_20261017T234156Z.log",
+    "set": {"answers_entered_by": "agent_unconfirmed"},
+    "reason": "2026-10-18 correction: the terminal answers (rope n, touched n, aborted n) were typed by Claude while the operator was at the robot; the operator did not answer them. Operator-confirmed for this run: the remote judgement 'yes' (button A, remote_G1_judgement.json)."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261017_003c527ccb6d_abc_2026-10-17/harness_b1_vx03_4s_20261017T234317Z.log",
+    "set": {"answers_entered_by": "agent_unconfirmed", "no_motion": true},
+    "reason": "2026-10-18 correction: answers typed by Claude. aborted=true was taken from the harness exit code; the harness log shows HALT at the LIVE phrase prompt ('operator did not confirm stage W vx03_4s'): no bridge was launched and the robot did not move, so this is not an aborted walk. Who typed the phrase is not recorded."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261017_003c527ccb6d_abc_2026-10-17/harness_b1_vx03_4s_20261017T234345Z.log",
+    "set": {"answers_entered_by": "agent_unconfirmed"},
+    "reason": "2026-10-18 correction: the terminal answers (touched n, aborted n, tape empty) were typed by Claude, not the operator. Operator-confirmed for this run: the remote judgement 'yes' (button A, remote_W_vx03_4s_judgement.json). Forward displacement was never measured (no tape, no video on file)."
+  }
+]

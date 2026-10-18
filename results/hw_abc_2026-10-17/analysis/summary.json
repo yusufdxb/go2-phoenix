@@ -1,0 +1,94 @@
+{
+  "prereg": "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
+  "n_attempts": 3,
+  "n_valid": 1,
+  "invalid": [
+    {
+      "block": 1,
+      "arm": "A",
+      "slot": "vx03_4s",
+      "attempt": 1,
+      "run_dir": "/home/yusuf/workspace/wt/phoenix-friction-deploy/none",
+      "why": [
+        "unreadable: [Errno 2] No such file or directory: '/home/yusuf/workspace/wt/phoenix-friction-deploy/none/bridge.jsonl'"
+      ]
+    },
+    {
+      "block": 1,
+      "arm": "A",
+      "slot": "vx03_4s",
+      "attempt": 2,
+      "run_dir": "/home/yusuf/workspace/wt/phoenix-friction-deploy/logs/hw_sessions_orin/20261017_003c527ccb6d_abc_2026-10-17_abA/W_vx03_4s_20261017T234547Z",
+      "why": [
+        "no tape reading"
+      ]
+    }
+  ],
+  "decision": {
+    "values": {
+      "A": {
+        "vx03_4s": [],
+        "yaw05_3s": []
+      },
+      "B": {
+        "vx03_4s": [],
+        "yaw05_3s": []
+      },
+      "C": {
+        "vx03_4s": [],
+        "yaw05_3s": []
+      }
+    },
+    "verdict": "INSUFFICIENT"
+  },
+  "tracking": {},
+  "stop_summary": {
+    "A": {
+      "stop_latency_s": null,
+      "release_rx_to_zero_s": null,
+      "window_end_to_sit_s": {
+        "n": 2,
+        "mean": 1.0037496799996006,
+        "std": 0.00011383853493034541,
+        "min": 1.003669183999591,
+        "max": 1.0038301759996102
+      }
+    }
+  },
+  "ladder_safety_events": [],
+  "stop_conditions_detected": [],
+  "model_identification": {},
+  "operator_log_discrepancies": [],
+  "stop": [
+    {
+      "block": 1,
+      "arm": "A",
+      "slot": "G",
+      "exit": "planned_end",
+      "t_policy_last_ns": 7945689424416,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "problems": [],
+      "window_end_to_sit_s": 1.0038301759996102
+    },
+    {
+      "block": 1,
+      "arm": "A",
+      "slot": "vx03_4s",
+      "exit": "planned_end",
+      "t_policy_last_ns": 8138551840672,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "problems": [],
+      "window_end_to_sit_s": 1.003669183999591
+    }
+  ]
+}
