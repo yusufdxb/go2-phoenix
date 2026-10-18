@@ -12,6 +12,8 @@
 # fixes WHICH arm runs WHEN (the arms file's block order), keeps each arm's stage records in its
 # own session directory, refuses bundles whose policy hashes are not the planned arm's, and
 # records the operator's measurements in campaign.jsonl.
+# Each run record says who typed its answers (answers_entered_by: operator, agent relaying the
+# operator, or agent without an operator observation); the analysis never counts the last as observed.
 #
 # Run ON THE PAYLOAD from the synced checkout (scripts/stage_payload_repo.sh):
 #   scripts/hw_campaign.sh init [ARMS_FILE]       pin campaign id, commit, arms file, sessions
@@ -172,6 +174,31 @@ ask() {  # prompt -> answer on stdout (empty allowed)
 
 yn() { local a; a="$(ask "$1 [y/n]: ")"; [[ "$a" == y ]]; }
 
+ask_num() {  # prompt -> a number, or empty for "not measured"; re-asked until it parses
+    local a
+    while :; do
+        a="$(ask "$1")"
+        if [[ -z "$a" ]] || python3 -c 'import math, sys; sys.exit(0 if math.isfinite(float(sys.argv[1])) else 1)' "$a" 2>/dev/null; then
+            echo "$a"
+            return
+        fi
+        echo "  not a number: '$a' (leave it empty if it was not measured)" >&2
+    done
+}
+
+entered_by() {  # who types the run answers; the analysis never counts an agent_unconfirmed value as observed
+    local a
+    while :; do
+        a="$(ask "  Who is typing these answers? o = the operator, r = the agent relaying what the operator said, a = the agent without an operator observation: ")"
+        case "$a" in
+            o) echo operator; return ;;
+            r) echo agent_relaying_operator; return ;;
+            a) echo agent_unconfirmed; return ;;
+        esac
+        echo "  answer o, r or a" >&2
+    done
+}
+
 battery_soc() {  # prints the lowest SoC seen; exit 0 only if every sample is above MIN_BLOCK_SOC
     local out rc
     out="$(mktemp)"
@@ -192,18 +219,19 @@ battery_soc() {  # prints the lowest SoC seen; exit 0 only if every sample is ab
 }
 
 record_run() {  # block arm slot attempt rc run log
-    local block="$1" arm="$2" slot="$3" attempt="$4" rc="$5" run="$6" log="$7" d tape_f="" tape_l="" meas_yaw="" setup="" axes rope touched aborted note
+    local block="$1" arm="$2" slot="$3" attempt="$4" rc="$5" run="$6" log="$7" d tape_f="" tape_l="" meas_yaw="" setup="" axes rope touched aborted note by rec
     d="$(campaign_dir)"
     echo
     echo "[ab] block $block arm $arm $slot attempt $attempt: harness exit $rc, run dir $run"
+    by="$(entered_by)"
     # Which measurements the slot needs: forward tape for a vx preset, yaw for a wz preset, both for a combined one.
     axes="$(python3 -c 'import sys; from phoenix.sim2real.walk_command import PRESETS as P; p = P.get(sys.argv[1]); print(("fwd " if p and p.vx else "") + ("yaw" if p and p.wz else ""))' "$slot")"
     if [[ "$axes" == *fwd* ]]; then
-        tape_f="$(ask "  TAPE forward displacement in metres (start mark -> end mark along the initial heading; empty if not measured): ")"
-        tape_l="$(ask "  TAPE lateral displacement in metres (+ left; empty if not measured): ")"
+        tape_f="$(ask_num "  TAPE forward displacement in metres (start mark -> end mark along the initial heading; empty if not measured): ")"
+        tape_l="$(ask_num "  TAPE lateral displacement in metres (+ left; empty if not measured): ")"
     fi
     if [[ "$axes" == *yaw* ]]; then
-        meas_yaw="$(ask "  YAW change in degrees (start heading -> end heading, + counter-clockwise; empty if not measured): ")"
+        meas_yaw="$(ask_num "  YAW change in degrees (start heading -> end heading, + counter-clockwise; empty if not measured): ")"
     fi
     # The setup the operator typed for W (gantry|floor), from this run's grant; with no rope on the floor the rope question is skipped.
     [[ -f "$run/walk_grant.json" ]] && setup="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("setup", ""))' "$run/walk_grant.json" 2>/dev/null || true)"
@@ -215,7 +243,7 @@ record_run() {  # block arm slot attempt rc run log
     touched="$(yn "  Did anyone touch the robot during the run?" && echo true || echo false)"
     aborted="$(yn "  Was the run ABORTED (deadman released early or halted)?" && echo true || echo false)"
     note="$(ask "  Note (free text, one line): ")"
-    append "$d/campaign.jsonl" "$(python3 - "$block" "$arm" "$slot" "$attempt" "$rc" "$run" "$log" "$tape_f" "$tape_l" "$rope" "$touched" "$aborted" "$note" "$meas_yaw" "$setup" <<'PY'
+    if rec="$(python3 - "$block" "$arm" "$slot" "$attempt" "$rc" "$run" "$log" "$tape_f" "$tape_l" "$rope" "$touched" "$aborted" "$note" "$meas_yaw" "$setup" "$by" <<'PY'
 import json, os, sys
 a = sys.argv[1:]
 num = lambda s: float(s) if s.strip() else None
@@ -224,9 +252,14 @@ print(json.dumps({"kind": "run", "block": int(a[0]), "arm": a[1], "slot": a[2], 
                   "tape_fwd_m": num(a[7]), "tape_lat_m": num(a[8]), "meas_yaw_deg": num(a[13]),
                   "setup": a[14] or None, "rope_loaded": None if a[9] == "na" else a[9] == "true",
                   "touched": a[10] == "true", "aborted": a[11] == "true", "note": a[12],
+                  "answers_entered_by": a[15],
                   "rehearsal": os.environ.get("PHOENIX_REHEARSAL") == "1"}))
 PY
-)"
+)"; then
+        append "$d/campaign.jsonl" "$rec"
+    else
+        printf '\033[31m[ab] the run record was NOT written (block %s %s attempt %s); write it down by hand\033[0m\n' "$block" "$slot" "$attempt" >&2
+    fi
     # Prereg amendment 4: the operator's answer is not the only abort detector. The same
     # policy-exit classification the analysis uses is read from this run's bridge log now;
     # a run whose log does not show the expected exit is treated like a reported abort.
