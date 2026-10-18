@@ -582,7 +582,9 @@ def battery_record(rec: dict, run_dir: Path) -> dict:
     v = [
         t["sensors"]["power_v"]
         for t in ticks
-        if t.get("mode") == "policy" and isinstance(t.get("sensors"), dict) and t["sensors"].get("power_v")
+        if t.get("mode") == "policy"
+        and isinstance(t.get("sensors"), dict)
+        and t["sensors"].get("power_v")
     ]
     if v:
         out["power_v_median"] = float(np.median(v))
@@ -592,7 +594,11 @@ def battery_record(rec: dict, run_dir: Path) -> dict:
 def apply_corrections(recs: list[dict], corrections: list[dict]) -> None:
     """Set fields on records after the fact, matched by harness_log; each change is kept."""
     for c in corrections:
-        hit = [r for r in recs if r.get("kind") == c.get("kind", "run") and r.get("harness_log") == c["harness_log"]]
+        hit = [
+            r
+            for r in recs
+            if r.get("kind") == c.get("kind", "run") and r.get("harness_log") == c["harness_log"]
+        ]
         if len(hit) != 1:
             raise ValueError(f"correction {c['harness_log']!r} matches {len(hit)} records, not 1")
         r = hit[0]
@@ -614,9 +620,13 @@ def analyze_run(rec: dict) -> dict:
     out["operator_remote_judgement"] = remote_judgement(run_dir, slot)
     out["battery"] = battery_record(rec, run_dir)
     if by == "agent_unconfirmed":
-        dropped = [k for k in ("tape_fwd_m", "tape_lat_m", "meas_yaw_deg") if rec.get(k) is not None]
+        dropped = [
+            k for k in ("tape_fwd_m", "tape_lat_m", "meas_yaw_deg") if rec.get(k) is not None
+        ]
         rec = {k: v for k, v in rec.items() if k not in dropped}
-        out["unconfirmed_fields"] = ["touched", "aborted"] + ([] if rec.get("rope_loaded") is None else ["rope_loaded"])
+        out["unconfirmed_fields"] = ["touched", "aborted"] + (
+            [] if rec.get("rope_loaded") is None else ["rope_loaded"]
+        )
         out["dropped_unobserved_measurements"] = dropped
     try:
         manifest, ticks, end = load_bridge(run_dir)
@@ -655,8 +665,14 @@ def analyze_run(rec: dict) -> dict:
         or (rec.get("aborted") and slot != "stop_drill")
     ):
         why.append("operator: rope loaded / touched / aborted")
-    if by == "agent_unconfirmed" and slot in WALK_SLOTS and out["operator_remote_judgement"] != "yes":
-        why.append("answers typed by the agent without the operator, and no operator remote judgement 'yes'")
+    if (
+        by == "agent_unconfirmed"
+        and slot in WALK_SLOTS
+        and out["operator_remote_judgement"] != "yes"
+    ):
+        why.append(
+            "answers typed by the agent without the operator, and no operator remote judgement 'yes'"
+        )
     # Amendment 4: how the policy episode ended, from the transition to the first
     # non-policy tick (the operator's answer is metadata, never the only detector).
     ex = policy_exit(ticks, expected_authority_s(slot))
@@ -1043,7 +1059,8 @@ def main(argv: list[str] | None = None) -> int:
     chosen = first_valid(runs)
     ladder = ladder_events([r for r in recs if r.get("kind") == "ladder"], base)
     summary = {
-        "prereg": header.get("prereg") or "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
+        "prereg": header.get("prereg")
+        or "docs/preregistration/2026-10-07-gantry-ab-exploratory.md",
         "n_attempts": len(runs),
         "n_valid": sum(r["valid"] for r in runs),
         "invalid": [
