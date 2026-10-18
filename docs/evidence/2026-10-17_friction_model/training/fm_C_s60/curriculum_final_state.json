@@ -1,0 +1,252 @@
+{
+  "initial_ranges": {
+    "lin_vel_x": [
+      -0.3,
+      0.6
+    ],
+    "lin_vel_y": [
+      -0.3,
+      0.3
+    ],
+    "ang_vel_z": [
+      -1.0,
+      1.0
+    ],
+    "rel_standing_envs": 0.1
+  },
+  "final_ranges": {
+    "lin_vel_x": [
+      -0.8,
+      1.0
+    ],
+    "lin_vel_y": [
+      -0.5,
+      0.5
+    ],
+    "ang_vel_z": [
+      -1.0,
+      1.0
+    ],
+    "rel_standing_envs": 0.1
+  },
+  "widest_ranges_reached": {
+    "lin_vel_x": [
+      -0.8,
+      1.0
+    ],
+    "lin_vel_y": [
+      -0.5,
+      0.5
+    ],
+    "ang_vel_z": [
+      -1.0,
+      1.0
+    ],
+    "rel_standing_envs": 0.1
+  },
+  "level": 8,
+  "max_level": 8,
+  "evaluations": 14,
+  "total_episodes": 716161,
+  "level_history": [
+    {
+      "level": 1,
+      "at_episode": 57510,
+      "lin_score": 0.5629147828810055,
+      "yaw_score": 0.580506217010838,
+      "lin_survival_kernel": 0.8559877776663478,
+      "termination_rate": 0.03560975609756097,
+      "ranges": {
+        "lin_vel_x": [
+          -0.3625,
+          0.65
+        ],
+        "lin_vel_y": [
+          -0.325,
+          0.325
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    },
+    {
+      "level": 2,
+      "at_episode": 65714,
+      "lin_score": 0.8017447514270126,
+      "yaw_score": 0.7527542753812678,
+      "lin_survival_kernel": 0.9279024663754988,
+      "termination_rate": 0.015236470014627012,
+      "ranges": {
+        "lin_vel_x": [
+          -0.425,
+          0.7
+        ],
+        "lin_vel_y": [
+          -0.35,
+          0.35
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    },
+    {
+      "level": 3,
+      "at_episode": 73921,
+      "lin_score": 0.855112770972773,
+      "yaw_score": 0.8073019211771267,
+      "lin_survival_kernel": 0.9397915300184733,
+      "termination_rate": 0.01571828926526136,
+      "ranges": {
+        "lin_vel_x": [
+          -0.4875,
+          0.75
+        ],
+        "lin_vel_y": [
+          -0.375,
+          0.375
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    },
+    {
+      "level": 4,
+      "at_episode": 82118,
+      "lin_score": 0.8771005175700431,
+      "yaw_score": 0.8245051466384276,
+      "lin_survival_kernel": 0.9453037775579394,
+      "termination_rate": 0.011955593509820665,
+      "ranges": {
+        "lin_vel_x": [
+          -0.55,
+          0.8
+        ],
+        "lin_vel_y": [
+          -0.4,
+          0.4
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    },
+    {
+      "level": 5,
+      "at_episode": 90321,
+      "lin_score": 0.8895554403440774,
+      "yaw_score": 0.8324558377209594,
+      "lin_survival_kernel": 0.9463948535436714,
+      "termination_rate": 0.011703035474826283,
+      "ranges": {
+        "lin_vel_x": [
+          -0.6125,
+          0.85
+        ],
+        "lin_vel_y": [
+          -0.425,
+          0.425
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    },
+    {
+      "level": 6,
+      "at_episode": 98530,
+      "lin_score": 0.8960255833530031,
+      "yaw_score": 0.8358102843736082,
+      "lin_survival_kernel": 0.9470799772904087,
+      "termination_rate": 0.007918138628334754,
+      "ranges": {
+        "lin_vel_x": [
+          -0.675,
+          0.9
+        ],
+        "lin_vel_y": [
+          -0.45,
+          0.45
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    },
+    {
+      "level": 7,
+      "at_episode": 106727,
+      "lin_score": 0.8993061222150114,
+      "yaw_score": 0.8378057447061308,
+      "lin_survival_kernel": 0.9453350361766096,
+      "termination_rate": 0.008539709649871904,
+      "ranges": {
+        "lin_vel_x": [
+          -0.7375,
+          0.95
+        ],
+        "lin_vel_y": [
+          -0.475,
+          0.475
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    },
+    {
+      "level": 8,
+      "at_episode": 114923,
+      "lin_score": 0.9001524612935765,
+      "yaw_score": 0.8369075105700126,
+      "lin_survival_kernel": 0.9418658249374714,
+      "termination_rate": 0.010736944851146901,
+      "ranges": {
+        "lin_vel_x": [
+          -0.8,
+          1.0
+        ],
+        "lin_vel_y": [
+          -0.5,
+          0.5
+        ],
+        "ang_vel_z": [
+          -1.0,
+          1.0
+        ],
+        "rel_standing_envs": 0.1
+      }
+    }
+  ],
+  "stepping_rule": {
+    "rule": "phoenix-velocity-curriculum/v2: linear levels on lin x/y only, windowed survival-weighted lin kernel gate (Unitree lin_vel_cmd_levels), yaw telemetry only, monotone",
+    "tracking_std": 0.5,
+    "window_episodes": 4096,
+    "enabled": true,
+    "gate": "unitree_lin_kernel",
+    "lin_kernel_threshold": 0.8,
+    "gate_kernel_std": 0.5,
+    "num_levels": 8,
+    "window_episodes_per_env": 1.0,
+    "min_window_episodes": 64,
+    "lin_score_threshold": 0.6,
+    "yaw_score_threshold": 0.5,
+    "max_termination_rate": 0.1
+  }
+}

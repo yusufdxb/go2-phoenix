@@ -1,0 +1,223 @@
+{
+  "schema": "phoenix-checkpoint-manifest/v1",
+  "classification": "velocity_candidate",
+  "locomotion_capable": true,
+  "locomotion_incapable_reasons": [],
+  "observation": {
+    "schema_version": "phoenix-velocity-obs/v2",
+    "schema_sha256": "53a41f30142f6afdec92428314ae5092886d81e5ac9a59936f12c634fad7805a",
+    "actor_dim": 45,
+    "actor_terms": [
+      "base_ang_vel",
+      "projected_gravity",
+      "velocity_command",
+      "joint_pos_rel",
+      "joint_vel",
+      "last_action"
+    ],
+    "actor_scales": {
+      "base_ang_vel": 0.2,
+      "projected_gravity": 1.0,
+      "velocity_command": 1.0,
+      "joint_pos_rel": 1.0,
+      "joint_vel": 0.05,
+      "last_action": 1.0
+    }
+  },
+  "action": {
+    "dim": 12,
+    "scale": 0.25,
+    "type": "joint_position_offset"
+  },
+  "control_hz": 50,
+  "physics_hz": 200,
+  "joint_order": [
+    "FL_hip_joint",
+    "FR_hip_joint",
+    "RL_hip_joint",
+    "RR_hip_joint",
+    "FL_thigh_joint",
+    "FR_thigh_joint",
+    "RL_thigh_joint",
+    "RR_thigh_joint",
+    "FL_calf_joint",
+    "FR_calf_joint",
+    "RL_calf_joint",
+    "RR_calf_joint"
+  ],
+  "default_joint_pos": {
+    "FL_hip_joint": 0.1,
+    "FR_hip_joint": -0.1,
+    "RL_hip_joint": 0.1,
+    "RR_hip_joint": -0.1,
+    "FL_thigh_joint": 0.8,
+    "FR_thigh_joint": 0.8,
+    "RL_thigh_joint": 1.0,
+    "RR_thigh_joint": 1.0,
+    "FL_calf_joint": -1.5,
+    "FR_calf_joint": -1.5,
+    "RL_calf_joint": -1.5,
+    "RR_calf_joint": -1.5
+  },
+  "commands": {
+    "lin_vel_x": [
+      -0.8,
+      1.0
+    ],
+    "lin_vel_y": [
+      -0.5,
+      0.5
+    ],
+    "ang_vel_z": [
+      -1.0,
+      1.0
+    ],
+    "rel_standing_envs": 0.1
+  },
+  "curriculum": {
+    "num_levels": 8,
+    "enabled": true
+  },
+  "reward_scales": {
+    "track_lin_vel_xy_exp": 1.5,
+    "track_ang_vel_z_exp": 0.75,
+    "lin_vel_z_l2": -2.0,
+    "ang_vel_xy_l2": -0.05,
+    "flat_orientation_l2": -2.5,
+    "joint_torques_l2": -0.0002,
+    "joint_acc_l2": -2.5e-07,
+    "action_rate_l2": -0.01,
+    "action_l2": -0.01,
+    "slew_sat_hinge_l2": -10.0,
+    "feet_air_time": 0.25,
+    "feet_slide": -0.1,
+    "undesired_contacts": -1.0,
+    "joint_pos_limits": -10.0,
+    "stand_still": -0.5
+  },
+  "domain_randomization": {
+    "static_friction": [
+      0.4,
+      1.2
+    ],
+    "dynamic_friction": [
+      0.4,
+      1.0
+    ],
+    "restitution": [
+      0.0,
+      0.1
+    ],
+    "material_buckets": 64,
+    "base_mass_add_kg": [
+      -1.0,
+      3.0
+    ],
+    "base_com_enabled": true,
+    "base_com_x": [
+      -0.03,
+      0.03
+    ],
+    "base_com_y": [
+      -0.03,
+      0.03
+    ],
+    "base_com_z": [
+      -0.02,
+      0.02
+    ],
+    "motor_stiffness_scale": [
+      0.85,
+      1.15
+    ],
+    "motor_damping_scale": [
+      0.85,
+      1.15
+    ],
+    "joint_armature_add": [
+      0.0,
+      0.01
+    ],
+    "joint_friction_enabled": false,
+    "joint_friction_hip_thigh_nm": [
+      0.0,
+      0.0
+    ],
+    "joint_friction_calf_nm": [
+      0.0,
+      0.0
+    ],
+    "joint_friction_model": "hardware",
+    "joint_friction_scale": [
+      0.75,
+      1.6
+    ],
+    "joint_friction_jitter": 0.15,
+    "joint_friction_broad_nm": [
+      0.0,
+      0.0
+    ],
+    "joint_viscous_hip": [
+      0.0,
+      0.05
+    ],
+    "joint_viscous_thigh": [
+      0.0,
+      0.05
+    ],
+    "joint_viscous_calf": [
+      0.0,
+      0.05
+    ],
+    "joint_friction_load": [
+      0.0,
+      0.1
+    ],
+    "actuator_latency_physics_steps": [
+      1,
+      4
+    ],
+    "reset_xy_m": [
+      -0.5,
+      0.5
+    ],
+    "reset_yaw_rad": [
+      -3.141592653589793,
+      3.141592653589793
+    ],
+    "reset_lin_vel": [
+      -0.2,
+      0.2
+    ],
+    "reset_ang_vel": [
+      -0.2,
+      0.2
+    ],
+    "reset_joint_pos_offset": [
+      -0.1,
+      0.1
+    ],
+    "push_enabled": true,
+    "push_interval_s": [
+      6.0,
+      12.0
+    ],
+    "push_velocity_xy": [
+      -0.5,
+      0.5
+    ]
+  },
+  "provenance": {
+    "git_sha": "8246211b3793ffa13d53653ad76819924655508a",
+    "git_dirty": false,
+    "seed": 62,
+    "task": "phoenix-velocity-flat-go2",
+    "simulator": "isaac-lab-physx"
+  },
+  "checkpoint_sha256": "a3bcbc3555dce9826c63032d44a1b70a21182bc1e10131782045fba22fa55ed0",
+  "deploy": {
+    "kp": 25.0,
+    "kd": 0.5,
+    "action_clip": 100.0
+  }
+}
