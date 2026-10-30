@@ -368,6 +368,7 @@ def main(argv: list[str] | None = None) -> int:
               "constraint": {"solref": specs["B"]["solref"], "solimp": specs["B"]["solimp"]},
               "fitted_on": [r["name"] for r in runs], "method": dec["oracle"]["objective"],
               "closed_form_crosscheck_nm": dec["closed_form_F_nm"]}
+        c1 = json.loads(json.dumps(c1, default=float))  # numpy scalars -> plain floats for safe_dump
         Path(args.fit_c1).write_text(yaml.safe_dump(c1, sort_keys=False))
     res = {
         "label": args.label, "runs": [r["name"] for r in runs], "scene": args.scene,
