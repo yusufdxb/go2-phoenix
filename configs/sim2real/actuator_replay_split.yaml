@@ -1,0 +1,24 @@
+# Pre-registered train / held-out split for actuator sim-to-real identification.
+# Fixed 2026-10-30, before any model fitting. Paths are relative to the
+# hw_sessions directory of the 2026-10-07 hung friction-probe runs.
+# Held-out sessions are evaluation only: never used to choose or fit parameters.
+# Each joint type (hip, thigh, calf) appears in both sets.
+train:
+  - 20261007_cf78e2ec59bb/FP_20261007T005239Z  # long sit/hold, probe aborted after 0.1 s
+  - 20261007_fa58780dd4f8/FP_20261007T005825Z  # probe FR_hip, FR_thigh
+  - 20261007_fa58780dd4f8/FP_20261007T011122Z  # probe hips and thighs
+  - 20261007_04f3d46edbfe/FP_20261007T011645Z  # probe all calves
+heldout:
+  - 20261007_fa58780dd4f8/FP_20261007T010358Z  # probe FR_thigh, FR_calf
+  - 20261007_04f3d46edbfe/FP_20261007T011929Z  # probe calves and RL_hip
+# Joint data excluded from aggregates, per docs/hardware/2026-10-07_friction_probe/README.md
+# (exclusions recorded there before this analysis). Runs: run1 005239, run2 005825,
+# run3 010358, run4 011122, run5 011645, run6 011929.
+exclusions:
+  FP_20261007T010358Z:
+    FR_calf_joint: "run3: folded at the joint limit"
+  FP_20261007T011122Z:
+    RL_hip_joint: "run4: leg started splayed at -0.84 rad, one-sided"
+  FP_20261007T011645Z:
+    FR_calf_joint: "run5: front feet touched the floor"
+    FL_calf_joint: "run5: front feet touched the floor"
