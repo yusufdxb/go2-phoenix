@@ -56,3 +56,14 @@ decision:
     max_missed_false_frac: 0.10
     max_pos_rmse_vs_best: 1.05
     min_slip_recall: 0.50          # only when hw micro-slip rate >= 0.1 per excursion
+
+amendment_1:                  # 2026-10-30, after P1/P2 and the 10-07 check, before v2 hw data; the only one
+  replay_cmd_source: bridge   # probe npz targets only when no bridge.jsonl exists
+  window: ramp_plus_following_dwell
+  model_C1: grid_fit_on_CAL   # closed form (median kp e_hw) diagnostic only: +0.09 N m bias on P1
+  h_vel: model_relative       # raw hw fast-slow was +0.150 hip / +0.143 thigh N m on a Coulomb plant (P1)
+  p2: planted_recall_plus_karnopp_characterisation   # registered Fs = 1.5 Fc micro-slip test failed
+  tilt_source: bridge_sensors_rpy   # level when absent (10-07)
+  max_gap_s: 0.10
+  exclusions: documented_only_via_cli   # probe_eval.py --exclude RUN:JOINT, reason in the report
+  foot_force: operator_check_plus_report   # no numeric trigger registered

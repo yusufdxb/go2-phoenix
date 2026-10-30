@@ -150,3 +150,50 @@ H_inad holds.
   stop and report.
 - A VAL run with fewer than 12 complete joints is repeated once for the missing joints only.
 - No physical command before the operator is present and authorises the probe batch.
+
+## Amendment 1 (2026-10-30, the single allowed amendment)
+
+Written after P1, P2 and the in-sample 10-07 pipeline check, before any v2 hardware data.
+The text above stays as registered; where it conflicts with this section, this section rules.
+No amendment follows this one.
+
+1. Command stream. Replay targets come from the bridge's logged command stream
+   (`bridge.jsonl`); the probe npz targets are the fallback only when no bridge log exists.
+2. Window. A breakaway window is a ramp plus the dwell that follows it (rise + dwell_peak,
+   fall + dwell_zero), so a breakaway that happens after the ramp stops is still inside it.
+3. C1. As registered, C1 was the median of kp e_hw over CAL windows. On P1 that closed form
+   is biased by about +0.09 N m against the known plant friction (it reads the tracking error
+   at the first moving tick, which already includes PD lag). C1 is now the per-joint F that
+   minimises the CAL breakaway-threshold error on a grid of replays (B0 structure, same
+   grid as the oracle arm). The closed form is reported as a diagnostic only.
+4. 10-07 grouping. The in-sample check on the 2026-10-07 v1 recordings maps v1 phases to v2
+   ones (rest = zero dwell, one rate, 0.05 rad/s). That check is a pipeline check, never
+   evidence for or against any hypothesis.
+5. P2. As registered: "a 1-DOF Karnopp plant (Fs = 1.5 Fc) under the v2 PD yields micro-slip
+   events". That failed: with the GO2 hip/thigh inertia (about 0.022 kg m^2 at q0) and kd 0.5,
+   Fs = 1.5 Fc breaks away once and then slides. P2 is now (a) planted-event recall: five
+   stick-slip steps of 3 to 15 mrad on a stuck joint with the 10-07 settle noise, all five
+   found and nothing else; (b) a pure Coulomb plant and noise-only traces (3e-5 and 3e-4 rad)
+   yield no events; (c) a Karnopp characterisation kept as assertions: Fs = 2 Fc at hip/thigh
+   inertia on a slow ramp yields >= 5 same-direction micro-slips, the same at calf inertia
+   (0.005 kg m^2) yields none. A micro-slip null on hardware is read against (c).
+6. Tilt. Gravity tilt is the run-mean bridge `sensors.rpy` roll/pitch (ASSUMPTION: radians).
+   The 10-07 bridge logged no sensors, so those runs replay level.
+7. H_vel. As registered, H_vel compared raw hw fast vs slow thresholds. On P1, whose plant
+   is constant Coulomb by construction, that rule came out supported: fast minus slow was
+   +0.150 N m (hip) and +0.143 N m (thigh) against a 0.10 N m bar, from PD lag and the 50 Hz
+   quantum, not from friction. H_vel is now model-relative: the hw fast minus slow shift
+   minus the same shift in the model's replay must pass the registered bar in >= 2 families,
+   for both B and Bm. The raw comparison is reported alongside.
+8. Gaps. An excursion with an internal sample gap above 0.10 s is dropped for every model.
+9. Exclusions. Excursions with a documented physical reason (joint at its limit, a splayed
+   leg, ground contact) are dropped for every model through `probe_eval.py --exclude
+   RUN:JOINT`, and each exclusion is listed with its reason in the report. The 10-07 check
+   applies the source README's exclusions; it also showed why: run5 (front feet on the floor)
+   had front calf thresholds of 1.9 to 2.3 N m, against 0.4 to 0.9 N m on the hung run6.
+10. Feet off the floor. Before each run the operator confirms by eye that all four feet are
+    clear, and the lab card records the bridge `foot_force` values at the hung pose. The
+    report prints per-run foot_force median and max per leg. A leg whose foot_force rises
+    clearly above its hung baseline during a run is checked against the operator's notes;
+    a confirmed contact excludes that leg's joints in that run under item 9. (The foot_force
+    scale on a hung GO2 is not characterised, so no numeric trigger is registered.)
