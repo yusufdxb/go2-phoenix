@@ -949,6 +949,10 @@ stage_fp() {
     require_alive deadman lowstate_bridge lowcmd_bridge
     local node_args=(--config "$DEPLOY_CFG" --out "$trace")
     [[ ${#joints[@]} -gt 0 ]] && node_args+=(--joints "${joints[@]}")
+    # PHOENIX_FP_PROTOCOL=v2 [PHOENIX_FP_REPEATS=<n>]: the 2026-10-30 rate/dwell probe
+    # (raise PHOENIX_FP_MAX_WAIT_S to cover it); default is the v1 probe.
+    [[ -n "${PHOENIX_FP_PROTOCOL:-}" ]] && node_args+=(--protocol "$PHOENIX_FP_PROTOCOL")
+    [[ -n "${PHOENIX_FP_REPEATS:-}" ]] && node_args+=(--repeats "$PHOENIX_FP_REPEATS")
     launch friction_probe python3 -m phoenix.sim2real.friction_probe_node "${node_args[@]}"
     local deadline=$((SECONDS + ${PHOENIX_FP_MAX_WAIT_S:-600}))
     while is_alive "${PIDS[friction_probe]}"; do

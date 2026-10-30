@@ -206,3 +206,87 @@ def test_estimator_noisy_flag_and_trace_validation():
     bad = fp.ProbeTrace(t=trace.t, q=trace.q[:, :11], target=trace.target, dq=trace.dq)
     with pytest.raises(ValueError):
         fp.estimate(bad)
+
+
+# --- protocol v2 (2026-10-30 rate/dwell probe) ---
+
+Q_V2 = np.asarray([0.0, 0.8, -1.5] * 4)
+
+
+def _drive_v2(plant, joint=1, repeats=fp.V2_REPEATS, max_t=400.0):
+    seq = fp.RateProbeSequencer(Q_V2, joint, repeats=repeats)
+    t, q, log = 0.0, Q_V2.copy(), []
+    while not seq.finished and t < max_t:
+        tgt = seq.step(t, q)
+        st = seq.status
+        log.append(
+            (t, tgt[joint] - Q_V2[joint], st.phase, seq.excursion, seq.rate, st.broke, tgt.copy())
+        )
+        q = plant(tgt, q)
+        t += 1.0 / fp.TICK_HZ
+    return seq, t, log
+
+
+def test_v2_schedule_and_worst_case() -> None:
+    sch = fp.v2_schedule(2)
+    assert sch == ((1, 0.05), (-1, 0.05), (1, 0.20), (-1, 0.20)) * 2
+    one = (
+        2 * 0.30 / 0.05 * 2
+        + 2 * 0.30 / 0.20 * 2
+        + 4 * (fp.DWELL_PEAK_S + fp.DWELL_ZERO_S + 4 / fp.TICK_HZ)
+    )
+    assert np.isclose(fp.v2_worst_case_joint_s(2), fp.SETTLE_S + 2 * one)
+
+
+def test_v2_stuck_joint_reaches_the_cap_with_frozen_dwells_and_finishes_in_bound() -> None:
+    seq, t_end, log = _drive_v2(lambda tgt, q: q)  # joint never moves: no breakaway anywhere
+    assert seq.finished and t_end <= fp.v2_worst_case_joint_s() + 0.1
+    off = np.asarray([r[1] for r in log])
+    assert np.abs(off).max() <= fp.MAX_OFFSET_RAD + 1e-9
+    for k, (d, rate) in enumerate(fp.v2_schedule()):
+        rows = [r for r in log if r[3] == k]
+        assert {r[4] for r in rows} == {rate}
+        pk = [r for r in rows if r[2] == "dwell_peak"]
+        assert np.isclose(len(pk) / fp.TICK_HZ, fp.DWELL_PEAK_S, atol=0.05)
+        assert np.allclose([r[1] for r in pk], d * fp.MAX_OFFSET_RAD)  # target frozen at the cap
+        z = [r for r in rows if r[2] == "dwell_zero"]
+        assert np.isclose(len(z) / fp.TICK_HZ, fp.DWELL_ZERO_S, atol=0.05)
+        assert np.allclose([r[1] for r in z], 0.0)
+        rise = np.asarray([r[1] for r in rows if r[2] == "rise"])
+        assert np.allclose(np.diff(np.abs(rise)), rate / fp.TICK_HZ, atol=1e-9)
+    others = np.delete(np.asarray([r[6] for r in log]) - Q_V2, 1, axis=1)
+    assert np.abs(others).max() < 1e-12
+
+
+def test_v2_breakaway_ends_each_rise_post_break_and_fast_peaks_higher() -> None:
+    fs, kp, j = 0.4, fp.KP, 1
+
+    def plant(tgt, q):  # Coulomb joint, no gravity: sticks until kp * error exceeds fs
+        q = q.copy()
+        e = tgt[j] - q[j]
+        if abs(e) * kp > fs:
+            q[j] = tgt[j] - np.sign(e) * fs / kp
+        return q
+
+    seq, _, log = _drive_v2(plant, joint=j)
+    assert seq.finished
+    peaks = {}
+    for k, (_d, rate) in enumerate(fp.v2_schedule()):
+        rows = [r for r in log if r[3] == k]
+        assert any(r[5] for r in rows if r[2] == "rise")
+        pk = abs([r[1] for r in rows if r[2] == "dwell_peak"][0])
+        assert pk < fp.MAX_OFFSET_RAD
+        peaks.setdefault(rate, []).append(pk)
+    assert min(peaks[fp.RATE_FAST_RAD_S]) > max(peaks[fp.RATE_RAD_S])  # 0.5 s post-break at 4x rate
+
+
+def test_v2_room_respects_the_limit_margin() -> None:
+    lo, hi = fp.probe_limits()
+    q0 = Q_V2.copy()
+    q0[2] = lo[2] + fp.LIMIT_MARGIN_RAD + 0.1  # calf 0.1 rad inside the margin on the - side
+    seq = fp.RateProbeSequencer(q0, 2, repeats=1)
+    t, q, mins = 0.0, q0.copy(), []
+    while not seq.finished and t < 200:
+        mins.append(seq.step(t, q)[2] - q0[2])
+        t += 1.0 / fp.TICK_HZ
+    assert np.isclose(min(mins), -0.1, atol=1e-9) and max(mins) > 0.29

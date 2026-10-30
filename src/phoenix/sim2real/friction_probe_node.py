@@ -160,8 +160,11 @@ class ProbeSession:
     """The probe timeline as a pure state machine: ``step(t, snapshot) -> StepResult``.
 
     Phase 0 (``settle``, ``settle_s``): no command is sent, the bridge holds; q0 is
-    the median of the last 0.5 s of ``q``. Then one :class:`SingleJointSequencer` per
-    joint in ``joints``, in order; each starts with its own ``SETTLE_S`` hold at q0.
+    the median of the last 0.5 s of ``q``. Then one sequencer per joint in ``joints``,
+    in order; each starts with its own ``SETTLE_S`` hold at q0. ``protocol`` "v1" is
+    :class:`SingleJointSequencer` (one slow + and - excursion), "v2" is
+    :class:`~phoenix.sim2real.friction_probe.RateProbeSequencer` (``repeats`` x slow/fast
+    +/- with dwells). The abort rules are the same for both.
     """
 
     def __init__(
@@ -170,7 +173,15 @@ class ProbeSession:
         limits: AbortLimits,
         settle_s: float = 2.0,
         order: Sequence[str] = fp.PROBE_JOINT_ORDER,
+        protocol: str = "v1",
+        repeats: int = fp.V2_REPEATS,
     ) -> None:
+        if protocol not in ("v1", "v2"):
+            raise ValueError(f"protocol {protocol!r} not in ('v1', 'v2')")
+        if protocol == "v2" and repeats < 1:
+            raise ValueError(f"repeats must be >= 1, got {repeats}")
+        self.protocol = protocol
+        self.repeats = int(repeats)
         if not joints or any(j not in order for j in joints):
             raise ValueError(f"joints {list(joints)} not all in {list(order)}")
         self.order = tuple(order)
@@ -180,7 +191,7 @@ class ProbeSession:
         self.q0: np.ndarray | None = None
         self.n_clipped = 0
         self._seqs_done = 0
-        self._seq: SingleJointSequencer | None = None
+        self._seq: SingleJointSequencer | fp.RateProbeSequencer | None = None
         self._samples: list[tuple[float, np.ndarray]] = []
         self._prev_idx: int | None = None
         # Pose the legs settle to under the probe's gains; reference for other-joint motion.
@@ -190,11 +201,16 @@ class ProbeSession:
 
     @property
     def total_s(self) -> float:
-        per_joint = (fp.worst_case_duration_s() - fp.SETTLE_S) / fp.N_JOINTS + fp.SETTLE_S
+        if self.protocol == "v2":
+            per_joint = fp.v2_worst_case_joint_s(self.repeats)
+        else:
+            per_joint = (fp.worst_case_duration_s() - fp.SETTLE_S) / fp.N_JOINTS + fp.SETTLE_S
         return self.settle_s + len(self.idx) * per_joint
 
-    def _start_seq(self) -> SingleJointSequencer:
+    def _start_seq(self) -> SingleJointSequencer | fp.RateProbeSequencer:
         assert self.q0 is not None
+        if self.protocol == "v2":
+            return fp.RateProbeSequencer(self.q0, self.idx[self._seqs_done], repeats=self.repeats)
         return SingleJointSequencer(self.q0, self.idx[self._seqs_done])
 
     def step(self, t_s: float, snap: Snapshot, t_mono_ns: int = 0) -> StepResult:
@@ -256,6 +272,9 @@ class ProbeSession:
             "offset": float(status.offset),
             "broke": bool(status.broke),
         }
+        if self.protocol == "v2":
+            row["rate"] = float(self._seq.rate)
+            row["excursion"] = int(self._seq.excursion)
         return StepResult(status.phase, target, row=row)
 
 
@@ -311,6 +330,11 @@ def write_npz(path: Path, rows: list[dict[str, Any]], meta: dict[str, Any]) -> N
         kd=np.asarray([r["kd"] for r in rows]),
         active=np.asarray([r["active"] for r in rows]),
         phase=np.asarray([r["phase"] for r in rows]),
+        offset=np.asarray([r["offset"] for r in rows]),
+        broke=np.asarray([r["broke"] for r in rows]),
+        rate=np.asarray([r.get("rate", fp.RATE_RAD_S) for r in rows]),
+        excursion=np.asarray([r.get("excursion", -1) for r in rows], dtype=np.int64),
+        protocol=np.asarray(meta.get("protocol", "v1")),
         q0=np.asarray(meta["q0"]),
         joint_order=np.asarray(meta["probe_order"]),
     )
@@ -357,6 +381,15 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     p.add_argument("--joints", nargs="*", default=None, help="joint names, default all 12")
     p.add_argument("--settle-s", type=float, default=2.0)
     p.add_argument("--max-wall-s", type=float, default=None, help="default: whole timeline + 10 s")
+    p.add_argument(
+        "--protocol",
+        choices=("v1", "v2"),
+        default="v1",
+        help="v1: one slow +/- excursion per joint; v2: repeats x slow/fast +/- with dwells",
+    )
+    p.add_argument(
+        "--repeats", type=int, default=fp.V2_REPEATS, help="v2 only: schedule repeats per joint"
+    )
     return p.parse_args(argv)
 
 
@@ -389,7 +422,9 @@ def run_node(argv: Sequence[str] | None = None) -> int:
         estop_timeout_s=float(safety.get("estop_timeout_s", 0.5)),
     )
     try:
-        session = ProbeSession(joints, limits, settle_s=args.settle_s)
+        session = ProbeSession(
+            joints, limits, settle_s=args.settle_s, protocol=args.protocol, repeats=args.repeats
+        )
     except ValueError as exc:
         print(f"REFUSING: {exc}", file=sys.stderr)
         return EXIT_REFUSED
@@ -497,6 +532,13 @@ def run_node(argv: Sequence[str] | None = None) -> int:
         "kd": fp.KD,
         "tick_hz": fp.TICK_HZ,
         "rate_rad_s": fp.RATE_RAD_S,
+        "protocol": args.protocol,
+        "repeats": args.repeats if args.protocol == "v2" else None,
+        "v2_schedule": [list(e) for e in fp.v2_schedule(args.repeats)]
+        if args.protocol == "v2"
+        else None,
+        "dwell_peak_s": fp.DWELL_PEAK_S if args.protocol == "v2" else None,
+        "dwell_zero_s": fp.DWELL_ZERO_S if args.protocol == "v2" else None,
         "break_delta_rad": fp.BREAK_DELTA_RAD,
         "max_offset_rad": fp.MAX_OFFSET_RAD,
         "settle_s": args.settle_s,

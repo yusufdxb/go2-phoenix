@@ -62,6 +62,14 @@ REST_S = 0.5
 HOLD_S = 1.0
 LIMIT_MARGIN_RAD = 0.05
 
+# Protocol v2 (2026-10-30 over-stick probe, docs/preregistration/2026-10-30-actuator-probe-v2.md):
+# one joint at a time, REPEATS x [slow +, slow -, fast +, fast -] excursions, each followed
+# by a frozen-target dwell at its peak and a zero-offset dwell. Same gains, cap and margins.
+RATE_FAST_RAD_S = 0.20
+DWELL_PEAK_S = 1.0
+DWELL_ZERO_S = 2.0
+V2_REPEATS = 2
+
 # Estimator settings.
 WINDOW_HALF_S = 0.1  # median window around the breakaway instant
 PRE_WINDOW_S = 0.2  # quiescent window before each ramp that defines q_ref
@@ -242,6 +250,152 @@ class ProbeSequencer:
         j = min(self._joint, N_JOINTS - 1)
         target[j] += self._dir * mag
         self._offset = self._dir * mag
+        return clamp_target(target, self._lower, self._upper, self._margin)
+
+
+def v2_schedule(repeats: int = V2_REPEATS) -> tuple[tuple[int, float], ...]:
+    """(direction, rate) of every protocol-v2 excursion of one joint, in order."""
+    one = ((1, RATE_RAD_S), (-1, RATE_RAD_S), (1, RATE_FAST_RAD_S), (-1, RATE_FAST_RAD_S))
+    return one * int(repeats)
+
+
+def v2_worst_case_joint_s(repeats: int = V2_REPEATS) -> float:
+    """Upper bound on one joint under protocol v2 (no breakaway, full ramps), incl. SETTLE_S.
+
+    Each of an excursion's four phase ends can land up to one tick late.
+    """
+    return SETTLE_S + sum(
+        2.0 * MAX_OFFSET_RAD / r + DWELL_PEAK_S + DWELL_ZERO_S + 4.0 / TICK_HZ
+        for _, r in v2_schedule(repeats)
+    )
+
+
+class RateProbeSequencer:
+    """Protocol v2 for ONE joint: settle, then per scheduled excursion
+    rise -> dwell_peak -> fall -> dwell_zero.
+
+    ``rise`` ramps the offset at the excursion's rate until breakaway (the v1 rule:
+    ``dir * (q - q_ref) >= BREAK_DELTA_RAD``, ``q_ref`` = median of the last
+    PRE_WINDOW_S) plus POST_BREAK_S, or the cap. ``dwell_peak`` freezes the target at
+    the reached peak (zero commanded velocity, gains unchanged); ``fall`` returns at the
+    same rate; ``dwell_zero`` holds the target at q0. Same step/finished/status
+    interface as :class:`ProbeSequencer`; ``rate`` and ``excursion`` say where it is.
+    """
+
+    def __init__(
+        self,
+        q0: np.ndarray,
+        joint_index: int,
+        *,
+        repeats: int = V2_REPEATS,
+        lower: np.ndarray | None = None,
+        upper: np.ndarray | None = None,
+        margin: float = LIMIT_MARGIN_RAD,
+    ) -> None:
+        q0 = np.asarray(q0, dtype=np.float64)
+        if q0.shape != (N_JOINTS,):
+            raise ValueError(f"q0 must have shape ({N_JOINTS},), got {q0.shape}")
+        if lower is None or upper is None:
+            lower, upper = probe_limits()
+        self.q0 = q0.copy()
+        self.joint_index = int(joint_index)
+        self.schedule = v2_schedule(repeats)
+        self._lower = np.asarray(lower, dtype=np.float64)
+        self._upper = np.asarray(upper, dtype=np.float64)
+        self._margin = float(margin)
+        self._origin: float | None = None
+        self._phase = "settle"
+        self._k = 0
+        self._t_phase = 0.0
+        self._peak = 0.0
+        self._max_off = 0.0
+        self._t_break: float | None = None
+        self._q_ref = q0.copy()
+        self._hist: deque[tuple[float, np.ndarray]] = deque()
+        self._offset = 0.0
+
+    @property
+    def finished(self) -> bool:
+        return self._phase == "done"
+
+    @property
+    def excursion(self) -> int:
+        return min(self._k, len(self.schedule) - 1)
+
+    @property
+    def direction(self) -> int:
+        return self.schedule[self.excursion][0]
+
+    @property
+    def rate(self) -> float:
+        return self.schedule[self.excursion][1]
+
+    @property
+    def status(self) -> ProbeStatus:
+        return ProbeStatus(
+            self._phase, self.joint_index, self.direction, self._offset, self._t_break is not None
+        )
+
+    def _room(self, direction: int) -> float:
+        j = self.joint_index
+        if direction > 0:
+            room = self._upper[j] - self._margin - self.q0[j]
+        else:
+            room = self.q0[j] - (self._lower[j] + self._margin)
+        return float(min(MAX_OFFSET_RAD, max(0.0, room)))
+
+    def _enter(self, phase: str, te: float) -> None:
+        self._phase = phase
+        self._t_phase = te
+
+    def step(self, t: float, q: np.ndarray) -> np.ndarray:
+        q = np.asarray(q, dtype=np.float64)
+        if self._origin is None:
+            self._origin = float(t)
+        te = float(t) - self._origin
+        self._hist.append((te, q.copy()))
+        while self._hist and self._hist[0][0] < te - PRE_WINDOW_S:
+            self._hist.popleft()
+        d, rate = self.schedule[self.excursion]
+        dt = te - self._t_phase
+
+        if (self._phase == "settle" and te >= SETTLE_S) or (
+            self._phase == "dwell_zero" and dt >= DWELL_ZERO_S
+        ):
+            if self._phase == "dwell_zero":
+                self._k += 1
+                if self._k >= len(self.schedule):
+                    self._phase = "done"
+            if self._phase != "done":
+                d, rate = self.schedule[self._k]
+                self._enter("rise", te)
+                dt = 0.0
+                self._t_break = None
+                self._max_off = self._room(d)
+                self._q_ref = np.median(np.stack([h for _, h in self._hist]), axis=0)
+
+        mag = 0.0
+        if self._phase == "rise":
+            mag = min(rate * dt, self._max_off)
+            j = self.joint_index
+            if self._t_break is None and d * (q[j] - self._q_ref[j]) >= BREAK_DELTA_RAD:
+                self._t_break = te
+            post = self._t_break is not None and te - self._t_break >= POST_BREAK_S
+            if mag >= self._max_off or post:
+                self._peak = mag
+                self._enter("dwell_peak", te)
+        elif self._phase == "dwell_peak":
+            mag = self._peak
+            if dt >= DWELL_PEAK_S:
+                self._enter("fall", te)
+        elif self._phase == "fall":
+            mag = max(0.0, self._peak - rate * dt)
+            if mag <= 0.0:
+                self._enter("dwell_zero", te)
+
+        target = self.q0.copy()
+        target[self.joint_index] += d * mag
+        self._offset = d * mag
         return clamp_target(target, self._lower, self._upper, self._margin)
 
 
@@ -455,6 +609,8 @@ __all__ = [
     "FLAG_NOISY",
     "FLAG_NO_BREAK_MINUS",
     "FLAG_NO_BREAK_PLUS",
+    "DWELL_PEAK_S",
+    "DWELL_ZERO_S",
     "HANDOVER_S",
     "HOLD_S",
     "KD",
@@ -464,9 +620,12 @@ __all__ = [
     "N_JOINTS",
     "POST_BREAK_S",
     "PROBE_JOINT_ORDER",
+    "RATE_FAST_RAD_S",
     "RATE_RAD_S",
+    "RateProbeSequencer",
     "REST_S",
     "SETTLE_S",
+    "V2_REPEATS",
     "TICK_HZ",
     "JointEstimate",
     "ProbeEstimate",
@@ -477,5 +636,7 @@ __all__ = [
     "estimate",
     "excursion_offset",
     "probe_limits",
+    "v2_schedule",
+    "v2_worst_case_joint_s",
     "worst_case_duration_s",
 ]

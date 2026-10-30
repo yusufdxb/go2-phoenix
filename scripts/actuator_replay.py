@@ -78,14 +78,16 @@ def build_fixed_base(scene: str, profile: str, dt: float):
 
 
 def set_joint_friction(model, dadr, frictionloss: dict[str, float], solref=None, solimp=None) -> None:
-    """Model B: per-joint-type Coulomb friction as MuJoCo's dof frictionloss constraint.
+    """Model B: Coulomb friction as MuJoCo's dof frictionloss constraint.
 
+    ``frictionloss`` is keyed by joint type (hip/thigh/calf) or by joint name
+    (FR_hip_joint, ...); a joint-name key wins over its type key.
     The constraint holds a joint at rest while the net torque on it is below F and
     opposes sliding with F (static = Coulomb). ``solref``/``solimp`` set the softness
     of that constraint, i.e. how much a held joint creeps under subthreshold torque.
     """
     for j, n in enumerate(UNITREE_MOTOR_ORDER):
-        model.dof_frictionloss[dadr[j]] = frictionloss[joint_type(n)]
+        model.dof_frictionloss[dadr[j]] = frictionloss[n] if n in frictionloss else frictionloss[joint_type(n)]
         if solref is not None:
             model.dof_solref[dadr[j]] = solref
         if solimp is not None:
@@ -307,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.frictionloss:
             fric = dict(zip(JOINT_TYPES, map(float, args.frictionloss.split(",")), strict=True))
         else:
-            fric = {k: float(v) for k, v in cfg["frozen_nm"].items()}
+            fric = {k: float(v) for k, v in cfg["frozen_nm"].items()}  # type or joint-name keys
         c = cfg.get("constraint", {})
         set_joint_friction(model, dadr, fric, c.get("solref"), c.get("solimp"))
     res = {"model": {"label": args.label, "profile": args.profile, "dt": args.dt, "delay_s": args.delay_s,

@@ -1,0 +1,31 @@
+# Model B-measured (frozen 2026-10-30, before any v2 probe data): identical to model B
+# (configs/sim2real/actuator_model_B_frozen.yaml: structure B0, same constraint softness)
+# except the friction values are taken directly from the 2026-10-07 hardware friction probe
+# (configs/physics/go2_joint_friction_2026-10-07.yaml, column `static`, per joint), with no
+# trajectory-error optimisation. All 12 joints have a measured value, so no joint-family
+# fallback is used. Caveat: the 2026-10-07 FP sessions are also the model B replay data, so a
+# B-measured replay of those sessions is in-sample; the primary evaluation is the v2 probe.
+# Do not edit after the first v2 probe recording.
+structure: B0
+source: configs/physics/go2_joint_friction_2026-10-07.yaml#static
+frozen_nm:
+  FR_hip_joint: 0.353
+  FR_thigh_joint: 0.249
+  FR_calf_joint: 0.422
+  FL_hip_joint: 0.338
+  FL_thigh_joint: 0.171
+  FL_calf_joint: 0.622
+  RR_hip_joint: 0.261
+  RR_thigh_joint: 0.339
+  RR_calf_joint: 0.962
+  RL_hip_joint: 0.241
+  RL_thigh_joint: 0.331
+  RL_calf_joint: 0.607
+constraint:
+  solref:
+  - 0.002
+  - 1.0
+  solimp:
+  - 0.999
+  - 0.999
+  - 0.001

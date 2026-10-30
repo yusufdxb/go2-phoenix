@@ -1,0 +1,58 @@
+# Registered constants for the 2026-10-30 actuator probe v2 study.
+# Prose, rationale and decision rules: docs/preregistration/2026-10-30-actuator-probe-v2.md
+# Written before any v2 recording. scripts/probe_eval.py reads every threshold from here.
+# Any change after the first v2 hardware recording is a deviation and goes in the OUTCOME file.
+
+models:                       # all frozen; dt 1 ms; logged kp/kd; no delay
+  A:   {friction: none}
+  B:   {config: configs/sim2real/actuator_model_B_frozen.yaml}
+  Bm:  {config: configs/sim2real/actuator_model_B_measured.yaml}
+  # secondary, isolates magnitude from per-joint granularity (A4)
+  Bm_fam:
+    structure: B0
+    frozen_nm: {hip: 0.2995, thigh: 0.290, calf: 0.6145}   # family medians of Bm
+    constraint: {solref: [0.002, 1.0], solimp: [0.999, 0.999, 0.001]}
+
+replay:
+  dt_s: 0.001
+  delay_s: 0.0
+  target_hold: zoh_50hz       # logged targets, zero-order hold between ticks
+  init: measured_q_dq_at_excursion_start   # one init per excursion, no mid-excursion reset
+  gravity_tilt: bridge_rpy_mean_over_run   # level if bridge.jsonl has no rpy
+
+protocol:
+  name: v2
+  repeats_per_run: 2
+  schedule: [[+1, 0.05], [-1, 0.05], [+1, 0.20], [-1, 0.20]]   # (direction, rad/s) per repeat
+  dwell_peak_s: 1.0
+  dwell_zero_s: 2.0
+  kp: 25.0
+  kd: 0.5
+  max_offset_rad: 0.30
+  q0: stance_pose_via_PHOENIX_FP_STANDUP_S
+  runs: {CAL: first full 12-joint run, VAL: second full 12-joint run}
+
+metrics:
+  breakaway_thr_rad: 0.003    # phoenix.sim2real.actuator_replay.breakaway, as in the A/B report
+  breakaway_thr_alt_rad: 0.020   # robustness only (the probe's own BREAK_DELTA)
+  slip:
+    moving_tick_rad: 0.0005   # |dq per 50 Hz tick| at or above this is a moving tick
+    still_ticks: 3            # an event is bounded by >= this many still ticks on both sides
+    min_event_rad: 0.002
+    max_event_rad: 0.020      # events >= this are slides, not micro-slips
+    match_window_s: 0.10      # model event matches a hw event: same sign, start within this
+  hold_window_s: 1.0          # last second of each dwell_zero
+
+decision:
+  primary: H_mag
+  H_mag: {min_rel_reduction: 0.30, min_families: 2, alpha: 0.05}
+  H_inad: {max_recall: 0.25}
+  H_vel: {min_rel_diff: 0.15, min_sd_multiple: 2.0, min_abs_nm: 0.10, min_families: 2}
+  H_dir: {min_rel_diff: 0.15}
+  noise_floor_max_ratio: 0.5  # slip metric uninformative if settle-phase rate >= this x probe rate
+  min_hw_breakaway_frac: 0.75 # below this the threshold metrics are not computable: stop
+  model_C_accept:
+    max_threshold_err_frac: 0.25   # median |err| <= this x hw median threshold, every family
+    max_missed_false_frac: 0.10
+    max_pos_rmse_vs_best: 1.05
+    min_slip_recall: 0.50          # only when hw micro-slip rate >= 0.1 per excursion

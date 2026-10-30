@@ -158,6 +158,11 @@ def test_tilt_gravity_and_set_joint_friction() -> None:
     rs.set_joint_friction(m, dadr, {"hip": 0.5, "thigh": 0.3, "calf": 1.2}, [0.002, 1.0], [0.999, 0.999, 0.001])
     assert np.allclose(m.dof_frictionloss[:6], 0) and np.allclose(m.dof_frictionloss[6:9], [0.5, 0.3, 1.2])
     assert np.allclose(m.dof_solref[6:], [0.002, 1.0]) and np.allclose(m.dof_solimp[6:, :3], [0.999, 0.999, 0.001])
+    rs.set_joint_friction(m, dadr, {"hip": 0.5, "thigh": 0.3, "calf": 1.2, "RL_calf_joint": 0.607})
+    assert np.isclose(m.dof_frictionloss[17], 0.607) and np.isclose(m.dof_frictionloss[14], 1.2)
+    per_joint = {n: 0.1 * (k + 1) for k, n in enumerate(UNITREE_MOTOR_ORDER)}
+    rs.set_joint_friction(m, dadr, per_joint)
+    assert np.allclose(m.dof_frictionloss[6:], 0.1 * np.arange(1, 13))
 
 
 def test_frictionloss_holds_below_threshold_and_slides_above() -> None:

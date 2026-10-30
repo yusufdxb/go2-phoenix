@@ -310,3 +310,38 @@ def test_excursion_cap_is_active_during_the_first_settle() -> None:
             break
         t += 1.0 / fp.TICK_HZ
     assert reason is not None and "excursion:RR_thigh_joint" in reason and s.ref is None
+
+
+def test_v2_session_runs_one_joint_with_rate_rows_and_bounded_total() -> None:
+    joint = "RL_calf_joint"
+    i = ORDER.index(joint)
+    s = ProbeSession([joint], LIM, settle_s=2.0, protocol="v2", repeats=1)
+    assert np.isclose(s.total_s, 2.0 + fp.v2_worst_case_joint_s(1))
+    t, res = 0.0, []
+    while t < 300.0:
+        r = s.step(t, snap(), int(t * 1e9))
+        res.append(r)
+        if r.done or r.phase == "abort":
+            break
+        t += 1.0 / fp.TICK_HZ
+    assert res[-1].done and t <= s.total_s
+    rows = [r.row for r in res if r.row]
+    assert {r["active"] for r in rows} == {joint}
+    assert {r["rate"] for r in rows} == {fp.RATE_RAD_S, fp.RATE_FAST_RAD_S}
+    assert sorted({r["excursion"] for r in rows}) == [0, 1, 2, 3]
+    assert {"dwell_peak", "dwell_zero"} <= {r["phase"] for r in rows}
+    offs = np.asarray([r.target - Q_STAND for r in res if r.target is not None])
+    assert np.abs(np.delete(offs, i, axis=1)).max() < 1e-12
+
+
+def test_v1_session_rows_are_unchanged_and_bad_protocol_refused() -> None:
+    s, res = run_session(["FL_hip_joint"], max_t=5.0)
+    row = next(r.row for _, r in res if r.row)
+    assert "rate" not in row and "excursion" not in row
+    with pytest.raises(ValueError):
+        ProbeSession(["FL_hip_joint"], LIM, protocol="v3")
+
+
+def test_fp_stage_passes_the_v2_protocol_only_on_request() -> None:
+    text = HARNESS.read_text()
+    assert '[[ -n "${PHOENIX_FP_PROTOCOL:-}" ]] && node_args+=(--protocol "$PHOENIX_FP_PROTOCOL")' in text
