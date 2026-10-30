@@ -318,8 +318,111 @@ def probe_torque_check(s: Session, tau_sim_at: np.ndarray | None = None,
     return out
 
 
+def smooth_velocity(q: np.ndarray, t: np.ndarray, half_window_s: float = 0.05) -> np.ndarray:
+    """Central difference over +-``half_window_s``; the encoder ``dq`` is too noisy
+    (std ~0.03 rad/s at rest) to tell stuck from slipping."""
+    lo = np.clip(np.searchsorted(t, t - half_window_s), 0, len(t) - 1)
+    hi = np.clip(np.searchsorted(t, t + half_window_s, side="right") - 1, 0, len(t) - 1)
+    dt = np.maximum(t[hi] - t[lo], 1e-6)[:, None]
+    return (q[hi] - q[lo]) / dt
+
+
+def probe_ramps(s: Session) -> list[tuple[int, str, float, float, float]]:
+    """(joint index, phase, t0, t1, direction) for each probe rise/fall ramp."""
+    if s.probe is None or len(s.probe["t"]) < 50:
+        return []
+    ph, act, tp = s.probe["phase"], s.probe["active"], s.probe["t"]
+    ch = np.flatnonzero((ph[1:] != ph[:-1]) | (act[1:] != act[:-1])) + 1
+    out = []
+    for a, b in zip(np.r_[0, ch], np.r_[ch, len(tp)], strict=True):
+        n = str(act[a])
+        if ph[a] not in ("rise", "fall") or n not in UNITREE_MOTOR_ORDER or b - a < 5:
+            continue
+        j = UNITREE_MOTOR_ORDER.index(n)
+        t0, t1 = float(tp[a]), float(tp[b - 1])
+        i0, i1 = np.searchsorted(s.t, [t0, t1])
+        i1 = min(i1, len(s.t) - 1)
+        direction = float(np.sign(s.target[i1, j] - s.target[i0, j]))
+        if direction:
+            out.append((j, str(ph[a]), t0, t1, direction))
+    return out
+
+
+def breakaway(q: np.ndarray, target: np.ndarray, t: np.ndarray, t0: float, t1: float, direction: float,
+              thr: float = 0.003) -> tuple[float, float]:
+    """Time after ramp start until the joint has moved ``thr`` rad in the ramp
+    direction, and the tracking error (direction * (target - q)) at that moment."""
+    w = (t >= t0) & (t <= t1)
+    d = (q[w] - q[w][0]) * direction
+    k = np.flatnonzero(d > thr)
+    if not len(k):
+        return float("nan"), float("nan")
+    return float(t[w][k[0]] - t0), float(direction * (target[w][k[0]] - q[w][k[0]]))
+
+
+def stick_slip_metrics(s: Session, q_sim: np.ndarray, exclude: dict[str, str] | None = None,
+                       still: float = 0.01, moving_cmd: float = 0.01) -> dict[str, dict[str, float]]:
+    """Per-joint friction signatures, hardware vs sim, keyed like ``joint_metrics``.
+
+    * breakaway: per probe ramp, time to move 3 mrad and the tracking error then
+    * stuck while commanded: among ticks whose target moves (> ``moving_cmd`` rad/s),
+      the fraction with smoothed |v| < ``still``, and hw/sim agreement on that flag
+    * direction residual: mean q_sim - q_hw over moving-target ticks, split by the
+      sign of the target velocity (Coulomb mismatch shows as a split of opposite sign)
+    """
+    exclude = exclude or {}
+    vt = smooth_velocity(s.target, s.t)
+    vh, vs = smooth_velocity(s.q, s.t), smooth_velocity(q_sim, s.t)
+    out: dict[str, dict[str, float]] = {n: {} for n in UNITREE_MOTOR_ORDER}
+    for j, n in enumerate(UNITREE_MOTOR_ORDER):
+        m = out[n]
+        mov = np.abs(vt[:, j]) > moving_cmd
+        if mov.sum() > 50:
+            sh, ss = np.abs(vh[mov, j]) < still, np.abs(vs[mov, j]) < still
+            m["stuck_frac_hw"], m["stuck_frac_sim"] = float(sh.mean()), float(ss.mean())
+            m["stuck_agree"] = float((sh == ss).mean())
+            r = q_sim[:, j] - s.q[:, j]
+            up, dn = mov & (vt[:, j] > 0), mov & (vt[:, j] < 0)
+            if up.sum() > 20 and dn.sum() > 20:
+                m["dir_resid_up"], m["dir_resid_down"] = float(r[up].mean()), float(r[dn].mean())
+                m["dir_resid_split"] = m["dir_resid_up"] - m["dir_resid_down"]
+    rows: dict[int, list[tuple[float, ...]]] = {}
+    for j, _ph, t0, t1, dr in probe_ramps(s):
+        th, eh = breakaway(s.q[:, j], s.target[:, j], s.t, t0, t1, dr)
+        ts, es = breakaway(q_sim[:, j], s.target[:, j], s.t, t0, t1, dr)
+        rows.setdefault(j, []).append((th, ts, eh, es))
+    for j, rr in rows.items():
+        a = np.asarray(rr)
+        ok = np.isfinite(a[:, 0]) & np.isfinite(a[:, 1])
+        m = out[UNITREE_MOTOR_ORDER[j]]
+        m["n_ramps"], m["n_ramps_both_broke"] = len(rr), int(ok.sum())
+        if ok.any():
+            m["breakaway_hw_s"], m["breakaway_sim_s"] = float(a[ok, 0].mean()), float(a[ok, 1].mean())
+            m["breakaway_abs_err_s"] = float(np.abs(a[ok, 1] - a[ok, 0]).mean())
+            m["err_at_break_hw"], m["err_at_break_sim"] = float(a[ok, 2].mean()), float(a[ok, 3].mean())
+    for n in exclude:
+        if n in out:
+            out[n]["excluded"] = exclude[n]
+    return out
+
+
+def session_tilt_deg(session_dir: Path) -> float:
+    """Median IMU tilt magnitude [deg] over valid bridge ticks (direction not logged)."""
+    vals = []
+    with (Path(session_dir) / "bridge.jsonl").open() as fh:
+        for line in fh:
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if r.get("record") == "tick" and r.get("imu_valid") and r.get("tilt_deg") is not None:
+                vals.append(float(r["tilt_deg"]))
+    return float(np.median(vals)) if vals else float("nan")
+
+
 __all__ = [
     "JOINT_TYPES", "SIGNAL_STATUS", "Session", "best_lag", "joint_metrics", "joint_type",
     "load_cache", "load_session", "move_events", "overshoot", "pd_torque",
-    "probe_torque_check", "save_cache", "steady_windows",
+    "breakaway", "probe_ramps", "probe_torque_check", "save_cache", "session_tilt_deg",
+    "smooth_velocity", "steady_windows", "stick_slip_metrics",
 ]

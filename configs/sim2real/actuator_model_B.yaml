@@ -1,0 +1,54 @@
+# Model B pre-registration, written 2026-10-30 BEFORE any model-B fit or held-out run.
+# Model A (training DCMotor, isaac_matched profile) is unchanged; B adds only joint
+# Coulomb friction as MuJoCo's dof frictionloss constraint (holds at rest while
+# |net torque| < F, opposes sliding with F).
+#
+# Structure rule (from training-session probe measurements only, docs/hardware/
+# 2026-10-07_friction_probe/run{2,4,5}*.json): Fs/Fk ratios 0.86 1.01 0.80 0.72
+# 1.14 1.26 0.95 0.91, median 0.93. Use separate static and Coulomb levels (B1) only
+# if that median exceeds 1.10. It does not, so B0: one F per joint type, Fs = Fc.
+# No viscous term, backlash, voltage, delay or residual model.
+structure: B0
+measured_train_nm:        # Fs and Fk, training sessions only (held-out-derived README values unused)
+  hip: [0.353, 0.410, 0.338, 0.336, 0.261, 0.364]
+  thigh: [0.171, 0.214, 0.339, 0.298, 0.331, 0.263]
+  calf: [0.960, 1.006, 0.612, 0.670]   # run5 FR/FL calves floor-contaminated, dropped
+# Fit bounds: [0.5 * min, 1.5 * max] of the training-measured values [N m].
+bounds_nm:
+  hip: [0.13, 0.62]
+  thigh: [0.085, 0.51]
+  calf: [0.31, 1.51]
+fit:
+  data: train only (configs/sim2real/actuator_replay_split.yaml), exclusions applied
+  objective: per joint type, mean over training sessions of the type-mean position RMSE [rad]
+  stage1: 11 evenly spaced values per type across the bounds, all types stepped together
+  stage2: 5 values per type spanning +-1 stage-1 step around each type's stage-1 best
+  decoupling_check: rerun the combined best; its per-type objective must match stage 2 within 2 %
+  reference: F = 0 must reproduce model A exactly (sanity)
+  constraints: no per-session or per-joint offsets; held-out data never read during the fit
+constraint:
+  # Softness chosen by a holding test (scripts/model_b_physics_checks.py), not fitted:
+  # MuJoCo default (0.02, 1) / (0.9, 0.95) lets a held calf creep 0.57 rad in 2 s at
+  # 0.5 F; this setting keeps creep < 1 mrad per 2 s at 0.9 F on every joint type.
+  # time constant 0.002 s = 2 * dt, the smallest MuJoCo treats as stable at dt 1 ms.
+  solref: [0.002, 1.0]
+  solimp: [0.999, 0.999, 0.001]
+sim:
+  dt: 0.001
+  reset_s: 2.0
+  delay_s: 0.0
+orientation:
+  # Only a scalar tilt magnitude is logged (no roll/pitch split). Sensitivity, not fit:
+  # each session's median tilt applied as +-pitch and +-roll, for A and frozen B.
+  cases: [level, pitch+, pitch-, roll+, roll-]
+acceptance:  # evaluated once on the held-out sessions with frozen parameters
+  improve_frac: 0.10        # pos RMSE gain counted as meaningful per joint type
+  accept_if: >-
+    pos RMSE improves >= 10 % on >= 2 of 3 joint types, no type regresses > 5 % in
+    pos or > 10 % in vel RMSE, and stick-slip is reproduced: mean breakaway timing
+    error on probed held-out joints falls >= 30 % vs A and B's tracking error at
+    breakaway is within 50 % of hardware
+  reject_if: no joint type improves >= 10 %, or any type regresses > 10 % in pos RMSE
+  inconclusive_if: >-
+    neither, or the orientation sensitivity (pitch/roll +-recorded tilt) changes pos
+    RMSE by at least the A -> B difference on the types that improved

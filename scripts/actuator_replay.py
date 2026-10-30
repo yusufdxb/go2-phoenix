@@ -35,6 +35,8 @@ from phoenix.sim2real.actuator_replay import (
     load_session,
     probe_torque_check,
     save_cache,
+    session_tilt_deg,
+    stick_slip_metrics,
 )
 from phoenix.sim2real.go2_model import UNITREE_MOTOR_ORDER
 from phoenix.sim2sim.dc_motor import DCMotorParams, dc_motor_torque
@@ -75,6 +77,29 @@ def build_fixed_base(scene: str, profile: str, dt: float):
     return m, qadr, dadr, applied
 
 
+def set_joint_friction(model, dadr, frictionloss: dict[str, float], solref=None, solimp=None) -> None:
+    """Model B: per-joint-type Coulomb friction as MuJoCo's dof frictionloss constraint.
+
+    The constraint holds a joint at rest while the net torque on it is below F and
+    opposes sliding with F (static = Coulomb). ``solref``/``solimp`` set the softness
+    of that constraint, i.e. how much a held joint creeps under subthreshold torque.
+    """
+    for j, n in enumerate(UNITREE_MOTOR_ORDER):
+        model.dof_frictionloss[dadr[j]] = frictionloss[joint_type(n)]
+        if solref is not None:
+            model.dof_solref[dadr[j]] = solref
+        if solimp is not None:
+            model.dof_solimp[dadr[j], : len(solimp)] = solimp
+
+
+def tilt_gravity(model, roll_deg: float = 0.0, pitch_deg: float = 0.0) -> None:
+    """Gravity seen by the welded base when the real base is tilted by roll then pitch."""
+    r, p = np.radians(roll_deg), np.radians(pitch_deg)
+    rx = np.array([[1, 0, 0], [0, np.cos(r), -np.sin(r)], [0, np.sin(r), np.cos(r)]])
+    ry = np.array([[np.cos(p), 0, np.sin(p)], [0, 1, 0], [-np.sin(p), 0, np.cos(p)]])
+    model.opt.gravity[:] = (ry @ rx).T @ np.array([0.0, 0.0, -9.81])
+
+
 def actuator(q_des, q, qd, kp, kd, calf_mask):
     out = []
     for p in (HIP_THIGH, CALF):
@@ -85,7 +110,8 @@ def actuator(q_des, q, qd, kp, kd, calf_mask):
 
 
 def replay(s: Session, model, qadr, dadr, delay_s: float, reset_s: float):
-    """Open-loop replay; returns sim q, dq, clip flag and applied torque at tick times."""
+    """Open-loop replay; returns sim q, dq, clip flag, applied motor torque at the probe
+    times and the dof friction constraint torque, all at tick times."""
     import mujoco
 
     d = mujoco.MjData(model)
@@ -94,7 +120,10 @@ def replay(s: Session, model, qadr, dadr, delay_s: float, reset_s: float):
     gaps = np.flatnonzero(np.diff(s.t) > GAP_RESET_S) + 1
     seg_start = np.concatenate([[0], gaps])
     seg_end = np.concatenate([gaps, [len(s.t)]])
-    tt, qq, vv, cc, uu = [], [], [], [], []
+    tt, qq, vv, cc, uu, ff = [], [], [], [], [], []
+    fric_dof = int(mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF)
+    dof_to_j = np.full(model.nv, -1)
+    dof_to_j[dadr] = np.arange(12)
     for a, b in zip(seg_start, seg_end, strict=True):
         if b - a < 2:
             continue
@@ -118,8 +147,13 @@ def replay(s: Session, model, qadr, dadr, delay_s: float, reset_s: float):
             vv.append(d.qvel[dadr].copy())
             cc.append(np.abs(comp - app) > 1e-9)
             uu.append(app)
+            fr = np.zeros(12)
+            sel = d.efc_type == fric_dof
+            if sel.any():
+                np.add.at(fr, dof_to_j[d.efc_id[sel]], d.efc_force[sel])
+            ff.append(fr)
     tt = np.asarray(tt)
-    qq, vv, cc, uu = map(np.asarray, (qq, vv, cc, uu))
+    qq, vv, cc, uu, ff = map(np.asarray, (qq, vv, cc, uu, ff))
 
     def at(x, times):
         return np.stack([np.interp(times, tt, x[:, j]) for j in range(12)], axis=1)
@@ -128,7 +162,7 @@ def replay(s: Session, model, qadr, dadr, delay_s: float, reset_s: float):
     tau_probe = None
     if s.probe is not None:
         tau_probe = uu[np.clip(np.searchsorted(tt, s.probe["t"]) - 1, 0, len(tt) - 1)]
-    return at(qq, s.t), at(vv, s.t), cc[nearest], tau_probe
+    return at(qq, s.t), at(vv, s.t), cc[nearest], tau_probe, ff[nearest]
 
 
 def plot_session(s: Session, q_sim: np.ndarray, path: Path, title: str) -> None:
@@ -253,6 +287,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--label", default="A: existing training actuator")
     ap.add_argument("--cache", default=None, help="dir for parsed-session npz caches")
     ap.add_argument("--no-plots", action="store_true")
+    ap.add_argument("--save-sim", action="store_true", help="write sim q (float32) per session for overlays")
+    ap.add_argument("--model-b", default=None, help="model-B YAML (constraint softness, optional 'frozen' F)")
+    ap.add_argument("--frictionloss", default=None, help="hip,thigh,calf Coulomb friction [N m]; implies model B")
+    ap.add_argument("--splits", default="train,heldout")
+    ap.add_argument("--tilt", default="level", choices=["level", "pitch+", "pitch-", "roll+", "roll-"],
+                    help="apply each session's median logged tilt magnitude about this axis")
     args = ap.parse_args(argv)
 
     split = yaml.safe_load(Path(args.split).read_text())
@@ -261,11 +301,22 @@ def main(argv: list[str] | None = None) -> int:
     cache = Path(args.cache) if args.cache else out / "cache"
     cache.mkdir(parents=True, exist_ok=True)
     model, qadr, dadr, applied = build_fixed_base(args.scene, args.profile, args.dt)
+    fric = None
+    if args.model_b or args.frictionloss:
+        cfg = yaml.safe_load(Path(args.model_b).read_text()) if args.model_b else {}
+        if args.frictionloss:
+            fric = dict(zip(JOINT_TYPES, map(float, args.frictionloss.split(",")), strict=True))
+        else:
+            fric = {k: float(v) for k, v in cfg["frozen_nm"].items()}
+        c = cfg.get("constraint", {})
+        set_joint_friction(model, dadr, fric, c.get("solref"), c.get("solimp"))
     res = {"model": {"label": args.label, "profile": args.profile, "dt": args.dt, "delay_s": args.delay_s,
                      "reset_s": args.reset_s, "actuator": {"hip_thigh": HIP_THIGH.__dict__, "calf": CALF.__dict__},
-                     "applied_profile": {k: v for k, v in applied.items() if k != "scene_xml"}},
+                     "applied_profile": {k: v for k, v in applied.items() if k != "scene_xml"},
+                     "frictionloss_nm": fric, "model_b_config": args.model_b, "tilt": args.tilt,
+                     "dof_solref": model.dof_solref[dadr[0]].tolist(), "dof_solimp": model.dof_solimp[dadr[0]].tolist()},
            "split_file": args.split, "sessions": {}}
-    for sp in ("train", "heldout"):
+    for sp in args.splits.split(","):
         for rel in split[sp]:
             name = Path(rel).name
             cp = cache / f"{name}.npz"
@@ -273,15 +324,34 @@ def main(argv: list[str] | None = None) -> int:
             if not cp.exists():
                 save_cache(s, cp)
             excl = (split.get("exclusions") or {}).get(name, {})
-            q_sim, dq_sim, clip, tau_probe = replay(s, model, qadr, dadr, args.delay_s, args.reset_s)
+            tilt = float("nan")
+            if args.tilt != "level":
+                tp = cache / f"{name}.tilt.json"
+                if not tp.exists():
+                    tp.write_text(json.dumps(session_tilt_deg(Path(args.data_root) / rel)))
+                tilt = json.loads(tp.read_text())
+                sign = 1.0 if args.tilt.endswith("+") else -1.0
+                tilt_gravity(model, **{f"{args.tilt[:-1]}_deg": sign * tilt})
+            q_sim, dq_sim, clip, tau_probe, tau_fric = replay(s, model, qadr, dadr, args.delay_s, args.reset_s)
+            tilt_gravity(model)
             met = joint_metrics(s, q_sim, dq_sim, clip, exclude=excl)
-            r = {"split": sp, "path": rel, "identity": s.identity, "n_ticks": int(len(s.t)),
+            for n, row in stick_slip_metrics(s, q_sim, excl).items():
+                met["per_joint"][n].update({k: v for k, v in row.items() if k != "excluded"})
+            for j, n in enumerate(UNITREE_MOTOR_ORDER):
+                met["per_joint"][n]["fric_abs_mean_nm"] = float(np.abs(tau_fric[:, j]).mean())
+                met["per_joint"][n]["fric_abs_max_nm"] = float(np.abs(tau_fric[:, j]).max())
+            r = {"split": sp, "path": rel, "identity": s.identity, "n_ticks": int(len(s.t)), "tilt_deg": tilt,
                  "duration_s": float(s.t[-1]), "metrics": met,
                  "by_type": {k: by_type(met["per_joint"], k) for k in
                              ("pos_rmse", "vel_rmse", "lag_hw_s", "lag_sim_s", "lag_hw_vs_sim_s", "sse_hw", "sse_sim",
-                              "overshoot_hw", "overshoot_sim")},
+                              "overshoot_hw", "overshoot_sim", "sse_diff", "breakaway_hw_s", "breakaway_sim_s",
+                              "breakaway_abs_err_s", "err_at_break_hw", "err_at_break_sim", "stuck_frac_hw",
+                              "stuck_frac_sim", "stuck_agree", "dir_resid_split", "fric_abs_mean_nm")},
                  "probe_torque": probe_torque_check(s, tau_probe, excl)}
             res["sessions"][name] = r
+            if args.save_sim:
+                np.savez_compressed(out / f"{name}_sim.npz", t=s.t, q_sim=q_sim.astype(np.float32),
+                                    tau_fric=tau_fric.astype(np.float32))
             if not args.no_plots:
                 plot_session(s, q_sim, out / f"{name}_overlay.png", f"{name} ({sp}) {args.label}")
                 if s.probe is not None and len(s.probe["t"]) >= 50:

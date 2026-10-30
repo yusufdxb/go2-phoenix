@@ -1,0 +1,23 @@
+# Model B frozen parameters: written by scripts/fit_model_b.py from TRAINING sessions only,
+# before any held-out evaluation. Do not edit after the held-out run.
+structure: B0
+frozen_nm:
+  hip: 0.522
+  thigh: 0.31875000000000003
+  calf: 1.15
+constraint:
+  solref:
+  - 0.002
+  - 1.0
+  solimp:
+  - 0.999
+  - 0.999
+  - 0.001
+fit_objective_train_pos_rmse_rad:
+  hip: 0.0034095037006529375
+  thigh: 0.0020554525888110743
+  calf: 0.0018331824107875947
+model_A_train_pos_rmse_rad:
+  hip: 0.009561171466391643
+  thigh: 0.008868347549737358
+  calf: 0.025691561783140835
