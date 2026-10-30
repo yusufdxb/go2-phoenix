@@ -85,3 +85,98 @@ def test_split_is_disjoint_and_covers_every_joint_type() -> None:
     assert not set(split["train"]) & set(split["heldout"])
     names = {Path(p).name for p in split["train"] + split["heldout"]}
     assert set(split["exclusions"]) <= names
+
+
+def _ramp_session(stuck_until: float, n: int = 1000, dt: float = 0.002) -> tuple[ar.Session, np.ndarray]:
+    """FR calf ramps up then down at 0.05 rad/s; hw q lags until ``stuck_until`` s into each ramp."""
+    t = np.arange(n) * dt
+    half = n // 2
+    off = np.where(np.arange(n) < half, t * 0.05, (t[half] - (t - t[half])) * 0.05)
+    target = np.zeros((n, 12))
+    target[:, 2] = off
+    q = target.copy()
+    for a, b in ((0, half), (half, n)):
+        held = (t[a:b] - t[a]) < stuck_until
+        q[a:b][held, 2] = off[a]
+        q[a:b][~held, 2] -= np.sign(off[b - 1] - off[a]) * stuck_until * 0.05  # keeps the lag built while stuck
+    phase = np.where(np.arange(n) < half, "rise", "fall")
+    probe = {"t": t, "phase": phase, "active": np.array(["FR_calf_joint"] * n)}
+    s = ar.Session(name="x", t=t, mode=np.array(["probe"] * n), q=q, dq=np.zeros((n, 12)), target=target,
+                   kp=np.full((n, 12), 25.0), kd=np.full((n, 12), 0.5), probe=probe)
+    return s, q
+
+
+def test_probe_ramps_and_breakaway_on_synthetic_stick() -> None:
+    s, q = _ramp_session(stuck_until=0.3)
+    r = ar.probe_ramps(s)
+    assert [(j, ph, d) for j, ph, _, _, d in r] == [(2, "rise", 1.0), (2, "fall", -1.0)]
+    for j, _ph, t0, t1, d in r:
+        tb, err = ar.breakaway(q[:, j], s.target[:, j], s.t, t0, t1, d)
+        assert 0.3 < tb < 0.3 + 0.003 / 0.05 + 0.01  # released at 0.3 s, then needs 3 mrad of travel
+        assert err > 0.3 * 0.05 * 0.9  # lag built up while stuck, signed along the ramp
+    still = np.zeros_like(q)
+    assert np.isnan(ar.breakaway(still[:, 2], s.target[:, 2], s.t, *r[0][2:4], r[0][4])[0])
+
+
+def test_stick_slip_metrics_self_agreement_and_miss_filter() -> None:
+    s, q = _ramp_session(stuck_until=0.3)
+    m = ar.stick_slip_metrics(s, q.copy())["FR_calf_joint"]
+    assert m["stuck_agree"] == 1.0 and abs(m["dir_resid_split"]) < 1e-12
+    assert m["n_ramps"] == 2 and m["n_ramps_both_broke"] == 2 and m["breakaway_abs_err_s"] == 0.0
+    # a sim joint that never moves is not scored on timing: only n_ramps_both_broke reveals the miss
+    m0 = ar.stick_slip_metrics(s, np.zeros_like(q))["FR_calf_joint"]
+    assert m0["n_ramps_both_broke"] == 0 and "breakaway_abs_err_s" not in m0
+
+
+def test_smooth_velocity_constant_rate() -> None:
+    t = np.arange(500) * 0.002
+    q = np.outer(0.05 * t, np.ones(12))
+    v = ar.smooth_velocity(q, t)
+    assert np.allclose(v, 0.05)
+
+
+def _replay_script():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("replay_script", REPO / "scripts/actuator_replay.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_tilt_gravity_and_set_joint_friction() -> None:
+    from types import SimpleNamespace
+
+    rs = _replay_script()
+    m = SimpleNamespace(opt=SimpleNamespace(gravity=np.zeros(3)), dof_frictionloss=np.zeros(18),
+                        dof_solref=np.zeros((18, 2)), dof_solimp=np.zeros((18, 5)))
+    rs.tilt_gravity(m)
+    assert np.allclose(m.opt.gravity, [0, 0, -9.81])
+    rs.tilt_gravity(m, roll_deg=3.0, pitch_deg=-2.0)
+    assert np.isclose(np.linalg.norm(m.opt.gravity), 9.81) and m.opt.gravity[2] < -9.79
+    dadr = np.arange(6, 18)
+    rs.set_joint_friction(m, dadr, {"hip": 0.5, "thigh": 0.3, "calf": 1.2}, [0.002, 1.0], [0.999, 0.999, 0.001])
+    assert np.allclose(m.dof_frictionloss[:6], 0) and np.allclose(m.dof_frictionloss[6:9], [0.5, 0.3, 1.2])
+    assert np.allclose(m.dof_solref[6:], [0.002, 1.0]) and np.allclose(m.dof_solimp[6:, :3], [0.999, 0.999, 0.001])
+
+
+def test_frictionloss_holds_below_threshold_and_slides_above() -> None:
+    """The model B mechanism on a one-hinge MuJoCo model, gravity off: a constant torque
+    below F leaves the joint at rest (stiction, not damping); above F it accelerates."""
+    import pytest
+
+    mujoco = pytest.importorskip("mujoco")
+    xml = """<mujoco><option timestep="0.001" gravity="0 0 0"/><worldbody><body>
+      <joint name="j" type="hinge" axis="0 0 1" frictionloss="1.0" solreffriction="0.002 1"
+             solimpfriction="0.999 0.999 0.001"/>
+      <geom type="capsule" size="0.02" fromto="0 0 0 0.2 0 0" mass="1"/></body></worldbody></mujoco>"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    drift = {}
+    for frac in (0.5, 0.9, 1.1):
+        d = mujoco.MjData(model)
+        for _ in range(2000):
+            d.qfrc_applied[0] = frac
+            mujoco.mj_step(model, d)
+        drift[frac] = abs(float(d.qpos[0]))
+    assert drift[0.5] < 1e-3 and drift[0.9] < 1e-3
+    assert drift[1.1] > 0.1
