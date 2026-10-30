@@ -8,7 +8,7 @@ fixed base, 1 ms step, and a reset to the measured state every 2 s. With F = 0, 
 Nothing was run on the robot.
 
 Commits: `76a4855` (replay tool, model A baseline), `5b7db1e` (model B, physics checks, preregistration,
-train-only fit, frozen parameters), plus the commit that adds this doc (A/B comparison, tests).
+train-only fit, frozen parameters), `5e12aa5` (A/B comparison, post-hoc diagnostics, tests, this doc).
 Simulator: MuJoCo 3.17.0 on mewtwo (CPU). Scene: the `unitree_go2/scene.xml` from the friction-deploy worktree.
 
 ## Verdict
