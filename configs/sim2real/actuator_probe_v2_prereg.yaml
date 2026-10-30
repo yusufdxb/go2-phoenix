@@ -67,3 +67,4 @@ amendment_1:                  # 2026-10-30, after P1/P2 and the 10-07 check, bef
   max_gap_s: 0.10
   exclusions: documented_only_via_cli   # probe_eval.py --exclude RUN:JOINT, reason in the report
   foot_force: operator_check_plus_report   # no numeric trigger registered
+  pose_limit: bm_hip_thigh_folded_v2_stance   # 7 of 12 Bm values from the folded pose; read under H_dir

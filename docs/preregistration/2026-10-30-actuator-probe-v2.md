@@ -197,3 +197,8 @@ No amendment follows this one.
     clearly above its hung baseline during a run is checked against the operator's notes;
     a confirmed contact excludes that leg's joints in that run under item 9. (The foot_force
     scale on a hung GO2 is not characterised, so no numeric trigger is registered.)
+11. Known pose limit. Seven of the twelve Bm values (all hips and thighs except RL_hip) were
+    measured on 2026-10-07 in the folded hung pose; v2 runs every joint at the stance q0
+    (`PHOENIX_FP_STANDUP_S=2.0`, as in 10-07 run6). A Bm threshold error on those seven
+    joints may be load or pose dependence rather than magnitude, and is read under H_dir
+    (exploratory), not as evidence against H_mag's mechanism.
