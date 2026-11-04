@@ -22,7 +22,7 @@ Fails closed and loudly on any decision disagreement.
 
 Usage::
 
-    PYTHONPATH=src $HOME/Sim/isaac-sim-venv/bin/python scripts/reliability_verify_deploy.py \
+    PYTHONPATH=src $HOME/Projects/Sim/isaac-sim-venv/bin/python scripts/reliability_verify_deploy.py \
         --onnx deploy/stand_v3_latent.onnx --artifact deploy/shield_stand_v3.npz \
         --raw-dir reliability_eval/raw_stand
 """

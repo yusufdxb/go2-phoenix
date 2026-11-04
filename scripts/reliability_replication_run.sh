@@ -27,7 +27,7 @@ shift 2
 EXTRA=("$@")
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PY="${PHOENIX_SIM_PYTHON:-$HOME/Sim/isaac-sim-venv/bin/python}"
+PY="${PHOENIX_SIM_PYTHON:-$HOME/Projects/Sim/isaac-sim-venv/bin/python}"
 CL="$REPO_ROOT/scripts/reliability_closed_loop.py"
 
 export OMNI_KIT_ACCEPT_EULA="${OMNI_KIT_ACCEPT_EULA:-YES}"

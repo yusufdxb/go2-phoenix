@@ -11,8 +11,8 @@
 #   below 5%.
 #
 # Prereqs:
-#   - Isaac Sim venv at $ISAAC_VENV (default ~/Sim/isaac-sim-venv)
-#   - IsaacLab at $ISAACLAB_PATH (default ~/Sim/IsaacLab)
+#   - Isaac Sim venv at $ISAAC_VENV (default ~/Projects/Sim/isaac-sim-venv)
+#   - IsaacLab at $ISAACLAB_PATH (default ~/Projects/Sim/IsaacLab)
 #   - RTX-class GPU with sufficient VRAM (the dev workstation's GPU or the lab PC's GPU both fit)
 #   - Repo checked out at audit-fixes-2026-04-16 (3c52b05 or newer)
 #

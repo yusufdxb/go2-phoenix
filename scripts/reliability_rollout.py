@@ -14,7 +14,7 @@ without ever touching Isaac. One condition per process keeps DR changes
 robust (each condition gets a clean env build).
 
 Run inside the Isaac Lab venv:
-  ~/Sim/isaac-sim-venv/bin/python scripts/reliability_rollout.py \
+  ~/Projects/Sim/isaac-sim-venv/bin/python scripts/reliability_rollout.py \
       --checkpoint checkpoints/phoenix-flat/policy.pt \
       --env-config configs/env/flat.yaml \
       --condition nominal --out reliability_eval/raw/nominal_seed0.npz \

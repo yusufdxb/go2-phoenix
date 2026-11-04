@@ -10,7 +10,7 @@
 # .npz are skipped. Flaky Blackwell startup segfaults are retried up to 3x.
 set -u
 cd "$(dirname "$0")/.."
-export OMNI_KIT_ACCEPT_EULA=YES ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Sim/IsaacLab}"
+export OMNI_KIT_ACCEPT_EULA=YES ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Projects/Sim/IsaacLab}"
 
 CKPT="${CKPT:-checkpoints/phoenix-flat/latest.pt}"
 ENVCFG="${ENVCFG:-configs/env/flat.yaml}"
@@ -19,7 +19,7 @@ LOGS="${LOGS:-reliability_eval/logs}"
 ENVS="${ENVS:-256}"
 STEPS="${STEPS:-300}"
 SEEDS="${SEEDS:-0 1 2}"
-PY=~/Sim/isaac-sim-venv/bin/python
+PY=~/Projects/Sim/isaac-sim-venv/bin/python
 mkdir -p "$OUT" "$LOGS"
 
 # Each condition pins ALL physics factors (single-factor control): a clean,

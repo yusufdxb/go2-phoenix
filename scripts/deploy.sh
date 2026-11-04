@@ -23,7 +23,7 @@ source "$REPO_ROOT/scripts/_activate.sh"
 cd "$REPO_ROOT"
 
 # --- 1) Export ONNX (must run in Isaac Lab python context so torch is present)
-ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Sim/IsaacLab}"
+ISAACLAB_PATH="${ISAACLAB_PATH:-$HOME/Projects/Sim/IsaacLab}"
 PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" \
 "$ISAACLAB_PATH/isaaclab.sh" -p -m phoenix.sim2real.export \
     --checkpoint "$CKPT" \

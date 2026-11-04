@@ -26,7 +26,7 @@ Prediction if the mechanism is right: ``access`` shows a second termination on
 the first step after nearly every reset, ``no_access`` and ``access_rereset`` show
 none. This is an evaluation rollout. Nothing is trained.
 
-    OMNI_KIT_ACCEPT_EULA=YES PYTHONUNBUFFERED=1 ~/Sim/isaac-sim-venv/bin/python \
+    OMNI_KIT_ACCEPT_EULA=YES PYTHONUNBUFFERED=1 ~/Projects/Sim/isaac-sim-venv/bin/python \
         scripts/diag_post_reset_termination.py --out <path>.json
 """
 

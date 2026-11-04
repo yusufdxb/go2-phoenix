@@ -233,12 +233,12 @@ PYTHONPATH=src .venv/bin/python scripts/reliability_fit_deploy.py \
   --max-episode-fpr 0.05
 
 # 2. export the latent-emitting policy
-PYTHONPATH=src $HOME/Sim/isaac-sim-venv/bin/python -m phoenix.sim2real.export \
+PYTHONPATH=src $HOME/Projects/Sim/isaac-sim-venv/bin/python -m phoenix.sim2real.export \
   --checkpoint checkpoints/phoenix-stand-v3-h25-final/latest.pt \
   --output deploy/stand_v3_latent.onnx --emit-latent --verify
 
 # 3. end-to-end gate: exported path must reproduce the studied one exactly
-PYTHONPATH=src $HOME/Sim/isaac-sim-venv/bin/python scripts/reliability_verify_deploy.py
+PYTHONPATH=src $HOME/Projects/Sim/isaac-sim-venv/bin/python scripts/reliability_verify_deploy.py
 
 # 4. real-time budget
 PYTHONPATH=src .venv/bin/python scripts/reliability_bench_shield.py --budget-ms 2.0

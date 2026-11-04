@@ -10,7 +10,7 @@ The camera is flown with ``sim.set_camera_view(eye, target)`` each step, which
 drives the same viewport the frames are read from.
 
 Usage:
-    OMNI_KIT_ACCEPT_EULA=YES ~/Sim/isaac-sim-venv/bin/python \
+    OMNI_KIT_ACCEPT_EULA=YES ~/Projects/Sim/isaac-sim-venv/bin/python \
         scripts/cinematic_dunes.py --frames 360 --out /tmp/go2_dunes
 """
 
