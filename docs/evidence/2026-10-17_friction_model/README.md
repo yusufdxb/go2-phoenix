@@ -1,6 +1,6 @@
 # Friction-aware walking retrain, 2026-10-17 (simulation evidence)
 
-**Simulation only. The hardware A/B/C comparison on the GO2 has not been performed.**
+**Simulation only.** The hardware A/B/C comparison ran on 2026-10-20; results are in [`../2026-10-20_abc_hardware/`](../2026-10-20_abc_hardware/README.md).
 
 **Reproduction status: not currently possible from this repository.** The training
 implementation (the joint-friction actuator model, the training and evaluation drivers) is on
@@ -101,7 +101,7 @@ JSON files were shortened to repository-relative paths; no values were changed.
 
 ## Not shown
 
-- Any result on the robot for B or C. The hardware A/B/C comparison has not been performed.
+- Any result on the robot for B or C here; the hardware A/B/C comparison is reported separately in [`../2026-10-20_abc_hardware/`](../2026-10-20_abc_hardware/README.md).
 - That the identified friction family is the robot's true dynamics: it is fitted to a few
   short free-floor walks.
 - Whether the overshoot in the frictionless environment matters on the robot.

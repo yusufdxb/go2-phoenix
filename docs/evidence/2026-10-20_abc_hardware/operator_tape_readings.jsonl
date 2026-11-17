@@ -1,0 +1,12 @@
+{"block": 1, "arm": "A", "slot": "vx03_4s", "right_in": 33, "left_in": 31, "right_m": 0.8382, "left_m": 0.7874, "mean_fwd_m": 0.8128, "reported_by": "operator (chat)", "utc": "2026-10-20T19:45:06Z"}
+{"block": 2, "arm": "B", "slot": "vx03_4s", "right_in": 47, "left_in": 47, "lateral_in": 2, "lateral_dir": "left (+)", "right_m": 1.1938, "left_m": 1.1938, "mean_fwd_m": 1.1938, "lat_m": 0.0508, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T19:48:32Z"}
+{"block": 3, "arm": "C", "slot": "vx03_4s", "right_in": 49, "left_in": 49, "right_m": 1.2446, "left_m": 1.2446, "mean_fwd_m": 1.2446, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T19:50:32Z"}
+{"block": 4, "arm": "A", "slot": "vx03_4s", "attempt": 2, "right_in": 32.5, "left_in": 31, "right_m": 0.8255, "left_m": 0.7874, "mean_fwd_m": 0.8065, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T19:54:13Z"}
+{"block": 5, "arm": "C", "slot": "vx03_4s", "right_in": 48.5, "left_in": 48.5, "right_m": 1.2319, "left_m": 1.2319, "mean_fwd_m": 1.2319, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T19:56:49Z"}
+{"block": 6, "arm": "B", "slot": "vx03_4s", "right_in": 47, "left_in": 47.5, "right_m": 1.1938, "left_m": 1.2065, "mean_fwd_m": 1.2002, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T19:59:41Z"}
+{"block": 7, "arm": "C", "slot": "vx03_4s", "right_in": 48.5, "left_in": 49, "right_m": 1.2319, "left_m": 1.2446, "mean_fwd_m": 1.2382, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T20:03:06Z"}
+{"block": 8, "arm": "B", "slot": "vx03_4s", "right_in": 47, "left_in": 47, "right_m": 1.1938, "left_m": 1.1938, "mean_fwd_m": 1.1938, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T20:05:43Z"}
+{"block": 9, "arm": "A", "slot": "vx03_4s", "legs_in": [32.5, 31.5], "leg_order": "not stated (likely right 32.5, left 31.5)", "mean_fwd_m": 0.8128, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T20:08:22Z"}
+{"block": 10, "arm": "B", "slot": "vx03_4s", "right_in": 46.5, "left_in": 46.5, "mean_fwd_m": 1.1811, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T20:10:26Z"}
+{"block": 11, "arm": "C", "slot": "vx03_4s", "right_in": 49, "left_in": 48.5, "mean_fwd_m": 1.2382, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T20:13:18Z"}
+{"block": 12, "arm": "A", "slot": "vx03_4s", "right_in": 32, "left_in": 32.5, "mean_fwd_m": 0.8191, "approx": true, "reported_by": "operator (chat)", "utc": "2026-10-20T20:16:00Z"}

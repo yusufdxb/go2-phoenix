@@ -1,0 +1,2738 @@
+[
+  {
+    "block": 1,
+    "arm": "A",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/G1_20261020T194216Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 56.0,
+      "power_v_median": 28.75600814819336
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 5477,
+      "n_policy_ticks": 1477,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 16.364091482971478,
+      "max_tilt_deg_policy": 4.537924886184885,
+      "bridge_dt_s": {
+        "p50": 0.0028633920001084334,
+        "p99": 0.005919899519794853,
+        "max": 0.00694694400044682,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001010304,
+      "max_cmd_age_s": 0.022926912,
+      "max_imu_age_s": 0.001010304,
+      "window_end_to_sit_s": 1.004155680000622
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 3007,
+      "t_policy_last_ns": 5333451181568,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.01698752,
+      "first_post_policy": {
+        "tick": 3009,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.02113968
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.016269088,
+      "calf_sag_median": 0.13594192266464233,
+      "calf_sag_mean": 0.13593539012296396,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.13879156112670898,
+        "FR_calf_joint": 0.1584336757659912,
+        "RL_calf_joint": 0.10803937911987305,
+        "RR_calf_joint": 0.1385030746459961
+      },
+      "dq_rms_max_calf": 0.027034741524721847,
+      "dq_rms_max_all": 0.04313760302492622,
+      "max_tilt_deg": 2.432531975586663,
+      "osc_frac_4_15hz": 0.13790622409428177
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 1,
+    "arm": "A",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/W_vx03_4s_20261020T194316Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 0.8128
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 33 in, left 31 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 55.0,
+      "power_v_median": 28.694034576416016
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 8046,
+      "n_policy_ticks": 3745,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.676669120788574,
+      "max_tilt_deg_policy": 4.497177348340626,
+      "bridge_dt_s": {
+        "p50": 0.0031429600003320957,
+        "p99": 0.0058193590400331795,
+        "max": 0.011393568000130472,
+        "n_gt_10ms": 1
+      },
+      "max_lowstate_age_s": 0.001073024,
+      "max_cmd_age_s": 0.048886528,
+      "max_imu_age_s": 0.001073024,
+      "window_end_to_sit_s": 1.0045693439997194
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5297,
+      "t_policy_last_ns": 5382404807328,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 13.013345088,
+      "first_post_policy": {
+        "tick": 5299,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.02993648
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999770492161,
+        1.0000002259909315
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.2000156736116891,
+      "imu_yaw_deg": 1.6402611202007007,
+      "gyro_yaw_deg": 1.1703914543683442,
+      "policy_dt_s": {
+        "p99": 0.021869038720624304,
+        "max": 0.05045590400004585,
+        "n_gt_30ms": 1
+      },
+      "yaw_drift_deg": 1.6402611202007007,
+      "F": 0.6773244865658417,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 0.6937306270579279,
+      "odom_leg_lat_m": 0.011828558729809585,
+      "F_odom": 0.578101305102129,
+      "odom_leg_speed_rmse_mps": 0.12182766176820542,
+      "odom_leg_speed_mean_mps": 0.15665268397170756
+    },
+    "tracking": {
+      "n": 1334,
+      "rms_err_hip": 0.07482887394859915,
+      "swing_ratio_hip": 0.6026650745834008,
+      "rms_err_thigh": 0.09103869353980917,
+      "swing_ratio_thigh": 1.5047364546139042,
+      "rms_err_calf": 0.2557313633735615,
+      "swing_ratio_calf": 0.4778644400060146
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 2,
+    "arm": "B",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/G1_20261020T194518Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 54.0,
+      "power_v_median": 28.685182571411133
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 5322,
+      "n_policy_ticks": 1458,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.277529704308215,
+      "max_tilt_deg_policy": 4.002368899423651,
+      "bridge_dt_s": {
+        "p50": 0.0029370560005190782,
+        "p99": 0.005898357440592008,
+        "max": 0.007079551999595424,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.0009816,
+      "max_cmd_age_s": 0.022231712,
+      "max_imu_age_s": 0.0009816,
+      "window_end_to_sit_s": 1.0057273920001535
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 3033,
+      "t_policy_last_ns": 5506517060992,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.0119888,
+      "first_post_policy": {
+        "tick": 3035,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.044721568
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.008248768,
+      "calf_sag_median": 0.1352996826171875,
+      "calf_sag_mean": 0.1352751171037874,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.13386011123657227,
+        "FR_calf_joint": 0.1678842306137085,
+        "RL_calf_joint": 0.10045766830444336,
+        "RR_calf_joint": 0.13899672031402588
+      },
+      "dq_rms_max_calf": 0.023235221479655992,
+      "dq_rms_max_all": 0.0443951741820412,
+      "max_tilt_deg": 1.65489739381053,
+      "osc_frac_4_15hz": 0.143278993915596
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 2,
+    "arm": "B",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/W_vx03_4s_20261020T194609Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.1938,
+          "tape_lat_m": 0.0508
+        },
+        "was": {
+          "tape_fwd_m": null,
+          "tape_lat_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 47 in, left 47 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 54.0,
+      "power_v_median": 28.640914916992188
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 7731,
+      "n_policy_ticks": 3756,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 14.80021192792795,
+      "max_tilt_deg_policy": 4.147236303711769,
+      "bridge_dt_s": {
+        "p50": 0.0032662719995641964,
+        "p99": 0.005884230400333763,
+        "max": 0.010171232000175223,
+        "n_gt_10ms": 1
+      },
+      "max_lowstate_age_s": 0.001783104,
+      "max_cmd_age_s": 0.045232128,
+      "max_imu_age_s": 0.001783104,
+      "window_end_to_sit_s": 1.006197056000019
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5301,
+      "t_policy_last_ns": 5559070384224,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 13.014493856,
+      "first_post_policy": {
+        "tick": 5303,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.02427568
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999631712455,
+        1.000000236428046
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.2000345723044825,
+      "imu_yaw_deg": 1.6638367014101996,
+      "gyro_yaw_deg": 1.0520733352828116,
+      "policy_dt_s": {
+        "p99": 0.02324041695997038,
+        "max": 0.04985750399919198,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": 1.6638367014101996,
+      "F": 0.994804672758294,
+      "tape_lat_m": 0.0508,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.0256028434013862,
+      "odom_leg_lat_m": 0.07320367276675765,
+      "F_odom": 0.8546444136454111,
+      "odom_leg_speed_rmse_mps": 0.07962572149978062,
+      "odom_leg_speed_mean_mps": 0.22577122981128206
+    },
+    "tracking": {
+      "n": 1323,
+      "rms_err_hip": 0.08294531434229539,
+      "swing_ratio_hip": 0.5198016595461635,
+      "rms_err_thigh": 0.10260854692263821,
+      "swing_ratio_thigh": 1.330210171013213,
+      "rms_err_calf": 0.2615453182506977,
+      "swing_ratio_calf": 0.5031685196629093
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 3,
+    "arm": "C",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/G1_20261020T194813Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 53.0,
+      "power_v_median": 28.623207092285156
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 6378,
+      "n_policy_ticks": 1411,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.88568215072155,
+      "max_tilt_deg_policy": 5.154206047583428,
+      "bridge_dt_s": {
+        "p50": 0.002830895999977656,
+        "p99": 0.006162215999893306,
+        "max": 0.007224863999908848,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.00097872,
+      "max_cmd_age_s": 0.020558752,
+      "max_imu_age_s": 0.00097872,
+      "window_end_to_sit_s": 1.0047274240005208
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2996,
+      "t_policy_last_ns": 5695898286752,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.013546944,
+      "first_post_policy": {
+        "tick": 2998,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.02252064
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.011646528,
+      "calf_sag_median": 0.14289668202400208,
+      "calf_sag_mean": 0.14291779457395523,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.13144659996032715,
+        "FR_calf_joint": 0.1843346357345581,
+        "RL_calf_joint": 0.1235891580581665,
+        "RR_calf_joint": 0.13221633434295654
+      },
+      "dq_rms_max_calf": 0.02174187188851097,
+      "dq_rms_max_all": 0.04731298910044009,
+      "max_tilt_deg": 2.1011873040828997,
+      "osc_frac_4_15hz": 0.1600417372557775
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 3,
+    "arm": "C",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/W_vx03_4s_20261020T194922Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.2446
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 49 in, left 49 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 52.0,
+      "power_v_median": 28.596647262573242
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 8023,
+      "n_policy_ticks": 3738,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.61036496674156,
+      "max_tilt_deg_policy": 5.172662594053948,
+      "bridge_dt_s": {
+        "p50": 0.0031557759994029766,
+        "p99": 0.005694246399798584,
+        "max": 0.007919264000520343,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.00098656,
+      "max_cmd_age_s": 0.05421584,
+      "max_imu_age_s": 0.00098656,
+      "window_end_to_sit_s": 1.0052743680007552
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5342,
+      "t_policy_last_ns": 5748483422400,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.994107424,
+      "first_post_policy": {
+        "tick": 5344,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.021313632
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999755126723,
+        1.000000218233836
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.2000107839526144,
+      "imu_yaw_deg": 0.6069682616672798,
+      "gyro_yaw_deg": -0.33108292038667875,
+      "policy_dt_s": {
+        "p99": 0.024165821439637504,
+        "max": 0.055946143999790365,
+        "n_gt_30ms": 1
+      },
+      "yaw_drift_deg": 0.6069682616672798,
+      "F": 1.0371573461202714,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.08029232719459,
+      "odom_leg_lat_m": 0.07607765075399682,
+      "F_odom": 0.9002355159145371,
+      "odom_leg_speed_rmse_mps": 0.08316580131687755,
+      "odom_leg_speed_mean_mps": 0.24203981541218655
+    },
+    "tracking": {
+      "n": 1312,
+      "rms_err_hip": 0.0832293732098699,
+      "swing_ratio_hip": 0.560120670420407,
+      "rms_err_thigh": 0.10869852214731836,
+      "swing_ratio_thigh": 1.4028443707153335,
+      "rms_err_calf": 0.271366080535834,
+      "swing_ratio_calf": 0.500243972589503
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 4,
+    "arm": "A",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/G1_20261020T195123Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 51.0,
+      "power_v_median": 28.58779525756836
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 6465,
+      "n_policy_ticks": 1407,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 16.373301737113707,
+      "max_tilt_deg_policy": 4.393934384547646,
+      "bridge_dt_s": {
+        "p50": 0.0028432320004867506,
+        "p99": 0.005935872639820446,
+        "max": 0.007083103999320883,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001085472,
+      "max_cmd_age_s": 0.020727072,
+      "max_imu_age_s": 0.001085472,
+      "window_end_to_sit_s": 1.0058693439996205
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2958,
+      "t_policy_last_ns": 5855193564768,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 4.99452752,
+      "first_post_policy": {
+        "tick": 2960,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.011200256
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 2.990195968,
+      "calf_sag_median": 0.13637018203735352,
+      "calf_sag_mean": 0.13638868034242016,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.13698220252990723,
+        "FR_calf_joint": 0.16920089721679688,
+        "RL_calf_joint": 0.09891331195831299,
+        "RR_calf_joint": 0.14038431644439697
+      },
+      "dq_rms_max_calf": 0.023029049426943782,
+      "dq_rms_max_all": 0.04167161147346175,
+      "max_tilt_deg": 2.335110832656228,
+      "osc_frac_4_15hz": 0.1592408699261806
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 4,
+    "arm": "A",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/W_vx03_4s_20261020T195201Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": null,
+    "battery": {
+      "soc_pre_pct": 51.0,
+      "power_v_median": null
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 7342,
+      "n_policy_ticks": 0,
+      "one_policy_episode": false,
+      "lowstate_fresh_all_policy": false,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": null,
+      "max_tilt_deg_policy": null,
+      "bridge_dt_s": {
+        "p50": 0.002572639999925741,
+        "p99": 0.005690443840021543,
+        "max": 0.006900319999658677,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": null,
+      "max_cmd_age_s": null,
+      "max_imu_age_s": null
+    },
+    "policy_exit": {
+      "exit": "release_without_policy_episode",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": null,
+      "t_policy_last_ns": null,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null
+    },
+    "tracking": {
+      "n": 0
+    },
+    "setup": "floor",
+    "operator_aborted": true,
+    "aborted_from_logs": true,
+    "operator_log_discrepancy": null,
+    "safety_event": true,
+    "valid": false,
+    "why": [
+      "not exactly one policy episode",
+      "LowState not fresh on every policy tick",
+      "operator: rope loaded / touched / aborted",
+      "deadman released (release_without_policy_episode): aborted run, from the logs",
+      "walk_cmd outcome None",
+      "no policy.parquet"
+    ]
+  },
+  {
+    "block": 4,
+    "arm": "A",
+    "slot": "vx03_4s",
+    "attempt": 2,
+    "physical_attempt": 2,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/W_vx03_4s_20261020T195306Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 0.8065
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 32.5 in, left 31 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 51.0,
+      "power_v_median": 28.516965866088867
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 8252,
+      "n_policy_ticks": 3616,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.524386942386627,
+      "max_tilt_deg_policy": 4.46614879377349,
+      "bridge_dt_s": {
+        "p50": 0.003143392000310996,
+        "p99": 0.004903597759876008,
+        "max": 0.007199136000053841,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001112352,
+      "max_cmd_age_s": 0.039632928,
+      "max_imu_age_s": 0.001112352,
+      "window_end_to_sit_s": 1.0042698240004029
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5169,
+      "t_policy_last_ns": 5969553007040,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.992452032,
+      "first_post_policy": {
+        "tick": 5171,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.011448448
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.999999939915226,
+        1.0000002175506948
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.200006082723375,
+      "imu_yaw_deg": 1.3908172168702,
+      "gyro_yaw_deg": 1.0893220222600675,
+      "policy_dt_s": {
+        "p99": 0.023766078399821703,
+        "max": 0.04181312000036996,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": 1.3908172168702,
+      "F": 0.6720799266031006,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 0.6963555260021951,
+      "odom_leg_lat_m": 0.010548678546310685,
+      "F_odom": 0.5802933301986593,
+      "odom_leg_speed_rmse_mps": 0.12177851010486193,
+      "odom_leg_speed_mean_mps": 0.1567191890784737
+    },
+    "tracking": {
+      "n": 1302,
+      "rms_err_hip": 0.07473924124206917,
+      "swing_ratio_hip": 0.5836247616833207,
+      "rms_err_thigh": 0.09137455879956365,
+      "swing_ratio_thigh": 1.5294393398855557,
+      "rms_err_calf": 0.254553482348036,
+      "swing_ratio_calf": 0.48708347049290524
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 5,
+    "arm": "C",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/G1_20261020T195506Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 50.0,
+      "power_v_median": 28.516965866088867
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 5252,
+      "n_policy_ticks": 1478,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.926221549510956,
+      "max_tilt_deg_policy": 5.295050892553141,
+      "bridge_dt_s": {
+        "p50": 0.002847696000117139,
+        "p99": 0.0060434742398683735,
+        "max": 0.009608287999981258,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001308864,
+      "max_cmd_age_s": 0.01997216,
+      "max_imu_age_s": 0.001308864,
+      "window_end_to_sit_s": 1.0064606719997755
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 3066,
+      "t_policy_last_ns": 6084871513344,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.013280096,
+      "first_post_policy": {
+        "tick": 3068,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.038104128
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.009830848,
+      "calf_sag_median": 0.14716985821723938,
+      "calf_sag_mean": 0.14713781467334036,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.14422863721847534,
+        "FR_calf_joint": 0.17657470703125,
+        "RL_calf_joint": 0.13224577903747559,
+        "RR_calf_joint": 0.1356303095817566
+      },
+      "dq_rms_max_calf": 0.022367387132491204,
+      "dq_rms_max_all": 0.044353601524968395,
+      "max_tilt_deg": 2.12371527960521,
+      "osc_frac_4_15hz": 0.12377870926147162
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 5,
+    "arm": "C",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/W_vx03_4s_20261020T195547Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.2319
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 48.5 in, left 48.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 49.0,
+      "power_v_median": 28.481552124023438
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 7752,
+      "n_policy_ticks": 3712,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.641589934387875,
+      "max_tilt_deg_policy": 5.280714396811179,
+      "bridge_dt_s": {
+        "p50": 0.0033082879999710713,
+        "p99": 0.0059067830399271775,
+        "max": 0.007973503999892273,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001009536,
+      "max_cmd_age_s": 0.04570368,
+      "max_imu_age_s": 0.001009536,
+      "window_end_to_sit_s": 1.004100832000404
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5242,
+      "t_policy_last_ns": 6131466212064,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 13.014218944,
+      "first_post_policy": {
+        "tick": 5244,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.024227328
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999449867489,
+        1.0000002249011475
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.2000083619355113,
+      "imu_yaw_deg": 0.3042052948214485,
+      "gyro_yaw_deg": 0.11818689288119595,
+      "policy_dt_s": {
+        "p99": 0.024060242239684147,
+        "max": 0.04759923199981131,
+        "n_gt_30ms": 1
+      },
+      "yaw_drift_deg": 0.3042052948214485,
+      "F": 1.0265761798634887,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.0834209252325475,
+      "odom_leg_lat_m": 0.0752993686942549,
+      "F_odom": 0.9028444797543592,
+      "odom_leg_speed_rmse_mps": 0.08286462162579168,
+      "odom_leg_speed_mean_mps": 0.23838978535171507
+    },
+    "tracking": {
+      "n": 1321,
+      "rms_err_hip": 0.08200971382734423,
+      "swing_ratio_hip": 0.5491168045673552,
+      "rms_err_thigh": 0.10904743061816032,
+      "swing_ratio_thigh": 1.3915026234966066,
+      "rms_err_calf": 0.2713055458551735,
+      "swing_ratio_calf": 0.5021978736618461
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 6,
+    "arm": "B",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/G1_20261020T195746Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 49.0,
+      "power_v_median": 28.472700119018555
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 5010,
+      "n_policy_ticks": 1403,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.972193449735641,
+      "max_tilt_deg_policy": 4.024145145288699,
+      "bridge_dt_s": {
+        "p50": 0.0028195840000080352,
+        "p99": 0.006223794560282841,
+        "max": 0.007217375999971409,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.000911776,
+      "max_cmd_age_s": 0.024500704,
+      "max_imu_age_s": 0.000911776,
+      "window_end_to_sit_s": 1.0043193920000704
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2868,
+      "t_policy_last_ns": 6241481221760,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 4.995987936,
+      "first_post_policy": {
+        "tick": 2870,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.022034432
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 2.992128992,
+      "calf_sag_median": 0.13202106952667236,
+      "calf_sag_mean": 0.13203039665779806,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.1273646354675293,
+        "FR_calf_joint": 0.15929865837097168,
+        "RL_calf_joint": 0.10473525524139404,
+        "RR_calf_joint": 0.13668572902679443
+      },
+      "dq_rms_max_calf": 0.021594947026683943,
+      "dq_rms_max_all": 0.042238801196351795,
+      "max_tilt_deg": 1.894961168093504,
+      "osc_frac_4_15hz": 0.14913392064121642
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 6,
+    "arm": "B",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/W_vx03_4s_20261020T195823Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.2002
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 47 in, left 47.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 48.0,
+      "power_v_median": 28.437284469604492
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 7623,
+      "n_policy_ticks": 3764,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.894808160418377,
+      "max_tilt_deg_policy": 4.002448652310318,
+      "bridge_dt_s": {
+        "p50": 0.0032814079995659995,
+        "p99": 0.005993779199525309,
+        "max": 0.00724214399997436,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001012128,
+      "max_cmd_age_s": 0.042141024,
+      "max_imu_age_s": 0.001012128,
+      "window_end_to_sit_s": 1.0041169279993483
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5415,
+      "t_policy_last_ns": 6286517523776,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.995178848,
+      "first_post_policy": {
+        "tick": 5417,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.015077984
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999471411111,
+        1.0000002226339948
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.1988901749738483,
+      "imu_yaw_deg": 0.9540965695055078,
+      "gyro_yaw_deg": 0.712587827375664,
+      "policy_dt_s": {
+        "p99": 0.02280055104032725,
+        "max": 0.044747584000106144,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": 0.9540965695055078,
+      "F": 1.0010925312872634,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.0264824592517459,
+      "odom_leg_lat_m": 0.06660306788454814,
+      "F_odom": 0.8561939038946055,
+      "odom_leg_speed_rmse_mps": 0.08139192356005581,
+      "odom_leg_speed_mean_mps": 0.22546790125034116
+    },
+    "tracking": {
+      "n": 1333,
+      "rms_err_hip": 0.08273774329988351,
+      "swing_ratio_hip": 0.5079992867250902,
+      "rms_err_thigh": 0.10078807361974844,
+      "swing_ratio_thigh": 1.349623236128065,
+      "rms_err_calf": 0.2625519418137793,
+      "swing_ratio_calf": 0.4790283008609173
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 7,
+    "arm": "C",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/G1_20261020T200020Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 47.0,
+      "power_v_median": 28.419578552246094
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 5752,
+      "n_policy_ticks": 1411,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.938781172037125,
+      "max_tilt_deg_policy": 5.239750749481727,
+      "bridge_dt_s": {
+        "p50": 0.0028384800002640986,
+        "p99": 0.0061533206403237275,
+        "max": 0.007558272000096622,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.000973504,
+      "max_cmd_age_s": 0.02181616,
+      "max_imu_age_s": 0.000973504,
+      "window_end_to_sit_s": 1.0052909440000803
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2976,
+      "t_policy_last_ns": 6455597367712,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.016735424,
+      "first_post_policy": {
+        "tick": 2978,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.035898624
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.01056896,
+      "calf_sag_median": 0.1460271179676056,
+      "calf_sag_mean": 0.14603030836427366,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.141945481300354,
+        "FR_calf_joint": 0.1784433126449585,
+        "RL_calf_joint": 0.1317683458328247,
+        "RR_calf_joint": 0.13195133209228516
+      },
+      "dq_rms_max_calf": 0.023751134007108578,
+      "dq_rms_max_all": 0.04744827768213736,
+      "max_tilt_deg": 2.129130404230591,
+      "osc_frac_4_15hz": 0.15247515688082475
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 7,
+    "arm": "C",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/W_vx03_4s_20261020T200159Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.2382
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 48.5 in, left 49 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 47.0,
+      "power_v_median": 28.393016815185547
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 7473,
+      "n_policy_ticks": 3588,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.337353155016899,
+      "max_tilt_deg_policy": 5.18984836434136,
+      "bridge_dt_s": {
+        "p50": 0.0032606079994366155,
+        "p99": 0.005931052799860482,
+        "max": 0.007259615999828384,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.00099808,
+      "max_cmd_age_s": 0.044650048,
+      "max_imu_age_s": 0.00099808,
+      "window_end_to_sit_s": 1.0057841279995046
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5155,
+      "t_policy_last_ns": 6502488213728,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.995394816,
+      "first_post_policy": {
+        "tick": 5157,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.007873984
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999881740012,
+        1.0000002303012747
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.1999383462675408,
+      "imu_yaw_deg": -0.25900086951788087,
+      "gyro_yaw_deg": -0.1250881247055114,
+      "policy_dt_s": {
+        "p99": 0.023978267519805727,
+        "max": 0.04640988800019841,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": -0.25900086951788087,
+      "F": 1.0318863497041109,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.081185507455862,
+      "odom_leg_lat_m": 0.06758675181717733,
+      "F_odom": 0.9010342163153094,
+      "odom_leg_speed_rmse_mps": 0.08193866949249293,
+      "odom_leg_speed_mean_mps": 0.24204844366372283
+    },
+    "tracking": {
+      "n": 1260,
+      "rms_err_hip": 0.08273671194328502,
+      "swing_ratio_hip": 0.556331258671424,
+      "rms_err_thigh": 0.10839529926348766,
+      "swing_ratio_thigh": 1.38047682378811,
+      "rms_err_calf": 0.2734042581983357,
+      "swing_ratio_calf": 0.49783656970431556
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 8,
+    "arm": "B",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/G1_20261020T200356Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 46.0,
+      "power_v_median": 28.393016815185547
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 5660,
+      "n_policy_ticks": 1410,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.840786914232046,
+      "max_tilt_deg_policy": 4.010876626194323,
+      "bridge_dt_s": {
+        "p50": 0.0029248640003061155,
+        "p99": 0.005953895040038334,
+        "max": 0.007287551999979769,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.000948224,
+      "max_cmd_age_s": 0.024233216,
+      "max_imu_age_s": 0.000948224,
+      "window_end_to_sit_s": 1.0043886720004593
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 3002,
+      "t_policy_last_ns": 6611496942272,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.013776512,
+      "first_post_policy": {
+        "tick": 3004,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.036344512
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.009042016,
+      "calf_sag_median": 0.1359383463859558,
+      "calf_sag_mean": 0.13597502341421736,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.1292569637298584,
+        "FR_calf_joint": 0.17554569244384766,
+        "RL_calf_joint": 0.10547614097595215,
+        "RR_calf_joint": 0.13347458839416504
+      },
+      "dq_rms_max_calf": 0.022560303005113257,
+      "dq_rms_max_all": 0.04306409562063887,
+      "max_tilt_deg": 1.9807244308046932,
+      "osc_frac_4_15hz": 0.1746821693524804
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 8,
+    "arm": "B",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/W_vx03_4s_20261020T200435Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.1938
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 47 in, left 47 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 45.0,
+      "power_v_median": 28.348751068115234
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 8377,
+      "n_policy_ticks": 3628,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.614608854055405,
+      "max_tilt_deg_policy": 4.17490155230321,
+      "bridge_dt_s": {
+        "p50": 0.0030182720001903363,
+        "p99": 0.004430098559405457,
+        "max": 0.007502976000068884,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001071424,
+      "max_cmd_age_s": 0.054840448,
+      "max_imu_age_s": 0.001071424,
+      "window_end_to_sit_s": 1.0061069760004102
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5263,
+      "t_policy_last_ns": 6658229352896,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 13.01166912,
+      "first_post_policy": {
+        "tick": 5265,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.036734464
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999378197612,
+        1.0000002355557052
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.1998939298774172,
+      "imu_yaw_deg": 1.1530141042462179,
+      "gyro_yaw_deg": 0.9227088695283886,
+      "policy_dt_s": {
+        "p99": 0.024608791039972842,
+        "max": 0.057771392000177,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": 1.1530141042462179,
+      "F": 0.994921276184771,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.0320168945726578,
+      "odom_leg_lat_m": 0.06429063464104003,
+      "F_odom": 0.8600901036961576,
+      "odom_leg_speed_rmse_mps": 0.07886844511804492,
+      "odom_leg_speed_mean_mps": 0.22665878106454815
+    },
+    "tracking": {
+      "n": 1271,
+      "rms_err_hip": 0.08244850136135685,
+      "swing_ratio_hip": 0.4981337743436508,
+      "rms_err_thigh": 0.10212375265635669,
+      "swing_ratio_thigh": 1.3376692161592347,
+      "rms_err_calf": 0.26191606880820356,
+      "swing_ratio_calf": 0.49984823331620265
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 9,
+    "arm": "A",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/G1_20261020T200634Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 45.0,
+      "power_v_median": 28.366458892822266
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 5795,
+      "n_policy_ticks": 1416,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 16.736155315200538,
+      "max_tilt_deg_policy": 4.1715532077099535,
+      "bridge_dt_s": {
+        "p50": 0.0028954559993508155,
+        "p99": 0.006104579839957295,
+        "max": 0.008639296000183094,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.00096992,
+      "max_cmd_age_s": 0.021422432,
+      "max_imu_age_s": 0.00096992,
+      "window_end_to_sit_s": 1.0069432639993465
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2939,
+      "t_policy_last_ns": 6769387005440,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.017919648,
+      "first_post_policy": {
+        "tick": 2941,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.03503648
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.012577024,
+      "calf_sag_median": 0.13711556792259216,
+      "calf_sag_mean": 0.13713474841248052,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.14913225173950195,
+        "FR_calf_joint": 0.16715657711029053,
+        "RL_calf_joint": 0.09430885314941406,
+        "RR_calf_joint": 0.1378645896911621
+      },
+      "dq_rms_max_calf": 0.023248866972692184,
+      "dq_rms_max_all": 0.042941069572295786,
+      "max_tilt_deg": 2.2380321317206273,
+      "osc_frac_4_15hz": 0.13608256281959177
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 9,
+    "arm": "A",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/W_vx03_4s_20261020T200713Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 0.8128
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (legs [32.5, 31.5] in (not stated (likely right 32.5, left 31.5)); mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 44.0,
+      "power_v_median": 28.30448341369629
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 7533,
+      "n_policy_ticks": 3705,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.635832607746124,
+      "max_tilt_deg_policy": 4.427310180496484,
+      "bridge_dt_s": {
+        "p50": 0.0033150720000776346,
+        "p99": 0.005917308799871534,
+        "max": 0.0074664320000010775,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001074464,
+      "max_cmd_age_s": 0.0420256,
+      "max_imu_age_s": 0.001074464,
+      "window_end_to_sit_s": 1.0044205439999132
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5203,
+      "t_policy_last_ns": 6816777648448,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 13.015354944,
+      "first_post_policy": {
+        "tick": 5205,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.035907552
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999692251635,
+        1.0000002151152638
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.1999961700126758,
+      "imu_yaw_deg": 1.5402619735446283,
+      "gyro_yaw_deg": 1.1917452445414152,
+      "policy_dt_s": {
+        "p99": 0.02260017151977079,
+        "max": 0.04404729599991697,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": 1.5402619735446283,
+      "F": 0.6773354951553006,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 0.6924999381811768,
+      "odom_leg_lat_m": 0.017204546968449485,
+      "F_odom": 0.5770851236749046,
+      "odom_leg_speed_rmse_mps": 0.12132427059295399,
+      "odom_leg_speed_mean_mps": 0.1578615551678611
+    },
+    "tracking": {
+      "n": 1326,
+      "rms_err_hip": 0.07563268446901868,
+      "swing_ratio_hip": 0.5791084124666328,
+      "rms_err_thigh": 0.09108913264132713,
+      "swing_ratio_thigh": 1.4997505577403845,
+      "rms_err_calf": 0.2573034769660898,
+      "swing_ratio_calf": 0.47396561449002705
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 10,
+    "arm": "B",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/G1_20261020T200831Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 44.0,
+      "power_v_median": 28.331045150756836
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 6244,
+      "n_policy_ticks": 1398,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.12807137788726,
+      "max_tilt_deg_policy": 4.199589090006651,
+      "bridge_dt_s": {
+        "p50": 0.0029131199999028468,
+        "p99": 0.0060567135996734585,
+        "max": 0.01081759999942733,
+        "n_gt_10ms": 1
+      },
+      "max_lowstate_age_s": 0.000910112,
+      "max_cmd_age_s": 0.020102656,
+      "max_imu_age_s": 0.000910112,
+      "window_end_to_sit_s": 1.004488831999879
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2959,
+      "t_policy_last_ns": 6895017416800,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 4.997066496,
+      "first_post_policy": {
+        "tick": 2961,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.014514112
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 2.991459488,
+      "calf_sag_median": 0.1393575668334961,
+      "calf_sag_mean": 0.13935393810839206,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.14320850372314453,
+        "FR_calf_joint": 0.1652379035949707,
+        "RL_calf_joint": 0.11168563365936279,
+        "RR_calf_joint": 0.13729822635650635
+      },
+      "dq_rms_max_calf": 0.021944194376394124,
+      "dq_rms_max_all": 0.0454933480900361,
+      "max_tilt_deg": 2.0824128219829627,
+      "osc_frac_4_15hz": 0.1244336944798535
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 10,
+    "arm": "B",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/W_vx03_4s_20261020T200920Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.1811
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 46.5 in, left 46.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 43.0,
+      "power_v_median": 28.277923583984375
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 7848,
+      "n_policy_ticks": 3610,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.567510962486267,
+      "max_tilt_deg_policy": 3.8549895288410507,
+      "bridge_dt_s": {
+        "p50": 0.0030852640002194676,
+        "p99": 0.005902396800183851,
+        "max": 0.008789599999545317,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001027616,
+      "max_cmd_age_s": 0.050027104,
+      "max_imu_age_s": 0.001027616,
+      "window_end_to_sit_s": 1.0062162559997887
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5217,
+      "t_policy_last_ns": 6944850687072,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.995517056,
+      "first_post_policy": {
+        "tick": 5219,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.011223776
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999718142729,
+        1.0000002042884915
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.200003794852283,
+      "imu_yaw_deg": 1.8933036841812427,
+      "gyro_yaw_deg": 1.6643311352671235,
+      "policy_dt_s": {
+        "p99": 0.02260535552014516,
+        "max": 0.05295932799981529,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": 1.8933036841812427,
+      "F": 0.9842468874403768,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.0165144831568311,
+      "odom_leg_lat_m": 0.07198473875372777,
+      "F_odom": 0.8470927238042285,
+      "odom_leg_speed_rmse_mps": 0.08268305010488719,
+      "odom_leg_speed_mean_mps": 0.22113371301288884
+    },
+    "tracking": {
+      "n": 1297,
+      "rms_err_hip": 0.08307448387899037,
+      "swing_ratio_hip": 0.5181851453027054,
+      "rms_err_thigh": 0.0992914377699346,
+      "swing_ratio_thigh": 1.347936124888236,
+      "rms_err_calf": 0.2623119341748053,
+      "swing_ratio_calf": 0.4647630866975926
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 10,
+    "arm": "B",
+    "slot": "stop_drill",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abB/G1_20261020T201008Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "halt",
+    "battery": {
+      "soc_pre_pct": 43.0,
+      "power_v_median": 28.295629501342773
+    },
+    "measured_arm": "B",
+    "bridge": {
+      "n_ticks": 9581,
+      "n_policy_ticks": 1445,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 14.235229536890984,
+      "max_tilt_deg_policy": 4.140650202800563,
+      "bridge_dt_s": {
+        "p50": 0.0029648319996340433,
+        "p99": 0.004156161919690914,
+        "max": 0.007390751999992062,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.000945056,
+      "max_cmd_age_s": 0.020130208,
+      "max_imu_age_s": 0.000945056,
+      "window_end_to_sit_s": 1.005808320000142
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2999,
+      "t_policy_last_ns": 6994219030944,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 4.996754976,
+      "first_post_policy": {
+        "tick": 3001,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.02250736
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 2.995655648,
+      "calf_sag_median": 0.1379573941230774,
+      "calf_sag_mean": 0.13794211937713843,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.13661611080169678,
+        "FR_calf_joint": 0.1620173454284668,
+        "RL_calf_joint": 0.11477959156036377,
+        "RR_calf_joint": 0.13841652870178223
+      },
+      "dq_rms_max_calf": 0.024610808633545464,
+      "dq_rms_max_all": 0.043445668124950355,
+      "max_tilt_deg": 1.8735231223932618,
+      "osc_frac_4_15hz": 0.16746682001834806
+    },
+    "setup": null,
+    "operator_aborted": true,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": false,
+    "why": [
+      "STOP drill: the deadman was not released during policy authority"
+    ]
+  },
+  {
+    "block": 11,
+    "arm": "C",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/G1_20261020T201121Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 42.0,
+      "power_v_median": 28.26906967163086
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 6859,
+      "n_policy_ticks": 1399,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.96364238858223,
+      "max_tilt_deg_policy": 5.014242581509839,
+      "bridge_dt_s": {
+        "p50": 0.0029101119998813374,
+        "p99": 0.0059194764799030955,
+        "max": 0.008645216000331857,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.001027584,
+      "max_cmd_age_s": 0.02032656,
+      "max_imu_age_s": 0.001027584,
+      "window_end_to_sit_s": 1.0046896639996703
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2976,
+      "t_policy_last_ns": 7068744586112,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 5.016973568,
+      "first_post_policy": {
+        "tick": 2978,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.033212128
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 3.013099072,
+      "calf_sag_median": 0.14126327633857727,
+      "calf_sag_mean": 0.14127860757075517,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.13611453771591187,
+        "FR_calf_joint": 0.17969489097595215,
+        "RL_calf_joint": 0.11835438013076782,
+        "RR_calf_joint": 0.13088929653167725
+      },
+      "dq_rms_max_calf": 0.022513577148857742,
+      "dq_rms_max_all": 0.04723760231377133,
+      "max_tilt_deg": 2.0439803411629187,
+      "osc_frac_4_15hz": 0.1578469143298719
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 11,
+    "arm": "C",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/W_vx03_4s_20261020T201216Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 1.2382
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 49 in, left 48.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 42.0,
+      "power_v_median": 28.242509841918945
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 7612,
+      "n_policy_ticks": 3666,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.838246569037437,
+      "max_tilt_deg_policy": 5.191939504316812,
+      "bridge_dt_s": {
+        "p50": 0.0033313600001747545,
+        "p99": 0.005935969279489655,
+        "max": 0.008334111999829474,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.002371136,
+      "max_cmd_age_s": 0.046269792,
+      "max_imu_age_s": 0.002371136,
+      "window_end_to_sit_s": 1.005343807999452
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5258,
+      "t_policy_last_ns": 7119090957088,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.99765088,
+      "first_post_policy": {
+        "tick": 5260,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.01127456
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999698720511,
+        1.0000002071498606
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.1998192338908642,
+      "imu_yaw_deg": 0.12993430930639643,
+      "gyro_yaw_deg": -0.4352657178534796,
+      "policy_dt_s": {
+        "p99": 0.024400645120003867,
+        "max": 0.04812112000035995,
+        "n_gt_30ms": 2
+      },
+      "yaw_drift_deg": 0.12993430930639643,
+      "F": 1.0319887904986085,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 1.0782972727089448,
+      "odom_leg_lat_m": 0.07065914635620732,
+      "F_odom": 0.8987164418194574,
+      "odom_leg_speed_rmse_mps": 0.082065822141052,
+      "odom_leg_speed_mean_mps": 0.2365432583071077
+    },
+    "tracking": {
+      "n": 1326,
+      "rms_err_hip": 0.081816757468246,
+      "swing_ratio_hip": 0.551147635057689,
+      "rms_err_thigh": 0.10828830210852658,
+      "swing_ratio_thigh": 1.3759197554748326,
+      "rms_err_calf": 0.26987360187487724,
+      "swing_ratio_calf": 0.49601475843019527
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 11,
+    "arm": "C",
+    "slot": "stop_drill",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abC/G1_20261020T201302Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 41.0,
+      "power_v_median": 28.25136375427246
+    },
+    "measured_arm": "C",
+    "bridge": {
+      "n_ticks": 5233,
+      "n_policy_ticks": 793,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:external_estop"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.647500738501549,
+      "max_tilt_deg_policy": 5.068289359434266,
+      "bridge_dt_s": {
+        "p50": 0.0028468479995353846,
+        "p99": 0.005924070400033087,
+        "max": 0.0070748480002293945,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.000797568,
+      "max_cmd_age_s": 0.018630272,
+      "max_imu_age_s": 0.000797568,
+      "window_end_to_sit_s": 1.0038225919997785
+    },
+    "policy_exit": {
+      "exit": "deadman_release",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2371,
+      "t_policy_last_ns": 7166917327008,
+      "t_release_obs_ns": 7166921128960,
+      "t_release_rx_ns": 7166920761248,
+      "t_zero_ns": 7166921128960,
+      "stop_latency_s": 0.0,
+      "release_window_s": 0.003801952,
+      "release_rx_to_zero_s": 0.000367712,
+      "policy_episode_s": 2.679496928,
+      "first_post_policy": {
+        "tick": 2373,
+        "mode": "hold",
+        "estop_value": true,
+        "hold_cause": "policy_abort:external_estop",
+        "estop_age_s": 0.000367712
+      }
+    },
+    "stand": {
+      "settle_window_ok": false,
+      "refusal": "G: settled window is 0.68 s over 201 tick(s), need >= 2.0 s (1.0 s after the kp blend)"
+    },
+    "setup": null,
+    "operator_aborted": true,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 12,
+    "arm": "A",
+    "slot": "G",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/G1_20261020T201401Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 41.0,
+      "power_v_median": 28.25136375427246
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 5464,
+      "n_policy_ticks": 1410,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 17.213287246865406,
+      "max_tilt_deg_policy": 4.156231861866987,
+      "bridge_dt_s": {
+        "p50": 0.0029590080002890318,
+        "p99": 0.006098275839804046,
+        "max": 0.008154399999511952,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.000957248,
+      "max_cmd_age_s": 0.024000352,
+      "max_imu_age_s": 0.000957248,
+      "window_end_to_sit_s": 1.004956767999829
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2987,
+      "t_policy_last_ns": 7237095889024,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 4.995788192,
+      "first_post_policy": {
+        "tick": 2989,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.004187488
+      }
+    },
+    "stand": {
+      "settle_window_ok": true,
+      "window_s": 2.991465504,
+      "calf_sag_median": 0.13939815759658813,
+      "calf_sag_mean": 0.13937996769064814,
+      "calf_sag_per_joint": {
+        "FL_calf_joint": 0.15111732482910156,
+        "FR_calf_joint": 0.1676405668258667,
+        "RL_calf_joint": 0.09783732891082764,
+        "RR_calf_joint": 0.14099740982055664
+      },
+      "dq_rms_max_calf": 0.024597756031379883,
+      "dq_rms_max_all": 0.04258738082206037,
+      "max_tilt_deg": 2.298582480581807,
+      "osc_frac_4_15hz": 0.15294582504773402
+    },
+    "setup": null,
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 12,
+    "arm": "A",
+    "slot": "vx03_4s",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/W_vx03_4s_20261020T201500Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [
+      {
+        "set": {
+          "tape_fwd_m": 0.8191
+        },
+        "was": {
+          "tape_fwd_m": null
+        },
+        "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 32 in, left 32.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+      }
+    ],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 40.0,
+      "power_v_median": 28.207096099853516
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 8782,
+      "n_policy_ticks": 3771,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:authority_window_complete"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 15.730848148465157,
+      "max_tilt_deg_policy": 4.229588252250083,
+      "bridge_dt_s": {
+        "p50": 0.003029455999694619,
+        "p99": 0.004300146239957013,
+        "max": 0.007139456000004429,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.00101904,
+      "max_cmd_age_s": 0.04583536,
+      "max_imu_age_s": 0.00101904,
+      "window_end_to_sit_s": 1.0059975039994242
+    },
+    "policy_exit": {
+      "exit": "planned_end",
+      "problems": [],
+      "authority_s": 13.0,
+      "k_policy_last": 5338,
+      "t_policy_last_ns": 7284144245088,
+      "t_release_obs_ns": null,
+      "t_release_rx_ns": null,
+      "t_zero_ns": null,
+      "stop_latency_s": null,
+      "release_window_s": null,
+      "release_rx_to_zero_s": null,
+      "policy_episode_s": 12.994108352,
+      "first_post_policy": {
+        "tick": 5340,
+        "mode": "hold",
+        "estop_value": false,
+        "hold_cause": "policy_abort:authority_window_complete",
+        "estop_age_s": 0.021048288
+      }
+    },
+    "walk": {
+      "quat_norm_minmax": [
+        0.9999999470150923,
+        1.000000225472386
+      ],
+      "commanded_yaw_deg": 0.0,
+      "commanded_fwd_m": 1.1999591430695595,
+      "imu_yaw_deg": 1.3624763143546845,
+      "gyro_yaw_deg": 0.7724629055966511,
+      "policy_dt_s": {
+        "p99": 0.022275579200158966,
+        "max": 0.047269087999666226,
+        "n_gt_30ms": 1
+      },
+      "yaw_drift_deg": 1.3624763143546845,
+      "F": 0.682606574341105,
+      "tape_lat_m": null,
+      "odom_fwd_m": null,
+      "odom_leg_kind": "ESTIMATE: kinematic leg odometry, no slip; not a measurement",
+      "odom_leg_fwd_m": 0.6907450305305809,
+      "odom_leg_lat_m": 0.013976757599659193,
+      "F_odom": 0.5756404578606054,
+      "odom_leg_speed_rmse_mps": 0.12380454936423192,
+      "odom_leg_speed_mean_mps": 0.1584877892125306
+    },
+    "tracking": {
+      "n": 1320,
+      "rms_err_hip": 0.07504375550438619,
+      "swing_ratio_hip": 0.5979357637206681,
+      "rms_err_thigh": 0.09180036835019582,
+      "swing_ratio_thigh": 1.524767733964652,
+      "rms_err_calf": 0.2569773255286488,
+      "swing_ratio_calf": 0.47221696660288637
+    },
+    "setup": "floor",
+    "operator_aborted": false,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  },
+  {
+    "block": 12,
+    "arm": "A",
+    "slot": "stop_drill",
+    "attempt": 1,
+    "physical_attempt": 1,
+    "run_dir": "logs/hw_sessions/20261020_228555e8443b_abc12_2026-10-18_abA/G1_20261020T201550Z",
+    "answers_entered_by": "driver_relaying_operator",
+    "corrections": [],
+    "operator_remote_judgement": "yes",
+    "battery": {
+      "soc_pre_pct": 40.0,
+      "power_v_median": 28.224802017211914
+    },
+    "measured_arm": "A",
+    "bridge": {
+      "n_ticks": 5064,
+      "n_policy_ticks": 557,
+      "one_policy_episode": true,
+      "lowstate_fresh_all_policy": true,
+      "faults": [
+        "bridge_shutdown",
+        "estop_asserted",
+        "policy_abort:external_estop"
+      ],
+      "abnormal_faults": [],
+      "end_reason": "sigint",
+      "slew_clip_ticks_policy": 0,
+      "limit_clip_ticks_policy": 0,
+      "min_torque_margin_nm": 16.291784020685558,
+      "max_tilt_deg_policy": 4.618420633221286,
+      "bridge_dt_s": {
+        "p50": 0.00283227199997782,
+        "p99": 0.005931239679675856,
+        "max": 0.007036127999526798,
+        "n_gt_10ms": 0
+      },
+      "max_lowstate_age_s": 0.00086176,
+      "max_cmd_age_s": 0.019309664,
+      "max_imu_age_s": 0.00086176,
+      "window_end_to_sit_s": 1.0056386879996353
+    },
+    "policy_exit": {
+      "exit": "deadman_release",
+      "problems": [],
+      "authority_s": 5.0,
+      "k_policy_last": 2077,
+      "t_policy_last_ns": 7325944651648,
+      "t_release_obs_ns": 7325948311648,
+      "t_release_rx_ns": 7325947898112,
+      "t_zero_ns": 7325948311648,
+      "stop_latency_s": 0.0,
+      "release_window_s": 0.00366,
+      "release_rx_to_zero_s": 0.000413536,
+      "policy_episode_s": 1.97405664,
+      "first_post_policy": {
+        "tick": 2079,
+        "mode": "hold",
+        "estop_value": true,
+        "hold_cause": "estop_asserted",
+        "estop_age_s": 0.000413536
+      }
+    },
+    "stand": {
+      "settle_window_ok": false,
+      "refusal": "G: no policy ticks 1.0 s after the end of the kp blend"
+    },
+    "setup": null,
+    "operator_aborted": true,
+    "aborted_from_logs": false,
+    "operator_log_discrepancy": null,
+    "safety_event": false,
+    "valid": true,
+    "why": []
+  }
+]
