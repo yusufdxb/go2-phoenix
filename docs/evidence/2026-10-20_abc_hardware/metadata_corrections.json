@@ -1,0 +1,87 @@
+[
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b1_vx03_4s_20261020T194306Z.log",
+    "set": {
+      "tape_fwd_m": 0.8128
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 33 in, left 31 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b2_vx03_4s_20261020T194558Z.log",
+    "set": {
+      "tape_fwd_m": 1.1938,
+      "tape_lat_m": 0.0508
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 47 in, left 47 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b3_vx03_4s_20261020T194911Z.log",
+    "set": {
+      "tape_fwd_m": 1.2446
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 49 in, left 49 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b4_vx03_4s_20261020T195256Z.log",
+    "set": {
+      "tape_fwd_m": 0.8065
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 32.5 in, left 31 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b5_vx03_4s_20261020T195536Z.log",
+    "set": {
+      "tape_fwd_m": 1.2319
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 48.5 in, left 48.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b6_vx03_4s_20261020T195812Z.log",
+    "set": {
+      "tape_fwd_m": 1.2002
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 47 in, left 47.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b7_vx03_4s_20261020T200149Z.log",
+    "set": {
+      "tape_fwd_m": 1.2382
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 48.5 in, left 49 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b8_vx03_4s_20261020T200424Z.log",
+    "set": {
+      "tape_fwd_m": 1.1938
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 47 in, left 47 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b9_vx03_4s_20261020T200703Z.log",
+    "set": {
+      "tape_fwd_m": 0.8128
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (legs [32.5, 31.5] in (not stated (likely right 32.5, left 31.5)); mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b10_vx03_4s_20261020T200910Z.log",
+    "set": {
+      "tape_fwd_m": 1.1811
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 46.5 in, left 46.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b11_vx03_4s_20261020T201205Z.log",
+    "set": {
+      "tape_fwd_m": 1.2382
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 49 in, left 48.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  },
+  {
+    "harness_log": "logs/gantry_ab/20261020_228555e8443b_abc12_2026-10-18/harness_b12_vx03_4s_20261020T201449Z.log",
+    "set": {
+      "tape_fwd_m": 0.8191
+    },
+    "reason": "2026-10-20: operator tape read at the robot and relayed verbally after the run (right 32 in, left 32.5 in; mean of the two foot marks, inches x 0.0254); the driver left the TAPE prompt empty. touched=false was defaulted by the run driver, not answered by the operator."
+  }
+]

@@ -1,6 +1,6 @@
 # Evidence Index
 
-Last reviewed: 2026-09-30 (legacy sim slew metric and single-cause Gate-7 attribution marked superseded). This page exists so a reviewer can see, at a glance,
+Last reviewed: 2026-11-17 (A/B/C walking trial and first MARK hardware runs added; Gate 8 forward-walking criterion met on one command). This page exists so a reviewer can see, at a glance,
 what is **verified by reproducible artifact**, what is **inferred from
 indirect evidence**, and what is **not yet validated** in this repo. If a
 claim in the README is not listed here as Verified, treat it as Inferred or
@@ -30,6 +30,23 @@ Claims with a reproducible artifact in this repo or a captured log.
   implementation and the model binaries are not public. Evidence and limits:
   [docs/evidence/2026-10-17_friction_model/](docs/evidence/2026-10-17_friction_model/README.md).
 
+- **A/B/C walking trial on the physical GO2 (2026-10-20, preregistered)**: incumbent (A)
+  against the two friction-aware retrains (B: around the measured friction; C: broad
+  0-1.6 N m), 12 balanced blocks on a free floor, 0.3 m/s for 4 s (1.20 m commanded),
+  every walk taped. Forward fraction (tape / commanded): A 0.677, B 0.994, C 1.032;
+  exact permutation p = 0.029 for B and for C against A (n = 4 per arm). C also cut
+  heading drift from 1.48 to 0.20 deg. MuJoCo predicted the same ordering (0.54, 0.84,
+  0.98). No safety latch fired in 26 valid trials; the bridge was the only `/lowcmd`
+  publisher in all 43 logs. One command, one floor, one day. Evidence, deviations and
+  limits: [`docs/evidence/2026-10-20_abc_hardware/`](docs/evidence/2026-10-20_abc_hardware/README.md).
+- **MARK on the physical GO2 (2026-11-05)**: three full stand-MARK runs (scripted
+  stand-up, walker hold, learned weight shift and rear-right leg lift, blend back,
+  sit), verdict GO, no falls, 0 control-loop overruns, policy step p99 under 1.8 ms.
+  Two runs used the new tall stance for the first time: 0.341 m against a 0.343 m
+  target, leg raised about 80 mm, max tilt under 5 deg (estimated from joint angles).
+  The walker-to-MARK switch still carries a joint-acceleration spike. Code and MARK
+  training are on development branches. Evidence:
+  [`docs/evidence/2026-11-05_mark_hardware/`](docs/evidence/2026-11-05_mark_hardware/README.md).
 - **236 unit tests green in CI**: `pytest tests -m "not sim and not ros"`
   (re-measured 2026-09-30 on `main` with the CI command in a clean Python 3.10
   venv with `.[dev,real]`, no torch: 236 passed, 5 skipped, 4 deselected). Coverage
@@ -133,10 +150,9 @@ true**.
   the <5% gate are legacy-metric and superseded (see Verified above), and the
   cause of the 2026-04-21 saturation is pending an ablation, so the sim-side
   blocker is not shown to be resolved. Live hardware retry still owed (the dev workstation now goes to the lab; no T7 staging).
-- **Gate 8**: walking that tracks the command on the real GO2. First walking commands ran
-  (2026-10-07) and under-track. The friction-aware retrain exists in simulation (see Verified);
-  the preregistered hardware comparison of the incumbent and the two retrained policies has
-  not been performed.
+- **Gate 8 beyond one forward command**: the friction-aware retrains walked the full
+  commanded distance forward on hardware (see Verified, 2026-10-20), but turns, faster
+  commands and a second floor surface have not been tested on the robot.
 - **Friction under load**: the 1.25-1.5x factor that makes the replay match is a
   hypothesis (friction measured unloaded, legs hanging); not measured.
 - **Failure-curriculum adaptation against real-robot parquets.**
